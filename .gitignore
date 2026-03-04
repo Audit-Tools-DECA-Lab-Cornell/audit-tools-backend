@@ -36,3 +36,4 @@ skills-lock.json
 neon-postgres/
 .agents/
 
+.DS_Store

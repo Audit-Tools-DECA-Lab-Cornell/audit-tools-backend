@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.fastapi import GraphQLRouter
 
+from app.auth import router as auth_router
 from app.database import dispose_engine, get_async_session
 from app.schema import GraphQLContext, schema
 
@@ -31,15 +32,23 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=lifespan)
 
+app.include_router(auth_router)
+
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+def health() -> dict[str, str]:
     """Simple health check endpoint."""
 
     return {"status": "ok"}
 
 
-async def get_graphql_context(
+@app.get("/")
+def root() -> dict[str, str]:
+    """Root endpoint."""
+
+    return {"status": "ok"}
+
+def get_graphql_context(
     session: AsyncSession = Depends(get_async_session),
 ) -> GraphQLContext:
     """

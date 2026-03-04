@@ -1,0 +1,309 @@
+{
+  "info": {
+    "_postman_id": "3f3cfe6a-9dd5-4a39-8dbd-1eaf10d4a7f6",
+    "name": "Audit Tools Backend",
+    "description": "Postman collection to validate the dummy REST auth endpoints.\n\nEndpoints covered:\n- GET /health\n- POST /auth/signup (always succeeds)\n- POST /auth/login (always succeeds)\n\nThis collection intentionally does not test real auth security (no JWT verification, no password checks) because the backend endpoints are scaffolding only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/health",
+        "description": "Simple health check. Expects {\"status\":\"ok\"}."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "/**",
+              " * Health endpoint tests.",
+              " *",
+              " * Validates the service is reachable and returns expected JSON shape.",
+              " */",
+              "",
+              "pm.test(\"Status code is 200\", () => {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "let json = null;",
+              "try {",
+              "  json = pm.response.json();",
+              "} catch (err) {",
+              "  json = null;",
+              "}",
+              "",
+              "pm.test(\"Response is JSON\", () => {",
+              "  pm.expect(json).to.be.an(\"object\");",
+              "});",
+              "",
+              "if (json) {",
+              "  pm.test(\"status is ok\", () => {",
+              "    pm.expect(json.status).to.eql(\"ok\");",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Dummy auth endpoints. These always approve credentials and return a deterministic token: dummy-token-{user.id}.",
+      "item": [
+        {
+          "name": "Signup (dummy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"name\": \"{{name}}\",\n  \"account_type\": \"{{accountType}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/signup",
+            "description": "Dummy signup. Always returns 201 and an AuthResponse with a deterministic token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "/**",
+                  " * Dummy signup tests.",
+                  " *",
+                  " * Validates status code, response shape, and deterministic token format.",
+                  " * Saves values for subsequent requests in collection variables.",
+                  " */",
+                  "",
+                  "pm.test(\"Status code is 201\", () => {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "let json = null;",
+                  "try {",
+                  "  json = pm.response.json();",
+                  "} catch (err) {",
+                  "  json = null;",
+                  "}",
+                  "",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.expect(json).to.be.an(\"object\");",
+                  "});",
+                  "",
+                  "if (json) {",
+                  "  /** @type {string} */",
+                  "  const emailRaw = `${pm.variables.get(\"email\")}`;",
+                  "  /** @type {string} */",
+                  "  const expectedEmail = emailRaw.trim().toLowerCase();",
+                  "  /** @type {string} */",
+                  "  const expectedAccountType = `${pm.variables.get(\"accountType\")}`;",
+                  "",
+                  "  pm.test(\"token_type is bearer\", () => {",
+                  "    pm.expect(json.token_type).to.eql(\"bearer\");",
+                  "  });",
+                  "",
+                  "  pm.test(\"user.email is normalized\", () => {",
+                  "    pm.expect(json.user).to.be.an(\"object\");",
+                  "    pm.expect(json.user.email).to.eql(expectedEmail);",
+                  "  });",
+                  "",
+                  "  pm.test(\"user.account_type matches request\", () => {",
+                  "    pm.expect(json.user.account_type).to.eql(expectedAccountType);",
+                  "  });",
+                  "",
+                  "  pm.test(\"user.id looks like a UUID\", () => {",
+                  "    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+                  "    pm.expect(uuidRegex.test(json.user.id)).to.eql(true);",
+                  "  });",
+                  "",
+                  "  pm.test(\"access_token is dummy-token-{user.id}\", () => {",
+                  "    pm.expect(json.access_token).to.eql(`dummy-token-${json.user.id}`);",
+                  "  });",
+                  "",
+                  "  pm.test(\"expires_at is a valid future date\", () => {",
+                  "    const expiresAt = new Date(json.expires_at);",
+                  "    pm.expect(Number.isNaN(expiresAt.getTime())).to.eql(false);",
+                  "    pm.expect(expiresAt.getTime()).to.be.above(Date.now());",
+                  "  });",
+                  "",
+                  "  pm.collectionVariables.set(\"accessToken\", json.access_token);",
+                  "  pm.collectionVariables.set(\"userId\", json.user.id);",
+                  "  pm.collectionVariables.set(\"normalizedEmail\", json.user.email);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (dummy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Dummy login. Always returns 200 and an AuthResponse with a deterministic token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "/**",
+                  " * Dummy login tests.",
+                  " *",
+                  " * Validates status code, response shape, and that login returns the same",
+                  " * deterministic user.id as signup for the same email.",
+                  " */",
+                  "",
+                  "pm.test(\"Status code is 200\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "let json = null;",
+                  "try {",
+                  "  json = pm.response.json();",
+                  "} catch (err) {",
+                  "  json = null;",
+                  "}",
+                  "",
+                  "pm.test(\"Response is JSON\", () => {",
+                  "  pm.expect(json).to.be.an(\"object\");",
+                  "});",
+                  "",
+                  "if (json) {",
+                  "  /** @type {string} */",
+                  "  const emailRaw = `${pm.variables.get(\"email\")}`;",
+                  "  /** @type {string} */",
+                  "  const expectedEmail = emailRaw.trim().toLowerCase();",
+                  "",
+                  "  pm.test(\"token_type is bearer\", () => {",
+                  "    pm.expect(json.token_type).to.eql(\"bearer\");",
+                  "  });",
+                  "",
+                  "  pm.test(\"user.email is normalized\", () => {",
+                  "    pm.expect(json.user).to.be.an(\"object\");",
+                  "    pm.expect(json.user.email).to.eql(expectedEmail);",
+                  "  });",
+                  "",
+                  "  pm.test(\"user.account_type is a known value\", () => {",
+                  "    const allowed = [\"MANAGER\", \"AUDITOR\"];",
+                  "    pm.expect(allowed).to.include(json.user.account_type);",
+                  "  });",
+                  "",
+                  "  pm.test(\"access_token is dummy-token-{user.id}\", () => {",
+                  "    pm.expect(json.access_token).to.eql(`dummy-token-${json.user.id}`);",
+                  "  });",
+                  "",
+                  "  pm.test(\"expires_at is a valid future date\", () => {",
+                  "    const expiresAt = new Date(json.expires_at);",
+                  "    pm.expect(Number.isNaN(expiresAt.getTime())).to.eql(false);",
+                  "    pm.expect(expiresAt.getTime()).to.be.above(Date.now());",
+                  "  });",
+                  "",
+                  "  /** @type {string | undefined} */",
+                  "  const signupUserId = pm.collectionVariables.get(\"userId\");",
+                  "  if (signupUserId) {",
+                  "    pm.test(\"user.id matches signup user.id\", () => {",
+                  "      pm.expect(json.user.id).to.eql(signupUserId);",
+                  "    });",
+                  "  }",
+                  "",
+                  "  pm.collectionVariables.set(\"accessToken\", json.access_token);",
+                  "  pm.collectionVariables.set(\"userId\", json.user.id);",
+                  "  pm.collectionVariables.set(\"normalizedEmail\", json.user.email);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://audit-tools-backend.onrender.com",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "Postman.User@Example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "name",
+      "value": "Postman Test User",
+      "type": "string"
+    },
+    {
+      "key": "accountType",
+      "value": "MANAGER",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "normalizedEmail",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
+
