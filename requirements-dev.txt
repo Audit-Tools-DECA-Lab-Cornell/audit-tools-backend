@@ -1,0 +1,9 @@
+# Development-only dependencies.
+#
+# Keep runtime dependencies in `requirements.txt`.
+
+pytest
+httpx
+ruff
+pre-commit
+
