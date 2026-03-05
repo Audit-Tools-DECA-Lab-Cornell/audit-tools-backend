@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.fastapi import GraphQLRouter
 
 from app.auth import router as auth_router
-from app.database import dispose_engine, get_async_session
+from app.database import dispose_engines, get_async_session_playsafe, get_async_session_yee
 from app.schema import GraphQLContext, schema
 
 
@@ -27,12 +27,14 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """
 
     yield
-    await dispose_engine()
+    await dispose_engines()
 
 
 app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=lifespan)
 
-app.include_router(auth_router)
+# Product-scoped REST routes (dummy auth for now).
+app.include_router(auth_router, prefix="/yee")
+app.include_router(auth_router, prefix="/playsafe")
 
 
 @app.get("/health")
@@ -48,21 +50,36 @@ def root() -> dict[str, str]:
 
     return {"status": "ok"}
 
-def get_graphql_context(
-    session: AsyncSession = Depends(get_async_session),
+def get_graphql_context_yee(
+    session: AsyncSession = Depends(get_async_session_yee),
 ) -> GraphQLContext:
     """
     Provide Strawberry with a per-request context.
 
-    FastAPI will create/cleanup the `AsyncSession` via `get_async_session()`.
+    FastAPI will create/cleanup the `AsyncSession` via `get_async_session_yee()`.
     """
 
     return GraphQLContext(session=session)
 
+def get_graphql_context_playsafe(
+    session: AsyncSession = Depends(get_async_session_playsafe),
+) -> GraphQLContext:
+    """
+    Provide Strawberry with a per-request context.
 
-graphql_router: GraphQLRouter = GraphQLRouter(
+    FastAPI will create/cleanup the `AsyncSession` via `get_async_session_playsafe()`.
+    """
+
+    return GraphQLContext(session=session)
+
+yee_graphql_router: GraphQLRouter = GraphQLRouter(
     schema,
-    context_getter=get_graphql_context,
+    context_getter=get_graphql_context_yee,
+)
+playsafe_graphql_router: GraphQLRouter = GraphQLRouter(
+    schema,
+    context_getter=get_graphql_context_playsafe,
 )
 
-app.include_router(graphql_router, prefix="/graphql")
+app.include_router(yee_graphql_router, prefix="/yee/graphql")
+app.include_router(playsafe_graphql_router, prefix="/playsafe/graphql")

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "3f3cfe6a-9dd5-4a39-8dbd-1eaf10d4a7f6",
     "name": "Audit Tools Backend",
-    "description": "Postman collection to validate the dummy REST auth endpoints.\n\nEndpoints covered:\n- GET /health\n- POST /auth/signup (always succeeds)\n- POST /auth/login (always succeeds)\n\nThis collection intentionally does not test real auth security (no JWT verification, no password checks) because the backend endpoints are scaffolding only.",
+    "description": "Postman collection to validate the dummy REST auth endpoints.\n\nEndpoints covered:\n- GET /health\n- POST /{product}/auth/signup (always succeeds)\n- POST /{product}/auth/login (always succeeds)\n\nSet the `product` collection variable to `yee` or `playsafe`.\n\nThis collection intentionally does not test real auth security (no JWT verification, no password checks) because the backend endpoints are scaffolding only.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -83,7 +83,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/auth/signup",
+            "url": "{{baseUrl}}/{{product}}/auth/signup",
             "description": "Dummy signup. Always returns 201 and an AuthResponse with a deterministic token."
           },
           "event": [
@@ -182,7 +182,7 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/auth/login",
+            "url": "{{baseUrl}}/{{product}}/auth/login",
             "description": "Dummy login. Always returns 200 and an AuthResponse with a deterministic token."
           },
           "event": [
@@ -287,6 +287,11 @@
     {
       "key": "accountType",
       "value": "MANAGER",
+      "type": "string"
+    },
+    {
+      "key": "product",
+      "value": "yee",
       "type": "string"
     },
     {

@@ -29,7 +29,7 @@ class SignupRequest(BaseModel):
 
     Notes:
     - `password` is accepted but ignored (no hashing/verification yet).
-    - `account_type` is optional so clients can test both role flows early.
+    - `account_type` is optional so clients can test both account-type flows early.
     """
 
     email: str = Field(..., max_length=320)
@@ -135,7 +135,9 @@ async def signup(payload: SignupRequest) -> AuthResponse:
     Always returns a successful response and does not persist anything.
     """
 
-    chosen_account_type = payload.account_type if payload.account_type is not None else AccountType.MANAGER
+    chosen_account_type = (
+        payload.account_type if payload.account_type is not None else AccountType.MANAGER
+    )
 
     return _build_auth_response(
         email=payload.email,

@@ -17,7 +17,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from alembic import context
-from app.database import CONNECT_ARGS, DATABASE_URL, NORMALIZED_DATABASE_URL
+from app.database import ProductKey, get_database_url, normalize_postgres_sqlalchemy_url
 from app.models import Base
 
 config = context.config
@@ -28,14 +28,35 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def _set_sqlalchemy_url() -> None:
+def _resolve_product_key() -> ProductKey:
+    """
+    Resolve the target product database for this migration run.
+
+    Usage:
+      alembic -x product=yee upgrade head
+      alembic -x product=playsafe upgrade head
+    """
+
+    x_args = context.get_x_argument(as_dictionary=True)
+    raw_product = x_args.get("product", ProductKey.YEE.value)
+    normalized = raw_product.strip().lower()
+    try:
+        return ProductKey(normalized)
+    except ValueError as err:
+        allowed = ", ".join([p.value for p in ProductKey])
+        raise ValueError(f"Invalid product '{raw_product}'. Expected one of: {allowed}.") from err
+
+
+def _set_sqlalchemy_url(product: ProductKey) -> str:
     """
     Ensure Alembic uses the same database URL as the application.
 
     Alembic requires this value even when we override engine creation below.
     """
 
-    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    raw_url = get_database_url(product)
+    config.set_main_option("sqlalchemy.url", raw_url)
+    return raw_url
 
 
 def run_migrations_offline() -> None:
@@ -45,7 +66,8 @@ def run_migrations_offline() -> None:
     This configures the context with just a URL (no DBAPI connection).
     """
 
-    _set_sqlalchemy_url()
+    product = _resolve_product_key()
+    _set_sqlalchemy_url(product)
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -80,12 +102,14 @@ def _do_run_migrations(connection: Any) -> None:
 async def run_migrations_online() -> None:
     """Run migrations in 'online' mode using an async engine."""
 
-    _set_sqlalchemy_url()
+    product = _resolve_product_key()
+    raw_url = _set_sqlalchemy_url(product)
+    normalized_url, connect_args = normalize_postgres_sqlalchemy_url(raw_url)
 
     connectable: AsyncEngine = create_async_engine(
-        NORMALIZED_DATABASE_URL,
+        normalized_url,
         poolclass=pool.NullPool,
-        connect_args=CONNECT_ARGS,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:

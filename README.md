@@ -31,32 +31,20 @@ Create a local `.env` file for the app:
 cp .env.example .env
 ```
 
-Set `DATABASE_URL` in `.env` to your Neon connection string.
+Set product-specific database URLs in `.env`:
+
+- `DATABASE_URL_YEE` (Youth Enabling Environment)
+- `DATABASE_URL_PLAYSAFE` (Playsafe Play Value + Usability)
 
 You can paste Neon’s standard `postgresql://...` URL directly — `app/database.py` will normalize it for async SQLAlchemy and enable SSL.
 
-### Database (Postgres via Docker — optional)
-
-If you prefer a local database instead of Neon:
-
-```bash
-docker compose up -d
-```
-
-Then set `DATABASE_URL` in `.env` to the local Postgres URL (see `.env.example`).
-
 ### Migrations (Alembic)
 
-Generate an initial migration (after configuring Postgres):
+Apply migrations to each product database:
 
 ```bash
-alembic revision --autogenerate -m "initial"
-```
-
-Apply migrations:
-
-```bash
-alembic upgrade head
+alembic -x product=yee upgrade head
+alembic -x product=playsafe upgrade head
 ```
 
 ### Run the API (FastAPI)
@@ -81,12 +69,14 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 ### GraphQL
 
-- **Endpoint**: `http://127.0.0.1:8000/graphql`
+- **Endpoints**:
+  - `http://127.0.0.1:8000/yee/graphql`
+  - `http://127.0.0.1:8000/playsafe/graphql`
 - **Health check**: `http://127.0.0.1:8000/health`
 
 ### Database configuration
 
-For local development, copy `.env.example` to `.env`. The app reads `DATABASE_URL` from that file (or falls back to a local default in `app/database.py`).
+For local development, copy `.env.example` to `.env`. The app reads `DATABASE_URL_YEE` and `DATABASE_URL_PLAYSAFE` from that file (or falls back to local defaults in `app/database.py`).
 
 ### Useful commands
 

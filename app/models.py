@@ -42,7 +42,7 @@ class Base(DeclarativeBase):
 
 
 class AccountType(str, Enum):
-    """Application roles for `User`."""
+    """Account types for `User` (high-level access class)."""
 
     MANAGER = "MANAGER"
     AUDITOR = "AUDITOR"
