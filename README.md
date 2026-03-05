@@ -65,6 +65,20 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
+### Deploy (Render)
+
+Render requires your web service to **bind to** `0.0.0.0` and the port provided in `$PORT` (not `127.0.0.1`).
+
+- **Start command**:
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+- **Health check path**: `/health`
+- **Config**: a minimal `render.yaml` is included so you can deploy via a blueprint if you want.
+- **Docs**: [Render port binding](https://render.com/docs/web-services#port-binding)
+
 ### GraphQL
 
 - **Endpoint**: `http://127.0.0.1:8000/graphql`
