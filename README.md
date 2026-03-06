@@ -74,6 +74,13 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
   - `http://127.0.0.1:8000/playsafe/graphql`
 - **Health check**: `http://127.0.0.1:8000/health`
 
+### YEE REST API (MVP)
+
+- `GET /yee/instrument` -> returns normalized instrument/scoring metadata from the YEE QSF.
+- `POST /yee/audits/score` -> computes scores from responses without saving.
+- `POST /yee/audits` -> computes and saves a YEE submission.
+- `GET /yee/audits/{id}` -> fetches a saved YEE submission and score.
+
 ### Database configuration
 
 For local development, copy `.env.example` to `.env`. The app reads `DATABASE_URL_YEE` and `DATABASE_URL_PLAYSAFE` from that file (or falls back to local defaults in `app/database.py`).
@@ -92,4 +99,3 @@ Lint and auto-fix:
 ruff check . --fix
 ruff format .
 ```
-

@@ -305,3 +305,24 @@ class Audit(Base):
     instrument: Mapped[Instrument] = relationship(back_populates="audits")
     place: Mapped[Place] = relationship(back_populates="audits")
     auditor: Mapped[Auditor] = relationship(back_populates="audits")
+
+
+class YeeAuditSubmission(Base):
+    """Stored YEE audit submission with computed scores."""
+
+    __tablename__ = "yee_audit_submissions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    participant_info_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    total_score: Mapped[int] = mapped_column(nullable=False)
