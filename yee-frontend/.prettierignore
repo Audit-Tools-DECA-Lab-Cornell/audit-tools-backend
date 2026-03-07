@@ -1,8 +1,0 @@
-build/
-public/**.html
-public/**.json
-node_modules
-.next
-*.md
-.env
-.env.*
