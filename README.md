@@ -1,8 +1,25 @@
-## Audit Tools Backend (FastAPI + Strawberry + SQLAlchemy + Postgres)
+# Audit Tools Backend
 
-### Local setup (macOS + zsh)
+FastAPI backend for Audit Tools with product-scoped databases and routes:
+- YEE (Youth Enabling Environments)
+- Playsafe
 
-Create and activate a virtualenv:
+This guide is step-by-step for local setup and running.
+
+## 1. Prerequisites
+
+- Python `3.11+`
+- `pip`
+- PostgreSQL connection strings (Neon recommended)
+
+## 2. Clone and enter project
+
+```bash
+git clone https://github.com/pratyush1712/audit-tools-backend.git
+cd audit-tools-backend
+```
+
+## 3. Create Python environment
 
 ```bash
 python -m venv .venv
@@ -10,82 +27,108 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 ```
 
-Install runtime dependencies:
+Install runtime packages:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-Install developer tooling (linting/tests/pre-commit):
+Optional dev tools:
 
 ```bash
 python -m pip install -r requirements-dev.txt
 pre-commit install
 ```
 
-### Database (Neon — default)
+## 4. Configure environment variables
 
-Create a local `.env` file for the app:
+Create `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Set product-specific database URLs in `.env`:
+Set DB URLs inside `.env`:
 
-- `DATABASE_URL_YEE` (Youth Enabling Environment)
-- `DATABASE_URL_PLAYSAFE` (Playsafe Play Value + Usability)
+```env
+DATABASE_URL_YEE="postgresql://<user>:<password>@<host>/<yee_db>?sslmode=require&channel_binding=require"
+DATABASE_URL_PLAYSAFE="postgresql://<user>:<password>@<host>/<playsafe_db>?sslmode=require&channel_binding=require"
+```
 
-You can paste Neon’s standard `postgresql://...` URL directly — `app/database.py` will normalize it for async SQLAlchemy and enable SSL.
+Notes:
+- `DATABASE_URL_YEE` powers `/yee/*`
+- `DATABASE_URL_PLAYSAFE` powers `/playsafe/*`
+- Legacy `DATABASE_URL` still works as a fallback for YEE only
 
-### Migrations (Alembic)
+## 5. Run migrations
 
-Apply migrations to each product database:
+Run YEE migrations:
 
 ```bash
 alembic -x product=yee upgrade head
+```
+
+Run Playsafe migrations:
+
+```bash
 alembic -x product=playsafe upgrade head
 ```
 
-### Run the API (FastAPI)
+## 6. Start backend
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-### Deploy (Render)
+Backend runs at:
+- `http://127.0.0.1:8000`
+- Health check: `http://127.0.0.1:8000/health`
 
-Render requires your web service to **bind to** `0.0.0.0` and the port provided in `$PORT` (not `127.0.0.1`).
+## 7. Verify API quickly
 
-- **Start command**:
+### YEE REST
+
+- `GET /yee/instrument`
+- `POST /yee/audits/score`
+- `POST /yee/audits`
+- `GET /yee/audits/{id}`
+
+Example:
 
 ```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+curl http://127.0.0.1:8000/yee/instrument
 ```
-
-- **Health check path**: `/health`
-- **Config**: a minimal `render.yaml` is included so you can deploy via a blueprint if you want.
-- **Docs**: [Render port binding](https://render.com/docs/web-services#port-binding)
 
 ### GraphQL
 
-- **Endpoints**:
-  - `http://127.0.0.1:8000/yee/graphql`
-  - `http://127.0.0.1:8000/playsafe/graphql`
-- **Health check**: `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/yee/graphql`
+- `http://127.0.0.1:8000/playsafe/graphql`
 
-### YEE REST API (MVP)
+## 8. YEE frontend (separate repo)
 
-- `GET /yee/instrument` -> returns normalized instrument/scoring metadata from the YEE QSF.
-- `POST /yee/audits/score` -> computes scores from responses without saving.
-- `POST /yee/audits` -> computes and saves a YEE submission.
-- `GET /yee/audits/{id}` -> fetches a saved YEE submission and score.
+YEE frontend is intentionally split into its own repository:
+- https://github.com/Andisha2004/audit-tools-yee-frontend
 
-### Database configuration
+Run it separately (while backend is running):
 
-For local development, copy `.env.example` to `.env`. The app reads `DATABASE_URL_YEE` and `DATABASE_URL_PLAYSAFE` from that file (or falls back to local defaults in `app/database.py`).
+```bash
+cd /path/to/audit-tools-yee-frontend
+npm install
+npm run dev
+```
 
-### Useful commands
+## 9. Common issues
+
+### `role "postgres" does not exist`
+Your `.env` is missing product DB URLs, so it falls back to local postgres defaults.
+
+### `Can't locate revision identified by ...`
+Your DB `alembic_version` does not match local migration files. Pull latest repo and rerun migrations.
+
+### Frontend shows `Failed to load instrument`
+Make sure backend is running on `127.0.0.1:8000` and `GET /yee/instrument` works directly.
+
+## 10. Useful commands
 
 Run tests:
 
@@ -93,9 +136,19 @@ Run tests:
 pytest
 ```
 
-Lint and auto-fix:
+Lint/format:
 
 ```bash
 ruff check . --fix
 ruff format .
 ```
+
+## Deploy (Render)
+
+Start command:
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Use `/health` as health check path.
