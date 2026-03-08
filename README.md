@@ -1,5 +1,12 @@
 ## Audit Tools Backend (FastAPI + Strawberry + SQLAlchemy + Postgres)
 
+### Client channels and role intent
+
+- **YEE mobile app**: mobile workflow for auditors to complete assigned field audits
+  (offline-first).
+- **Manager workflows**: web experience for project/place configuration and management.
+- Backend role model supports both `MANAGER` and `AUDITOR`, while the mobile UX is designed for auditor field workflows.
+
 ### Local setup (macOS + zsh)
 
 Create and activate a virtualenv:
