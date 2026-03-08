@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.fastapi import GraphQLRouter
 
 from app.auth import router as auth_router
-from app.database import dispose_engines, get_async_session_playsafe, get_async_session_yee
+from app.database import dispose_engines, get_async_session_playspace, get_async_session_yee
 from app.schema import GraphQLContext, schema
 
 
@@ -34,7 +34,7 @@ app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=li
 
 # Product-scoped REST routes (dummy auth for now).
 app.include_router(auth_router, prefix="/yee")
-app.include_router(auth_router, prefix="/playsafe")
+app.include_router(auth_router, prefix="/playspace")
 
 
 @app.get("/health")
@@ -61,13 +61,13 @@ def get_graphql_context_yee(
 
     return GraphQLContext(session=session)
 
-def get_graphql_context_playsafe(
-    session: AsyncSession = Depends(get_async_session_playsafe),
+def get_graphql_context_playspace(
+    session: AsyncSession = Depends(get_async_session_playspace),
 ) -> GraphQLContext:
     """
     Provide Strawberry with a per-request context.
 
-    FastAPI will create/cleanup the `AsyncSession` via `get_async_session_playsafe()`.
+    FastAPI will create/cleanup the `AsyncSession` via `get_async_session_playspace()`.
     """
 
     return GraphQLContext(session=session)
@@ -76,10 +76,10 @@ yee_graphql_router: GraphQLRouter = GraphQLRouter(
     schema,
     context_getter=get_graphql_context_yee,
 )
-playsafe_graphql_router: GraphQLRouter = GraphQLRouter(
+playspace_graphql_router: GraphQLRouter = GraphQLRouter(
     schema,
-    context_getter=get_graphql_context_playsafe,
+    context_getter=get_graphql_context_playspace,
 )
 
 app.include_router(yee_graphql_router, prefix="/yee/graphql")
-app.include_router(playsafe_graphql_router, prefix="/playsafe/graphql")
+app.include_router(playspace_graphql_router, prefix="/playspace/graphql")

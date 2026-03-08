@@ -19,6 +19,7 @@ venv/
 # Env files (keep `.env.example` committed)
 .env.*
 !.env.example
+.env
 
 # IDE/editor
 .vscode/

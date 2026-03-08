@@ -34,7 +34,7 @@ def _resolve_product_key() -> ProductKey:
 
     Usage:
       alembic -x product=yee upgrade head
-      alembic -x product=playsafe upgrade head
+      alembic -x product=playspace upgrade head
     """
 
     x_args = context.get_x_argument(as_dictionary=True)

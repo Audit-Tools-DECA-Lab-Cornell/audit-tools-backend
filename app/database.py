@@ -8,7 +8,7 @@ This module provides:
 
 Product databases:
 - Youth Enabling Environment (YEE)
-- Playsafe Play Value and Usability (PLAYSAFE)
+- Playspace Play Value and Usability (PLAYSPACE)
 """
 
 from __future__ import annotations
@@ -34,11 +34,11 @@ class ProductKey(str, Enum):
     Product selector for routing requests to the correct database.
 
     We intentionally keep product keys short and URL-friendly because we mount
-    product-scoped endpoints (e.g. `/yee/graphql`, `/playsafe/graphql`).
+    product-scoped endpoints (e.g. `/yee/graphql`, `/playspace/graphql`).
     """
 
     YEE = "yee"
-    PLAYSAFE = "playsafe"
+    PLAYSPACE = "playspace"
 
 
 def _get_database_url(product: ProductKey) -> str:
@@ -47,7 +47,7 @@ def _get_database_url(product: ProductKey) -> str:
 
     Preferred: set product-specific URLs:
     - `DATABASE_URL_YEE`
-    - `DATABASE_URL_PLAYSAFE`
+    - `DATABASE_URL_PLAYSPACE`
 
     Example format:
       postgresql+asyncpg://user:password@localhost:5432/dbname
@@ -56,7 +56,7 @@ def _get_database_url(product: ProductKey) -> str:
     # NOTE: We intentionally do not read/print environment variables in terminal commands.
     # At runtime, your process environment can provide DATABASE_URL_* as needed.
     env_var = (
-        "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSAFE"
+        "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSPACE"
     )
     url = os.getenv(env_var)
     if url and url.strip():
@@ -69,7 +69,7 @@ def _get_database_url(product: ProductKey) -> str:
             return legacy_url.strip()
 
     # Practical local-development defaults. Change as appropriate for your setup.
-    default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playsafe"
+    default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
     return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
 
 def normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:
@@ -109,7 +109,7 @@ def normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, obje
 
 RAW_DATABASE_URL_BY_PRODUCT: dict[ProductKey, str] = {
     ProductKey.YEE: _get_database_url(ProductKey.YEE),
-    ProductKey.PLAYSAFE: _get_database_url(ProductKey.PLAYSAFE),
+    ProductKey.PLAYSPACE: _get_database_url(ProductKey.PLAYSPACE),
 }
 
 NORMALIZED_DATABASE_URL_BY_PRODUCT: dict[ProductKey, URL] = {}
@@ -161,10 +161,10 @@ async def get_async_session_yee() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def get_async_session_playsafe() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency that yields a Playsafe database session."""
+async def get_async_session_playspace() -> AsyncIterator[AsyncSession]:
+    """FastAPI dependency that yields a Playspace database session."""
 
-    async with ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.PLAYSAFE]() as session:
+    async with ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.PLAYSPACE]() as session:
         yield session
 
 
