@@ -21,7 +21,14 @@ from app.products.yee.routes import router as yee_shared_router
 from app.schema import GraphQLContext, schema
 
 # cors
-origins = ["http://localhost:3000", "http://localhost:8000", "http://localhost:8081"]
+origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://localhost:8081",
+    "https://audit-tools-backend.onrender.com",
+    "https://audit-tools-playsafe-frontend.vercel.app",
+    "https://audit-tools-playspace-frontend.vercel.app",
+]
 
 
 @asynccontextmanager
