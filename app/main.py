@@ -16,6 +16,8 @@ from strawberry.fastapi import GraphQLRouter
 
 from app.auth import router as auth_router
 from app.database import dispose_engines, get_async_session_playspace, get_async_session_yee
+from app.products.playspace.routes import router as playspace_shared_router
+from app.products.yee.routes import router as yee_shared_router
 from app.schema import GraphQLContext, schema
 
 # cors
@@ -39,6 +41,8 @@ app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=li
 # Product-scoped REST routes (dummy auth for now).
 app.include_router(auth_router, prefix="/yee")
 app.include_router(auth_router, prefix="/playspace")
+app.include_router(yee_shared_router, prefix="/yee")
+app.include_router(playspace_shared_router, prefix="/playspace")
 
 
 @app.get("/health")

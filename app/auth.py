@@ -145,6 +145,7 @@ async def signup(payload: SignupRequest) -> AuthResponse:
         account_type=chosen_account_type,
     )
 
+
 @router.post("/login")
 async def login(payload: LoginRequest) -> AuthResponse:
     """
@@ -158,4 +159,3 @@ async def login(payload: LoginRequest) -> AuthResponse:
         name=None,
         account_type=AccountType.MANAGER,
     )
-

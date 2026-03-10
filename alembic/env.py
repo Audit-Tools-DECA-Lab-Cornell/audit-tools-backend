@@ -1,10 +1,9 @@
 """
 Alembic environment configuration.
 
-This enables `alembic revision --autogenerate` and `alembic upgrade head`
-using the application's SQLAlchemy metadata.
-
-We use an async engine because the application uses async SQLAlchemy.
+This environment uses the shared SQLAlchemy metadata defined by `app.models`
+for both products. Each migration run still targets a single physical database
+through `-x product=yee` or `-x product=playspace`.
 """
 
 from __future__ import annotations

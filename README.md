@@ -54,6 +54,27 @@ alembic -x product=yee upgrade head
 alembic -x product=playspace upgrade head
 ```
 
+### Seed demo data
+
+Populate the shared-core dashboard hierarchy for both products:
+
+```bash
+./.venv/bin/python -m app.seed
+```
+
+Seed only one product database:
+
+```bash
+./.venv/bin/python -m app.seed --product yee
+./.venv/bin/python -m app.seed --product playspace
+```
+
+The seed script inserts deterministic accounts, manager profiles, projects,
+places, auditors, assignments, and audit shells. It also extracts lightweight
+instrument metadata from the current source files in `playspace/` and `yee/`
+and stores that metadata in seeded audit JSON fields as scaffolding for the
+later product-specific audit and scoring modules.
+
 ### Run the API (FastAPI)
 
 ```bash

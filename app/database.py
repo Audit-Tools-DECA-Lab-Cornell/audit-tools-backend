@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import (
 # Load environment variables from a local `.env` file (when present).
 load_dotenv(find_dotenv())
 
+
 class ProductKey(str, Enum):
     """
     Product selector for routing requests to the correct database.
@@ -41,13 +42,13 @@ class ProductKey(str, Enum):
     PLAYSPACE = "playspace"
 
 
-def _get_database_url(product: ProductKey) -> str:
+def _get_database_url(product: ProductKey, development: bool = True) -> str:
     """
     Resolve the database URL for a given product.
 
     Preferred: set product-specific URLs:
-    - `DATABASE_URL_YEE`
-    - `DATABASE_URL_PLAYSPACE`
+    - `DATABASE_URL_YEE` || `DEV_DATABASE_URL_YEE`
+    - `DATABASE_URL_PLAYSPACE` || `DEV_DATABASE_URL_PLAYSPACE`
 
     Example format:
       postgresql+asyncpg://user:password@localhost:5432/dbname
@@ -55,9 +56,10 @@ def _get_database_url(product: ProductKey) -> str:
 
     # NOTE: We intentionally do not read/print environment variables in terminal commands.
     # At runtime, your process environment can provide DATABASE_URL_* as needed.
-    env_var = (
-        "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSPACE"
-    )
+    # If development is True, use DEV_DATABASE_URL_*, otherwise use DATABASE_URL_*
+    env_var = f"{'DEV_' if development else ''}"
+    env_var += "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSPACE"
+
     url = os.getenv(env_var)
     if url and url.strip():
         return url.strip()
@@ -71,6 +73,7 @@ def _get_database_url(product: ProductKey) -> str:
     # Practical local-development defaults. Change as appropriate for your setup.
     default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
     return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
+
 
 def normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:
     """
