@@ -14,8 +14,10 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
+    Integer,
     MetaData,
     String,
     Text,
@@ -78,6 +80,34 @@ class User(Base):
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    email_verification_token_hash: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    email_verification_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     # Optional one-to-one link: an auditor profile can be associated to a user account.
     auditor_profile: Mapped[Auditor | None] = relationship(
