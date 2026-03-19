@@ -41,6 +41,8 @@ from app.models import (
     Audit,
     AuditorAssignment,
     AuditorProfile,
+    AuditorSignupRequest,
+    AuditorSignupRequestStatus,
     AuditStatus,
     ManagerProfile,
     Place,
@@ -89,6 +91,11 @@ YEE_AUDIT_PLAZA_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2")
 YEE_AUDIT_LIBRARY_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3")
 YEE_AUDIT_COMMONS_IN_PROGRESS_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4")
 
+PLAYSPACE_SIGNUP_REQUEST_01_ID = uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1")
+PLAYSPACE_SIGNUP_REQUEST_02_ID = uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2")
+YEE_SIGNUP_REQUEST_01_ID = uuid.UUID("ffffffff-ffff-4fff-8fff-fffffffffff1")
+YEE_SIGNUP_REQUEST_02_ID = uuid.UUID("ffffffff-ffff-4fff-8fff-fffffffffff2")
+
 
 def _utc_datetime(value: str) -> datetime:
     """Convert an ISO-ish timestamp string into a timezone-aware UTC datetime."""
@@ -107,6 +114,7 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
 
     for model in (
         Audit,
+        AuditorSignupRequest,
         AuditorAssignment,
         Place,
         Project,
@@ -359,6 +367,40 @@ def _build_playspace_entities() -> list[object]:
         ),
     ]
 
+    signup_requests = [
+        AuditorSignupRequest(
+            id=PLAYSPACE_SIGNUP_REQUEST_01_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            manager_email="amelia.carter@example.org",
+            email="zoe.martin@example.org",
+            full_name="Zoe Martin",
+            note=(
+                "I am available for after-school site visits and would like to help with the urban "
+                "playspace reviews."
+            ),
+            status=AuditorSignupRequestStatus.PENDING,
+            approved_auditor_profile_id=None,
+            assigned_project_id=None,
+            assigned_place_id=None,
+            requested_at=_utc_datetime("2026-03-10T09:20:00Z"),
+            reviewed_at=None,
+        ),
+        AuditorSignupRequest(
+            id=PLAYSPACE_SIGNUP_REQUEST_02_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            manager_email="noah.bennett@example.org",
+            email="isaac.wilson@example.org",
+            full_name="Isaac Wilson",
+            note="Interested in contributing to Christchurch fieldwork on weekends.",
+            status=AuditorSignupRequestStatus.PENDING,
+            approved_auditor_profile_id=None,
+            assigned_project_id=None,
+            assigned_place_id=None,
+            requested_at=_utc_datetime("2026-03-11T14:05:00Z"),
+            reviewed_at=None,
+        ),
+    ]
+
     audits = [
         Audit(
             id=DEMO_AUDIT_RIVERSIDE_ID,
@@ -472,6 +514,7 @@ def _build_playspace_entities() -> list[object]:
         *projects,
         *places,
         *assignments,
+        *signup_requests,
         *audits,
     ]
 
@@ -715,6 +758,37 @@ def _build_yee_entities() -> list[object]:
         ),
     ]
 
+    signup_requests = [
+        AuditorSignupRequest(
+            id=YEE_SIGNUP_REQUEST_01_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            manager_email="farah.khan@example.org",
+            email="nina.garcia@example.org",
+            full_name="Nina Garcia",
+            note="Interested in youth hub observations and community-space scoring work.",
+            status=AuditorSignupRequestStatus.PENDING,
+            approved_auditor_profile_id=None,
+            assigned_project_id=None,
+            assigned_place_id=None,
+            requested_at=_utc_datetime("2026-03-08T10:15:00Z"),
+            reviewed_at=None,
+        ),
+        AuditorSignupRequest(
+            id=YEE_SIGNUP_REQUEST_02_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            manager_email="jordan.alvarez@example.org",
+            email="ethan.moore@example.org",
+            full_name="Ethan Moore",
+            note="Available for follow-up plaza visits and evening check-ins.",
+            status=AuditorSignupRequestStatus.PENDING,
+            approved_auditor_profile_id=None,
+            assigned_project_id=None,
+            assigned_place_id=None,
+            requested_at=_utc_datetime("2026-03-10T16:40:00Z"),
+            reviewed_at=None,
+        ),
+    ]
+
     audits = [
         Audit(
             id=YEE_AUDIT_HUB_ID,
@@ -840,6 +914,7 @@ def _build_yee_entities() -> list[object]:
         *projects,
         *places,
         *assignments,
+        *signup_requests,
         *audits,
     ]
 
@@ -861,11 +936,13 @@ async def _seed_product(product: ProductKey) -> dict[str, int]:
     project_count = sum(1 for entity in entities if isinstance(entity, Project))
     place_count = sum(1 for entity in entities if isinstance(entity, Place))
     auditor_count = sum(1 for entity in entities if isinstance(entity, AuditorProfile))
+    signup_request_count = sum(1 for entity in entities if isinstance(entity, AuditorSignupRequest))
     return {
         "projects": project_count,
         "places": place_count,
         "auditors": auditor_count,
         "audits": audit_count,
+        "signup_requests": signup_request_count,
     }
 
 
@@ -899,7 +976,8 @@ async def _run() -> None:
             f"{summary['projects']} projects, "
             f"{summary['places']} places, "
             f"{summary['auditors']} auditors, "
-            f"{summary['audits']} audits",
+            f"{summary['audits']} audits, "
+            f"{summary['signup_requests']} signup requests",
         )
 
 

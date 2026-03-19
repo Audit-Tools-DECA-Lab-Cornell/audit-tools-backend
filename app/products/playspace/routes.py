@@ -13,15 +13,22 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import ActorContext, resolve_dummy_actor
+from app.core.auditor_signup_request_service import AuditorSignupRequestService
 from app.core.dashboard_service import SharedDashboardService
 from app.core.schemas import (
     AccountDetailResponse,
+    ApproveAuditorSignupRequestPayload,
+    AuditorCodeLoginResponse,
+    AuditorSignupApprovalResponse,
+    AuditorSignupRequestResponse,
     AuditorSummaryResponse,
+    CreateAuditorSignupRequestPayload,
     ManagerProfileResponse,
     PlaceSummaryResponse,
     ProjectDetailResponse,
     ProjectStatsResponse,
     ProjectSummaryResponse,
+    ValidateAuditorCodePayload,
 )
 from app.database import get_async_session_playspace
 
@@ -34,6 +41,38 @@ def _get_service(session: AsyncSession) -> SharedDashboardService:
     """Build a shared dashboard service for the current request."""
 
     return SharedDashboardService(session=session)
+
+
+def _get_request_service(session: AsyncSession) -> AuditorSignupRequestService:
+    """Build the shared signup-request workflow service for the current request."""
+
+    return AuditorSignupRequestService(session=session)
+
+
+@router.post("/auditor-code-login", response_model=AuditorCodeLoginResponse)
+async def validate_auditor_code(
+    payload: ValidateAuditorCodePayload,
+    session: AsyncSession = SESSION_DEPENDENCY,
+):
+    """Validate an auditor code before the web app creates its dummy session."""
+
+    service = _get_request_service(session=session)
+    return await service.validate_auditor_code(auditor_code=payload.auditor_code)
+
+
+@router.post(
+    "/auditor-signup-requests",
+    response_model=AuditorSignupRequestResponse,
+    status_code=201,
+)
+async def create_auditor_signup_request(
+    payload: CreateAuditorSignupRequestPayload,
+    session: AsyncSession = SESSION_DEPENDENCY,
+):
+    """Create a new auditor access request for manager review."""
+
+    service = _get_request_service(session=session)
+    return await service.create_request(payload=payload)
 
 
 @router.get("/accounts/{account_id}", response_model=AccountDetailResponse)
@@ -85,6 +124,63 @@ async def list_account_auditors(
 
     service = _get_service(session=session)
     return await service.list_account_auditors(actor=actor, account_id=account_id)
+
+
+@router.get(
+    "/accounts/{account_id}/auditor-signup-requests",
+    response_model=list[AuditorSignupRequestResponse],
+)
+async def list_auditor_signup_requests(
+    account_id: uuid.UUID,
+    actor: ActorContext = ACTOR_DEPENDENCY,
+    session: AsyncSession = SESSION_DEPENDENCY,
+):
+    """Return pending auditor access requests for the manager dashboard."""
+
+    service = _get_request_service(session=session)
+    return await service.list_pending_requests(actor=actor, account_id=account_id)
+
+
+@router.post(
+    "/accounts/{account_id}/auditor-signup-requests/{request_id}/approve",
+    response_model=AuditorSignupApprovalResponse,
+)
+async def approve_auditor_signup_request(
+    account_id: uuid.UUID,
+    request_id: uuid.UUID,
+    payload: ApproveAuditorSignupRequestPayload,
+    actor: ActorContext = ACTOR_DEPENDENCY,
+    session: AsyncSession = SESSION_DEPENDENCY,
+):
+    """Approve an auditor request once a project or place assignment is chosen."""
+
+    service = _get_request_service(session=session)
+    return await service.approve_request(
+        actor=actor,
+        account_id=account_id,
+        request_id=request_id,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/accounts/{account_id}/auditor-signup-requests/{request_id}/decline",
+    response_model=AuditorSignupRequestResponse,
+)
+async def decline_auditor_signup_request(
+    account_id: uuid.UUID,
+    request_id: uuid.UUID,
+    actor: ActorContext = ACTOR_DEPENDENCY,
+    session: AsyncSession = SESSION_DEPENDENCY,
+):
+    """Decline a pending auditor request."""
+
+    service = _get_request_service(session=session)
+    return await service.decline_request(
+        actor=actor,
+        account_id=account_id,
+        request_id=request_id,
+    )
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetailResponse)

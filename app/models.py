@@ -60,6 +60,14 @@ class AuditStatus(str, Enum):
     SUBMITTED = "SUBMITTED"
 
 
+class AuditorSignupRequestStatus(str, Enum):
+    """Lifecycle states for self-service auditor access requests."""
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    DECLINED = "DECLINED"
+
+
 JSONDict = dict[str, object]
 
 # Shared cascade configuration for parent -> child relationships.
@@ -352,6 +360,76 @@ class AuditorAssignment(Base):
     auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments")
     project: Mapped[Project | None] = relationship(back_populates="assignments")
     place: Mapped[Place | None] = relationship(back_populates="assignments")
+
+
+class AuditorSignupRequest(Base):
+    """
+    Pending or resolved auditor onboarding request.
+
+    The request becomes actionable on the manager dashboard when an auditor asks
+    for access without an invite or pre-issued code.
+    """
+
+    __tablename__ = "auditor_signup_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "assigned_project_id IS NULL OR assigned_place_id IS NULL",
+            name="ck_auditor_signup_requests_max_one_assignment",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    manager_email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[AuditorSignupRequestStatus] = mapped_column(
+        SAEnum(
+            AuditorSignupRequestStatus,
+            name="shared_auditor_signup_request_status",
+            create_type=False,
+        ),
+        default=AuditorSignupRequestStatus.PENDING,
+        nullable=False,
+    )
+    approved_auditor_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "auditor_profiles.id",
+            ondelete="SET NULL",
+            name="fk_signup_req_approved_auditor",
+        ),
+        index=True,
+        nullable=True,
+    )
+    assigned_project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    assigned_place_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Audit(Base):

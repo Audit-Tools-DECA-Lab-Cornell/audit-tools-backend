@@ -30,6 +30,7 @@ class ActorContext:
     role: ActorRole
     account_id: uuid.UUID | None
     auditor_code: str | None
+    manager_email: str | None
 
 
 def _parse_role(raw_value: str | None) -> ActorRole | None:
@@ -62,7 +63,17 @@ def _parse_uuid(raw_value: str | None) -> uuid.UUID | None:
         return None
 
 
-async def resolve_dummy_actor(request: Request) -> ActorContext:
+def _parse_email(raw_value: str | None) -> str | None:
+    """Normalize an email-like identifier and ignore empty values."""
+
+    if raw_value is None:
+        return None
+
+    candidate = raw_value.strip().lower()
+    return candidate if candidate else None
+
+
+def resolve_dummy_actor(request: Request) -> ActorContext:
     """
     Resolve a dummy actor from headers/cookies.
 
@@ -89,11 +100,17 @@ async def resolve_dummy_actor(request: Request) -> ActorContext:
     auditor_code = request.headers.get("x-demo-auditor-code") or request.cookies.get(
         "playspace_auditor_code",
     )
+    manager_email = _parse_email(
+        request.headers.get("x-demo-manager-email")
+        or request.cookies.get("playspace_manager_email")
+        or request.cookies.get("yee_manager_email"),
+    )
 
     return ActorContext(
         role=resolved_role,
         account_id=resolved_account_id,
         auditor_code=auditor_code,
+        manager_email=manager_email,
     )
 
 

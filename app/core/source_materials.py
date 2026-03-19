@@ -84,12 +84,12 @@ def build_yee_source_metadata() -> dict[str, object]:
     repo_root = _studentjob_root()
     instructions_path = (
         repo_root
-        / "yee"
         / "instructions"
+        / "yee"
         / "Instructions for viewing YEE Audit Tool questions and scoring.txt"
     )
-    pdf_path = repo_root / "yee" / "instructions" / "Youth Enabling Environments Audit Tool.pdf"
-    qsf_path = repo_root / "yee" / "instructions" / "Youth_Enabling_Environments_Audit_Tool.json"
+    pdf_path = repo_root / "instructions" / "yee" / "Youth Enabling Environments Audit Tool.pdf"
+    qsf_path = repo_root / "instructions" / "yee" / "Youth_Enabling_Environments_Audit_Tool.json"
 
     qsf_data = _load_json_dict(qsf_path)
     survey_entry = qsf_data.get("SurveyEntry")
@@ -221,7 +221,9 @@ def build_playspace_source_metadata() -> dict[str, object]:
     """Extract lightweight Playspace instrument metadata from the developer workbook."""
 
     repo_root = _studentjob_root()
-    workbook_path = repo_root / "playspace" / "PVUA tool Version 5.2 - for developers.xlsx"
+    workbook_path = (
+        repo_root / "instructions" / "playspace" / "PVUA tool Version 5.2 - for developers.xlsx"
+    )
     workbook_source_path = _normalize_source_path(workbook_path)
 
     with zipfile.ZipFile(workbook_path) as archive:

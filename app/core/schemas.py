@@ -12,18 +12,25 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import AccountType
 
 ProjectStatus = Literal["planned", "active", "completed"]
 PlaceActivityStatus = Literal["not_started", "in_progress", "submitted"]
+AuditorSignupRequestState = Literal["pending", "approved", "declined"]
 
 
 class ApiModel(BaseModel):
     """Base model with immutable, attribute-friendly serialization defaults."""
 
     model_config = ConfigDict(from_attributes=True, frozen=True)
+
+
+class RequestModel(BaseModel):
+    """Base model for write payloads with strict extra-field handling."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ManagerProfileResponse(ApiModel):
@@ -151,3 +158,69 @@ class PlaceSummaryResponse(ApiModel):
     audits_completed: int
     average_score: float | None
     last_audited_at: datetime | None
+
+
+class CreateAuditorSignupRequestPayload(RequestModel):
+    """Public payload used when an auditor requests access to an account."""
+
+    manager_email: str = Field(..., min_length=3, max_length=320)
+    full_name: str = Field(..., min_length=1, max_length=200)
+    email: str = Field(..., min_length=3, max_length=320)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class ApproveAuditorSignupRequestPayload(RequestModel):
+    """Manager payload used to approve a pending auditor request."""
+
+    project_id: uuid.UUID | None = None
+    place_id: uuid.UUID | None = None
+
+
+class ValidateAuditorCodePayload(RequestModel):
+    """Public payload used to validate an auditor code before sign-in."""
+
+    auditor_code: str = Field(..., min_length=1, max_length=50)
+
+
+class AuditorSignupRequestResponse(ApiModel):
+    """Serialized auditor signup request shown on manager dashboards."""
+
+    id: uuid.UUID
+    account_id: uuid.UUID
+    manager_email: str
+    full_name: str
+    email: str
+    note: str | None
+    status: AuditorSignupRequestState
+    requested_at: datetime
+    reviewed_at: datetime | None
+    assigned_project_id: uuid.UUID | None
+    assigned_place_id: uuid.UUID | None
+
+
+class ApprovedAuditorResponse(ApiModel):
+    """Auditor details returned after a manager approves a request."""
+
+    auditor_account_id: uuid.UUID
+    auditor_profile_id: uuid.UUID
+    auditor_code: str
+    full_name: str
+    assigned_project_id: uuid.UUID | None
+    assigned_project_name: str | None
+    assigned_place_id: uuid.UUID | None
+    assigned_place_name: str | None
+
+
+class AuditorSignupApprovalResponse(ApiModel):
+    """Approval result used to refresh the manager dashboard."""
+
+    request: AuditorSignupRequestResponse
+    approved_auditor: ApprovedAuditorResponse
+
+
+class AuditorCodeLoginResponse(ApiModel):
+    """Validated auditor code payload used by the dummy sign-in flow."""
+
+    account_id: uuid.UUID
+    auditor_profile_id: uuid.UUID
+    auditor_code: str
