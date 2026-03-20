@@ -348,6 +348,11 @@ class AuditorAssignment(Base):
         server_default=func.now(),
         nullable=False,
     )
+    audit_roles: Mapped[list[str]] = mapped_column(
+        ARRAY(String(40)),
+        default=lambda: ["auditor"],
+        nullable=False,
+    )
 
     auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments")
     project: Mapped[Project | None] = relationship(back_populates="assignments")
