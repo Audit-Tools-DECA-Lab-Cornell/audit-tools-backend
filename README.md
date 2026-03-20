@@ -2,6 +2,7 @@
 
 ### Client channels and role intent
 
+- **Playspace mobile app**: mobile workflow for auditors to complete assigned Playspace field audits with typed session payloads and raw score totals.
 - **YEE mobile app**: mobile workflow for auditors to complete assigned field audits
   (offline-first).
 - **Manager workflows**: web experience for project/place configuration and management.
@@ -71,15 +72,45 @@ Seed only one product database:
 ```
 
 The seed script inserts deterministic accounts, manager profiles, projects,
-places, auditors, assignments, and audit shells. It also extracts lightweight
-instrument metadata from the current source files in `playspace/` and `yee/`
-and stores that metadata in seeded audit JSON fields as scaffolding for the
-later product-specific audit and scoring modules.
+places, auditors, assignments, and audit records for both products.
+
+For Playspace specifically, the seed flow now:
+
+- builds realistic audit response payloads from the scoring metadata
+- hydrates normalized Playspace audit relations from those payloads
+- computes stored Playspace score totals from normalized rows
+- keeps `responses_json` and `scores_json` populated as transitional compatibility caches
+
+### Playspace storage and scoring notes
+
+Playspace audit execution now uses normalized product-specific tables:
+
+- `playspace_audit_contexts`
+- `playspace_pre_audit_answers`
+- `playspace_audit_sections`
+- `playspace_question_responses`
+- `playspace_scale_answers`
+
+The shared `audits.responses_json` and `audits.scores_json` JSONB columns are
+still present as compatibility caches, but Playspace writes normalized rows
+first and scores directly from those rows.
+
+Current Playspace scoring stores raw totals rather than percent buckets:
+
+- `quantity_total`
+- `diversity_total`
+- `challenge_total`
+- `sociability_total`
+- `play_value_total`
+- `usability_total`
+
+For Playspace list views, `summary_score` is the compact combined construct
+total: `play_value_total + usability_total`.
 
 ### Run the API (FastAPI)
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Deploy (Render)
@@ -112,6 +143,14 @@ Run tests:
 
 ```bash
 pytest
+```
+
+Targeted Playspace validation:
+
+```bash
+./.venv/bin/ruff check app/products/playspace
+./.venv/bin/python -m py_compile app/products/playspace/scoring.py app/products/playspace/services/audit_sessions.py
+./.venv/bin/python -m app.seed --product playspace
 ```
 
 Lint and auto-fix:

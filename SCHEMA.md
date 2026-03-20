@@ -1,125 +1,210 @@
 # Audit System Database Schema
 
-This document outlines the relational database schema required to support the Audit System's hierarchical structure, user roles, and data collection tools.
+This document records the current schema used by `audit-tools-backend`.
 
----
+The backend has:
 
-## 1. Core Account & User Management
+- shared core tables used by both products
+- Playspace-specific normalized audit tables
+- transitional JSONB caches on `audits` for compatibility with shared layers and older clients
 
-### `Accounts`
-Stores the top-level organization/audit account.
-* `account_id` (PK) - UUID
-* `account_name` - VARCHAR(255)
-* `data_sharing_agreed` - BOOLEAN (Required to be TRUE)
-* `created_at` - TIMESTAMP
+## 1. Shared Core Tables
 
-### `Managers`
-Stores both Primary and secondary managers. Limited to 5 per account via application logic.
-* `manager_id` (PK) - UUID
-* `account_id` (FK) - UUID (References `Accounts`)
-* `is_primary` - BOOLEAN 
-* `full_name` - VARCHAR(255)
-* `position_role` - VARCHAR(255)
-* `organization` - VARCHAR(255)
-* `email` - VARCHAR(255) UNIQUE
-* `phone` - VARCHAR(50) (Nullable, but required if `is_primary` = TRUE)
-* `start_date` - TIMESTAMP (Auto-recorded)
+### `accounts`
+Top-level login/account record.
 
-### `Auditors`
-Stores auditor profiles. Designed to protect privacy by heavily relying on `auditor_code`.
-* `auditor_id` (PK) - UUID
-* `auditor_code` - VARCHAR(50) UNIQUE (Initials/mixed code; no real names)
-* `full_name` - VARCHAR(255) (Encrypted/Restricted access)
-* `email` - VARCHAR(255) UNIQUE
-* `age_range` - VARCHAR(50) (e.g., "18-24", "25-34")
-* `gender` - VARCHAR(50)
-* `country` - VARCHAR(100)
-* `role` - VARCHAR(100) (e.g., Student, Teacher, Facilitator, Other)
-* `created_at` - TIMESTAMP
+- `id` - UUID primary key
+- `name` - account display name
+- `email` - unique login email
+- `password_hash` - nullable password hash
+- `account_type` - `MANAGER` or `AUDITOR`
+- `created_at`
+- `updated_at`
 
----
+### `manager_profiles`
+Manager profile rows owned by a manager account.
 
-## 2. Project & Place Hierarchy
+- `id` - UUID primary key
+- `account_id` - FK to `accounts`
+- `full_name`
+- `email`
+- `phone`
+- `position`
+- `organization`
+- `is_primary`
+- `created_at`
+- `updated_at`
 
-### `Projects`
-Projects fall under an Account and define the scope of the audits.
-* `project_id` (PK) - UUID
-* `account_id` (FK) - UUID (References `Accounts`)
-* `project_name` - VARCHAR(255)
-* `overview` - TEXT
-* `anticipated_start_date` - DATE
-* `anticipated_end_date` - DATE
-* `est_places_count` - INT
-* `est_auditors_count` - INT
-* `auditor_demographic_reqs` - TEXT (JSON or text defining inclusions/exclusions)
+### `auditor_profiles`
+Auditor identity/profile rows owned by auditor accounts.
 
-### `Places`
-Physical locations assigned to a specific Project.
-* `place_id` (PK) - UUID
-* `project_id` (FK) - UUID (References `Projects`)
-* `place_name` - VARCHAR(255)
-* `type_of_place` - VARCHAR(100)
-* `city` - VARCHAR(100)
-* `state_province` - VARCHAR(100)
-* `country` - VARCHAR(100)
-* `latitude` - DECIMAL(9,6) (For map pin integration)
-* `longitude` - DECIMAL(9,6) (For map pin integration)
-* `anticipated_start_date` - DATE
-* `anticipated_end_date` - DATE
-* `est_auditors_count` - INT
+- `id` - UUID primary key
+- `account_id` - unique FK to `accounts`
+- `auditor_code` - unique visible identifier used in reports
+- `email` - nullable, unique when present
+- `full_name`
+- `age_range`
+- `gender`
+- `country`
+- `role`
+- `created_at`
+- `updated_at`
 
----
+### `projects`
+Projects belong to one account.
 
-## 3. Assignments (Many-to-Many Relationships)
+- `id` - UUID primary key
+- `account_id` - FK to `accounts`
+- `name`
+- `overview`
+- `place_types`
+- `start_date`
+- `end_date`
+- `est_places`
+- `est_auditors`
+- `auditor_description`
+- `created_at`
+- `updated_at`
 
-### `Auditor_Assignments`
-Maps which Auditors have access to which Projects and Places.
-* `assignment_id` (PK) - UUID
-* `auditor_id` (FK) - UUID (References `Auditors`)
-* `project_id` (FK) - UUID (References `Projects`) (Nullable if assigned specifically to a Place)
-* `place_id` (FK) - UUID (References `Places`) (Nullable if assigned broadly to a Project)
+### `places`
+Places currently belong to one project.
 
----
+- `id` - UUID primary key
+- `project_id` - FK to `projects`
+- `name`
+- `city`
+- `province`
+- `country`
+- `place_type`
+- `lat`
+- `lng`
+- `start_date`
+- `end_date`
+- `est_auditors`
+- `auditor_description`
+- `created_at`
+- `updated_at`
 
-## 4. Audit Execution & Scoring
+> Note: a place-to-project many-to-many relationship was discussed but is not implemented.
 
-### `Audits`
-The core record of an auditor completing an assessment at a place.
-* `audit_id` (PK) - UUID
-* `place_id` (FK) - UUID (References `Places`)
-* `auditor_id` (FK) - UUID (References `Auditors`)
-* `master_code` - VARCHAR(255) (Generated: `[Place Name]-[Auditor Code]-[Date]`)
-* `status` - VARCHAR(50) (e.g., 'Draft', 'Completed')
-* `started_at` - TIMESTAMP
-* `completed_at` - TIMESTAMP (Nullable until submission)
-* `base_total_score` - DECIMAL(5,2)
-* `weighted_total_score` - DECIMAL(5,2) (Calculated via pre-audit survey weights)
+### `auditor_assignments`
+Assignments grant project-level or place-level access to an auditor.
 
-### `Audit_Responses`
-Stores individual answers/scores for the sections within an audit.
-* `response_id` (PK) - UUID
-* `audit_id` (FK) - UUID (References `Audits`)
-* `section_name` - VARCHAR(100)
-* `question_identifier` - VARCHAR(100)
-* `response_value` - TEXT (or INT depending on scale)
-* `is_mandatory` - BOOLEAN
+- `id` - UUID primary key
+- `auditor_profile_id` - FK to `auditor_profiles`
+- `project_id` - nullable FK to `projects`
+- `place_id` - nullable FK to `places`
+- `audit_roles` - array of assignment role strings
+- `assigned_at`
+- `created_at`
+- `updated_at`
 
----
+Exactly one of `project_id` or `place_id` is present for each assignment row.
 
-## 5. Tool-Specific Tables
+### `audits`
+Shared audit shell record used by both products.
 
-### `Pre_Audit_Surveys` (Youth Enabling Environments Tool)
-Stores the weights the Auditor assigns to different sections before starting.
-* `survey_id` (PK) - UUID
-* `audit_id` (FK) - UUID (References `Audits`)
-* `section_name` - VARCHAR(100)
-* `assigned_weight` - DECIMAL(3,2) (e.g., 1.5, 0.8)
+- `id` - UUID primary key
+- `place_id` - FK to `places`
+- `auditor_profile_id` - FK to `auditor_profiles`
+- `audit_code` - unique generated audit identifier
+- `instrument_key`
+- `instrument_version`
+- `status` - `IN_PROGRESS`, `PAUSED`, or `SUBMITTED`
+- `started_at`
+- `submitted_at` - nullable until submit
+- `total_minutes` - nullable until computed
+- `summary_score` - nullable compact summary used by list/dashboard views
+- `responses_json` - JSONB compatibility cache
+- `scores_json` - JSONB compatibility cache
+- `created_at`
+- `updated_at`
 
-### `Manager_Surveys` (Playspace Usability Tool)
-Stores the external owner/manager survey results linked to a specific Place/Audit.
-* `manager_survey_id` (PK) - UUID
-* `place_id` (FK) - UUID (References `Places`)
-* `survey_link` - VARCHAR(255) (The generated link sent to the manager)
-* `status` - VARCHAR(50) (e.g., 'Pending', 'Submitted')
-* `manager_score` - DECIMAL(5,2)
-* `combined_total_score` - DECIMAL(5,2) (Audit score + Manager survey score)
+For Playspace, `summary_score` is currently `play_value_total + usability_total`.
+
+## 2. Playspace Normalized Audit Tables
+
+Playspace no longer relies on a generic `Audit_Responses` table. Audit state is
+stored in product-specific normalized tables instead.
+
+### `playspace_audit_contexts`
+One-to-one audit metadata row.
+
+- `audit_id` - UUID primary key and FK to `audits`
+- `execution_mode`
+- `draft_progress_percent`
+- `created_at`
+- `updated_at`
+
+### `playspace_pre_audit_answers`
+One row per pre-audit selection.
+
+- `id` - UUID primary key
+- `audit_id` - FK to `audits`
+- `field_key` - e.g. `season`, `weather_conditions`, `users_present`, `user_count`, `age_groups`, `place_size`
+- `selected_value`
+- `sort_order`
+- `created_at`
+- `updated_at`
+
+### `playspace_audit_sections`
+One row per audit section with section-level note state.
+
+- `id` - UUID primary key
+- `audit_id` - FK to `audits`
+- `section_key`
+- `note`
+- `created_at`
+- `updated_at`
+
+### `playspace_question_responses`
+One row per question within a section.
+
+- `id` - UUID primary key
+- `section_id` - FK to `playspace_audit_sections`
+- `question_key`
+- `created_at`
+- `updated_at`
+
+### `playspace_scale_answers`
+One row per answered scale inside a question response.
+
+- `id` - UUID primary key
+- `question_response_id` - FK to `playspace_question_responses`
+- `scale_key`
+- `option_key`
+- `created_at`
+- `updated_at`
+
+## 3. Playspace Scoring Model
+
+Playspace scoring is computed directly from normalized audit rows.
+
+The current raw score buckets are:
+
+- `quantity_total`
+- `diversity_total`
+- `challenge_total`
+- `sociability_total`
+- `play_value_total`
+- `usability_total`
+
+These totals are stored in `audits.scores_json` as a compatibility cache and
+returned to clients in typed score payloads.
+
+## 4. Compatibility Notes
+
+- `responses_json` and `scores_json` are still kept on `audits`, but Playspace writes normalized rows first.
+- Older clients or shared dashboard layers may still read from the JSONB caches.
+- Submitted audits with older cached score shapes can be recomputed from normalized rows.
+
+## 5. Not Implemented In Current Schema
+
+The following concepts have been discussed or documented historically, but are
+not current database tables in the backend:
+
+- generic `Audit_Responses` table for Playspace
+- standalone `audit_scores` table
+- weighted Playspace score columns such as `base_total_score` or `weighted_total_score`
+- Playspace `Manager_Surveys` table for combined scoring
+- reliability/kappa comparison tables
