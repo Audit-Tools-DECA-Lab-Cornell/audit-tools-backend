@@ -1,14 +1,5 @@
 """
-Database configuration and session management (async SQLAlchemy).
-
-This module provides:
-- A PostgreSQL async SQLAlchemy engine (asyncpg driver)
-- An async session factory
-- Product-scoped session dependencies so a single backend can serve multiple databases
-
-Product databases:
-- Youth Enabling Environment (YEE)
-- Playspace Play Value and Usability (PLAYSPACE)
+Database engines and async session dependencies for product databases.
 """
 
 from __future__ import annotations
@@ -26,141 +17,111 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-# Load environment variables from a local `.env` file (when present).
 load_dotenv(find_dotenv())
+
+######################################################################################
+################################ Database Products ###################################
+######################################################################################
 
 
 class ProductKey(str, Enum):
-    """
-    Product selector for routing requests to the correct database.
-
-    We intentionally keep product keys short and URL-friendly because we mount
-    product-scoped endpoints (e.g. `/yee/graphql`, `/playspace/graphql`).
-    """
+    """Selector used to route requests to YEE or Playspace databases."""
 
     YEE = "yee"
     PLAYSPACE = "playspace"
 
 
-def _get_database_url(product: ProductKey, development: bool = True) -> str:
-    """
-    Resolve the database URL for a given product.
+def _resolve_raw_database_url(product: ProductKey) -> str:
+    """Resolve one product database URL from environment variables or defaults."""
 
-    Preferred: set product-specific URLs:
-    - `DATABASE_URL_YEE` || `DEV_DATABASE_URL_YEE`
-    - `DATABASE_URL_PLAYSPACE` || `DEV_DATABASE_URL_PLAYSPACE`
+    env_suffix = "YEE" if product is ProductKey.YEE else "PLAYSPACE"
+    env_keys = [f"DEV_DATABASE_URL_{env_suffix}", f"DATABASE_URL_{env_suffix}"]
 
-    Example format:
-      postgresql+asyncpg://user:password@localhost:5432/dbname
-    """
+    for env_key in env_keys:
+        raw_value = os.getenv(env_key)
+        if raw_value is None:
+            continue
+        normalized = raw_value.strip()
+        if normalized:
+            return normalized
 
-    # NOTE: We intentionally do not read/print environment variables in terminal commands.
-    # At runtime, your process environment can provide DATABASE_URL_* as needed.
-    # If development is True, use DEV_DATABASE_URL_*, otherwise use DATABASE_URL_*
-    env_var = f"{'DEV_' if development else ''}"
-    env_var += "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSPACE"
-
-    url = os.getenv(env_var)
-    if url and url.strip():
-        return url.strip()
-
-    # Backwards-compatible fallback: a single `DATABASE_URL` is treated as YEE.
-    if product is ProductKey.YEE:
-        legacy_url = os.getenv("DATABASE_URL")
-        if legacy_url and legacy_url.strip():
-            return legacy_url.strip()
-
-    # Practical local-development defaults. Change as appropriate for your setup.
-    default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
-    return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
+    raise ValueError(f"No database URL found for product {product}")
 
 
-def normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:
-    """
-    Normalize a Postgres URL for async SQLAlchemy (asyncpg).
+def _normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:
+    """Normalize a PostgreSQL URL for SQLAlchemy asyncpg usage."""
 
-    This primarily ensures Neon-provided libpq URLs work without manual edits.
+    normalized_url = raw_url.strip()
+    if normalized_url.startswith("postgres://"):
+        normalized_url = normalized_url.replace("postgres://", "postgresql://", 1)
 
-    Neon often provides:
-      postgresql://user:password@host/db?sslmode=require&channel_binding=require
+    sqlalchemy_url = make_url(normalized_url)
+    if sqlalchemy_url.drivername == "postgresql":
+        sqlalchemy_url = sqlalchemy_url.set(drivername="postgresql+asyncpg")
 
-    SQLAlchemy + asyncpg expects:
-    - driver: `postgresql+asyncpg`
-    - SSL: passed as `connect_args={"ssl": True}`
-    - libpq-only query params removed (e.g. `sslmode`, `channel_binding`)
-    """
-
-    normalized = raw_url.strip()
-    if normalized.startswith("postgres://"):
-        normalized = normalized.replace("postgres://", "postgresql://", 1)
-
-    url = make_url(normalized)
-    if url.drivername == "postgresql":
-        url = url.set(drivername="postgresql+asyncpg")
-
-    query = dict(url.query)
-    sslmode = query.pop("sslmode", None)
-    query.pop("channel_binding", None)
+    url_query = dict(sqlalchemy_url.query)
+    sslmode = url_query.pop("sslmode", None)
+    url_query.pop("channel_binding", None)
 
     connect_args: dict[str, object] = {}
     if isinstance(sslmode, str) and sslmode.lower() in {"require", "verify-ca", "verify-full"}:
         connect_args["ssl"] = True
 
-    url = url.set(query=query)
-    return url, connect_args
-
-
-RAW_DATABASE_URL_BY_PRODUCT: dict[ProductKey, str] = {
-    ProductKey.YEE: _get_database_url(ProductKey.YEE),
-    ProductKey.PLAYSPACE: _get_database_url(ProductKey.PLAYSPACE),
-}
-
-NORMALIZED_DATABASE_URL_BY_PRODUCT: dict[ProductKey, URL] = {}
-CONNECT_ARGS_BY_PRODUCT: dict[ProductKey, dict[str, object]] = {}
-ASYNC_ENGINE_BY_PRODUCT: dict[ProductKey, AsyncEngine] = {}
-ASYNC_SESSION_FACTORY_BY_PRODUCT: dict[ProductKey, async_sessionmaker[AsyncSession]] = {}
-
-for _product_key, _raw_url in RAW_DATABASE_URL_BY_PRODUCT.items():
-    _normalized_url, _connect_args = normalize_postgres_sqlalchemy_url(_raw_url)
-    NORMALIZED_DATABASE_URL_BY_PRODUCT[_product_key] = _normalized_url
-    CONNECT_ARGS_BY_PRODUCT[_product_key] = _connect_args
-
-    engine: AsyncEngine = create_async_engine(
-        _normalized_url,
-        echo=False,  # Set True for SQL debugging.
-        pool_pre_ping=True,
-        connect_args=_connect_args,
-    )
-    ASYNC_ENGINE_BY_PRODUCT[_product_key] = engine
-    ASYNC_SESSION_FACTORY_BY_PRODUCT[_product_key] = async_sessionmaker(
-        bind=engine,
-        autoflush=False,
-        expire_on_commit=False,
-    )
+    return sqlalchemy_url.set(query=url_query), connect_args
 
 
 def get_database_url(product: ProductKey) -> str:
-    """Return the raw database URL for a product (as provided by env/config)."""
+    """Return the resolved raw database URL for one product."""
 
     return RAW_DATABASE_URL_BY_PRODUCT[product]
 
 
+def normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:
+    """Public compatibility wrapper for URL normalization used by Alembic."""
+
+    return _normalize_postgres_sqlalchemy_url(raw_url)
+
+
+def _build_engine_and_factory(
+    product: ProductKey,
+) -> tuple[str, AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """Create one product engine + session factory pair."""
+
+    raw_database_url = _resolve_raw_database_url(product)
+    normalized_url, connect_args = _normalize_postgres_sqlalchemy_url(raw_database_url)
+    engine = create_async_engine(
+        normalized_url,
+        echo=False,
+        pool_pre_ping=True,
+        connect_args=connect_args,
+    )
+    session_factory = async_sessionmaker(
+        bind=engine,
+        autoflush=False,
+        expire_on_commit=False,
+    )
+    return raw_database_url, engine, session_factory
+
+
+######################################################################################
+############################### Engines and Sessions #################################
+######################################################################################
+
+RAW_DATABASE_URL_BY_PRODUCT: dict[ProductKey, str] = {}
+ASYNC_ENGINE_BY_PRODUCT: dict[ProductKey, AsyncEngine] = {}
+ASYNC_SESSION_FACTORY_BY_PRODUCT: dict[ProductKey, async_sessionmaker[AsyncSession]] = {}
+
+for product_key in ProductKey:
+    raw_database_url, engine, session_factory = _build_engine_and_factory(product_key)
+    RAW_DATABASE_URL_BY_PRODUCT[product_key] = raw_database_url
+    ASYNC_ENGINE_BY_PRODUCT[product_key] = engine
+    ASYNC_SESSION_FACTORY_BY_PRODUCT[product_key] = session_factory
+
+
 async def get_async_session(product: ProductKey = ProductKey.YEE) -> AsyncIterator[AsyncSession]:
-    """
-    FastAPI dependency / Strawberry context helper.
+    """Yield one async session for a specific product."""
 
-    Yields an `AsyncSession` and ensures it's closed after use.
-    """
-
-    session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[product]
-    async with session_factory() as session:
-        yield session
-
-
-async def get_async_session_yee() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency that yields a YEE database session."""
-
-    async with ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.YEE]() as session:
+    async with ASYNC_SESSION_FACTORY_BY_PRODUCT[product]() as session:
         yield session
 
 
