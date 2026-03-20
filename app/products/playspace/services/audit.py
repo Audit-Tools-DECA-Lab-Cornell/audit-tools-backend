@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Audit, AuditorAssignment, AuditStatus
+from app.products.playspace.audit_state import set_execution_mode_value
 from app.products.playspace.schemas import AssignmentRole, ExecutionMode
 from app.products.playspace.services.audit_assignments import PlayspaceAuditAssignmentsMixin
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
@@ -120,11 +121,6 @@ class PlayspaceAuditService(
         audit: Audit,
         execution_mode: ExecutionMode,
     ) -> None:
-        """Write the selected execution mode into responses meta."""
+        """Write the selected execution mode into normalized Playspace storage."""
 
-        next_responses_json = dict(audit.responses_json)
-        meta = next_responses_json.get("meta")
-        next_meta = dict(meta) if isinstance(meta, dict) else {}
-        next_meta["execution_mode"] = execution_mode.value
-        next_responses_json["meta"] = next_meta
-        audit.responses_json = next_responses_json
+        set_execution_mode_value(audit=audit, execution_mode=execution_mode.value)

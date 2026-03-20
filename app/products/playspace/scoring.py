@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.models import Audit
 from app.products.playspace.schemas import (
     AssignmentRole,
     AuditDraftPatchRequest,
@@ -33,6 +34,11 @@ PRE_AUDIT_REQUIRED_KEYS = [
     "age_groups",
     "place_size",
 ]
+MULTI_SELECT_PRE_AUDIT_FIELDS = {
+    "weather_conditions",
+    "users_present",
+    "age_groups",
+}
 
 
 @dataclass(frozen=True)
@@ -43,6 +49,15 @@ class ScoreAccumulator:
     boost_total: float = 0.0
     raw_total: float = 0.0
     max_total: float = 0.0
+
+
+@dataclass(frozen=True)
+class AuditStateSnapshot:
+    """Minimal in-memory scoring state independent from storage format."""
+
+    execution_mode_value: str | None
+    pre_audit_payload: JsonDict
+    sections_payload: dict[str, JsonDict]
 
 
 def get_allowed_execution_modes(assignment_roles: list[AssignmentRole]) -> list[ExecutionMode]:
@@ -66,18 +81,42 @@ def resolve_execution_mode(
 ) -> ExecutionMode | None:
     """Resolve the effective execution mode from saved metadata and assignment defaults."""
 
-    allowed_modes = get_allowed_execution_modes(assignment_roles)
-    meta = _read_json_dict(responses_json.get("meta"))
-    raw_execution_mode = meta.get("execution_mode")
+    snapshot = _build_snapshot_from_json(responses_json)
+    return _resolve_execution_mode_from_value(
+        assignment_roles=assignment_roles,
+        execution_mode_value=snapshot.execution_mode_value,
+    )
 
-    if isinstance(raw_execution_mode, str):
+
+def resolve_execution_mode_for_audit(
+    *,
+    assignment_roles: list[AssignmentRole],
+    audit: Audit,
+) -> ExecutionMode | None:
+    """Resolve execution mode directly from normalized audit relations."""
+
+    snapshot = _build_snapshot_from_audit(audit)
+    return _resolve_execution_mode_from_value(
+        assignment_roles=assignment_roles,
+        execution_mode_value=snapshot.execution_mode_value,
+    )
+
+
+def _resolve_execution_mode_from_value(
+    *,
+    assignment_roles: list[AssignmentRole],
+    execution_mode_value: str | None,
+) -> ExecutionMode | None:
+    """Resolve execution mode from one stored string value and assignment rules."""
+
+    allowed_modes = get_allowed_execution_modes(assignment_roles)
+    if isinstance(execution_mode_value, str):
         try:
-            parsed_mode = ExecutionMode(raw_execution_mode)
+            parsed_mode = ExecutionMode(execution_mode_value)
         except ValueError:
             parsed_mode = None
         if parsed_mode is not None and parsed_mode in allowed_modes:
             return parsed_mode
-
     if len(allowed_modes) == 1:
         return allowed_modes[0]
     return None
@@ -123,12 +162,40 @@ def build_audit_progress(
 ) -> AuditProgressResponse:
     """Build user-facing progress for the current draft state."""
 
-    execution_mode = resolve_execution_mode(
+    snapshot = _build_snapshot_from_json(responses_json)
+    return _build_audit_progress_from_snapshot(
         assignment_roles=assignment_roles,
-        responses_json=responses_json,
+        snapshot=snapshot,
     )
-    pre_audit_payload = _read_json_dict(responses_json.get("pre_audit"))
-    sections_payload = _read_json_dict(responses_json.get("sections"))
+
+
+def build_audit_progress_for_audit(
+    *,
+    assignment_roles: list[AssignmentRole],
+    audit: Audit,
+) -> AuditProgressResponse:
+    """Build user-facing progress directly from normalized audit relations."""
+
+    snapshot = _build_snapshot_from_audit(audit)
+    return _build_audit_progress_from_snapshot(
+        assignment_roles=assignment_roles,
+        snapshot=snapshot,
+    )
+
+
+def _build_audit_progress_from_snapshot(
+    *,
+    assignment_roles: list[AssignmentRole],
+    snapshot: AuditStateSnapshot,
+) -> AuditProgressResponse:
+    """Build user-facing progress from one storage-agnostic audit snapshot."""
+
+    execution_mode = _resolve_execution_mode_from_value(
+        assignment_roles=assignment_roles,
+        execution_mode_value=snapshot.execution_mode_value,
+    )
+    pre_audit_payload = snapshot.pre_audit_payload
+    sections_payload = snapshot.sections_payload
 
     required_pre_audit_complete = _is_pre_audit_complete(pre_audit_payload)
     section_progress: list[AuditSectionProgressResponse] = []
@@ -146,8 +213,7 @@ def build_audit_progress(
             continue
 
         visible_section_count += 1
-        section_state = _read_json_dict(sections_payload.get(section.section_key))
-        section_answers = _read_json_dict(section_state.get("responses"))
+        section_answers = _read_json_dict(sections_payload.get(section.section_key))
         answered_count = 0
         for question in visible_questions:
             if _is_question_complete(question=question, section_answers=section_answers):
@@ -194,9 +260,37 @@ def score_audit(
 ) -> JsonDict:
     """Calculate section, domain, construct, and summary scores for a completed draft."""
 
-    execution_mode = resolve_execution_mode(
+    snapshot = _build_snapshot_from_json(responses_json)
+    return _score_audit_from_snapshot(
         assignment_roles=assignment_roles,
-        responses_json=responses_json,
+        snapshot=snapshot,
+    )
+
+
+def score_audit_for_audit(
+    *,
+    assignment_roles: list[AssignmentRole],
+    audit: Audit,
+) -> JsonDict:
+    """Calculate scores directly from normalized audit relations."""
+
+    snapshot = _build_snapshot_from_audit(audit)
+    return _score_audit_from_snapshot(
+        assignment_roles=assignment_roles,
+        snapshot=snapshot,
+    )
+
+
+def _score_audit_from_snapshot(
+    *,
+    assignment_roles: list[AssignmentRole],
+    snapshot: AuditStateSnapshot,
+) -> JsonDict:
+    """Calculate scores from one storage-agnostic audit snapshot."""
+
+    execution_mode = _resolve_execution_mode_from_value(
+        assignment_roles=assignment_roles,
+        execution_mode_value=snapshot.execution_mode_value,
     )
     if execution_mode is None:
         raise ValueError("Execution mode must be selected before scoring the audit.")
@@ -205,7 +299,7 @@ def score_audit(
     domain_scores: dict[str, ScoreAccumulator] = {}
     construct_scores: dict[str, ScoreAccumulator] = {}
     summary = ScoreAccumulator()
-    sections_payload = _read_json_dict(responses_json.get("sections"))
+    sections_payload = snapshot.sections_payload
 
     for section in SCORING_SECTIONS:
         visible_questions = _get_visible_questions(
@@ -215,8 +309,7 @@ def score_audit(
         if not visible_questions:
             continue
 
-        section_state = _read_json_dict(sections_payload.get(section.section_key))
-        section_answers = _read_json_dict(section_state.get("responses"))
+        section_answers = _read_json_dict(sections_payload.get(section.section_key))
         section_accumulator = ScoreAccumulator()
 
         for question in visible_questions:
@@ -264,6 +357,35 @@ def score_audit(
 ######################################################################################
 ################################## Internal Helpers ##################################
 ######################################################################################
+
+
+def _build_snapshot_from_json(responses_json: JsonDict) -> AuditStateSnapshot:
+    """Build a scoring snapshot from the legacy nested audit document."""
+
+    meta = _read_json_dict(responses_json.get("meta"))
+    raw_sections = _read_json_dict(responses_json.get("sections"))
+    section_payloads = {
+        section_key: _read_json_dict(_read_json_dict(section_value).get("responses"))
+        for section_key, section_value in raw_sections.items()
+    }
+    execution_mode_value = meta.get("execution_mode")
+    return AuditStateSnapshot(
+        execution_mode_value=(
+            execution_mode_value if isinstance(execution_mode_value, str) else None
+        ),
+        pre_audit_payload=_read_json_dict(responses_json.get("pre_audit")),
+        sections_payload=section_payloads,
+    )
+
+
+def _build_snapshot_from_audit(audit: Audit) -> AuditStateSnapshot:
+    """Build a scoring snapshot directly from normalized Playspace audit relations."""
+
+    return AuditStateSnapshot(
+        execution_mode_value=_read_execution_mode_value_from_audit(audit),
+        pre_audit_payload=_build_pre_audit_payload_from_audit(audit),
+        sections_payload=_build_sections_payload_from_audit(audit),
+    )
 
 
 def _get_visible_questions(
@@ -339,6 +461,73 @@ def _read_json_dict(value: object) -> JsonDict:
     """Safely coerce arbitrary JSON-like values to dictionaries."""
 
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _read_execution_mode_value_from_audit(audit: Audit) -> str | None:
+    """Read the selected execution mode directly from normalized rows or cache fallback."""
+
+    if audit.playspace_context is not None and audit.playspace_context.execution_mode is not None:
+        return audit.playspace_context.execution_mode
+
+    meta = _read_json_dict(_read_json_dict(audit.responses_json).get("meta"))
+    raw_execution_mode = meta.get("execution_mode")
+    if isinstance(raw_execution_mode, str) and raw_execution_mode.strip():
+        return raw_execution_mode
+    return None
+
+
+def _build_pre_audit_payload_from_audit(audit: Audit) -> JsonDict:
+    """Build pre-audit values from normalized rows or cache fallback."""
+
+    if audit.playspace_pre_audit_answers:
+        grouped_values: dict[str, list[tuple[int, str]]] = {}
+        for answer in audit.playspace_pre_audit_answers:
+            grouped_values.setdefault(answer.field_key, []).append(
+                (answer.sort_order, answer.selected_value)
+            )
+
+        payload: JsonDict = {}
+        for field_key, ordered_pairs in grouped_values.items():
+            ordered_values = [
+                value for _sort_order, value in sorted(ordered_pairs, key=lambda item: item[0])
+            ]
+            if field_key in MULTI_SELECT_PRE_AUDIT_FIELDS:
+                payload[field_key] = ordered_values
+                continue
+            payload[field_key] = ordered_values[0] if ordered_values else None
+        return payload
+
+    return _read_json_dict(_read_json_dict(audit.responses_json).get("pre_audit"))
+
+
+def _build_sections_payload_from_audit(audit: Audit) -> dict[str, JsonDict]:
+    """Build section answer lookups from normalized rows or cache fallback."""
+
+    if audit.playspace_sections:
+        section_payloads: dict[str, JsonDict] = {}
+        ordered_sections = sorted(audit.playspace_sections, key=lambda section: section.section_key)
+        for section in ordered_sections:
+            question_payloads: JsonDict = {}
+            ordered_questions = sorted(
+                section.question_responses,
+                key=lambda question_response: question_response.question_key,
+            )
+            for question_response in ordered_questions:
+                scale_answers: JsonDict = {}
+                for scale_answer in sorted(
+                    question_response.scale_answers,
+                    key=lambda answer: answer.scale_key,
+                ):
+                    scale_answers[scale_answer.scale_key] = scale_answer.option_key
+                question_payloads[question_response.question_key] = scale_answers
+            section_payloads[section.section_key] = question_payloads
+        return section_payloads
+
+    cached_sections = _read_json_dict(_read_json_dict(audit.responses_json).get("sections"))
+    return {
+        section_key: _read_json_dict(_read_json_dict(section_value).get("responses"))
+        for section_key, section_value in cached_sections.items()
+    }
 
 
 def _is_pre_audit_complete(pre_audit_payload: JsonDict) -> bool:

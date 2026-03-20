@@ -12,7 +12,24 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
-from app.models import Audit, AuditorAssignment, AuditorProfile, AuditStatus, Place, Project
+from app.models import (
+    Audit,
+    AuditorAssignment,
+    AuditorProfile,
+    AuditStatus,
+    Place,
+    PlayspaceAuditSection,
+    PlayspaceQuestionResponse,
+    Project,
+)
+from app.products.playspace.audit_state import (
+    apply_draft_patch_to_relations,
+    build_responses_json_from_relations,
+    get_draft_progress_percent,
+    get_execution_mode_value,
+    set_draft_progress_percent,
+    set_execution_mode_value,
+)
 from app.products.playspace.instrument import (
     INSTRUMENT_KEY,
     INSTRUMENT_VERSION,
@@ -20,17 +37,22 @@ from app.products.playspace.instrument import (
 from app.products.playspace.schemas import (
     AssignmentRole,
     AuditDraftPatchRequest,
+    AuditMetaResponse,
     AuditorPlaceResponse,
     AuditProgressResponse,
+    AuditScoreBreakdownResponse,
+    AuditScoresResponse,
+    AuditSectionStateResponse,
     AuditSessionResponse,
+    ExecutionMode,
     PlaceAuditAccessRequest,
+    PreAuditResponse,
 )
 from app.products.playspace.scoring import (
-    build_audit_progress,
+    build_audit_progress_for_audit,
     get_allowed_execution_modes,
-    merge_draft_patch,
-    resolve_execution_mode,
-    score_audit,
+    resolve_execution_mode_for_audit,
+    score_audit_for_audit,
 )
 
 ######################################################################################
@@ -91,6 +113,13 @@ class PlayspaceAuditSessionsMixin:
                 Audit.place_id.in_(list(places_by_id.keys())),
             )
             .order_by(Audit.started_at.desc())
+            .options(
+                selectinload(Audit.playspace_context),
+                selectinload(Audit.playspace_pre_audit_answers),
+                selectinload(Audit.playspace_sections)
+                .selectinload(PlayspaceAuditSection.question_responses)
+                .selectinload(PlayspaceQuestionResponse.scale_answers),
+            )
         )
         all_audits = audits_result.scalars().all()
         latest_audit_by_place: dict[uuid.UUID, Audit] = {}
@@ -107,10 +136,14 @@ class PlayspaceAuditSessionsMixin:
             latest_audit = latest_audit_by_place.get(place_id)
 
             progress_percent: float | None = None
-            if latest_audit is not None and isinstance(latest_audit.scores_json, dict):
-                raw_progress = latest_audit.scores_json.get("draft_progress_percent")
-                if isinstance(raw_progress, int | float):
-                    progress_percent = float(raw_progress)
+            if latest_audit is not None and latest_audit.status is not AuditStatus.SUBMITTED:
+                progress_percent = get_draft_progress_percent(latest_audit)
+                if progress_percent is None:
+                    progress = build_audit_progress_for_audit(
+                        assignment_roles=roles,
+                        audit=latest_audit,
+                    )
+                    progress_percent = self._progress_percent(progress)
 
             responses.append(
                 AuditorPlaceResponse(
@@ -163,13 +196,10 @@ class PlayspaceAuditSessionsMixin:
         now = datetime.now(timezone.utc)
 
         if audit is None:
-            initial_meta: dict[str, object] = {}
             initial_execution_mode = self._resolve_initial_execution_mode_value(
                 requested_mode=payload.execution_mode,
                 allowed_modes=allowed_modes,
             )
-            if initial_execution_mode is not None:
-                initial_meta["execution_mode"] = initial_execution_mode
 
             audit = Audit(
                 place_id=place.id,
@@ -184,16 +214,20 @@ class PlayspaceAuditSessionsMixin:
                 status=AuditStatus.IN_PROGRESS,
                 started_at=now,
                 responses_json={
-                    "meta": initial_meta,
+                    "meta": {},
                     "pre_audit": {},
                     "sections": {},
                 },
                 scores_json={},
             )
+            if initial_execution_mode is not None:
+                set_execution_mode_value(audit=audit, execution_mode=initial_execution_mode)
+            audit.responses_json = build_responses_json_from_relations(audit)
             self._session.add(audit)
             await self._commit_and_refresh(audit)
         elif payload.execution_mode is not None:
             self._set_execution_mode(audit=audit, execution_mode=payload.execution_mode)
+            audit.responses_json = build_responses_json_from_relations(audit)
             await self._commit_and_refresh(audit)
 
         return self._build_audit_session_response(
@@ -246,17 +280,18 @@ class PlayspaceAuditSessionsMixin:
             detail="The requested execution mode is not allowed for this assignment.",
         )
 
-        audit.responses_json = merge_draft_patch(
-            current_responses_json=dict(audit.responses_json),
-            patch=payload,
-        )
-        progress = build_audit_progress(
+        apply_draft_patch_to_relations(audit=audit, patch=payload)
+        responses_json = build_responses_json_from_relations(audit)
+        audit.responses_json = responses_json
+        progress = build_audit_progress_for_audit(
             assignment_roles=assignment_roles,
-            responses_json=audit.responses_json,
+            audit=audit,
         )
+        draft_progress_percent = self._progress_percent(progress)
+        set_draft_progress_percent(audit=audit, draft_progress_percent=draft_progress_percent)
         audit.scores_json = {
             **dict(audit.scores_json),
-            "draft_progress_percent": self._progress_percent(progress),
+            "draft_progress_percent": draft_progress_percent,
             "progress": progress.model_dump(),
         }
         await self._commit_and_refresh(audit)
@@ -306,9 +341,11 @@ class PlayspaceAuditSessionsMixin:
             detail="This audit has already been submitted.",
         )
 
-        progress = build_audit_progress(
+        responses_json = build_responses_json_from_relations(audit)
+        audit.responses_json = responses_json
+        progress = build_audit_progress_for_audit(
             assignment_roles=assignment_roles,
-            responses_json=audit.responses_json,
+            audit=audit,
         )
         if not progress.ready_to_submit:
             raise HTTPException(
@@ -316,9 +353,9 @@ class PlayspaceAuditSessionsMixin:
                 detail="Complete the pre-audit fields and all visible sections before submitting.",
             )
 
-        calculated_scores = score_audit(
+        calculated_scores = score_audit_for_audit(
             assignment_roles=assignment_roles,
-            responses_json=audit.responses_json,
+            audit=audit,
         )
         submitted_at = datetime.now(timezone.utc)
         elapsed_minutes = int((submitted_at - audit.started_at).total_seconds() // 60)
@@ -326,6 +363,7 @@ class PlayspaceAuditSessionsMixin:
         audit.status = AuditStatus.SUBMITTED
         audit.submitted_at = submitted_at
         audit.total_minutes = max(elapsed_minutes, 0)
+        set_draft_progress_percent(audit=audit, draft_progress_percent=None)
         audit.scores_json = calculated_scores
         summary_payload = calculated_scores.get("summary")
         has_numeric_percent = isinstance(summary_payload, dict) and isinstance(
@@ -380,6 +418,11 @@ class PlayspaceAuditSessionsMixin:
             .options(
                 selectinload(Audit.place).selectinload(Place.project),
                 selectinload(Audit.auditor_profile),
+                selectinload(Audit.playspace_context),
+                selectinload(Audit.playspace_pre_audit_answers),
+                selectinload(Audit.playspace_sections)
+                .selectinload(PlayspaceAuditSection.question_responses)
+                .selectinload(PlayspaceQuestionResponse.scale_answers),
             )
         )
         audit = result.scalar_one_or_none()
@@ -410,6 +453,11 @@ class PlayspaceAuditSessionsMixin:
             .options(
                 selectinload(Audit.place).selectinload(Place.project),
                 selectinload(Audit.auditor_profile),
+                selectinload(Audit.playspace_context),
+                selectinload(Audit.playspace_pre_audit_answers),
+                selectinload(Audit.playspace_sections)
+                .selectinload(PlayspaceAuditSection.question_responses)
+                .selectinload(PlayspaceQuestionResponse.scale_answers),
             )
         )
         return result.scalar_one_or_none()
@@ -492,14 +540,15 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditSessionResponse:
         """Build the stable API payload shared by create/resume, save, and submit."""
 
+        responses_json = build_responses_json_from_relations(audit)
         allowed_modes = get_allowed_execution_modes(assignment_roles)
-        selected_mode = resolve_execution_mode(
+        selected_mode = resolve_execution_mode_for_audit(
             assignment_roles=assignment_roles,
-            responses_json=dict(audit.responses_json),
+            audit=audit,
         )
-        progress = build_audit_progress(
+        progress = build_audit_progress_for_audit(
             assignment_roles=assignment_roles,
-            responses_json=dict(audit.responses_json),
+            audit=audit,
         )
         return AuditSessionResponse(
             audit_id=audit.id,
@@ -516,8 +565,12 @@ class PlayspaceAuditSessionsMixin:
             started_at=audit.started_at,
             submitted_at=audit.submitted_at,
             total_minutes=audit.total_minutes,
-            responses_json=dict(audit.responses_json),
-            scores_json=dict(audit.scores_json),
+            meta=AuditMetaResponse(
+                execution_mode=self._parse_execution_mode(get_execution_mode_value(audit))
+            ),
+            pre_audit=self._build_pre_audit_response(responses_json=responses_json),
+            sections=self._build_section_state_response_map(responses_json=responses_json),
+            scores=self._build_audit_scores_response(audit=audit, fallback_mode=selected_mode),
             progress=progress,
         )
 
@@ -545,3 +598,151 @@ class PlayspaceAuditSessionsMixin:
         if total_visible_questions <= 0:
             return 0.0
         return round((answered_visible_questions / total_visible_questions) * 100, 2)
+
+    def _build_pre_audit_response(
+        self,
+        *,
+        responses_json: dict[str, object],
+    ) -> PreAuditResponse:
+        """Build the typed pre-audit response object from the nested audit document."""
+
+        pre_audit_payload = self._read_json_dict(responses_json.get("pre_audit"))
+        return PreAuditResponse(
+            season=pre_audit_payload.get("season")
+            if isinstance(pre_audit_payload.get("season"), str)
+            else None,
+            weather_conditions=self._to_string_list(pre_audit_payload.get("weather_conditions")),
+            users_present=self._to_string_list(pre_audit_payload.get("users_present")),
+            user_count=pre_audit_payload.get("user_count")
+            if isinstance(pre_audit_payload.get("user_count"), str)
+            else None,
+            age_groups=self._to_string_list(pre_audit_payload.get("age_groups")),
+            place_size=pre_audit_payload.get("place_size")
+            if isinstance(pre_audit_payload.get("place_size"), str)
+            else None,
+        )
+
+    def _build_section_state_response_map(
+        self,
+        *,
+        responses_json: dict[str, object],
+    ) -> dict[str, AuditSectionStateResponse]:
+        """Build the typed section-state response map from the nested audit document."""
+
+        sections_payload = self._read_json_dict(responses_json.get("sections"))
+        section_responses: dict[str, AuditSectionStateResponse] = {}
+        for section_key, raw_section_payload in sections_payload.items():
+            section_payload = self._read_json_dict(raw_section_payload)
+            note_value = section_payload.get("note")
+            section_responses[section_key] = AuditSectionStateResponse(
+                section_key=section_key,
+                responses=self._read_nested_string_dict(section_payload.get("responses")),
+                note=note_value if isinstance(note_value, str) else None,
+            )
+        return section_responses
+
+    def _build_audit_scores_response(
+        self,
+        *,
+        audit: Audit,
+        fallback_mode: ExecutionMode | None,
+    ) -> AuditScoresResponse:
+        """Build the typed score payload from the transitional cached score document."""
+
+        raw_scores = dict(audit.scores_json) if isinstance(audit.scores_json, dict) else {}
+        execution_mode = (
+            self._parse_execution_mode(raw_scores.get("execution_mode")) or fallback_mode
+        )
+        return AuditScoresResponse(
+            draft_progress_percent=get_draft_progress_percent(audit),
+            execution_mode=execution_mode,
+            summary=self._build_score_breakdown_response(raw_scores.get("summary")),
+            by_section=self._build_score_collection_response(raw_scores.get("by_section")),
+            by_domain=self._build_score_collection_response(raw_scores.get("by_domain")),
+            by_construct=self._build_score_collection_response(raw_scores.get("by_construct")),
+        )
+
+    def _build_score_collection_response(
+        self,
+        raw_collection: object,
+    ) -> dict[str, AuditScoreBreakdownResponse]:
+        """Parse a cached score collection into typed score entries."""
+
+        collection_payload = self._read_json_dict(raw_collection)
+        typed_collection: dict[str, AuditScoreBreakdownResponse] = {}
+        for score_key, raw_score_payload in collection_payload.items():
+            score_response = self._build_score_breakdown_response(raw_score_payload)
+            if score_response is not None:
+                typed_collection[score_key] = score_response
+        return typed_collection
+
+    def _build_score_breakdown_response(
+        self,
+        raw_score_payload: object,
+    ) -> AuditScoreBreakdownResponse | None:
+        """Parse one cached score payload into the typed score response shape."""
+
+        score_payload = self._read_json_dict(raw_score_payload)
+        title_value = score_payload.get("title")
+        addition_total = score_payload.get("addition_total")
+        boost_total = score_payload.get("boost_total")
+        raw_total = score_payload.get("raw_total")
+        max_total = score_payload.get("max_total")
+        percent = score_payload.get("percent")
+        if not isinstance(title_value, str):
+            return None
+        numeric_values = [addition_total, boost_total, raw_total, max_total, percent]
+        if not all(isinstance(value, int | float) for value in numeric_values):
+            return None
+        return AuditScoreBreakdownResponse(
+            title=title_value,
+            addition_total=float(addition_total),
+            boost_total=float(boost_total),
+            raw_total=float(raw_total),
+            max_total=float(max_total),
+            percent=float(percent),
+        )
+
+    @staticmethod
+    def _parse_execution_mode(raw_value: object) -> ExecutionMode | None:
+        """Parse one stored execution-mode string into the typed enum safely."""
+
+        if not isinstance(raw_value, str):
+            return None
+        try:
+            return ExecutionMode(raw_value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _read_json_dict(value: object) -> dict[str, object]:
+        """Safely coerce unknown JSON-like values into dictionaries."""
+
+        return dict(value) if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _read_nested_string_dict(value: object) -> dict[str, dict[str, str]]:
+        """Safely coerce a nested question-answer mapping into string dictionaries."""
+
+        if not isinstance(value, dict):
+            return {}
+
+        nested_payload: dict[str, dict[str, str]] = {}
+        for outer_key, outer_value in value.items():
+            if not isinstance(outer_value, dict):
+                nested_payload[outer_key] = {}
+                continue
+            nested_payload[outer_key] = {
+                inner_key: inner_value
+                for inner_key, inner_value in outer_value.items()
+                if isinstance(inner_value, str)
+            }
+        return nested_payload
+
+    @staticmethod
+    def _to_string_list(value: object) -> list[str]:
+        """Safely coerce one unknown JSON-like value into a string list."""
+
+        if not isinstance(value, list):
+            return []
+        return [entry for entry in value if isinstance(entry, str)]

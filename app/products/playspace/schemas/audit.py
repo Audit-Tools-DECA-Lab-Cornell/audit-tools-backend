@@ -10,7 +10,7 @@ from datetime import datetime
 from pydantic import Field, field_validator
 
 from app.models import AuditStatus
-from app.products.playspace.schemas.base import ApiModel, JsonDict, RequestModel
+from app.products.playspace.schemas.base import ApiModel, RequestModel
 from app.products.playspace.schemas.instrument import AssignmentRole, ExecutionMode
 
 ######################################################################################
@@ -55,13 +55,30 @@ class AssignmentWriteRequest(RequestModel):
 
 
 class AuditMetaPatchRequest(RequestModel):
-    """Mutable execution metadata stored in `responses_json.meta`."""
+    """Mutable execution metadata stored with a Playspace audit draft."""
 
     execution_mode: ExecutionMode | None = None
 
 
+class AuditMetaResponse(ApiModel):
+    """Typed execution metadata returned with an audit session."""
+
+    execution_mode: ExecutionMode | None
+
+
 class PreAuditPatchRequest(RequestModel):
     """Structured pre-audit answers shown on the first page."""
+
+    season: str | None = None
+    weather_conditions: list[str] = Field(default_factory=list)
+    users_present: list[str] = Field(default_factory=list)
+    user_count: str | None = None
+    age_groups: list[str] = Field(default_factory=list)
+    place_size: str | None = None
+
+
+class PreAuditResponse(ApiModel):
+    """Typed pre-audit answers returned with an audit session."""
 
     season: str | None = None
     weather_conditions: list[str] = Field(default_factory=list)
@@ -76,6 +93,36 @@ class SectionDraftPatchRequest(RequestModel):
 
     responses: dict[str, dict[str, str]] = Field(default_factory=dict)
     note: str | None = None
+
+
+class AuditSectionStateResponse(ApiModel):
+    """Typed section payload returned with an audit session."""
+
+    section_key: str
+    responses: dict[str, dict[str, str]] = Field(default_factory=dict)
+    note: str | None = None
+
+
+class AuditScoreBreakdownResponse(ApiModel):
+    """One calculated score bucket returned after submission or draft save."""
+
+    title: str
+    addition_total: float
+    boost_total: float
+    raw_total: float
+    max_total: float
+    percent: float
+
+
+class AuditScoresResponse(ApiModel):
+    """Typed calculated score payload for drafts and submitted audits."""
+
+    draft_progress_percent: float | None = None
+    execution_mode: ExecutionMode | None = None
+    summary: AuditScoreBreakdownResponse | None = None
+    by_section: dict[str, AuditScoreBreakdownResponse] = Field(default_factory=dict)
+    by_domain: dict[str, AuditScoreBreakdownResponse] = Field(default_factory=dict)
+    by_construct: dict[str, AuditScoreBreakdownResponse] = Field(default_factory=dict)
 
 
 class AuditDraftPatchRequest(RequestModel):
@@ -151,6 +198,8 @@ class AuditSessionResponse(ApiModel):
     started_at: datetime
     submitted_at: datetime | None
     total_minutes: int | None
-    responses_json: JsonDict
-    scores_json: JsonDict
+    meta: AuditMetaResponse
+    pre_audit: PreAuditResponse
+    sections: dict[str, AuditSectionStateResponse]
+    scores: AuditScoresResponse
     progress: AuditProgressResponse

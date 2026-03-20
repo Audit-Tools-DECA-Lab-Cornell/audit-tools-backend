@@ -1,9 +1,10 @@
 """
-Seed deterministic shared-core data into the YEE and Playspace databases.
+Seed shared-core data into the YEE and Playspace databases.
 
-The seeded audit payloads intentionally embed metadata extracted from the
-provided source documents so those files are already useful before the final
-product-specific scoring engines land.
+Playspace data is generated from the live scoring metadata so assignments,
+responses, draft progress, and submitted scores remain internally consistent.
+YEE continues to use lighter placeholder audit shells until its dedicated
+execution flow is implemented.
 """
 
 from __future__ import annotations
@@ -16,23 +17,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.demo_data import (
-    DEMO_ACCOUNT_ID,
-    DEMO_AUDIT_KEPLER_ID,
-    DEMO_AUDIT_MATAI_ID,
-    DEMO_AUDIT_RIVERSIDE_ID,
-    DEMO_AUDITOR_AKL01_ID,
-    DEMO_AUDITOR_AKL02_ID,
-    DEMO_AUDITOR_CHC01_ID,
-    DEMO_MANAGER_PROFILE_PRIMARY_ID,
-    DEMO_MANAGER_PROFILE_SECONDARY_ID,
-    DEMO_PLACE_HILLCREST_ID,
-    DEMO_PLACE_KEPLER_ID,
-    DEMO_PLACE_MATAI_ID,
-    DEMO_PLACE_RIVERSIDE_ID,
-    DEMO_PROJECT_SOUTH_ID,
-    DEMO_PROJECT_URBAN_ID,
-)
+from app.core.demo_data import DEMO_ACCOUNT_ID
 from app.core.source_materials import build_yee_source_metadata
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
 from app.models import (
@@ -47,24 +32,15 @@ from app.models import (
     Project,
     User,
 )
-from app.products.playspace.instrument import INSTRUMENT_KEY, INSTRUMENT_VERSION
+from app.products.playspace.seed_data import build_playspace_seed_entities
 
-PLAYSPACE_ORGANIZATION_NAME = "Auckland Playspace Collaborative"
 YEE_ORGANIZATION_NAME = "Youth Enabling Environments Collaborative"
 
-NEW_ZEALAND = "New Zealand"
 UNITED_STATES = "United States"
 NEW_YORK = "New York"
 
-PUBLIC_PLAYSPACE = "public playspace"
 YEE_SECTION_AESTHETICS_AND_CARE = "Aesthetics & Care"
 YEE_SECTION_USE_AND_USABILITY = "Use & Usability"
-
-PLAYSPACE_AUDITOR_ACCOUNT_AKL01_ID = uuid.UUID("66666666-6666-4666-8666-666666666661")
-PLAYSPACE_AUDITOR_ACCOUNT_AKL02_ID = uuid.UUID("66666666-6666-4666-8666-666666666662")
-PLAYSPACE_AUDITOR_ACCOUNT_CHC01_ID = uuid.UUID("66666666-6666-4666-8666-666666666663")
-
-PLAYSPACE_AUDIT_RIVERSIDE_IN_PROGRESS_ID = uuid.UUID("55555555-5555-4555-8555-555555555554")
 
 YEE_MANAGER_PROFILE_PRIMARY_ID = uuid.UUID("77777777-7777-4777-8777-777777777771")
 YEE_MANAGER_PROFILE_SECONDARY_ID = uuid.UUID("77777777-7777-4777-8777-777777777772")
@@ -122,362 +98,7 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
 def _build_playspace_entities() -> list[object]:
     """Create deterministic Playspace ORM objects for seeding."""
 
-    manager_account = Account(
-        id=DEMO_ACCOUNT_ID,
-        name=PLAYSPACE_ORGANIZATION_NAME,
-        email="manager@example.org",
-        password_hash=_placeholder_password_hash("playspace-manager"),
-        account_type=AccountType.MANAGER,
-        created_at=_utc_datetime("2026-01-10T08:30:00Z"),
-    )
-
-    manager_profiles = [
-        ManagerProfile(
-            id=DEMO_MANAGER_PROFILE_PRIMARY_ID,
-            account_id=DEMO_ACCOUNT_ID,
-            full_name="Dr. Amelia Carter",
-            email="amelia.carter@example.org",
-            phone="+64 21 555 0141",
-            position="Primary Manager",
-            organization=PLAYSPACE_ORGANIZATION_NAME,
-            is_primary=True,
-            created_at=_utc_datetime("2026-01-10T09:00:00Z"),
-        ),
-        ManagerProfile(
-            id=DEMO_MANAGER_PROFILE_SECONDARY_ID,
-            account_id=DEMO_ACCOUNT_ID,
-            full_name="Noah Bennett",
-            email="noah.bennett@example.org",
-            phone=None,
-            position="Project Coordinator",
-            organization=PLAYSPACE_ORGANIZATION_NAME,
-            is_primary=False,
-            created_at=_utc_datetime("2026-01-12T09:30:00Z"),
-        ),
-    ]
-
-    auditor_accounts = [
-        Account(
-            id=PLAYSPACE_AUDITOR_ACCOUNT_AKL01_ID,
-            name="Ariana Ngata",
-            email="ariana.ngata@example.org",
-            password_hash=_placeholder_password_hash("playspace-auditor-akl01"),
-            account_type=AccountType.AUDITOR,
-            created_at=_utc_datetime("2026-02-01T09:00:00Z"),
-        ),
-        Account(
-            id=PLAYSPACE_AUDITOR_ACCOUNT_AKL02_ID,
-            name="Luca Patel",
-            email="luca.patel@example.org",
-            password_hash=_placeholder_password_hash("playspace-auditor-akl02"),
-            account_type=AccountType.AUDITOR,
-            created_at=_utc_datetime("2026-02-01T09:05:00Z"),
-        ),
-        Account(
-            id=PLAYSPACE_AUDITOR_ACCOUNT_CHC01_ID,
-            name="Maya Thompson",
-            email="maya.thompson@example.org",
-            password_hash=_placeholder_password_hash("playspace-auditor-chc01"),
-            account_type=AccountType.AUDITOR,
-            created_at=_utc_datetime("2026-02-02T09:00:00Z"),
-        ),
-    ]
-
-    auditor_profiles = [
-        AuditorProfile(
-            id=DEMO_AUDITOR_AKL01_ID,
-            account_id=PLAYSPACE_AUDITOR_ACCOUNT_AKL01_ID,
-            auditor_code="AKL-01",
-            email="ariana.ngata@example.org",
-            full_name="Ariana Ngata",
-            age_range="18-24",
-            gender="Woman",
-            country=NEW_ZEALAND,
-            role="student",
-            created_at=_utc_datetime("2026-02-01T09:15:00Z"),
-        ),
-        AuditorProfile(
-            id=DEMO_AUDITOR_AKL02_ID,
-            account_id=PLAYSPACE_AUDITOR_ACCOUNT_AKL02_ID,
-            auditor_code="AKL-02",
-            email="luca.patel@example.org",
-            full_name="Luca Patel",
-            age_range="25-34",
-            gender="Man",
-            country=NEW_ZEALAND,
-            role="facilitator",
-            created_at=_utc_datetime("2026-02-01T09:20:00Z"),
-        ),
-        AuditorProfile(
-            id=DEMO_AUDITOR_CHC01_ID,
-            account_id=PLAYSPACE_AUDITOR_ACCOUNT_CHC01_ID,
-            auditor_code="CHC-01",
-            email="maya.thompson@example.org",
-            full_name="Maya Thompson",
-            age_range="18-24",
-            gender="Woman",
-            country=NEW_ZEALAND,
-            role="teacher",
-            created_at=_utc_datetime("2026-02-02T09:20:00Z"),
-        ),
-    ]
-
-    projects = [
-        Project(
-            id=DEMO_PROJECT_URBAN_ID,
-            account_id=DEMO_ACCOUNT_ID,
-            name="Urban Playspace Usability 2026",
-            overview=(
-                "A citywide review of urban playspaces focused on access, comfort, and play value."
-            ),
-            place_types=[PUBLIC_PLAYSPACE, "school playspace"],
-            start_date=date(2026, 2, 1),
-            end_date=date(2026, 6, 30),
-            est_places=12,
-            est_auditors=4,
-            auditor_description="Mixed student and facilitator teams working in pairs.",
-            created_at=_utc_datetime("2026-01-20T10:00:00Z"),
-        ),
-        Project(
-            id=DEMO_PROJECT_SOUTH_ID,
-            account_id=DEMO_ACCOUNT_ID,
-            name="South Region Play Value Pilot",
-            overview="A pilot exploring play value and usability patterns across suburban sites.",
-            place_types=[PUBLIC_PLAYSPACE, "preschool playspace"],
-            start_date=date(2026, 3, 1),
-            end_date=date(2026, 7, 15),
-            est_places=8,
-            est_auditors=3,
-            auditor_description="Small multidisciplinary teams completing comparison audits.",
-            created_at=_utc_datetime("2026-02-02T12:00:00Z"),
-        ),
-    ]
-
-    places = [
-        Place(
-            id=DEMO_PLACE_RIVERSIDE_ID,
-            project_id=DEMO_PROJECT_URBAN_ID,
-            name="Riverside Community Playground",
-            city="Auckland",
-            province="Auckland",
-            country=NEW_ZEALAND,
-            place_type=PUBLIC_PLAYSPACE,
-            lat=-36.8485,
-            lng=174.7633,
-            start_date=date(2026, 2, 10),
-            end_date=date(2026, 5, 15),
-            est_auditors=2,
-            auditor_description="Pair audit with accessibility and maintenance notes.",
-            created_at=_utc_datetime("2026-02-03T09:00:00Z"),
-        ),
-        Place(
-            id=DEMO_PLACE_KEPLER_ID,
-            project_id=DEMO_PROJECT_URBAN_ID,
-            name="Kepler Family Park",
-            city="Auckland",
-            province="Auckland",
-            country=NEW_ZEALAND,
-            place_type="school playspace",
-            lat=-36.8618,
-            lng=174.7706,
-            start_date=date(2026, 2, 12),
-            end_date=date(2026, 5, 30),
-            est_auditors=1,
-            auditor_description="Single-site validation audit for school users.",
-            created_at=_utc_datetime("2026-02-03T09:10:00Z"),
-        ),
-        Place(
-            id=DEMO_PLACE_HILLCREST_ID,
-            project_id=DEMO_PROJECT_SOUTH_ID,
-            name="Hillcrest Shared Play Space",
-            city="Christchurch",
-            province="Canterbury",
-            country=NEW_ZEALAND,
-            place_type="preschool playspace",
-            lat=-43.5321,
-            lng=172.6362,
-            start_date=date(2026, 3, 5),
-            end_date=date(2026, 6, 20),
-            est_auditors=2,
-            auditor_description="Upcoming comparison site for early years play patterns.",
-            created_at=_utc_datetime("2026-03-01T08:45:00Z"),
-        ),
-        Place(
-            id=DEMO_PLACE_MATAI_ID,
-            project_id=DEMO_PROJECT_SOUTH_ID,
-            name="Matai Neighborhood Play Area",
-            city="Christchurch",
-            province="Canterbury",
-            country=NEW_ZEALAND,
-            place_type=PUBLIC_PLAYSPACE,
-            lat=-43.5403,
-            lng=172.6292,
-            start_date=date(2026, 3, 4),
-            end_date=date(2026, 6, 25),
-            est_auditors=2,
-            auditor_description="Neighbourhood pilot with emphasis on community usability.",
-            created_at=_utc_datetime("2026-03-01T09:00:00Z"),
-        ),
-    ]
-
-    assignments = [
-        AuditorAssignment(
-            id=uuid.UUID("d1000000-0000-4000-8000-000000000001"),
-            auditor_profile_id=DEMO_AUDITOR_AKL01_ID,
-            project_id=DEMO_PROJECT_URBAN_ID,
-            place_id=None,
-            audit_roles=["auditor"],
-            assigned_at=_utc_datetime("2026-02-10T08:00:00Z"),
-        ),
-        AuditorAssignment(
-            id=uuid.UUID("d1000000-0000-4000-8000-000000000002"),
-            auditor_profile_id=DEMO_AUDITOR_AKL01_ID,
-            project_id=None,
-            place_id=DEMO_PLACE_RIVERSIDE_ID,
-            audit_roles=["auditor", "place_admin"],
-            assigned_at=_utc_datetime("2026-02-12T08:30:00Z"),
-        ),
-        AuditorAssignment(
-            id=uuid.UUID("d1000000-0000-4000-8000-000000000003"),
-            auditor_profile_id=DEMO_AUDITOR_AKL02_ID,
-            project_id=DEMO_PROJECT_URBAN_ID,
-            place_id=None,
-            audit_roles=["auditor"],
-            assigned_at=_utc_datetime("2026-02-10T08:05:00Z"),
-        ),
-        AuditorAssignment(
-            id=uuid.UUID("d1000000-0000-4000-8000-000000000004"),
-            auditor_profile_id=DEMO_AUDITOR_CHC01_ID,
-            project_id=DEMO_PROJECT_SOUTH_ID,
-            place_id=None,
-            audit_roles=["auditor"],
-            assigned_at=_utc_datetime("2026-03-02T09:00:00Z"),
-        ),
-        AuditorAssignment(
-            id=uuid.UUID("d1000000-0000-4000-8000-000000000005"),
-            auditor_profile_id=DEMO_AUDITOR_CHC01_ID,
-            project_id=None,
-            place_id=DEMO_PLACE_MATAI_ID,
-            audit_roles=["place_admin"],
-            assigned_at=_utc_datetime("2026-03-03T09:10:00Z"),
-        ),
-    ]
-
-    audits = [
-        Audit(
-            id=DEMO_AUDIT_RIVERSIDE_ID,
-            place_id=DEMO_PLACE_RIVERSIDE_ID,
-            auditor_profile_id=DEMO_AUDITOR_AKL01_ID,
-            audit_code="RIVERSIDE-AKL01-2026-03-04",
-            instrument_key=INSTRUMENT_KEY,
-            instrument_version=INSTRUMENT_VERSION,
-            status=AuditStatus.SUBMITTED,
-            started_at=_utc_datetime("2026-03-04T16:00:00Z"),
-            submitted_at=_utc_datetime("2026-03-04T17:05:00Z"),
-            total_minutes=65,
-            summary_score=74.0,
-            responses_json={
-                "seed_source": "pvua_v5_2",
-                "site_focus": "accessibility and inclusive transitions",
-                "notes": [
-                    "Used PVUA 5.2 audit shell with usability-focused prompts.",
-                    "Sample responses retained as lightweight scaffolding only.",
-                ],
-            },
-            scores_json={
-                "summary_score": 74.0,
-                "subscores": {
-                    "usability": 72.0,
-                    "play_value": 76.0,
-                },
-            },
-            created_at=_utc_datetime("2026-03-04T16:00:00Z"),
-            updated_at=_utc_datetime("2026-03-04T17:05:00Z"),
-        ),
-        Audit(
-            id=PLAYSPACE_AUDIT_RIVERSIDE_IN_PROGRESS_ID,
-            place_id=DEMO_PLACE_RIVERSIDE_ID,
-            auditor_profile_id=DEMO_AUDITOR_AKL02_ID,
-            audit_code="RIVERSIDE-AKL02-2026-03-08",
-            instrument_key=INSTRUMENT_KEY,
-            instrument_version=INSTRUMENT_VERSION,
-            status=AuditStatus.IN_PROGRESS,
-            started_at=_utc_datetime("2026-03-08T09:15:00Z"),
-            submitted_at=None,
-            total_minutes=25,
-            summary_score=None,
-            responses_json={
-                "seed_source": "pvua_v5_2",
-                "draft_state": "partial accessibility walkthrough",
-            },
-            scores_json={"draft_progress_percent": 40},
-            created_at=_utc_datetime("2026-03-08T09:15:00Z"),
-            updated_at=_utc_datetime("2026-03-08T09:40:00Z"),
-        ),
-        Audit(
-            id=DEMO_AUDIT_KEPLER_ID,
-            place_id=DEMO_PLACE_KEPLER_ID,
-            auditor_profile_id=DEMO_AUDITOR_AKL02_ID,
-            audit_code="KEPLER-AKL02-2026-03-05",
-            instrument_key=INSTRUMENT_KEY,
-            instrument_version=INSTRUMENT_VERSION,
-            status=AuditStatus.SUBMITTED,
-            started_at=_utc_datetime("2026-03-05T12:20:00Z"),
-            submitted_at=_utc_datetime("2026-03-05T13:20:00Z"),
-            total_minutes=60,
-            summary_score=81.0,
-            responses_json={
-                "seed_source": "pvua_v5_2",
-                "site_focus": "school-age play diversity and challenge",
-            },
-            scores_json={
-                "summary_score": 81.0,
-                "subscores": {
-                    "usability": 79.0,
-                    "play_value": 83.0,
-                },
-            },
-            created_at=_utc_datetime("2026-03-05T12:20:00Z"),
-            updated_at=_utc_datetime("2026-03-05T13:20:00Z"),
-        ),
-        Audit(
-            id=DEMO_AUDIT_MATAI_ID,
-            place_id=DEMO_PLACE_MATAI_ID,
-            auditor_profile_id=DEMO_AUDITOR_CHC01_ID,
-            audit_code="MATAI-CHC01-2026-03-06",
-            instrument_key=INSTRUMENT_KEY,
-            instrument_version=INSTRUMENT_VERSION,
-            status=AuditStatus.SUBMITTED,
-            started_at=_utc_datetime("2026-03-06T14:40:00Z"),
-            submitted_at=_utc_datetime("2026-03-06T15:45:00Z"),
-            total_minutes=65,
-            summary_score=88.0,
-            responses_json={
-                "seed_source": "pvua_v5_2",
-                "site_focus": "social play, restorative edges, and inclusive wayfinding",
-            },
-            scores_json={
-                "summary_score": 88.0,
-                "subscores": {
-                    "usability": 86.0,
-                    "play_value": 90.0,
-                },
-            },
-            created_at=_utc_datetime("2026-03-06T14:40:00Z"),
-            updated_at=_utc_datetime("2026-03-06T15:45:00Z"),
-        ),
-    ]
-
-    return [
-        manager_account,
-        *manager_profiles,
-        *auditor_accounts,
-        *auditor_profiles,
-        *projects,
-        *places,
-        *assignments,
-        *audits,
-    ]
+    return list(build_playspace_seed_entities())
 
 
 def _build_yee_entities() -> list[object]:

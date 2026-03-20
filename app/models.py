@@ -363,8 +363,9 @@ class Audit(Base):
     """
     Shared audit shell.
 
-    Product-specific modules can persist detailed responses/scores using the JSONB
-    columns while the shared dashboard layer relies only on lifecycle and summary
+    Product-specific modules can persist detailed responses/scores in dedicated
+    child tables. The JSONB columns remain as transitional compatibility caches
+    while the shared dashboard layer continues to rely on lifecycle and summary
     fields.
     """
 
@@ -418,3 +419,216 @@ class Audit(Base):
 
     place: Mapped[Place] = relationship(back_populates="audits")
     auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits")
+    playspace_context: Mapped[PlayspaceAuditContext | None] = relationship(
+        back_populates="audit",
+        cascade=CASCADE_DELETE_ORPHAN,
+        uselist=False,
+    )
+    playspace_pre_audit_answers: Mapped[list[PlayspacePreAuditAnswer]] = relationship(
+        back_populates="audit",
+        cascade=CASCADE_DELETE_ORPHAN,
+    )
+    playspace_sections: Mapped[list[PlayspaceAuditSection]] = relationship(
+        back_populates="audit",
+        cascade=CASCADE_DELETE_ORPHAN,
+    )
+
+
+class PlayspaceAuditContext(Base):
+    """Normalized one-to-one Playspace metadata stored for an audit session."""
+
+    __tablename__ = "playspace_audit_contexts"
+
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("audits.id", ondelete="CASCADE", name="fk_ps_context_audit"),
+        primary_key=True,
+    )
+    execution_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    draft_progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    audit: Mapped[Audit] = relationship(back_populates="playspace_context")
+
+
+class PlayspacePreAuditAnswer(Base):
+    """One normalized Playspace pre-audit answer row."""
+
+    __tablename__ = "playspace_pre_audit_answers"
+    __table_args__ = (
+        UniqueConstraint(
+            "audit_id",
+            "field_key",
+            "selected_value",
+            name="uq_playspace_pre_audit_answers_audit_field_value",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("audits.id", ondelete="CASCADE", name="fk_ps_pre_audit_answer_audit"),
+        index=True,
+        nullable=False,
+    )
+    field_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    selected_value: Mapped[str] = mapped_column(String(80), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    audit: Mapped[Audit] = relationship(back_populates="playspace_pre_audit_answers")
+
+
+class PlayspaceAuditSection(Base):
+    """One normalized Playspace section state row for note and child answers."""
+
+    __tablename__ = "playspace_audit_sections"
+    __table_args__ = (
+        UniqueConstraint(
+            "audit_id",
+            "section_key",
+            name="uq_playspace_audit_sections_audit_section",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("audits.id", ondelete="CASCADE", name="fk_ps_audit_section_audit"),
+        index=True,
+        nullable=False,
+    )
+    section_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    audit: Mapped[Audit] = relationship(back_populates="playspace_sections")
+    question_responses: Mapped[list[PlayspaceQuestionResponse]] = relationship(
+        back_populates="section",
+        cascade=CASCADE_DELETE_ORPHAN,
+    )
+
+
+class PlayspaceQuestionResponse(Base):
+    """One normalized Playspace question response row within a section."""
+
+    __tablename__ = "playspace_question_responses"
+    __table_args__ = (
+        UniqueConstraint(
+            "section_id",
+            "question_key",
+            name="uq_playspace_question_responses_section_question",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    section_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "playspace_audit_sections.id",
+            ondelete="CASCADE",
+            name="fk_ps_question_response_section",
+        ),
+        index=True,
+        nullable=False,
+    )
+    question_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    section: Mapped[PlayspaceAuditSection] = relationship(back_populates="question_responses")
+    scale_answers: Mapped[list[PlayspaceScaleAnswer]] = relationship(
+        back_populates="question_response",
+        cascade=CASCADE_DELETE_ORPHAN,
+    )
+
+
+class PlayspaceScaleAnswer(Base):
+    """One normalized Playspace scale-answer row for a question response."""
+
+    __tablename__ = "playspace_scale_answers"
+    __table_args__ = (
+        UniqueConstraint(
+            "question_response_id",
+            "scale_key",
+            name="uq_playspace_scale_answers_question_scale",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    question_response_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "playspace_question_responses.id",
+            ondelete="CASCADE",
+            name="fk_ps_scale_answer_question_response",
+        ),
+        index=True,
+        nullable=False,
+    )
+    scale_key: Mapped[str] = mapped_column(String(40), nullable=False)
+    option_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    question_response: Mapped[PlayspaceQuestionResponse] = relationship(
+        back_populates="scale_answers"
+    )
