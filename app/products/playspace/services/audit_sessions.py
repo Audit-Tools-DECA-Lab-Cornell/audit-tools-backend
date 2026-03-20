@@ -40,8 +40,8 @@ from app.products.playspace.schemas import (
     AuditMetaResponse,
     AuditorPlaceResponse,
     AuditProgressResponse,
-    AuditScoreBreakdownResponse,
     AuditScoresResponse,
+    AuditScoreTotalsResponse,
     AuditSectionStateResponse,
     AuditSessionResponse,
     ExecutionMode,
@@ -134,6 +134,13 @@ class PlayspaceAuditSessionsMixin:
                 db_values=list(place_roles.get(place_id, {"auditor"})),
             )
             latest_audit = latest_audit_by_place.get(place_id)
+            score_payload = (
+                self._resolve_score_payload(audit=latest_audit) if latest_audit is not None else {}
+            )
+            score_totals = self._build_score_totals_response(score_payload.get("overall"))
+            summary_score = self._combined_construct_total(score_totals)
+            if summary_score is None and latest_audit is not None:
+                summary_score = latest_audit.summary_score
 
             progress_percent: float | None = None
             if latest_audit is not None and latest_audit.status is not AuditStatus.SUBMITTED:
@@ -160,7 +167,8 @@ class PlayspaceAuditSessionsMixin:
                     audit_id=latest_audit.id if latest_audit is not None else None,
                     started_at=latest_audit.started_at if latest_audit is not None else None,
                     submitted_at=latest_audit.submitted_at if latest_audit is not None else None,
-                    summary_score=latest_audit.summary_score if latest_audit is not None else None,
+                    summary_score=summary_score,
+                    score_totals=score_totals,
                     progress_percent=progress_percent,
                 )
             )
@@ -365,12 +373,8 @@ class PlayspaceAuditSessionsMixin:
         audit.total_minutes = max(elapsed_minutes, 0)
         set_draft_progress_percent(audit=audit, draft_progress_percent=None)
         audit.scores_json = calculated_scores
-        summary_payload = calculated_scores.get("summary")
-        has_numeric_percent = isinstance(summary_payload, dict) and isinstance(
-            summary_payload.get("percent"),
-            float,
-        )
-        audit.summary_score = float(summary_payload["percent"]) if has_numeric_percent else None
+        overall_payload = self._build_score_totals_response(calculated_scores.get("overall"))
+        audit.summary_score = self._combined_construct_total(overall_payload)
         await self._commit_and_refresh(audit)
 
         return self._build_audit_session_response(
@@ -647,61 +651,94 @@ class PlayspaceAuditSessionsMixin:
         audit: Audit,
         fallback_mode: ExecutionMode | None,
     ) -> AuditScoresResponse:
-        """Build the typed score payload from the transitional cached score document."""
+        """Build the typed Playspace score payload from cached or live audit totals."""
 
-        raw_scores = dict(audit.scores_json) if isinstance(audit.scores_json, dict) else {}
+        raw_scores = self._resolve_score_payload(audit=audit)
         execution_mode = (
             self._parse_execution_mode(raw_scores.get("execution_mode")) or fallback_mode
         )
         return AuditScoresResponse(
             draft_progress_percent=get_draft_progress_percent(audit),
             execution_mode=execution_mode,
-            summary=self._build_score_breakdown_response(raw_scores.get("summary")),
+            overall=self._build_score_totals_response(raw_scores.get("overall")),
             by_section=self._build_score_collection_response(raw_scores.get("by_section")),
             by_domain=self._build_score_collection_response(raw_scores.get("by_domain")),
-            by_construct=self._build_score_collection_response(raw_scores.get("by_construct")),
         )
+
+    def _resolve_score_payload(self, *, audit: Audit) -> dict[str, object]:
+        """Return the current score payload, recalculating submitted audits when needed."""
+
+        raw_scores = dict(audit.scores_json) if isinstance(audit.scores_json, dict) else {}
+        if audit.status is not AuditStatus.SUBMITTED:
+            return raw_scores
+
+        overall_payload = self._build_score_totals_response(raw_scores.get("overall"))
+        if overall_payload is not None:
+            return raw_scores
+
+        try:
+            return score_audit_for_audit(
+                assignment_roles=self._assignment_roles_from_db_values(
+                    db_values=["auditor", "place_admin"]
+                ),
+                audit=audit,
+            )
+        except ValueError:
+            return raw_scores
 
     def _build_score_collection_response(
         self,
         raw_collection: object,
-    ) -> dict[str, AuditScoreBreakdownResponse]:
-        """Parse a cached score collection into typed score entries."""
+    ) -> dict[str, AuditScoreTotalsResponse]:
+        """Parse a cached score collection into typed Playspace score totals."""
 
         collection_payload = self._read_json_dict(raw_collection)
-        typed_collection: dict[str, AuditScoreBreakdownResponse] = {}
+        typed_collection: dict[str, AuditScoreTotalsResponse] = {}
         for score_key, raw_score_payload in collection_payload.items():
-            score_response = self._build_score_breakdown_response(raw_score_payload)
+            score_response = self._build_score_totals_response(raw_score_payload)
             if score_response is not None:
                 typed_collection[score_key] = score_response
         return typed_collection
 
-    def _build_score_breakdown_response(
+    def _build_score_totals_response(
         self,
         raw_score_payload: object,
-    ) -> AuditScoreBreakdownResponse | None:
-        """Parse one cached score payload into the typed score response shape."""
+    ) -> AuditScoreTotalsResponse | None:
+        """Parse one cached score payload into the typed Playspace total shape."""
 
         score_payload = self._read_json_dict(raw_score_payload)
-        title_value = score_payload.get("title")
-        addition_total = score_payload.get("addition_total")
-        boost_total = score_payload.get("boost_total")
-        raw_total = score_payload.get("raw_total")
-        max_total = score_payload.get("max_total")
-        percent = score_payload.get("percent")
-        if not isinstance(title_value, str):
-            return None
-        numeric_values = [addition_total, boost_total, raw_total, max_total, percent]
+        quantity_total = score_payload.get("quantity_total")
+        diversity_total = score_payload.get("diversity_total")
+        challenge_total = score_payload.get("challenge_total")
+        sociability_total = score_payload.get("sociability_total")
+        play_value_total = score_payload.get("play_value_total")
+        usability_total = score_payload.get("usability_total")
+        numeric_values = [
+            quantity_total,
+            diversity_total,
+            challenge_total,
+            sociability_total,
+            play_value_total,
+            usability_total,
+        ]
         if not all(isinstance(value, int | float) for value in numeric_values):
             return None
-        return AuditScoreBreakdownResponse(
-            title=title_value,
-            addition_total=float(addition_total),
-            boost_total=float(boost_total),
-            raw_total=float(raw_total),
-            max_total=float(max_total),
-            percent=float(percent),
+        return AuditScoreTotalsResponse(
+            quantity_total=float(quantity_total),
+            diversity_total=float(diversity_total),
+            challenge_total=float(challenge_total),
+            sociability_total=float(sociability_total),
+            play_value_total=float(play_value_total),
+            usability_total=float(usability_total),
         )
+
+    @staticmethod
+    def _combined_construct_total(score_totals: AuditScoreTotalsResponse | None) -> float | None:
+        """Return the combined play-value plus usability total for compact summaries."""
+
+        if score_totals is None:
+            return None
+        return round(score_totals.play_value_total + score_totals.usability_total, 2)
 
     @staticmethod
     def _parse_execution_mode(raw_value: object) -> ExecutionMode | None:

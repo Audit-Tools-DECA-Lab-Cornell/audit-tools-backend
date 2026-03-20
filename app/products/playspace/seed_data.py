@@ -1371,11 +1371,16 @@ def _build_audit_record(
             audit=submitted_audit,
         )
         submitted_audit.scores_json = calculated_scores
-        summary_payload = calculated_scores.get("summary")
+        overall_payload = calculated_scores.get("overall")
         submitted_audit.summary_score = (
-            float(summary_payload["percent"])
-            if isinstance(summary_payload, dict)
-            and isinstance(summary_payload.get("percent"), float)
+            round(
+                float(overall_payload["play_value_total"])
+                + float(overall_payload["usability_total"]),
+                2,
+            )
+            if isinstance(overall_payload, dict)
+            and isinstance(overall_payload.get("play_value_total"), int | float)
+            and isinstance(overall_payload.get("usability_total"), int | float)
             else None
         )
         return submitted_audit

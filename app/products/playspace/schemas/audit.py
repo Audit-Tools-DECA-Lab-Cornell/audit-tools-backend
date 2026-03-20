@@ -103,15 +103,15 @@ class AuditSectionStateResponse(ApiModel):
     note: str | None = None
 
 
-class AuditScoreBreakdownResponse(ApiModel):
-    """One calculated score bucket returned after submission or draft save."""
+class AuditScoreTotalsResponse(ApiModel):
+    """One raw Playspace score bucket for overall, section, or domain totals."""
 
-    title: str
-    addition_total: float
-    boost_total: float
-    raw_total: float
-    max_total: float
-    percent: float
+    quantity_total: float
+    diversity_total: float
+    challenge_total: float
+    sociability_total: float
+    play_value_total: float
+    usability_total: float
 
 
 class AuditScoresResponse(ApiModel):
@@ -119,10 +119,9 @@ class AuditScoresResponse(ApiModel):
 
     draft_progress_percent: float | None = None
     execution_mode: ExecutionMode | None = None
-    summary: AuditScoreBreakdownResponse | None = None
-    by_section: dict[str, AuditScoreBreakdownResponse] = Field(default_factory=dict)
-    by_domain: dict[str, AuditScoreBreakdownResponse] = Field(default_factory=dict)
-    by_construct: dict[str, AuditScoreBreakdownResponse] = Field(default_factory=dict)
+    overall: AuditScoreTotalsResponse | None = None
+    by_section: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
+    by_domain: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
 
 
 class AuditDraftPatchRequest(RequestModel):
@@ -178,6 +177,7 @@ class AuditorPlaceResponse(ApiModel):
     started_at: datetime | None
     submitted_at: datetime | None
     summary_score: float | None
+    score_totals: AuditScoreTotalsResponse | None = None
     progress_percent: float | None
 
 

@@ -1,8 +1,10 @@
 """
 Playspace audit runtime helpers for execution-mode filtering, progress, and scoring.
 
-Scale option values in scoring_metadata are pre-flipped for reverse-scored
-questions, so the scoring engine reads addition_value and boost_value directly.
+The scoring model uses raw totals rather than normalized percentages:
+quantity is summed directly, diversity and challenge contribute both domain
+column totals and construct multipliers, and sociability is tracked as a
+separate score stream alongside play value and usability.
 """
 
 from __future__ import annotations
@@ -42,13 +44,15 @@ MULTI_SELECT_PRE_AUDIT_FIELDS = {
 
 
 @dataclass(frozen=True)
-class ScoreAccumulator:
-    """Internal aggregate used for section, domain, construct, and summary totals."""
+class ScoreTotals:
+    """Internal aggregate for one section, domain, or overall audit score bucket."""
 
-    addition_total: float = 0.0
-    boost_total: float = 0.0
-    raw_total: float = 0.0
-    max_total: float = 0.0
+    quantity_total: float = 0.0
+    diversity_total: float = 0.0
+    challenge_total: float = 0.0
+    sociability_total: float = 0.0
+    play_value_total: float = 0.0
+    usability_total: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -258,7 +262,7 @@ def score_audit(
     assignment_roles: list[AssignmentRole],
     responses_json: JsonDict,
 ) -> JsonDict:
-    """Calculate section, domain, construct, and summary scores for a completed draft."""
+    """Calculate Playspace total buckets for a completed audit draft."""
 
     snapshot = _build_snapshot_from_json(responses_json)
     return _score_audit_from_snapshot(
@@ -272,7 +276,7 @@ def score_audit_for_audit(
     assignment_roles: list[AssignmentRole],
     audit: Audit,
 ) -> JsonDict:
-    """Calculate scores directly from normalized audit relations."""
+    """Calculate Playspace total buckets directly from normalized audit relations."""
 
     snapshot = _build_snapshot_from_audit(audit)
     return _score_audit_from_snapshot(
@@ -296,9 +300,7 @@ def _score_audit_from_snapshot(
         raise ValueError("Execution mode must be selected before scoring the audit.")
 
     section_scores: dict[str, JsonDict] = {}
-    domain_scores: dict[str, ScoreAccumulator] = {}
-    construct_scores: dict[str, ScoreAccumulator] = {}
-    summary = ScoreAccumulator()
+    domain_scores: dict[str, ScoreTotals] = {}
     sections_payload = snapshot.sections_payload
 
     for section in SCORING_SECTIONS:
@@ -310,46 +312,36 @@ def _score_audit_from_snapshot(
             continue
 
         section_answers = _read_json_dict(sections_payload.get(section.section_key))
-        section_accumulator = ScoreAccumulator()
+        section_totals = ScoreTotals()
 
         for question in visible_questions:
-            question_score = _score_question(
+            question_totals = _score_question(
                 question=question,
                 section_answers=section_answers,
             )
-            section_accumulator = _add_scores(section_accumulator, question_score)
-            summary = _add_scores(summary, question_score)
+            section_totals = _add_score_totals(section_totals, question_totals)
 
             for domain_label in question.domains:
-                current_domain_score = domain_scores.get(domain_label, ScoreAccumulator())
-                domain_scores[domain_label] = _add_scores(current_domain_score, question_score)
-
-            for construct_label in question.constructs:
-                current_construct_score = construct_scores.get(construct_label, ScoreAccumulator())
-                construct_scores[construct_label] = _add_scores(
-                    current_construct_score,
-                    question_score,
+                current_domain_score = domain_scores.get(domain_label, ScoreTotals())
+                domain_scores[domain_label] = _add_score_totals(
+                    current_domain_score,
+                    question_totals,
                 )
 
-        section_scores[section.section_key] = _serialize_accumulator(
-            title=section.section_key,
-            accumulator=section_accumulator,
-        )
+        section_scores[section.section_key] = _serialize_score_totals(section_totals)
 
     serialized_domain_scores = {
-        domain_key: _serialize_accumulator(title=domain_key, accumulator=accumulator)
-        for domain_key, accumulator in domain_scores.items()
+        domain_key: _serialize_score_totals(score_totals)
+        for domain_key, score_totals in domain_scores.items()
     }
-    serialized_construct_scores = {
-        construct_key: _serialize_accumulator(title=construct_key, accumulator=accumulator)
-        for construct_key, accumulator in construct_scores.items()
-    }
+    overall_totals = ScoreTotals()
+    for domain_totals in domain_scores.values():
+        overall_totals = _add_score_totals(overall_totals, domain_totals)
 
     return {
-        "summary": _serialize_accumulator(title="summary", accumulator=summary),
+        "overall": _serialize_score_totals(overall_totals),
         "by_section": section_scores,
         "by_domain": serialized_domain_scores,
-        "by_construct": serialized_construct_scores,
         "execution_mode": execution_mode.value,
     }
 
@@ -563,75 +555,135 @@ def _score_question(
     *,
     question: ScoringQuestion,
     section_answers: JsonDict,
-) -> ScoreAccumulator:
-    """Score one question. All values are pre-flipped so no reversal logic is needed."""
+) -> ScoreTotals:
+    """Score one question according to the client-approved Playspace rules."""
 
     question_answers = _read_json_dict(section_answers.get(question.question_key))
     quantity_scale = next(scale for scale in question.scales if scale.key == "quantity")
     quantity_answer_key = question_answers.get("quantity")
     if not isinstance(quantity_answer_key, str):
-        return ScoreAccumulator()
+        return ScoreTotals()
 
     quantity_option = _find_option_by_key(quantity_scale.options, quantity_answer_key)
     if quantity_option is None:
-        return ScoreAccumulator()
+        return ScoreTotals()
 
-    addition_total = quantity_option.addition_value
-    boost_total = quantity_option.boost_value
-    max_addition_total = max(o.addition_value for o in quantity_scale.options)
-    max_boost_total = max(o.boost_value for o in quantity_scale.options)
+    quantity_total = float(quantity_option.addition_value)
+    diversity_total = 0.0
+    challenge_total = 0.0
+    sociability_total = 0.0
+    diversity_multiplier = 1.0
+    challenge_multiplier = 1.0
 
     if quantity_option.allows_follow_up_scales:
-        for scale in question.scales:
-            if scale.key == "quantity":
-                continue
+        diversity_total, diversity_multiplier = _read_multiplier_scale_score(
+            question=question,
+            question_answers=question_answers,
+            scale_key="diversity",
+        )
+        challenge_total, challenge_multiplier = _read_multiplier_scale_score(
+            question=question,
+            question_answers=question_answers,
+            scale_key="challenge",
+        )
+        sociability_total = _read_sociability_scale_score(
+            question=question,
+            question_answers=question_answers,
+        )
 
-            answer_key = question_answers.get(scale.key)
-            if not isinstance(answer_key, str):
-                continue
+    construct_score = quantity_total * diversity_multiplier * challenge_multiplier
+    play_value_total = construct_score if "play_value" in question.constructs else 0.0
+    usability_total = construct_score if "usability" in question.constructs else 0.0
 
-            selected_option = _find_option_by_key(scale.options, answer_key)
-            if selected_option is None:
-                continue
-
-            addition_total += selected_option.addition_value
-            boost_total *= selected_option.boost_value
-            max_addition_total += max(o.addition_value for o in scale.options)
-            max_boost_total *= max(o.boost_value for o in scale.options)
-
-    raw_total = addition_total + boost_total
-    max_total = max_addition_total + max_boost_total
-    return ScoreAccumulator(
-        addition_total=round(addition_total, 4),
-        boost_total=round(boost_total, 4),
-        raw_total=round(raw_total, 4),
-        max_total=round(max_total, 4),
+    return ScoreTotals(
+        quantity_total=round(quantity_total, 2),
+        diversity_total=round(diversity_total, 2),
+        challenge_total=round(challenge_total, 2),
+        sociability_total=round(sociability_total, 2),
+        play_value_total=round(play_value_total, 2),
+        usability_total=round(usability_total, 2),
     )
 
 
-def _add_scores(left: ScoreAccumulator, right: ScoreAccumulator) -> ScoreAccumulator:
-    """Sum two immutable score accumulators."""
+def _read_multiplier_scale_score(
+    *,
+    question: ScoringQuestion,
+    question_answers: JsonDict,
+    scale_key: str,
+) -> tuple[float, float]:
+    """Read one diversity/challenge answer as both a domain total and multiplier."""
 
-    return ScoreAccumulator(
-        addition_total=left.addition_total + right.addition_total,
-        boost_total=left.boost_total + right.boost_total,
-        raw_total=left.raw_total + right.raw_total,
-        max_total=left.max_total + right.max_total,
+    scale = next(
+        (current_scale for current_scale in question.scales if current_scale.key == scale_key),
+        None,
+    )
+    if scale is None:
+        return 0.0, 1.0
+
+    answer_key = question_answers.get(scale_key)
+    if not isinstance(answer_key, str):
+        return 0.0, 1.0
+
+    selected_option = _find_option_by_key(scale.options, answer_key)
+    if selected_option is None:
+        return 0.0, 1.0
+
+    column_total = max(float(selected_option.addition_value) - 1.0, 0.0)
+    if selected_option.addition_value <= 0:
+        return column_total, 1.0
+    return column_total, float(selected_option.boost_value)
+
+
+def _read_sociability_scale_score(
+    *,
+    question: ScoringQuestion,
+    question_answers: JsonDict,
+) -> float:
+    """Read one sociability answer using the client-specified 0/1/2 mapping."""
+
+    scale = next(
+        (
+            current_scale
+            for current_scale in question.scales
+            if current_scale.key == "sociability"
+        ),
+        None,
+    )
+    if scale is None:
+        return 0.0
+
+    answer_key = question_answers.get("sociability")
+    if not isinstance(answer_key, str):
+        return 0.0
+
+    selected_option = _find_option_by_key(scale.options, answer_key)
+    if selected_option is None:
+        return 0.0
+
+    return max(float(selected_option.addition_value) - 1.0, 0.0)
+
+
+def _add_score_totals(left: ScoreTotals, right: ScoreTotals) -> ScoreTotals:
+    """Sum two immutable Playspace score-total buckets."""
+
+    return ScoreTotals(
+        quantity_total=left.quantity_total + right.quantity_total,
+        diversity_total=left.diversity_total + right.diversity_total,
+        challenge_total=left.challenge_total + right.challenge_total,
+        sociability_total=left.sociability_total + right.sociability_total,
+        play_value_total=left.play_value_total + right.play_value_total,
+        usability_total=left.usability_total + right.usability_total,
     )
 
 
-def _serialize_accumulator(*, title: str, accumulator: ScoreAccumulator) -> JsonDict:
-    """Convert an accumulator into a JSON-safe score payload."""
-
-    percent = 0.0
-    if accumulator.max_total > 0:
-        percent = round((accumulator.raw_total / accumulator.max_total) * 100, 2)
+def _serialize_score_totals(score_totals: ScoreTotals) -> JsonDict:
+    """Convert one score-total bucket into a JSON-safe response payload."""
 
     return {
-        "title": title,
-        "addition_total": round(accumulator.addition_total, 2),
-        "boost_total": round(accumulator.boost_total, 2),
-        "raw_total": round(accumulator.raw_total, 2),
-        "max_total": round(accumulator.max_total, 2),
-        "percent": percent,
+        "quantity_total": round(score_totals.quantity_total, 2),
+        "diversity_total": round(score_totals.diversity_total, 2),
+        "challenge_total": round(score_totals.challenge_total, 2),
+        "sociability_total": round(score_totals.sociability_total, 2),
+        "play_value_total": round(score_totals.play_value_total, 2),
+        "usability_total": round(score_totals.usability_total, 2),
     }
