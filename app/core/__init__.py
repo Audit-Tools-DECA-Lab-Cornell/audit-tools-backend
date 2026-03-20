@@ -1,1 +1,1 @@
-"""Shared backend core helpers for both audit products."""
+"""Backend infrastructure helpers."""

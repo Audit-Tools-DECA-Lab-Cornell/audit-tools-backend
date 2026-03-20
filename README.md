@@ -1,4 +1,4 @@
-## Audit Tools Backend (FastAPI + Strawberry + SQLAlchemy + Postgres)
+## Audit Tools Backend (FastAPI + SQLAlchemy + Postgres)
 
 ### Client channels and role intent
 
@@ -6,6 +6,7 @@
   (offline-first).
 - **Manager workflows**: web experience for project/place configuration and management.
 - Backend role model supports both `MANAGER` and `AUDITOR`, while the mobile UX is designed for auditor field workflows.
+- Playspace and YEE live under separate product folders and route namespaces.
 
 ### Local setup (macOS + zsh)
 
@@ -95,12 +96,11 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 - **Config**: a minimal `render.yaml` is included so you can deploy via a blueprint if you want.
 - **Docs**: [Render port binding](https://render.com/docs/web-services#port-binding)
 
-### GraphQL
+### REST endpoints
 
-- **Endpoints**:
-  - `http://127.0.0.1:8000/yee/graphql`
-  - `http://127.0.0.1:8000/playspace/graphql`
-- **Health check**: `http://127.0.0.1:8000/health`
+- **Global health**: `http://127.0.0.1:8000/health`
+- **Playspace API root namespace**: `http://127.0.0.1:8000/playspace/*`
+- **YEE namespace status**: `http://127.0.0.1:8000/yee/status`
 
 ### Database configuration
 
