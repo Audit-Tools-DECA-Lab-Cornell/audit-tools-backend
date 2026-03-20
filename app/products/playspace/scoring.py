@@ -1,0 +1,448 @@
+"""
+Playspace audit runtime helpers for execution-mode filtering, progress, and scoring.
+
+Scale option values in scoring_metadata are pre-flipped for reverse-scored
+questions, so the scoring engine reads addition_value and boost_value directly.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.products.playspace.schemas import (
+    AssignmentRole,
+    AuditDraftPatchRequest,
+    AuditProgressResponse,
+    AuditSectionProgressResponse,
+    ExecutionMode,
+    JsonDict,
+    PreAuditPatchRequest,
+)
+from app.products.playspace.scoring_metadata import (
+    SCORING_SECTIONS,
+    ScoringQuestion,
+    ScoringScaleOption,
+    ScoringSection,
+)
+
+PRE_AUDIT_REQUIRED_KEYS = [
+    "season",
+    "weather_conditions",
+    "users_present",
+    "user_count",
+    "age_groups",
+    "place_size",
+]
+
+
+@dataclass(frozen=True)
+class ScoreAccumulator:
+    """Internal aggregate used for section, domain, construct, and summary totals."""
+
+    addition_total: float = 0.0
+    boost_total: float = 0.0
+    raw_total: float = 0.0
+    max_total: float = 0.0
+
+
+def get_allowed_execution_modes(assignment_roles: list[AssignmentRole]) -> list[ExecutionMode]:
+    """Map place-scoped assignment capabilities to visible execution modes."""
+
+    role_set = set(assignment_roles)
+    has_auditor = AssignmentRole.AUDITOR in role_set
+    has_place_admin = AssignmentRole.PLACE_ADMIN in role_set
+
+    if has_auditor and has_place_admin:
+        return [ExecutionMode.AUDIT, ExecutionMode.SURVEY, ExecutionMode.BOTH]
+    if has_place_admin:
+        return [ExecutionMode.SURVEY]
+    return [ExecutionMode.AUDIT]
+
+
+def resolve_execution_mode(
+    *,
+    assignment_roles: list[AssignmentRole],
+    responses_json: JsonDict,
+) -> ExecutionMode | None:
+    """Resolve the effective execution mode from saved metadata and assignment defaults."""
+
+    allowed_modes = get_allowed_execution_modes(assignment_roles)
+    meta = _read_json_dict(responses_json.get("meta"))
+    raw_execution_mode = meta.get("execution_mode")
+
+    if isinstance(raw_execution_mode, str):
+        try:
+            parsed_mode = ExecutionMode(raw_execution_mode)
+        except ValueError:
+            parsed_mode = None
+        if parsed_mode is not None and parsed_mode in allowed_modes:
+            return parsed_mode
+
+    if len(allowed_modes) == 1:
+        return allowed_modes[0]
+    return None
+
+
+def merge_draft_patch(
+    *,
+    current_responses_json: JsonDict,
+    patch: AuditDraftPatchRequest,
+) -> JsonDict:
+    """Merge a typed draft patch into the stored JSON structure."""
+
+    next_payload = {
+        "meta": _read_json_dict(current_responses_json.get("meta")),
+        "pre_audit": _read_json_dict(current_responses_json.get("pre_audit")),
+        "sections": _read_json_dict(current_responses_json.get("sections")),
+    }
+
+    if patch.meta is not None:
+        next_payload["meta"].update(patch.meta.model_dump(exclude_none=True))
+
+    if patch.pre_audit is not None:
+        next_payload["pre_audit"].update(_serialize_pre_audit_patch(patch.pre_audit))
+
+    if patch.sections:
+        for section_key, section_patch in patch.sections.items():
+            existing_section = _read_json_dict(next_payload["sections"].get(section_key))
+            existing_responses = _read_json_dict(existing_section.get("responses"))
+            for question_key, scale_answers in section_patch.responses.items():
+                existing_responses[question_key] = dict(scale_answers.items())
+            existing_section["responses"] = existing_responses
+            if section_patch.note is not None:
+                existing_section["note"] = section_patch.note
+            next_payload["sections"][section_key] = existing_section
+
+    return next_payload
+
+
+def build_audit_progress(
+    *,
+    assignment_roles: list[AssignmentRole],
+    responses_json: JsonDict,
+) -> AuditProgressResponse:
+    """Build user-facing progress for the current draft state."""
+
+    execution_mode = resolve_execution_mode(
+        assignment_roles=assignment_roles,
+        responses_json=responses_json,
+    )
+    pre_audit_payload = _read_json_dict(responses_json.get("pre_audit"))
+    sections_payload = _read_json_dict(responses_json.get("sections"))
+
+    required_pre_audit_complete = _is_pre_audit_complete(pre_audit_payload)
+    section_progress: list[AuditSectionProgressResponse] = []
+    visible_section_count = 0
+    completed_section_count = 0
+    total_visible_questions = 0
+    answered_visible_questions = 0
+
+    for section in SCORING_SECTIONS:
+        visible_questions = _get_visible_questions(
+            section=section,
+            execution_mode=execution_mode,
+        )
+        if not visible_questions:
+            continue
+
+        visible_section_count += 1
+        section_state = _read_json_dict(sections_payload.get(section.section_key))
+        section_answers = _read_json_dict(section_state.get("responses"))
+        answered_count = 0
+        for question in visible_questions:
+            if _is_question_complete(question=question, section_answers=section_answers):
+                answered_count += 1
+
+        total_visible_questions += len(visible_questions)
+        answered_visible_questions += answered_count
+        is_complete = answered_count == len(visible_questions)
+        if is_complete:
+            completed_section_count += 1
+
+        section_progress.append(
+            AuditSectionProgressResponse(
+                section_key=section.section_key,
+                title=section.section_key,
+                visible_question_count=len(visible_questions),
+                answered_question_count=answered_count,
+                is_complete=is_complete,
+            )
+        )
+
+    ready_to_submit = (
+        execution_mode is not None
+        and required_pre_audit_complete
+        and visible_section_count > 0
+        and completed_section_count == visible_section_count
+    )
+
+    return AuditProgressResponse(
+        required_pre_audit_complete=required_pre_audit_complete,
+        visible_section_count=visible_section_count,
+        completed_section_count=completed_section_count,
+        total_visible_questions=total_visible_questions,
+        answered_visible_questions=answered_visible_questions,
+        ready_to_submit=ready_to_submit,
+        sections=section_progress,
+    )
+
+
+def score_audit(
+    *,
+    assignment_roles: list[AssignmentRole],
+    responses_json: JsonDict,
+) -> JsonDict:
+    """Calculate section, domain, construct, and summary scores for a completed draft."""
+
+    execution_mode = resolve_execution_mode(
+        assignment_roles=assignment_roles,
+        responses_json=responses_json,
+    )
+    if execution_mode is None:
+        raise ValueError("Execution mode must be selected before scoring the audit.")
+
+    section_scores: dict[str, JsonDict] = {}
+    domain_scores: dict[str, ScoreAccumulator] = {}
+    construct_scores: dict[str, ScoreAccumulator] = {}
+    summary = ScoreAccumulator()
+    sections_payload = _read_json_dict(responses_json.get("sections"))
+
+    for section in SCORING_SECTIONS:
+        visible_questions = _get_visible_questions(
+            section=section,
+            execution_mode=execution_mode,
+        )
+        if not visible_questions:
+            continue
+
+        section_state = _read_json_dict(sections_payload.get(section.section_key))
+        section_answers = _read_json_dict(section_state.get("responses"))
+        section_accumulator = ScoreAccumulator()
+
+        for question in visible_questions:
+            question_score = _score_question(
+                question=question,
+                section_answers=section_answers,
+            )
+            section_accumulator = _add_scores(section_accumulator, question_score)
+            summary = _add_scores(summary, question_score)
+
+            for domain_label in question.domains:
+                current_domain_score = domain_scores.get(domain_label, ScoreAccumulator())
+                domain_scores[domain_label] = _add_scores(current_domain_score, question_score)
+
+            for construct_label in question.constructs:
+                current_construct_score = construct_scores.get(construct_label, ScoreAccumulator())
+                construct_scores[construct_label] = _add_scores(
+                    current_construct_score,
+                    question_score,
+                )
+
+        section_scores[section.section_key] = _serialize_accumulator(
+            title=section.section_key,
+            accumulator=section_accumulator,
+        )
+
+    serialized_domain_scores = {
+        domain_key: _serialize_accumulator(title=domain_key, accumulator=accumulator)
+        for domain_key, accumulator in domain_scores.items()
+    }
+    serialized_construct_scores = {
+        construct_key: _serialize_accumulator(title=construct_key, accumulator=accumulator)
+        for construct_key, accumulator in construct_scores.items()
+    }
+
+    return {
+        "summary": _serialize_accumulator(title="summary", accumulator=summary),
+        "by_section": section_scores,
+        "by_domain": serialized_domain_scores,
+        "by_construct": serialized_construct_scores,
+        "execution_mode": execution_mode.value,
+    }
+
+
+######################################################################################
+################################## Internal Helpers ##################################
+######################################################################################
+
+
+def _get_visible_questions(
+    *,
+    section: ScoringSection,
+    execution_mode: ExecutionMode | None,
+) -> list[ScoringQuestion]:
+    """Filter section questions down to the active execution mode."""
+
+    if execution_mode is None:
+        return []
+
+    mode_value = execution_mode.value
+    return [
+        question
+        for question in section.questions
+        if question.mode == "both" or question.mode == mode_value
+    ]
+
+
+def _is_question_complete(
+    *,
+    question: ScoringQuestion,
+    section_answers: JsonDict,
+) -> bool:
+    """Determine whether a question has all answers required by quantity gating."""
+
+    question_answers = _read_json_dict(section_answers.get(question.question_key))
+    quantity_scale = next(
+        (scale for scale in question.scales if scale.key == "quantity"),
+        None,
+    )
+    if quantity_scale is None:
+        return False
+
+    raw_quantity_answer = question_answers.get("quantity")
+    if not isinstance(raw_quantity_answer, str):
+        return False
+
+    quantity_option = _find_option_by_key(quantity_scale.options, raw_quantity_answer)
+    if quantity_option is None:
+        return False
+
+    if not quantity_option.allows_follow_up_scales:
+        return True
+
+    for scale in question.scales:
+        if scale.key == "quantity":
+            continue
+        raw_answer = question_answers.get(scale.key)
+        if not isinstance(raw_answer, str):
+            return False
+        if _find_option_by_key(scale.options, raw_answer) is None:
+            return False
+
+    return True
+
+
+def _serialize_pre_audit_patch(pre_audit: PreAuditPatchRequest) -> JsonDict:
+    """Serialize the pre-audit patch with JSON-safe primitives only."""
+
+    return {
+        "season": pre_audit.season,
+        "weather_conditions": list(pre_audit.weather_conditions),
+        "users_present": list(pre_audit.users_present),
+        "user_count": pre_audit.user_count,
+        "age_groups": list(pre_audit.age_groups),
+        "place_size": pre_audit.place_size,
+    }
+
+
+def _read_json_dict(value: object) -> JsonDict:
+    """Safely coerce arbitrary JSON-like values to dictionaries."""
+
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _is_pre_audit_complete(pre_audit_payload: JsonDict) -> bool:
+    """Validate that all manual pre-audit prompts are filled."""
+
+    for field_name in PRE_AUDIT_REQUIRED_KEYS:
+        value = pre_audit_payload.get(field_name)
+        if isinstance(value, list):
+            if len(value) == 0:
+                return False
+            continue
+        if isinstance(value, str):
+            if not value.strip():
+                return False
+            continue
+        return False
+    return True
+
+
+def _find_option_by_key(
+    options: list[ScoringScaleOption],
+    option_key: str,
+) -> ScoringScaleOption | None:
+    """Look up a scoring option by its stable key."""
+
+    for option in options:
+        if option.key == option_key:
+            return option
+    return None
+
+
+def _score_question(
+    *,
+    question: ScoringQuestion,
+    section_answers: JsonDict,
+) -> ScoreAccumulator:
+    """Score one question. All values are pre-flipped so no reversal logic is needed."""
+
+    question_answers = _read_json_dict(section_answers.get(question.question_key))
+    quantity_scale = next(scale for scale in question.scales if scale.key == "quantity")
+    quantity_answer_key = question_answers.get("quantity")
+    if not isinstance(quantity_answer_key, str):
+        return ScoreAccumulator()
+
+    quantity_option = _find_option_by_key(quantity_scale.options, quantity_answer_key)
+    if quantity_option is None:
+        return ScoreAccumulator()
+
+    addition_total = quantity_option.addition_value
+    boost_total = quantity_option.boost_value
+    max_addition_total = max(o.addition_value for o in quantity_scale.options)
+    max_boost_total = max(o.boost_value for o in quantity_scale.options)
+
+    if quantity_option.allows_follow_up_scales:
+        for scale in question.scales:
+            if scale.key == "quantity":
+                continue
+
+            answer_key = question_answers.get(scale.key)
+            if not isinstance(answer_key, str):
+                continue
+
+            selected_option = _find_option_by_key(scale.options, answer_key)
+            if selected_option is None:
+                continue
+
+            addition_total += selected_option.addition_value
+            boost_total *= selected_option.boost_value
+            max_addition_total += max(o.addition_value for o in scale.options)
+            max_boost_total *= max(o.boost_value for o in scale.options)
+
+    raw_total = addition_total + boost_total
+    max_total = max_addition_total + max_boost_total
+    return ScoreAccumulator(
+        addition_total=round(addition_total, 4),
+        boost_total=round(boost_total, 4),
+        raw_total=round(raw_total, 4),
+        max_total=round(max_total, 4),
+    )
+
+
+def _add_scores(left: ScoreAccumulator, right: ScoreAccumulator) -> ScoreAccumulator:
+    """Sum two immutable score accumulators."""
+
+    return ScoreAccumulator(
+        addition_total=left.addition_total + right.addition_total,
+        boost_total=left.boost_total + right.boost_total,
+        raw_total=left.raw_total + right.raw_total,
+        max_total=left.max_total + right.max_total,
+    )
+
+
+def _serialize_accumulator(*, title: str, accumulator: ScoreAccumulator) -> JsonDict:
+    """Convert an accumulator into a JSON-safe score payload."""
+
+    percent = 0.0
+    if accumulator.max_total > 0:
+        percent = round((accumulator.raw_total / accumulator.max_total) * 100, 2)
+
+    return {
+        "title": title,
+        "addition_total": round(accumulator.addition_total, 2),
+        "boost_total": round(accumulator.boost_total, 2),
+        "raw_total": round(accumulator.raw_total, 2),
+        "max_total": round(accumulator.max_total, 2),
+        "percent": percent,
+    }
