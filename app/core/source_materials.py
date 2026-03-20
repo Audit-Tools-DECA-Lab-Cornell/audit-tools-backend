@@ -19,10 +19,7 @@ XML_NS = {
     "rel": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
 }
 
-XLSX_SHEET_TARGET_BY_NAME = {
-    "read me": "worksheets/sheet1.xml",
-    "PVUA V 5.2": "worksheets/sheet8.xml",
-}
+WorkbookRow = dict[str, str]
 
 
 def _studentjob_root() -> Path:
@@ -178,11 +175,13 @@ def _load_shared_strings(archive: zipfile.ZipFile) -> list[str]:
 
 
 def _read_workbook_rows(
-    workbook_path: Path, sheet_target: str, max_nonempty_rows: int
-) -> list[dict[str, str]]:
+    workbook_path: Path,
+    sheet_target: str,
+    max_nonempty_rows: int | None,
+) -> list[WorkbookRow]:
     """Read a compact set of non-empty cell values from a workbook sheet."""
 
-    rows: list[dict[str, str]] = []
+    rows: list[WorkbookRow] = []
     with zipfile.ZipFile(workbook_path) as archive:
         shared_strings = _load_shared_strings(archive)
         sheet_root = ElementTree.fromstring(archive.read(f"xl/{sheet_target}"))
@@ -211,69 +210,7 @@ def _read_workbook_rows(
 
             if row_cells:
                 rows.append(row_cells)
-            if len(rows) >= max_nonempty_rows:
+            if max_nonempty_rows is not None and len(rows) >= max_nonempty_rows:
                 break
 
     return rows
-
-
-def build_playspace_source_metadata() -> dict[str, object]:
-    """Extract lightweight Playspace instrument metadata from the developer workbook."""
-
-    repo_root = _studentjob_root()
-    workbook_path = repo_root / "playspace" / "PVUA tool Version 5.2 - for developers.xlsx"
-    workbook_source_path = _normalize_source_path(workbook_path)
-
-    with zipfile.ZipFile(workbook_path) as archive:
-        workbook_root = ElementTree.fromstring(archive.read("xl/workbook.xml"))
-        sheet_names = [
-            _clean_text(sheet.attrib.get("name", ""))
-            for sheet in workbook_root.findall("main:sheets/main:sheet", XML_NS)
-            if _clean_text(sheet.attrib.get("name", ""))
-        ]
-
-    readme_rows = _read_workbook_rows(
-        workbook_path=workbook_path,
-        sheet_target=XLSX_SHEET_TARGET_BY_NAME["read me"],
-        max_nonempty_rows=16,
-    )
-    current_rows = _read_workbook_rows(
-        workbook_path=workbook_path,
-        sheet_target=XLSX_SHEET_TARGET_BY_NAME["PVUA V 5.2"],
-        max_nonempty_rows=18,
-    )
-
-    version_history: list[str] = []
-    for row in readme_rows:
-        for cell_ref, value in row.items():
-            if cell_ref.startswith("E") and value.startswith("PVUA"):
-                version_history.append(value)
-
-    content_areas: list[str] = []
-    sample_items: list[str] = []
-    scale_headers: list[str] = []
-
-    for row in current_rows:
-        for cell_ref, value in row.items():
-            if cell_ref.startswith("C") and not value.startswith("Revised Content Areas"):
-                if value not in content_areas:
-                    content_areas.append(value)
-            if cell_ref.startswith("B") and not value.startswith("Revised items"):
-                if value not in sample_items:
-                    sample_items.append(value)
-            if cell_ref.startswith(("J", "K", "L", "M", "N")) and "Response option" in value:
-                if value not in scale_headers:
-                    scale_headers.append(value)
-
-    return {
-        "instrument_key": "pvua_v5_2",
-        "instrument_name": "Playspace Play Value and Usability Audit Tool",
-        "instrument_version": "5.2",
-        "source_files": [workbook_source_path],
-        "workbook_sheet_names": sheet_names,
-        "version_history": version_history,
-        "content_areas": content_areas,
-        "sample_items": sample_items[:8],
-        "scale_headers": scale_headers,
-        "current_sheet": "PVUA V 5.2",
-    }

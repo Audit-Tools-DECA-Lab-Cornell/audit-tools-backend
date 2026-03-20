@@ -33,7 +33,7 @@ from app.core.demo_data import (
     DEMO_PROJECT_SOUTH_ID,
     DEMO_PROJECT_URBAN_ID,
 )
-from app.core.source_materials import build_playspace_source_metadata, build_yee_source_metadata
+from app.core.source_materials import build_yee_source_metadata
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
 from app.models import (
     Account,
@@ -47,6 +47,7 @@ from app.models import (
     Project,
     User,
 )
+from app.products.playspace.instrument import INSTRUMENT_KEY, INSTRUMENT_VERSION
 
 PLAYSPACE_ORGANIZATION_NAME = "Auckland Playspace Collaborative"
 YEE_ORGANIZATION_NAME = "Youth Enabling Environments Collaborative"
@@ -120,8 +121,6 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
 
 def _build_playspace_entities() -> list[object]:
     """Create deterministic Playspace ORM objects for seeding."""
-
-    instrument_metadata = build_playspace_source_metadata()
 
     manager_account = Account(
         id=DEMO_ACCOUNT_ID,
@@ -327,6 +326,7 @@ def _build_playspace_entities() -> list[object]:
             auditor_profile_id=DEMO_AUDITOR_AKL01_ID,
             project_id=DEMO_PROJECT_URBAN_ID,
             place_id=None,
+            audit_roles=["auditor"],
             assigned_at=_utc_datetime("2026-02-10T08:00:00Z"),
         ),
         AuditorAssignment(
@@ -334,6 +334,7 @@ def _build_playspace_entities() -> list[object]:
             auditor_profile_id=DEMO_AUDITOR_AKL01_ID,
             project_id=None,
             place_id=DEMO_PLACE_RIVERSIDE_ID,
+            audit_roles=["auditor", "place_admin"],
             assigned_at=_utc_datetime("2026-02-12T08:30:00Z"),
         ),
         AuditorAssignment(
@@ -341,6 +342,7 @@ def _build_playspace_entities() -> list[object]:
             auditor_profile_id=DEMO_AUDITOR_AKL02_ID,
             project_id=DEMO_PROJECT_URBAN_ID,
             place_id=None,
+            audit_roles=["auditor"],
             assigned_at=_utc_datetime("2026-02-10T08:05:00Z"),
         ),
         AuditorAssignment(
@@ -348,6 +350,7 @@ def _build_playspace_entities() -> list[object]:
             auditor_profile_id=DEMO_AUDITOR_CHC01_ID,
             project_id=DEMO_PROJECT_SOUTH_ID,
             place_id=None,
+            audit_roles=["auditor"],
             assigned_at=_utc_datetime("2026-03-02T09:00:00Z"),
         ),
         AuditorAssignment(
@@ -355,6 +358,7 @@ def _build_playspace_entities() -> list[object]:
             auditor_profile_id=DEMO_AUDITOR_CHC01_ID,
             project_id=None,
             place_id=DEMO_PLACE_MATAI_ID,
+            audit_roles=["place_admin"],
             assigned_at=_utc_datetime("2026-03-03T09:10:00Z"),
         ),
     ]
@@ -365,15 +369,15 @@ def _build_playspace_entities() -> list[object]:
             place_id=DEMO_PLACE_RIVERSIDE_ID,
             auditor_profile_id=DEMO_AUDITOR_AKL01_ID,
             audit_code="RIVERSIDE-AKL01-2026-03-04",
-            instrument_key=str(instrument_metadata["instrument_key"]),
-            instrument_version=str(instrument_metadata["instrument_version"]),
+            instrument_key=INSTRUMENT_KEY,
+            instrument_version=INSTRUMENT_VERSION,
             status=AuditStatus.SUBMITTED,
             started_at=_utc_datetime("2026-03-04T16:00:00Z"),
             submitted_at=_utc_datetime("2026-03-04T17:05:00Z"),
             total_minutes=65,
             summary_score=74.0,
             responses_json={
-                "seed_source": instrument_metadata,
+                "seed_source": "pvua_v5_2",
                 "site_focus": "accessibility and inclusive transitions",
                 "notes": [
                     "Used PVUA 5.2 audit shell with usability-focused prompts.",
@@ -395,15 +399,15 @@ def _build_playspace_entities() -> list[object]:
             place_id=DEMO_PLACE_RIVERSIDE_ID,
             auditor_profile_id=DEMO_AUDITOR_AKL02_ID,
             audit_code="RIVERSIDE-AKL02-2026-03-08",
-            instrument_key=str(instrument_metadata["instrument_key"]),
-            instrument_version=str(instrument_metadata["instrument_version"]),
+            instrument_key=INSTRUMENT_KEY,
+            instrument_version=INSTRUMENT_VERSION,
             status=AuditStatus.IN_PROGRESS,
             started_at=_utc_datetime("2026-03-08T09:15:00Z"),
             submitted_at=None,
             total_minutes=25,
             summary_score=None,
             responses_json={
-                "seed_source": instrument_metadata,
+                "seed_source": "pvua_v5_2",
                 "draft_state": "partial accessibility walkthrough",
             },
             scores_json={"draft_progress_percent": 40},
@@ -415,15 +419,15 @@ def _build_playspace_entities() -> list[object]:
             place_id=DEMO_PLACE_KEPLER_ID,
             auditor_profile_id=DEMO_AUDITOR_AKL02_ID,
             audit_code="KEPLER-AKL02-2026-03-05",
-            instrument_key=str(instrument_metadata["instrument_key"]),
-            instrument_version=str(instrument_metadata["instrument_version"]),
+            instrument_key=INSTRUMENT_KEY,
+            instrument_version=INSTRUMENT_VERSION,
             status=AuditStatus.SUBMITTED,
             started_at=_utc_datetime("2026-03-05T12:20:00Z"),
             submitted_at=_utc_datetime("2026-03-05T13:20:00Z"),
             total_minutes=60,
             summary_score=81.0,
             responses_json={
-                "seed_source": instrument_metadata,
+                "seed_source": "pvua_v5_2",
                 "site_focus": "school-age play diversity and challenge",
             },
             scores_json={
@@ -441,15 +445,15 @@ def _build_playspace_entities() -> list[object]:
             place_id=DEMO_PLACE_MATAI_ID,
             auditor_profile_id=DEMO_AUDITOR_CHC01_ID,
             audit_code="MATAI-CHC01-2026-03-06",
-            instrument_key=str(instrument_metadata["instrument_key"]),
-            instrument_version=str(instrument_metadata["instrument_version"]),
+            instrument_key=INSTRUMENT_KEY,
+            instrument_version=INSTRUMENT_VERSION,
             status=AuditStatus.SUBMITTED,
             started_at=_utc_datetime("2026-03-06T14:40:00Z"),
             submitted_at=_utc_datetime("2026-03-06T15:45:00Z"),
             total_minutes=65,
             summary_score=88.0,
             responses_json={
-                "seed_source": instrument_metadata,
+                "seed_source": "pvua_v5_2",
                 "site_focus": "social play, restorative edges, and inclusive wayfinding",
             },
             scores_json={
