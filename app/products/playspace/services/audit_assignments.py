@@ -1,0 +1,177 @@
+"""
+Assignment-focused methods for the Playspace audit service.
+"""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
+
+from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_user
+from app.models import AuditorAssignment, AuditorProfile, Place, Project
+from app.products.playspace.schemas import AssignmentResponse, AssignmentWriteRequest
+
+######################################################################################
+############################# Assignment Service Mixin ###############################
+######################################################################################
+
+
+class PlayspaceAuditAssignmentsMixin:
+    """Mixin containing auditor assignment operations for Playspace."""
+
+    async def list_assignments(
+        self,
+        *,
+        actor: CurrentUserContext,
+        auditor_profile_id: uuid.UUID,
+    ) -> list[AssignmentResponse]:
+        """List assignments for a profile, allowing managers and the owning auditor."""
+
+        profile = await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
+        self._ensure_profile_access(actor=actor, profile=profile)
+
+        result = await self._session.execute(
+            select(AuditorAssignment)
+            .where(AuditorAssignment.auditor_profile_id == auditor_profile_id)
+            .order_by(AuditorAssignment.assigned_at.desc())
+        )
+        assignments = result.scalars().all()
+        return [self._serialize_assignment(assignment) for assignment in assignments]
+
+    async def create_assignment(
+        self,
+        *,
+        actor: CurrentUserContext,
+        auditor_profile_id: uuid.UUID,
+        payload: AssignmentWriteRequest,
+    ) -> AssignmentResponse:
+        """Create a project- or place-scoped assignment with role-array capabilities."""
+
+        require_manager_user(actor)
+        await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
+        await self._validate_assignment_scope(payload=payload)
+
+        assignment = AuditorAssignment(
+            auditor_profile_id=auditor_profile_id,
+            project_id=payload.project_id,
+            place_id=payload.place_id,
+            audit_roles=self._assignment_roles_to_db_values(roles=payload.audit_roles),
+        )
+        self._session.add(assignment)
+        await self._commit_and_refresh(assignment)
+        return self._serialize_assignment(assignment)
+
+    async def update_assignment(
+        self,
+        *,
+        actor: CurrentUserContext,
+        auditor_profile_id: uuid.UUID,
+        assignment_id: uuid.UUID,
+        payload: AssignmentWriteRequest,
+    ) -> AssignmentResponse:
+        """Update an existing assignment scope and role-array capabilities."""
+
+        require_manager_user(actor)
+        await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
+        await self._validate_assignment_scope(payload=payload)
+
+        assignment = await self._get_assignment(
+            assignment_id=assignment_id,
+            auditor_profile_id=auditor_profile_id,
+        )
+        assignment.project_id = payload.project_id
+        assignment.place_id = payload.place_id
+        assignment.audit_roles = self._assignment_roles_to_db_values(roles=payload.audit_roles)
+        await self._commit_and_refresh(assignment)
+        return self._serialize_assignment(assignment)
+
+    async def _get_auditor_profile(self, *, auditor_profile_id: uuid.UUID) -> AuditorProfile:
+        """Load an auditor profile and fail with 404 when it does not exist."""
+
+        result = await self._session.execute(
+            select(AuditorProfile).where(AuditorProfile.id == auditor_profile_id)
+        )
+        profile = result.scalar_one_or_none()
+        if profile is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Auditor profile not found.",
+            )
+        return profile
+
+    async def _get_assignment(
+        self,
+        *,
+        assignment_id: uuid.UUID,
+        auditor_profile_id: uuid.UUID,
+    ) -> AuditorAssignment:
+        """Load an assignment under one profile and fail with 404 when missing."""
+
+        result = await self._session.execute(
+            select(AuditorAssignment).where(
+                AuditorAssignment.id == assignment_id,
+                AuditorAssignment.auditor_profile_id == auditor_profile_id,
+            )
+        )
+        assignment = result.scalar_one_or_none()
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Assignment not found.",
+            )
+        return assignment
+
+    async def _validate_assignment_scope(self, *, payload: AssignmentWriteRequest) -> None:
+        """Ensure the request targets exactly one real project or place."""
+
+        if (payload.project_id is None) == (payload.place_id is None):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Exactly one of project_id or place_id must be provided.",
+            )
+
+        if payload.place_id is not None:
+            place_result = await self._session.execute(
+                select(Place.id).where(Place.id == payload.place_id)
+            )
+            if place_result.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Place not found.",
+                )
+            return
+
+        project_result = await self._session.execute(
+            select(Project.id).where(Project.id == payload.project_id)
+        )
+        if project_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+
+    def _ensure_profile_access(self, *, actor: CurrentUserContext, profile: AuditorProfile) -> None:
+        """Allow managers or the owning auditor account to read assignment rows."""
+
+        if actor.role is CurrentUserRole.MANAGER:
+            return
+        if actor.role is CurrentUserRole.AUDITOR and actor.account_id == profile.account_id:
+            return
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this auditor profile.",
+        )
+
+    def _serialize_assignment(self, assignment: AuditorAssignment) -> AssignmentResponse:
+        """Convert an ORM assignment row into the API response model."""
+
+        return AssignmentResponse(
+            id=assignment.id,
+            auditor_profile_id=assignment.auditor_profile_id,
+            project_id=assignment.project_id,
+            place_id=assignment.place_id,
+            audit_roles=self._assignment_roles_from_db_values(db_values=assignment.audit_roles),
+            assigned_at=assignment.assigned_at,
+        )
