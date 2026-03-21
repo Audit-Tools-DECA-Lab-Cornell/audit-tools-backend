@@ -1,146 +1,201 @@
-# Audit System Development Structure
-This document outlines the architecture, roles, and functional requirements for the Audit System. The system is designed to manage hierarchical audit processes across multiple projects and physical locations.
+# Audit System :  Development Structure
 
-## System Hierarchy
-The system follows a strict top-down hierarchy, where a single Account houses multiple Projects, which in turn house multiple Places. Auditors are assigned to specific Places to complete Audits.
+> This document explains how `audit-tools-backend` is organized in code.
+
+Use it together with:
+
+| File | Purpose |
+|---|---|
+| `README.md` | Setup and responsibilities |
+| `SCHEMA.md` | Current data model |
+
+The system manages hierarchical audit processes across multiple projects and physical locations.
+
+---
+
+## Table of Contents
+
+- [Repository Shape](#1-repository-shape)
+- [Top-Level Responsibilities](#2-top-level-backend-responsibilities)
+- [Product Module Layout](#3-product-module-layout)
+- [Playspace Module Responsibilities](#4-playspace-module-responsibilities)
+- [Request Flow](#5-request-flow)
+- [Testing & Migrations](#6-testing--migrations)
+- [Design Boundaries](#7-current-design-boundaries)
+
+---
+
+## 1. Repository Shape
 
 ```
-Account (Managed by Primary/Secondary Managers)
-│
-├── Project A
-│   ├── Place A
-│   │   ├── Auditor A ──► Completes Audit(s)
-│   │   ├── Auditor B ──► Completes Audit(s)
-│   │   └── Auditor C ──► Completes Audit(s)
-│   ├── Place B
-│   └── Place C
-│
-└── Project B
-    ├── Place A
-    ├── Place B
-    └── Place C
+audit-tools-backend/
+├── app/
+│   ├── main.py
+│   ├── database.py
+│   ├── auth.py
+│   ├── models.py
+│   ├── seed.py
+│   ├── core/
+│   └── products/
+│       ├── playspace/
+│       └── yee/
+├── alembic/
+├── tests/
+├── README.md
+├── SCHEMA.md
+└── STRUCTURE.md
 ```
 
-## Accounts & Roles
-The system is accessed via an Audit Account, which supports two distinct user types: Managers and Auditors.
+---
 
-### Manager Profile
-- Limit: Up to 5 managers per account (the first profile is the Primary Manager).
+## 2. Top-Level Backend Responsibilities
 
-- Permissions: Managers have access to all Projects and Auditor data/settings. Only Managers can edit/delete system configurations. Managers can access a full database of all Auditors and their assigned Projects/Places. (Note: Managers can also be Auditors, but must set up a separate Auditor Profile).
+| File | Responsibilities |
+|---|---|
+| `app/main.py` | FastAPI app creation, route registration, health/status exposure |
+| `app/database.py` | Database engine/session setup, product-specific URL handling, shared SQLAlchemy integration |
+| `app/auth.py` | Shared authentication/session helpers, account-level auth concerns used across products |
+| `app/models.py` | Shared SQLAlchemy ORM models, Playspace normalized audit models, relational constraints and cascade behavior |
+| `app/seed.py` | Entry point for deterministic seed/demo data, delegates product-specific seeding where needed |
+| `app/core/` | Shared helpers not owned by one product :  e.g. actor context and demo/source-material helpers |
 
-- Required Fields:
+---
 
-    - Full Name
+## 3. Product Module Layout
 
-    - Position/Role
+All products live under `app/products/`.
 
-    - Organization/Institution
+```
+app/products/
+├── playspace/
+│   ├── __init__.py
+│   ├── instrument.py
+│   ├── scoring.py
+│   ├── scoring_metadata.py
+│   ├── audit_state.py
+│   ├── seed_data.py
+│   ├── routes/
+│   ├── services/
+│   └── schemas/
+└── yee/
+    ├── __init__.py
+    └── routes.py
+```
 
-    - Email address
+---
 
-    - Phone contact (Required for Primary; optional for others)
+## 4. Playspace Module Responsibilities
 
-- Automatically record the start date
+### `routes/` :  HTTP Layer
 
-### Auditor Profile
-- Limit: As many as needed (suggested cap at ~25).
+Thin layer responsible only for request handling. Does not contain business logic.
 
-- Permissions: Auditors only have the ability to complete audits, view/download reports, and change their own settings.
+| Concern | Handled here? |
+|---|---|
+| Request parsing | ✅ |
+| Dependency wiring | ✅ |
+| Auth / actor enforcement | ✅ |
+| Business logic | ❌ :  delegate to services |
 
-- Onboarding: Invited by a Manager via email or a designated login link specific to their Project (potentially via a QR code for field setup).
+**Current route groups:** audits · assignments · dashboard · profile · route dependencies
 
-- Required Fields:
+---
 
-    - Full Name (Privacy note: Only visible within Auditor account settings and Manager databases; public/user-facing reports must only use the Auditor Code).
+### `services/` :  Business Logic Layer
 
-    - Auditor Code (Pre-assigned by Manager or designated by Auditor; initials or alphanumeric code, no real names).
+| Module | Responsibilities |
+|---|---|
+| `audit.py` | Root service composition and shared helpers |
+| `audit_sessions.py` | Auditor/mobile access, draft, submit, list, and session response logic |
+| `audit_assignments.py` | Assignment creation, update, and list behavior |
+| `dashboard.py` | Manager/dashboard-oriented response building |
+| `profile.py` | Current-account and auditor-profile service helpers |
 
-    - Email address
+---
 
-    - Age range (Dropdown list)
+### `schemas/` :  Typed API Contract Layer
 
-    - Gender (Open text)
+Defines the backend contract consumed by the mobile client.
 
-    - Country of origin or residence (Open text)
+| Schema group |
+|---|
+| Request / response models |
+| Audit session models |
+| Dashboard models |
+| Profile models |
+| Base shared schemas |
 
-    - Role (Dropdown with 'other' open field: student / teacher / facilitator / etc.)
+---
 
-### Structural Profiles
-1. #### Project Profile
-    Managers can create unlimited Projects. Each Project profile dictates the overall scope of a specific auditing initiative.
+### Core Playspace Files
 
-    - Project overview / aims
+| File | Responsibilities |
+|---|---|
+| `instrument.py` | Backend-side Playspace instrument metadata; stable scoring/input structure for backend logic |
+| `scoring_metadata.py` | Scoring-specific projection of the instrument :  options, constructs, domains, and scale metadata used by scoring/progress logic |
+| `scoring.py` | Pure-ish scoring and progress logic :  execution-mode resolution, question visibility, pre-audit completeness, section progress, raw-total score aggregation. **Must stay focused on deterministic calculations, not request handling.** |
+| `audit_state.py` | Normalization bridge between relational rows and runtime payloads *(see below)* |
+| `seed_data.py` | Playspace-specific deterministic seed data, realistic audit payload generation, normalized relation hydration during seed setup |
 
-    - Types of Places to be Audited (Dropdown list with 'other' field)
+#### `audit_state.py` :  Critical Boundary
 
-    - Anticipated Start & End Dates
+This file is the boundary between **mobile draft payloads** and the **normalized database model**.
 
-    - Estimated number of Places to be audited
+- Apply draft patches into normalized child rows
+- Rebuild compatibility JSON caches from relations
+- Read/write execution mode and draft progress
+- Synchronize child collections without violating natural unique constraints
 
-    - Estimated number of Auditors per Project
+---
 
-    - Description of Auditors (Population type, age range, inclusions/exclusions)
+## 5. Request Flow
 
-2. #### Place Profile
-    Set up under a selected Project. Every physical location to be audited requires a Place Profile.
+```
+Route
+→ dependency resolution / actor validation
+→ service method
+→ audit_state / scoring / ORM helpers as needed
+→ schema response
+```
 
-    - Place Name
+### Examples
 
-    - Place Location (City, Province/State, Country via dropdowns; potential Google Maps integration with map pin and GPS coordinates)
+| Operation | Flow |
+|---|---|
+| Draft save | `route` → `audit_sessions.py` → `audit_state.py` → `scoring.py` → schema response |
+| Assigned places | `route` → `audit_sessions.py` → ORM reads + score/progress helpers → schema response |
 
-    - Type of place (Dropdown list with 'other' field)
+---
 
-    - Anticipated Start & End Dates
+## 6. Testing & Migrations
 
-    - Estimated number of Auditors
+### `tests/`
 
-    - Description of Auditors
+Playspace-specific tests live under:
 
-    - **Assignment**: Managers can assign or provide access to Auditors at either the Project level or the Place level.
+```
+tests/products/playspace/
+```
 
-### The Audit Process
-An audit can be completed by any Auditor assigned to a specific Place.
+| Test area |
+|---|
+| Audit state normalization regressions |
+| Scoring behavior |
+| Service-level contract tests |
 
-1. #### Audit Execution
-    - Master Code: Automatically generated for each audit: [Place Name] - [Auditor Code] - [Date].
+### `alembic/`
 
-    - Tracking: Automatically records Start Date/Time.
+- Schema migration history
+- Product-specific migrations selected via `-x product=...`
 
-    - Navigation & Saving: Auditors can move back and forth between sections to edit responses. The system should auto-save periodically.
+---
 
-    - Submission: Cannot be submitted unless all mandatory sections are completed.
+## 7. Current Design Boundaries
 
-2. #### Scoring & Dashboards
-    - Calculations: Scores and sub-scores are automatically calculated upon completion.
-
-    - Place Dashboard: Each Place features a dashboard displaying results.
-
-        - Allows comparison of total and sub-scores across other audits completed for the same Place.
-
-        - Compare ALL or toggle specific audits (identified by Place-Auditor Name-Date).
-
-        - Comparisons can be side-by-side, mean scores, or level of agreement (e.g., Kappa score).
-
-        - Flexibility to toggle graphics/results on and off.
-
-        - Export/print capabilities (PDF).
-
-    - Project Dashboard: Each Project features a dashboard with summary stats (e.g., total number of audits completed).
-
-### Specific Audit Tools
-1. #### Youth Enabling Environments Audit Tool
-    - Pre-Audit Survey: Starts with a short survey where the Auditor assigns personal importance/weights to different sub-sections.
-
-    - Weighted Results: These personal weights are used to calculate total and sub-section scores.
-
-        - Design consideration: Ensure weighted scores reflect the maximum possible score if highest audit responses and highest weights are applied.
-
-    - Display/Export: Users must have the ability to toggle between or view side-by-side Weighted Results and Non-Weighted Results.
-
-2. #### Playspace Play Value and Usability Audit Tool
-    - Two-Part Tool: Consists of the audit tool itself and an owner/manager survey.
-
-    - Survey Integration: The system should automatically generate a survey link for the owner/manager.
-
-    - Scoring: Calculates scores from the audit alone, but also generates a combined score integrating the survey responses (if possible).
+| Rule |
+|---|
+| Keep request handling in **routes** :  not in scoring or normalization helpers |
+| Keep schema definitions in **`schemas/`** :  not inline inside services |
+| Keep product-specific logic under **`app/products/<product>/`** |
+| Keep shared ORM definitions centralized in **`app/models.py`** |
+| Treat `responses_json` and `scores_json` as compatibility caches :  not as the primary long-term Playspace write model |

@@ -1,17 +1,61 @@
-## Audit Tools Backend (FastAPI + SQLAlchemy + Postgres)
+# Audit Tools Backend
 
-### Client channels and role intent
+> FastAPI + SQLAlchemy backend for the audit platform.
 
-- **Playspace mobile app**: mobile workflow for auditors to complete assigned Playspace field audits with typed session payloads and raw score totals.
-- **YEE mobile app**: mobile workflow for auditors to complete assigned field audits
-  (offline-first).
-- **Manager workflows**: web experience for project/place configuration and management.
-- Backend role model supports both `MANAGER` and `AUDITOR`, while the mobile UX is designed for auditor field workflows.
-- Playspace and YEE live under separate product folders and route namespaces.
+This repository owns the shared account/project/place/auditor model plus product-specific backend behavior for:
 
-### Local setup (macOS + zsh)
+| Product | Status |
+|---|---|
+| **Playspace** |
+| **YEE** | Separate product track |
 
-Create and activate a virtualenv:
+---
+
+## Responsibilities
+
+| In scope | Out of scope |
+|---|---|
+| Authentication/session support for platform users | Auditor mobile UI |
+| Shared account, project, place, auditor, and assignment data | Future manager web UI |
+| Playspace audit lifecycle (`access`, `draft`, `submit`, reporting payloads) | |
+| Playspace normalized audit storage and scoring | |
+| Seed/demo data and migrations | |
+
+---
+
+## Documentation Map
+
+This backend uses **one** README. The other root docs are focused references, not extra READMEs:
+
+| File | Purpose |
+|---|---|
+| `README.md` | Onboarding, setup, responsibilities, and high-level architecture |
+| `SCHEMA.md` | Current database/data contract |
+| `STRUCTURE.md` | Backend code organization and module boundaries |
+
+---
+
+## Current Playspace Status
+
+Playspace no longer uses a generic blob-only audit persistence path.
+
+**Current implementation:**
+
+- Writes normalized Playspace audit rows first
+- Computes raw totals from normalized rows
+- Keeps `responses_json` and `scores_json` as compatibility caches
+- Serves typed auditor/mobile responses for `meta`, `pre_audit`, `sections`, `scores`, and `progress`
+
+**Recent hardening:**
+
+- Draft patch normalization now reuses existing ORM child rows by natural unique keys instead of delete/reinsert replacement
+- This avoids duplicate-key failures on repeated saves for pre-audit answers, section rows, question responses, and scale answers
+
+---
+
+## Local Setup
+
+### 1. Create a virtualenv
 
 ```bash
 python -m venv .venv
@@ -19,144 +63,135 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 ```
 
-Install runtime dependencies:
+### 2. Install dependencies
 
 ```bash
 python -m pip install -r requirements.txt
-```
-
-Install developer tooling (linting/tests/pre-commit):
-
-```bash
 python -m pip install -r requirements-dev.txt
 pre-commit install
 ```
 
-### Database (Neon — default)
-
-Create a local `.env` file for the app:
+### 3. Configure database access
 
 ```bash
 cp .env.example .env
 ```
 
-Set product-specific database URLs in `.env`:
+Set the following in `.env`:
 
-- `DATABASE_URL_YEE` (Youth Enabling Environment)
-- `DATABASE_URL_PLAYSPACE` (Playspace Play Value + Usability)
+| Variable | Description |
+|---|---|
+| `DATABASE_URL_YEE` | Neon `postgresql://...` URL for YEE |
+| `DATABASE_URL_PLAYSPACE` | Neon `postgresql://...` URL for Playspace |
 
-You can paste Neon’s standard `postgresql://...` URL directly — `app/database.py` will normalize it for async SQLAlchemy and enable SSL.
+> Neon URLs can be pasted directly — `app/database.py` normalizes them for async SQLAlchemy.
 
-### Migrations (Alembic)
+---
 
-Apply migrations to each product database:
+## Migrations
+
+Apply migrations per product database:
 
 ```bash
 alembic -x product=yee upgrade head
 alembic -x product=playspace upgrade head
 ```
 
-### Seed demo data
+---
 
-Populate the shared-core dashboard hierarchy for both products:
+## Seed Demo Data
 
 ```bash
+# Seed both products
 ./.venv/bin/python -m app.seed
-```
 
-Seed only one product database:
-
-```bash
+# Seed one product only
 ./.venv/bin/python -m app.seed --product yee
 ./.venv/bin/python -m app.seed --product playspace
 ```
 
-The seed script inserts deterministic accounts, manager profiles, projects,
-places, auditors, assignments, and audit records for both products.
+The Playspace seed flow builds realistic audit payloads, hydrates normalized relations, computes score totals, and keeps compatibility JSON caches populated.
 
-For Playspace specifically, the seed flow now:
+---
 
-- builds realistic audit response payloads from the scoring metadata
-- hydrates normalized Playspace audit relations from those payloads
-- computes stored Playspace score totals from normalized rows
-- keeps `responses_json` and `scores_json` populated as transitional compatibility caches
-
-### Playspace storage and scoring notes
-
-Playspace audit execution now uses normalized product-specific tables:
-
-- `playspace_audit_contexts`
-- `playspace_pre_audit_answers`
-- `playspace_audit_sections`
-- `playspace_question_responses`
-- `playspace_scale_answers`
-
-The shared `audits.responses_json` and `audits.scores_json` JSONB columns are
-still present as compatibility caches, but Playspace writes normalized rows
-first and scores directly from those rows.
-
-Current Playspace scoring stores raw totals rather than percent buckets:
-
-- `quantity_total`
-- `diversity_total`
-- `challenge_total`
-- `sociability_total`
-- `play_value_total`
-- `usability_total`
-
-For Playspace list views, `summary_score` is the compact combined construct
-total: `play_value_total + usability_total`.
-
-### Run the API (FastAPI)
+## Run the API
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Deploy (Render)
+| URL | Description |
+|---|---|
+| `http://127.0.0.1:8000/health` | Health check |
+| `http://127.0.0.1:8000/playspace/*` | Playspace namespace |
+| `http://127.0.0.1:8000/yee/status` | YEE namespace status |
 
-Render requires your web service to **bind to** `0.0.0.0` and the port provided in `$PORT` (not `127.0.0.1`).
+---
 
-- **Start command**:
+## Playspace Backend Notes
 
-```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+### Normalized Audit Tables
+
+Playspace currently writes to these tables, which back the draft, scoring, and submit flows:
+
+| Table | Description |
+|---|---|
+| `playspace_audit_contexts` |
+| `playspace_pre_audit_answers` |
+| `playspace_audit_sections` |
+| `playspace_question_responses` |
+| `playspace_scale_answers` |
+
+### Score Shape
+
+| Bucket | Type |
+|---|---|
+| `quantity_total` | Column total |
+| `diversity_total` | Column total |
+| `challenge_total` | Column total |
+| `sociability_total` | Construct total |
+| `play_value_total` | Construct total |
+| `usability_total` | Construct total |
+
+```
+summary_score = play_value_total + usability_total
 ```
 
-- **Health check path**: `/health`
-- **Config**: a minimal `render.yaml` is included so you can deploy via a blueprint if you want.
-- **Docs**: [Render port binding](https://render.com/docs/web-services#port-binding)
+### Mobile Integration Notes
 
-### REST endpoints
+- The Playspace mobile app is offline-first and syncs draft patches to this backend
+- Exports are currently generated on the mobile client from submitted audit payloads
+- There is no dedicated backend export endpoint yet for manager/project reporting
 
-- **Global health**: `http://127.0.0.1:8000/health`
-- **Playspace API root namespace**: `http://127.0.0.1:8000/playspace/*`
-- **YEE namespace status**: `http://127.0.0.1:8000/yee/status`
+---
 
-### Database configuration
+## Useful Commands
 
-For local development, copy `.env.example` to `.env`. The app reads `DATABASE_URL_YEE` and `DATABASE_URL_PLAYSPACE` from that file (or falls back to local defaults in `app/database.py`).
-
-### Useful commands
-
-Run tests:
+### Tests
 
 ```bash
+# Run all tests
 pytest
-```
 
-Targeted Playspace validation:
-
-```bash
+# Targeted Playspace validation
 ./.venv/bin/ruff check app/products/playspace
 ./.venv/bin/python -m py_compile app/products/playspace/scoring.py app/products/playspace/services/audit_sessions.py
 ./.venv/bin/python -m app.seed --product playspace
 ```
 
-Lint and auto-fix:
+### Lint & Format
 
 ```bash
 ruff check . --fix
 ruff format .
 ```
 
+---
+
+## Deployment
+
+Render start command:
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
