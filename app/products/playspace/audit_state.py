@@ -19,7 +19,11 @@ from app.models import (
     PlayspaceQuestionResponse,
     PlayspaceScaleAnswer,
 )
-from app.products.playspace.schemas.audit import AuditDraftPatchRequest
+from app.products.playspace.schemas.audit import (
+    AuditDraftPatchRequest,
+    PreAuditPatchRequest,
+    SectionDraftPatchRequest,
+)
 
 PRE_AUDIT_FIELD_ORDER = (
     "season",
@@ -78,36 +82,73 @@ def get_draft_progress_percent(audit: Audit) -> float | None:
 def apply_draft_patch_to_relations(audit: Audit, patch: AuditDraftPatchRequest) -> None:
     """Apply one typed draft patch into normalized Playspace child rows."""
 
-    if patch.meta is not None and patch.meta.execution_mode is not None:
-        _get_or_create_context(audit=audit).execution_mode = patch.meta.execution_mode.value
+    if patch.meta is not None and "execution_mode" in patch.meta.model_fields_set:
+        set_execution_mode_value(
+            audit=audit,
+            execution_mode=(
+                patch.meta.execution_mode.value if patch.meta.execution_mode is not None else None
+            ),
+        )
 
     if patch.pre_audit is not None:
-        current_pre_audit = _build_pre_audit_payload(audit=audit)
-        next_pre_audit = {
-            **current_pre_audit,
-            "season": patch.pre_audit.season,
-            "weather_conditions": list(patch.pre_audit.weather_conditions),
-            "users_present": list(patch.pre_audit.users_present),
-            "user_count": patch.pre_audit.user_count,
-            "age_groups": list(patch.pre_audit.age_groups),
-            "place_size": patch.pre_audit.place_size,
-        }
-        _replace_pre_audit_answers(audit=audit, payload=next_pre_audit)
+        _apply_pre_audit_patch(audit=audit, pre_audit_patch=patch.pre_audit)
 
     for section_key, section_patch in patch.sections.items():
-        section = _get_or_create_section(audit=audit, section_key=section_key)
-        if section_patch.note is not None:
-            section.note = section_patch.note
+        _apply_section_patch(
+            audit=audit,
+            section_key=section_key,
+            section_patch=section_patch,
+        )
 
-        for question_key, scale_answers in section_patch.responses.items():
-            question_response = _get_or_create_question_response(
-                section=section,
-                question_key=question_key,
-            )
-            _replace_scale_answers(
-                question_response=question_response,
-                scale_answers=scale_answers,
-            )
+
+def _apply_pre_audit_patch(
+    *,
+    audit: Audit,
+    pre_audit_patch: PreAuditPatchRequest,
+) -> None:
+    """Merge one partial pre-audit patch into the current normalized row snapshot."""
+
+    current_pre_audit = _build_pre_audit_payload(audit=audit)
+    next_pre_audit = dict(current_pre_audit)
+    fields_set = pre_audit_patch.model_fields_set
+
+    if "season" in fields_set:
+        next_pre_audit["season"] = pre_audit_patch.season
+    if "weather_conditions" in fields_set:
+        next_pre_audit["weather_conditions"] = list(pre_audit_patch.weather_conditions)
+    if "users_present" in fields_set:
+        next_pre_audit["users_present"] = list(pre_audit_patch.users_present)
+    if "user_count" in fields_set:
+        next_pre_audit["user_count"] = pre_audit_patch.user_count
+    if "age_groups" in fields_set:
+        next_pre_audit["age_groups"] = list(pre_audit_patch.age_groups)
+    if "place_size" in fields_set:
+        next_pre_audit["place_size"] = pre_audit_patch.place_size
+
+    _replace_pre_audit_answers(audit=audit, payload=next_pre_audit)
+
+
+def _apply_section_patch(
+    *,
+    audit: Audit,
+    section_key: str,
+    section_patch: SectionDraftPatchRequest,
+) -> None:
+    """Merge one section patch into the normalized section/question answer rows."""
+
+    section = _get_or_create_section(audit=audit, section_key=section_key)
+    if "note" in section_patch.model_fields_set:
+        section.note = section_patch.note
+
+    for question_key, scale_answers in section_patch.responses.items():
+        question_response = _get_or_create_question_response(
+            section=section,
+            question_key=question_key,
+        )
+        _replace_scale_answers(
+            question_response=question_response,
+            scale_answers=scale_answers,
+        )
 
 
 def hydrate_relations_from_cached_json(audit: Audit) -> None:
@@ -213,13 +254,18 @@ def _build_sections_payload(audit: Audit) -> JSONDict:
 def _replace_pre_audit_answers(audit: Audit, payload: JSONDict) -> None:
     """Replace all normalized pre-audit rows from a normalized payload snapshot."""
 
+    existing_by_key = {
+        (answer.field_key, answer.selected_value): answer
+        for answer in audit.playspace_pre_audit_answers
+    }
     next_rows: list[PlayspacePreAuditAnswer] = []
     for field_key in PRE_AUDIT_FIELD_ORDER:
         raw_value = payload.get(field_key)
         if isinstance(raw_value, list):
             for sort_order, selected_value in enumerate(_string_values(raw_value)):
                 next_rows.append(
-                    PlayspacePreAuditAnswer(
+                    _get_or_create_pre_audit_answer(
+                        existing_by_key=existing_by_key,
                         field_key=field_key,
                         selected_value=selected_value,
                         sort_order=sort_order,
@@ -228,10 +274,12 @@ def _replace_pre_audit_answers(audit: Audit, payload: JSONDict) -> None:
             continue
 
         if isinstance(raw_value, str) and raw_value.strip():
+            selected_value = raw_value.strip()
             next_rows.append(
-                PlayspacePreAuditAnswer(
+                _get_or_create_pre_audit_answer(
+                    existing_by_key=existing_by_key,
                     field_key=field_key,
-                    selected_value=raw_value,
+                    selected_value=selected_value,
                     sort_order=0,
                 )
             )
@@ -239,36 +287,82 @@ def _replace_pre_audit_answers(audit: Audit, payload: JSONDict) -> None:
     audit.playspace_pre_audit_answers = next_rows
 
 
+def _get_or_create_pre_audit_answer(
+    *,
+    existing_by_key: dict[tuple[str, str], PlayspacePreAuditAnswer],
+    field_key: str,
+    selected_value: str,
+    sort_order: int,
+) -> PlayspacePreAuditAnswer:
+    """Reuse an existing pre-audit row when the logical answer key still matches."""
+
+    existing_answer = existing_by_key.pop((field_key, selected_value), None)
+    if existing_answer is None:
+        return PlayspacePreAuditAnswer(
+            field_key=field_key,
+            selected_value=selected_value,
+            sort_order=sort_order,
+        )
+
+    existing_answer.sort_order = sort_order
+    return existing_answer
+
+
 def _replace_sections_from_cache(audit: Audit) -> None:
     """Replace normalized section rows from the current legacy cache payload."""
 
     cached_responses = _read_json_dict(audit.responses_json)
     sections_payload = _read_json_dict(cached_responses.get("sections"))
+    existing_sections_by_key = {
+        section.section_key: section for section in audit.playspace_sections
+    }
     next_sections: list[PlayspaceAuditSection] = []
 
     for section_key, raw_section_value in sections_payload.items():
         section_payload = _read_json_dict(raw_section_value)
-        section = PlayspaceAuditSection(
-            section_key=section_key,
-            note=section_payload.get("note")
-            if isinstance(section_payload.get("note"), str)
-            else None,
+        existing_section = existing_sections_by_key.pop(section_key, None)
+        section = (
+            existing_section
+            if existing_section is not None
+            else PlayspaceAuditSection(section_key=section_key)
+        )
+        section.note = (
+            section_payload.get("note") if isinstance(section_payload.get("note"), str) else None
         )
 
         responses_payload = _read_json_dict(section_payload.get("responses"))
-        question_responses: list[PlayspaceQuestionResponse] = []
-        for question_key, raw_question_value in responses_payload.items():
-            question_response = PlayspaceQuestionResponse(question_key=question_key)
-            _replace_scale_answers(
-                question_response=question_response,
-                scale_answers=_read_string_dict(raw_question_value),
-            )
-            question_responses.append(question_response)
-
-        section.question_responses = question_responses
+        _replace_question_responses(section=section, responses_payload=responses_payload)
         next_sections.append(section)
 
     audit.playspace_sections = next_sections
+
+
+def _replace_question_responses(
+    *,
+    section: PlayspaceAuditSection,
+    responses_payload: JSONDict,
+) -> None:
+    """Replace one section's question rows while reusing matching existing children."""
+
+    existing_questions_by_key = {
+        question_response.question_key: question_response
+        for question_response in section.question_responses
+    }
+    next_question_responses: list[PlayspaceQuestionResponse] = []
+    for question_key, raw_question_value in responses_payload.items():
+        existing_question = existing_questions_by_key.pop(question_key, None)
+        question_response = (
+            existing_question
+            if existing_question is not None
+            else PlayspaceQuestionResponse(question_key=question_key)
+        )
+        _replace_scale_answers(
+            question_response=question_response,
+            scale_answers=_read_string_dict(raw_question_value),
+        )
+        next_question_responses.append(question_response)
+
+    section.question_responses = next_question_responses
 
 
 def _replace_scale_answers(
@@ -278,11 +372,30 @@ def _replace_scale_answers(
 ) -> None:
     """Replace one question's normalized scale-answer rows."""
 
-    question_response.scale_answers = [
-        PlayspaceScaleAnswer(scale_key=scale_key, option_key=option_key)
-        for scale_key, option_key in sorted(scale_answers.items(), key=lambda item: item[0])
-        if scale_key.strip() and option_key.strip()
-    ]
+    existing_answers_by_key = {
+        scale_answer.scale_key: scale_answer for scale_answer in question_response.scale_answers
+    }
+    next_scale_answers: list[PlayspaceScaleAnswer] = []
+    for scale_key, option_key in sorted(scale_answers.items(), key=lambda item: item[0]):
+        normalized_scale_key = scale_key.strip()
+        normalized_option_key = option_key.strip()
+        if not normalized_scale_key or not normalized_option_key:
+            continue
+
+        existing_answer = existing_answers_by_key.pop(normalized_scale_key, None)
+        if existing_answer is None:
+            next_scale_answers.append(
+                PlayspaceScaleAnswer(
+                    scale_key=normalized_scale_key,
+                    option_key=normalized_option_key,
+                )
+            )
+            continue
+
+        existing_answer.option_key = normalized_option_key
+        next_scale_answers.append(existing_answer)
+
+    question_response.scale_answers = next_scale_answers
 
 
 def _get_or_create_context(audit: Audit) -> PlayspaceAuditContext:
@@ -348,6 +461,16 @@ def _read_string_dict(value: object) -> dict[str, str]:
 
 
 def _string_values(values: Iterable[object]) -> list[str]:
-    """Filter one iterable down to its string members only."""
+    """Filter one iterable down to unique non-empty string members while preserving order."""
 
-    return [value for value in values if isinstance(value, str) and value.strip()]
+    unique_values: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        normalized_value = value.strip()
+        if not normalized_value or normalized_value in seen:
+            continue
+        seen.add(normalized_value)
+        unique_values.append(normalized_value)
+    return unique_values

@@ -458,7 +458,7 @@ class PlayspaceAuditContext(Base):
         nullable=False,
     )
 
-    audit: Mapped[Audit] = relationship(back_populates="playspace_context")
+    audit: Mapped[Audit] = relationship(back_populates="playspace_context", lazy="selectin")
 
 
 class PlayspacePreAuditAnswer(Base):

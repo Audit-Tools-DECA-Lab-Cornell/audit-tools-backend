@@ -31,7 +31,7 @@ class PlayspaceAuditService(
         """Persist and re-hydrate one ORM instance."""
 
         await self._session.commit()
-        await self._session.refresh(instance)
+        await self._session.refresh(instance, ["playspace_context", "playspace_pre_audit_answers", "playspace_sections"])
 
     @staticmethod
     def _normalize_assignment_roles(roles: list[AssignmentRole]) -> list[AssignmentRole]:

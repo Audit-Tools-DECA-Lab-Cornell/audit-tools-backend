@@ -1,19 +1,18 @@
 ---
-description: Keep backend code modular, simple, and purpose-focused with low redundancy.
-globs: ["app/**/*.py", "alembic/**/*.py"]
-alwaysApply: false
+description: Keep Playspace backend small, modular, and realistic (SRP + SOLID).
+alwaysApply: true
 ---
 
 # Backend Simplicity and Modularity
 
-- Organize by purpose: `models` (DB), `schemas` (contracts), `routes` (HTTP surface), `services` (business logic).
-- Prefer small files and focused classes/functions over one large file with mixed concerns.
-- Remove duplicated logic quickly; extract shared helpers only when reuse is real.
-- Prefer explicit data structures (`list[str]`, enums with clear meaning) over sentinel values like `"BOTH"` when arrays can express intent.
-- Keep route surface minimal, but preserve compatibility endpoints when they support active clients.
-- Favor realistic trust boundaries: validate external input and DB assumptions, but avoid excessive defensive branches for impossible internal states.
-- Keep type usage practical: enough for safety and readability, avoid type-heavy noise for simple flows.
-- Write error handling for actionable failures; avoid broad catch blocks that hide root causes.
-- Use migration-first schema evolution: change DB structure with Alembic, then update ORM/service/clients.
-- Preserve backward compatibility during transitions with thin adapters, then remove them in a follow-up cleanup.
-- Add short section separators/comments only when they improve scanability; avoid comment clutter.
+- Keep the main flow flat: `routes` -> `services` -> `models`/`schemas`.
+- Prefer small, purpose-built files and helpers; split large modules before adding new abstraction layers.
+- Keep Playspace and YEE isolated. Do not reintroduce shared dashboard, service, or schema layers across products.
+- Prefer simple data shapes and arrays over sentinel values like `"BOTH"` when multiple values can be expressed directly.
+- Keep type usage practical: enough for safety and clarity, without schema or response-model explosion for simple flows.
+- Validate real external input and permission boundaries; avoid defensive branches for impossible internal states.
+- Trust explicit repo contracts and seeded dev flows more than speculative edge-case handling.
+- Preserve compatibility endpoints and adapters while active mobile or web clients still depend on them.
+- Keep static Playspace instrument and scoring configuration in code, not in database tables.
+- Apply database changes through Alembic first, then update ORM, services, and clients.
+- Use comments or hash-banner separators only when they materially improve scanability.
