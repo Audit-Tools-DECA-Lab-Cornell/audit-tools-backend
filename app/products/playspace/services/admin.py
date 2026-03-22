@@ -187,7 +187,9 @@ class PlayspaceAdminService:
         places = result.scalars().all()
         rows: list[AdminPlaceRowResponse] = []
         for place in places:
-            submitted_audits = [audit for audit in place.audits if audit.status == AuditStatus.SUBMITTED]
+            submitted_audits = [
+                audit for audit in place.audits if audit.status == AuditStatus.SUBMITTED
+            ]
             score_values = [
                 float(audit.summary_score)
                 for audit in submitted_audits
@@ -228,7 +230,9 @@ class PlayspaceAdminService:
         profiles = result.scalars().all()
         rows: list[AdminAuditorRowResponse] = []
         for profile in profiles:
-            completed_audits = [audit for audit in profile.audits if audit.status == AuditStatus.SUBMITTED]
+            completed_audits = [
+                audit for audit in profile.audits if audit.status == AuditStatus.SUBMITTED
+            ]
             rows.append(
                 AdminAuditorRowResponse(
                     auditor_profile_id=profile.id,

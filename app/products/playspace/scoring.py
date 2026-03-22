@@ -642,11 +642,7 @@ def _read_sociability_scale_score(
     """Read one sociability answer using the client-specified 0/1/2 mapping."""
 
     scale = next(
-        (
-            current_scale
-            for current_scale in question.scales
-            if current_scale.key == "sociability"
-        ),
+        (current_scale for current_scale in question.scales if current_scale.key == "sociability"),
         None,
     )
     if scale is None:

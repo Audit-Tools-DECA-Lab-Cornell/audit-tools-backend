@@ -13,7 +13,9 @@ def test_build_playspace_seed_entities_includes_admin_and_multiple_manager_accou
     accounts = [entity for entity in entities if isinstance(entity, Account)]
 
     admin_accounts = [account for account in accounts if account.account_type is AccountType.ADMIN]
-    manager_accounts = [account for account in accounts if account.account_type is AccountType.MANAGER]
+    manager_accounts = [
+        account for account in accounts if account.account_type is AccountType.MANAGER
+    ]
 
     assert len(admin_accounts) >= 1
     assert len(manager_accounts) >= 2

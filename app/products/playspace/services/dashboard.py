@@ -38,6 +38,7 @@ from app.products.playspace.schemas import (
     ProjectSummaryResponse,
     RecentActivityResponse,
 )
+
 PROJECT_NOT_FOUND_DETAIL = "Project not found."
 
 
@@ -592,7 +593,9 @@ class PlayspaceDashboardService:
         audits = place.audits
         submitted_audits = [audit for audit in audits if audit.status == AuditStatus.SUBMITTED]
         in_progress_audits = [
-            audit for audit in audits if audit.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
+            audit
+            for audit in audits
+            if audit.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
         ]
         history_rows = await self.list_place_audits(actor=actor, place_id=place_id)
 

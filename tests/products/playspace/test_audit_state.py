@@ -129,9 +129,7 @@ def test_apply_draft_patch_reuses_existing_scale_answers() -> None:
 
     updated_section = audit.playspace_sections[0]
     updated_question = updated_section.question_responses[0]
-    answers_by_scale = {
-        answer.scale_key: answer for answer in updated_question.scale_answers
-    }
+    answers_by_scale = {answer.scale_key: answer for answer in updated_question.scale_answers}
 
     assert updated_section is section
     assert updated_question is question
@@ -139,9 +137,7 @@ def test_apply_draft_patch_reuses_existing_scale_answers() -> None:
     assert answers_by_scale["quantity"].option_key == "a_lot"
     assert sorted(answers_by_scale) == ["diversity", "quantity"]
 
-    object_ids_before = {
-        answer.scale_key: id(answer) for answer in updated_question.scale_answers
-    }
+    object_ids_before = {answer.scale_key: id(answer) for answer in updated_question.scale_answers}
 
     apply_draft_patch_to_relations(audit=audit, patch=patch)
 
@@ -178,8 +174,7 @@ def test_apply_draft_patch_preserves_omitted_pre_audit_fields_and_clears_note() 
     apply_draft_patch_to_relations(audit=audit, patch=patch)
 
     assert sorted(
-        (answer.field_key, answer.selected_value)
-        for answer in audit.playspace_pre_audit_answers
+        (answer.field_key, answer.selected_value) for answer in audit.playspace_pre_audit_answers
     ) == [
         ("season", "summer"),
         ("weather_conditions", "windy"),
@@ -217,9 +212,7 @@ def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
 
     updated_section = audit.playspace_sections[0]
     updated_question = updated_section.question_responses[0]
-    answers_by_scale = {
-        answer.scale_key: answer for answer in updated_question.scale_answers
-    }
+    answers_by_scale = {answer.scale_key: answer for answer in updated_question.scale_answers}
 
     assert updated_section is section
     assert updated_section.note == "After"

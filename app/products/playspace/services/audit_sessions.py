@@ -207,7 +207,9 @@ class PlayspaceAuditSessionsMixin:
             "paused": AuditStatus.PAUSED,
             "submitted": AuditStatus.SUBMITTED,
         }
-        normalized_status_filter = status_filter.strip().lower() if status_filter is not None else None
+        normalized_status_filter = (
+            status_filter.strip().lower() if status_filter is not None else None
+        )
         if (
             normalized_status_filter is not None
             and normalized_status_filter not in status_by_filter
@@ -244,7 +246,9 @@ class PlayspaceAuditSessionsMixin:
             if summary_score is None:
                 summary_score = audit.summary_score
             progress_percent = (
-                get_draft_progress_percent(audit) if audit.status is not AuditStatus.SUBMITTED else None
+                get_draft_progress_percent(audit)
+                if audit.status is not AuditStatus.SUBMITTED
+                else None
             )
             responses.append(
                 AuditorAuditSummaryResponse(

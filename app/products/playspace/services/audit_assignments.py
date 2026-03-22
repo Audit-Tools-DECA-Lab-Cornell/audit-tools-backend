@@ -46,7 +46,9 @@ class PlayspaceAuditAssignmentsMixin:
             query = query.where(
                 or_(
                     AuditorAssignment.project.has(Project.account_id == actor.account_id),
-                    AuditorAssignment.place.has(Place.project.has(Project.account_id == actor.account_id)),
+                    AuditorAssignment.place.has(
+                        Place.project.has(Project.account_id == actor.account_id)
+                    ),
                 )
             )
 
@@ -255,7 +257,9 @@ class PlayspaceAuditAssignmentsMixin:
 
         if place_id is not None:
             place_account_result = await self._session.execute(
-                select(Project.account_id).join(Place, Place.project_id == Project.id).where(Place.id == place_id)
+                select(Project.account_id)
+                .join(Place, Place.project_id == Project.id)
+                .where(Place.id == place_id)
             )
             place_account_id = place_account_result.scalar_one_or_none()
             if place_account_id is None:

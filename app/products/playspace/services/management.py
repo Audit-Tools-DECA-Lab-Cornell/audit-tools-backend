@@ -85,7 +85,9 @@ class PlayspaceManagementService:
     async def _get_account(self, account_id: uuid.UUID) -> Account:
         """Load an account or raise 404."""
 
-        account_result = await self._session.execute(select(Account).where(Account.id == account_id))
+        account_result = await self._session.execute(
+            select(Account).where(Account.id == account_id)
+        )
         account = account_result.scalar_one_or_none()
         if account is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
@@ -94,7 +96,9 @@ class PlayspaceManagementService:
     async def _get_project(self, project_id: uuid.UUID) -> Project:
         """Load a project or raise 404."""
 
-        project_result = await self._session.execute(select(Project).where(Project.id == project_id))
+        project_result = await self._session.execute(
+            select(Project).where(Project.id == project_id)
+        )
         project = project_result.scalar_one_or_none()
         if project is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
@@ -424,8 +428,9 @@ class PlayspaceManagementService:
         updates = payload.model_dump(exclude_unset=True)
         if "email" in updates and updates["email"] is not None:
             duplicate_account_query = await self._session.execute(
-                select(Account)
-                .where(Account.email == updates["email"], Account.id != profile.account_id)
+                select(Account).where(
+                    Account.email == updates["email"], Account.id != profile.account_id
+                )
             )
             if duplicate_account_query.scalar_one_or_none() is not None:
                 raise HTTPException(
@@ -433,8 +438,7 @@ class PlayspaceManagementService:
                     detail="Email is already in use by another account.",
                 )
             duplicate_profile_query = await self._session.execute(
-                select(AuditorProfile)
-                .where(
+                select(AuditorProfile).where(
                     AuditorProfile.email == updates["email"],
                     AuditorProfile.id != profile.id,
                 )
@@ -447,8 +451,7 @@ class PlayspaceManagementService:
 
         if "auditor_code" in updates and updates["auditor_code"] is not None:
             duplicate_code_query = await self._session.execute(
-                select(AuditorProfile)
-                .where(
+                select(AuditorProfile).where(
                     AuditorProfile.auditor_code == updates["auditor_code"],
                     AuditorProfile.id != profile.id,
                 )
