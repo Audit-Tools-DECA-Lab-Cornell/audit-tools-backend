@@ -1,7 +1,5 @@
 """
-Read-only self-service profile endpoints.
-
-Profile editing is deferred until the authentication system is in place.
+Self-service current-user endpoints for Playspace.
 """
 
 from __future__ import annotations
@@ -13,13 +11,13 @@ from app.products.playspace.routes.dependencies import (
     CURRENT_USER_DEPENDENCY,
     SESSION_DEPENDENCY,
 )
-from app.products.playspace.schemas.profile import (
+from app.products.playspace.schemas.me import (
     MyAccountResponse,
     MyAuditorProfileResponse,
 )
-from app.products.playspace.services.profile import PlayspaceProfileService
+from app.products.playspace.services.me import PlayspaceMeService
 
-router: APIRouter = APIRouter(tags=["profile"])
+router: APIRouter = APIRouter(tags=["playspace-me"])
 
 
 def _require_account_id(current_user: CurrentUserContext) -> str:
@@ -28,7 +26,7 @@ def _require_account_id(current_user: CurrentUserContext) -> str:
     if current_user.account_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account identity is required for profile operations.",
+            detail="Account identity is required for self-service operations.",
         )
     return str(current_user.account_id)
 
@@ -41,7 +39,7 @@ async def get_my_account(
     """Return the current user's account details."""
 
     account_id = _require_account_id(current_user)
-    service = PlayspaceProfileService(session=session)
+    service = PlayspaceMeService(session=session)
     account = await service.get_account(account_id=account_id)
 
     return MyAccountResponse(
@@ -60,7 +58,7 @@ async def get_my_auditor_profile(
     """Return the current user's auditor profile."""
 
     account_id = _require_account_id(current_user)
-    service = PlayspaceProfileService(session=session)
+    service = PlayspaceMeService(session=session)
     profile = await service.get_auditor_profile(account_id=account_id)
 
     return MyAuditorProfileResponse(

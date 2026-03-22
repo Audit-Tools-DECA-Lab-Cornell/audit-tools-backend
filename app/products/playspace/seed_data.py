@@ -70,6 +70,8 @@ ProjectStatusLabel = Literal["completed", "active", "planned"]
 UTC = timezone.utc
 
 PLAYSPACE_ORGANIZATION_NAME = "Auckland Playspace Collaborative"
+SECONDARY_PLAYSPACE_ORGANIZATION_NAME = "Canterbury Civic Play Trust"
+PLAYSPACE_ADMIN_ACCOUNT_NAME = "Playspace Platform Administration"
 NEW_ZEALAND = "New Zealand"
 
 PUBLIC_PLAYSPACE = "public playspace"
@@ -86,6 +88,25 @@ PLAYSPACE_SEED_NAMESPACE = uuid.UUID("0b9dcbde-1a95-4afd-8e2d-0c8a2621b7b4")
 PLAYSPACE_RANDOM_SEED = 20260320
 
 BASE_MANAGER_CREATED_AT = datetime(2026, 1, 10, 8, 30, tzinfo=UTC)
+BASE_SECONDARY_MANAGER_CREATED_AT = datetime(2026, 1, 18, 9, 15, tzinfo=UTC)
+BASE_ADMIN_CREATED_AT = datetime(2026, 1, 6, 11, 0, tzinfo=UTC)
+
+SECONDARY_MANAGER_ACCOUNT_ID = uuid.uuid5(
+    PLAYSPACE_SEED_NAMESPACE,
+    "playspace-account::manager-secondary",
+)
+SECONDARY_MANAGER_PROFILE_PRIMARY_ID = uuid.uuid5(
+    PLAYSPACE_SEED_NAMESPACE,
+    "playspace-manager-profile::manager-secondary-primary",
+)
+SECONDARY_MANAGER_PROFILE_OPERATIONS_ID = uuid.uuid5(
+    PLAYSPACE_SEED_NAMESPACE,
+    "playspace-manager-profile::manager-secondary-operations",
+)
+PLAYSPACE_ADMIN_ACCOUNT_ID = uuid.uuid5(
+    PLAYSPACE_SEED_NAMESPACE,
+    "playspace-account::admin-primary",
+)
 
 PRE_AUDIT_SEASONS = ("spring", "summer", "autumn", "winter")
 PRE_AUDIT_WEATHER_OPTIONS = ("sunshine", "cloudy", "windy", "inclement_weather")
@@ -377,6 +398,9 @@ PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = (
     ),
 )
 
+PRIMARY_MANAGER_PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = PROJECT_BLUEPRINTS[:4]
+SECONDARY_MANAGER_PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = PROJECT_BLUEPRINTS[4:]
+
 BASE_PLACE_BLUEPRINTS: dict[uuid.UUID, tuple[float, float]] = {
     DEMO_PLACE_RIVERSIDE_ID: (0.66, 0.72),
     DEMO_PLACE_KEPLER_ID: (0.74, 0.64),
@@ -386,18 +410,34 @@ BASE_PLACE_BLUEPRINTS: dict[uuid.UUID, tuple[float, float]] = {
 
 
 def build_playspace_seed_entities() -> list[PlayspaceEntity]:
-    """Build the full Playspace seed set with large, realistic, deterministic data."""
+    """Build a multi-account Playspace seed set with realistic audit coverage."""
 
     randomizer = Random(PLAYSPACE_RANDOM_SEED)
     reference_date = date.today()
 
-    manager_account = Account(
+    primary_manager_account = Account(
         id=DEMO_ACCOUNT_ID,
         name=PLAYSPACE_ORGANIZATION_NAME,
         email="manager@example.org",
         password_hash=_placeholder_password_hash("playspace-manager"),
         account_type=AccountType.MANAGER,
         created_at=BASE_MANAGER_CREATED_AT,
+    )
+    secondary_manager_account = Account(
+        id=SECONDARY_MANAGER_ACCOUNT_ID,
+        name=SECONDARY_PLAYSPACE_ORGANIZATION_NAME,
+        email="canterbury.manager@example.org",
+        password_hash=_placeholder_password_hash("playspace-manager-secondary"),
+        account_type=AccountType.MANAGER,
+        created_at=BASE_SECONDARY_MANAGER_CREATED_AT,
+    )
+    admin_account = Account(
+        id=PLAYSPACE_ADMIN_ACCOUNT_ID,
+        name=PLAYSPACE_ADMIN_ACCOUNT_NAME,
+        email="playspace.admin@example.org",
+        password_hash=_placeholder_password_hash("playspace-admin"),
+        account_type=AccountType.ADMIN,
+        created_at=BASE_ADMIN_CREATED_AT,
     )
     manager_profiles = [
         ManagerProfile(
@@ -422,13 +462,42 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
             is_primary=False,
             created_at=BASE_MANAGER_CREATED_AT + timedelta(days=2, minutes=45),
         ),
+        ManagerProfile(
+            id=SECONDARY_MANAGER_PROFILE_PRIMARY_ID,
+            account_id=SECONDARY_MANAGER_ACCOUNT_ID,
+            full_name="Aroha Sinclair",
+            email="aroha.sinclair@example.org",
+            phone="+64 21 555 0211",
+            position="Programme Director",
+            organization=SECONDARY_PLAYSPACE_ORGANIZATION_NAME,
+            is_primary=True,
+            created_at=BASE_SECONDARY_MANAGER_CREATED_AT + timedelta(minutes=20),
+        ),
+        ManagerProfile(
+            id=SECONDARY_MANAGER_PROFILE_OPERATIONS_ID,
+            account_id=SECONDARY_MANAGER_ACCOUNT_ID,
+            full_name="Elliot Fraser",
+            email="elliot.fraser@example.org",
+            phone="+64 21 555 0284",
+            position="Operations Lead",
+            organization=SECONDARY_PLAYSPACE_ORGANIZATION_NAME,
+            is_primary=False,
+            created_at=BASE_SECONDARY_MANAGER_CREATED_AT + timedelta(days=1, minutes=15),
+        ),
     ]
 
     auditor_contexts = _build_auditor_contexts(reference_date=reference_date)
-    project_contexts = _build_project_contexts(
-        account_id=manager_account.id,
+    primary_project_contexts = _build_project_contexts(
+        account_id=primary_manager_account.id,
         reference_date=reference_date,
+        blueprints=PRIMARY_MANAGER_PROJECT_BLUEPRINTS,
     )
+    secondary_project_contexts = _build_project_contexts(
+        account_id=secondary_manager_account.id,
+        reference_date=reference_date,
+        blueprints=SECONDARY_MANAGER_PROJECT_BLUEPRINTS,
+    )
+    project_contexts = [*primary_project_contexts, *secondary_project_contexts]
     place_contexts = _build_place_contexts(
         project_contexts=project_contexts,
         reference_date=reference_date,
@@ -454,7 +523,12 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         randomizer=randomizer,
     )
 
-    accounts = [manager_account, *(context.account for context in auditor_contexts)]
+    accounts = [
+        admin_account,
+        primary_manager_account,
+        secondary_manager_account,
+        *(context.account for context in auditor_contexts),
+    ]
     auditor_profiles = [context.profile for context in auditor_contexts]
     projects = [context.project for context in project_contexts]
     places = [context.place for context in place_contexts]
@@ -529,11 +603,12 @@ def _build_project_contexts(
     *,
     account_id: uuid.UUID,
     reference_date: date,
+    blueprints: tuple[ProjectBlueprint, ...],
 ) -> list[ProjectSeedContext]:
     """Create a mix of active, completed, and planned Playspace projects."""
 
     contexts: list[ProjectSeedContext] = []
-    for index, blueprint in enumerate(PROJECT_BLUEPRINTS):
+    for index, blueprint in enumerate(blueprints):
         project_id = _resolve_project_id(blueprint=blueprint)
         start_date, end_date = _project_dates(
             status=blueprint.status, reference_date=reference_date

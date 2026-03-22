@@ -7,9 +7,9 @@ from __future__ import annotations
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
-from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_user
+from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_or_admin_user
 from app.models import AuditorAssignment, AuditorProfile, Place, Project
 from app.products.playspace.schemas import AssignmentResponse, AssignmentWriteRequest
 
@@ -32,11 +32,25 @@ class PlayspaceAuditAssignmentsMixin:
         profile = await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
         self._ensure_profile_access(actor=actor, profile=profile)
 
-        result = await self._session.execute(
+        query = (
             select(AuditorAssignment)
             .where(AuditorAssignment.auditor_profile_id == auditor_profile_id)
             .order_by(AuditorAssignment.assigned_at.desc())
         )
+        if actor.role is CurrentUserRole.MANAGER:
+            if actor.account_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Manager account context is required for assignment access.",
+                )
+            query = query.where(
+                or_(
+                    AuditorAssignment.project.has(Project.account_id == actor.account_id),
+                    AuditorAssignment.place.has(Place.project.has(Project.account_id == actor.account_id)),
+                )
+            )
+
+        result = await self._session.execute(query)
         assignments = result.scalars().all()
         return [self._serialize_assignment(assignment) for assignment in assignments]
 
@@ -49,9 +63,14 @@ class PlayspaceAuditAssignmentsMixin:
     ) -> AssignmentResponse:
         """Create a project- or place-scoped assignment with role-array capabilities."""
 
-        require_manager_user(actor)
+        require_manager_or_admin_user(actor)
         await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
         await self._validate_assignment_scope(payload=payload)
+        await self._ensure_actor_can_manage_scope(
+            actor=actor,
+            project_id=payload.project_id,
+            place_id=payload.place_id,
+        )
 
         assignment = AuditorAssignment(
             auditor_profile_id=auditor_profile_id,
@@ -73,9 +92,14 @@ class PlayspaceAuditAssignmentsMixin:
     ) -> AssignmentResponse:
         """Update an existing assignment scope and role-array capabilities."""
 
-        require_manager_user(actor)
+        require_manager_or_admin_user(actor)
         await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
         await self._validate_assignment_scope(payload=payload)
+        await self._ensure_actor_can_manage_scope(
+            actor=actor,
+            project_id=payload.project_id,
+            place_id=payload.place_id,
+        )
 
         assignment = await self._get_assignment(
             assignment_id=assignment_id,
@@ -86,6 +110,29 @@ class PlayspaceAuditAssignmentsMixin:
         assignment.audit_roles = self._assignment_roles_to_db_values(roles=payload.audit_roles)
         await self._commit_and_refresh(assignment)
         return self._serialize_assignment(assignment)
+
+    async def delete_assignment(
+        self,
+        *,
+        actor: CurrentUserContext,
+        auditor_profile_id: uuid.UUID,
+        assignment_id: uuid.UUID,
+    ) -> None:
+        """Delete one assignment row under an auditor profile."""
+
+        require_manager_or_admin_user(actor)
+        await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
+        assignment = await self._get_assignment(
+            assignment_id=assignment_id,
+            auditor_profile_id=auditor_profile_id,
+        )
+        await self._ensure_actor_can_manage_scope(
+            actor=actor,
+            project_id=assignment.project_id,
+            place_id=assignment.place_id,
+        )
+        await self._session.delete(assignment)
+        await self._session.commit()
 
     async def _get_auditor_profile(self, *, auditor_profile_id: uuid.UUID) -> AuditorProfile:
         """Load an auditor profile and fail with 404 when it does not exist."""
@@ -155,7 +202,14 @@ class PlayspaceAuditAssignmentsMixin:
     def _ensure_profile_access(self, *, actor: CurrentUserContext, profile: AuditorProfile) -> None:
         """Allow managers or the owning auditor account to read assignment rows."""
 
+        if actor.role is CurrentUserRole.ADMIN:
+            return
         if actor.role is CurrentUserRole.MANAGER:
+            if actor.account_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Manager account context is required for assignment access.",
+                )
             return
         if actor.role is CurrentUserRole.AUDITOR and actor.account_id == profile.account_id:
             return
@@ -163,6 +217,70 @@ class PlayspaceAuditAssignmentsMixin:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to access this auditor profile.",
         )
+
+    async def _ensure_actor_can_manage_scope(
+        self,
+        *,
+        actor: CurrentUserContext,
+        project_id: uuid.UUID | None,
+        place_id: uuid.UUID | None,
+    ) -> None:
+        """Ensure manager actors can only manage assignments inside their own account scope."""
+
+        if actor.role is CurrentUserRole.ADMIN:
+            return
+        if actor.role is not CurrentUserRole.MANAGER or actor.account_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Manager account context is required for assignment management.",
+            )
+
+        scope_account_id = await self._resolve_scope_account_id(
+            project_id=project_id,
+            place_id=place_id,
+        )
+        if scope_account_id != actor.account_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Managers can only manage assignments inside their own account.",
+            )
+
+    async def _resolve_scope_account_id(
+        self,
+        *,
+        project_id: uuid.UUID | None,
+        place_id: uuid.UUID | None,
+    ) -> uuid.UUID:
+        """Resolve the owning account id for one assignment scope."""
+
+        if place_id is not None:
+            place_account_result = await self._session.execute(
+                select(Project.account_id).join(Place, Place.project_id == Project.id).where(Place.id == place_id)
+            )
+            place_account_id = place_account_result.scalar_one_or_none()
+            if place_account_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Place not found.",
+                )
+            return place_account_id
+
+        if project_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Assignment scope is required.",
+            )
+
+        project_account_result = await self._session.execute(
+            select(Project.account_id).where(Project.id == project_id)
+        )
+        project_account_id = project_account_result.scalar_one_or_none()
+        if project_account_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+        return project_account_id
 
     def _serialize_assignment(self, assignment: AuditorAssignment) -> AssignmentResponse:
         """Convert an ORM assignment row into the API response model."""

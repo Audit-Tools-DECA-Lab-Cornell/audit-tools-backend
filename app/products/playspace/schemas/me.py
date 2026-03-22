@@ -1,8 +1,5 @@
 """
-Playspace profile schemas for self-service read-only endpoints.
-
-Profile editing is deferred until the authentication system is in place and
-the manager dashboard (web frontend) editing flows are designed alongside.
+Self-service schemas for current-user Playspace endpoints.
 """
 
 from __future__ import annotations
@@ -13,7 +10,7 @@ from app.products.playspace.schemas.base import ApiModel
 
 
 class MyAccountResponse(ApiModel):
-    """Current user's account details (read-only)."""
+    """Current user's account details."""
 
     account_id: uuid.UUID
     name: str
@@ -22,7 +19,7 @@ class MyAccountResponse(ApiModel):
 
 
 class MyAuditorProfileResponse(ApiModel):
-    """Current user's auditor profile details (read-only)."""
+    """Current user's auditor profile details."""
 
     profile_id: uuid.UUID
     auditor_code: str

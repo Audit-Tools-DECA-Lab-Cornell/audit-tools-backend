@@ -38,6 +38,8 @@ from app.products.playspace.schemas import (
     AssignmentRole,
     AuditDraftPatchRequest,
     AuditMetaResponse,
+    AuditorAuditSummaryResponse,
+    AuditorDashboardSummaryResponse,
     AuditorPlaceResponse,
     AuditProgressResponse,
     AuditScoresResponse,
@@ -58,6 +60,22 @@ from app.products.playspace.scoring import (
 ######################################################################################
 ############################## Audit Session Service Mixin ###########################
 ######################################################################################
+
+
+def _round_score(value: float | None) -> float | None:
+    """Round one score to a single decimal place when present."""
+
+    if value is None:
+        return None
+    return round(value, 1)
+
+
+def _average(values: list[float]) -> float | None:
+    """Return a rounded average for numeric values."""
+
+    if not values:
+        return None
+    return _round_score(sum(values) / len(values))
 
 
 class PlayspaceAuditSessionsMixin:
@@ -174,6 +192,104 @@ class PlayspaceAuditSessionsMixin:
             )
 
         return responses
+
+    async def list_auditor_audits(
+        self,
+        *,
+        actor: CurrentUserContext,
+        status_filter: str | None = None,
+    ) -> list[AuditorAuditSummaryResponse]:
+        """Return audit rows for the current auditor with optional status filtering."""
+
+        auditor_profile = await self._require_auditor_profile(actor=actor)
+        status_by_filter = {
+            "in_progress": AuditStatus.IN_PROGRESS,
+            "paused": AuditStatus.PAUSED,
+            "submitted": AuditStatus.SUBMITTED,
+        }
+        normalized_status_filter = status_filter.strip().lower() if status_filter is not None else None
+        if (
+            normalized_status_filter is not None
+            and normalized_status_filter not in status_by_filter
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="status must be one of in_progress, paused, submitted.",
+            )
+
+        query = (
+            select(Audit)
+            .where(Audit.auditor_profile_id == auditor_profile.id)
+            .order_by(Audit.started_at.desc())
+            .options(
+                selectinload(Audit.place).selectinload(Place.project),
+                selectinload(Audit.playspace_context),
+                selectinload(Audit.playspace_pre_audit_answers),
+                selectinload(Audit.playspace_sections)
+                .selectinload(PlayspaceAuditSection.question_responses)
+                .selectinload(PlayspaceQuestionResponse.scale_answers),
+            )
+        )
+        if normalized_status_filter is not None:
+            query = query.where(Audit.status == status_by_filter[normalized_status_filter])
+
+        audits_result = await self._session.execute(query)
+        audits = audits_result.scalars().all()
+
+        responses: list[AuditorAuditSummaryResponse] = []
+        for audit in audits:
+            score_payload = self._resolve_score_payload(audit=audit)
+            score_totals = self._build_score_totals_response(score_payload.get("overall"))
+            summary_score = self._combined_construct_total(score_totals)
+            if summary_score is None:
+                summary_score = audit.summary_score
+            progress_percent = (
+                get_draft_progress_percent(audit) if audit.status is not AuditStatus.SUBMITTED else None
+            )
+            responses.append(
+                AuditorAuditSummaryResponse(
+                    audit_id=audit.id,
+                    audit_code=audit.audit_code,
+                    place_id=audit.place_id,
+                    place_name=audit.place.name,
+                    project_id=audit.place.project_id,
+                    project_name=audit.place.project.name,
+                    status=audit.status,
+                    started_at=audit.started_at,
+                    submitted_at=audit.submitted_at,
+                    summary_score=_round_score(summary_score),
+                    score_totals=score_totals,
+                    progress_percent=progress_percent,
+                )
+            )
+        return responses
+
+    async def get_auditor_dashboard_summary(
+        self,
+        *,
+        actor: CurrentUserContext,
+    ) -> AuditorDashboardSummaryResponse:
+        """Return top-level counts and score average for the current auditor."""
+
+        places = await self.list_auditor_places(actor=actor)
+        submitted_audits = await self.list_auditor_audits(actor=actor, status_filter="submitted")
+        submitted_scores = [
+            audit.summary_score for audit in submitted_audits if audit.summary_score is not None
+        ]
+        in_progress_count = sum(
+            1
+            for place in places
+            if place.audit_status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
+        )
+        submitted_count = sum(1 for place in places if place.audit_status is AuditStatus.SUBMITTED)
+        pending_places = sum(1 for place in places if place.audit_status is None)
+        return AuditorDashboardSummaryResponse(
+            total_assigned_places=len(places),
+            in_progress_audits=in_progress_count,
+            submitted_audits=submitted_count,
+            pending_places=pending_places,
+            average_submitted_score=_average([float(score) for score in submitted_scores]),
+        )
 
     async def create_or_resume_audit(
         self,
@@ -469,15 +585,24 @@ class PlayspaceAuditSessionsMixin:
     async def _require_auditor_profile(self, *, actor: CurrentUserContext) -> AuditorProfile:
         """Resolve the current actor into a playspace auditor profile."""
 
-        if actor.role is not CurrentUserRole.AUDITOR or actor.account_id is None:
+        if actor.role is not CurrentUserRole.AUDITOR:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Auditor access is required for this endpoint.",
             )
 
-        result = await self._session.execute(
-            select(AuditorProfile).where(AuditorProfile.account_id == actor.account_id)
-        )
+        query = select(AuditorProfile)
+        if actor.account_id is not None:
+            query = query.where(AuditorProfile.account_id == actor.account_id)
+        elif actor.auditor_code is not None and actor.auditor_code.strip():
+            query = query.where(AuditorProfile.auditor_code == actor.auditor_code.strip())
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Auditor identity is required for this endpoint.",
+            )
+
+        result = await self._session.execute(query)
         profile = result.scalar_one_or_none()
         if profile is None:
             raise HTTPException(
@@ -523,11 +648,17 @@ class PlayspaceAuditSessionsMixin:
     def _ensure_audit_access(self, *, actor: CurrentUserContext, audit: Audit) -> None:
         """Allow managers or the owning auditor account to access an audit."""
 
-        if actor.role is CurrentUserRole.MANAGER:
+        if actor.role in {CurrentUserRole.MANAGER, CurrentUserRole.ADMIN}:
             return
         if (
             actor.role is CurrentUserRole.AUDITOR
             and actor.account_id == audit.auditor_profile.account_id
+        ):
+            return
+        if (
+            actor.role is CurrentUserRole.AUDITOR
+            and actor.auditor_code is not None
+            and actor.auditor_code == audit.auditor_profile.auditor_code
         ):
             return
         raise HTTPException(

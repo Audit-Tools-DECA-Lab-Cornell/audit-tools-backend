@@ -130,6 +130,32 @@ class AuditorSummaryResponse(ApiModel):
     last_active_at: datetime | None
 
 
+class PlaceAuditHistoryItemResponse(ApiModel):
+    """One audit history row visible on manager/admin place detail screens."""
+
+    audit_id: uuid.UUID
+    audit_code: str
+    auditor_code: str
+    status: str
+    started_at: datetime
+    submitted_at: datetime | None
+    summary_score: float | None
+
+
+class PlaceHistoryResponse(ApiModel):
+    """Aggregated history for one place and its related audits."""
+
+    place_id: uuid.UUID
+    place_name: str
+    project_id: uuid.UUID
+    total_audits: int
+    submitted_audits: int
+    in_progress_audits: int
+    average_submitted_score: float | None
+    latest_submitted_at: datetime | None
+    audits: list[PlaceAuditHistoryItemResponse]
+
+
 class PlaceSummaryResponse(ApiModel):
     """Project-scoped place row with dashboard metrics."""
 

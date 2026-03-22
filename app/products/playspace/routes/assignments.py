@@ -71,3 +71,22 @@ async def update_auditor_assignment(
         assignment_id=assignment_id,
         payload=payload,
     )
+
+
+@router.delete(
+    "/auditor-profiles/{auditor_profile_id}/assignments/{assignment_id}",
+    status_code=204,
+)
+async def delete_auditor_assignment(
+    auditor_profile_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+    service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
+) -> None:
+    """Delete a playspace assignment."""
+
+    await service.delete_assignment(
+        actor=current_user,
+        auditor_profile_id=auditor_profile_id,
+        assignment_id=assignment_id,
+    )

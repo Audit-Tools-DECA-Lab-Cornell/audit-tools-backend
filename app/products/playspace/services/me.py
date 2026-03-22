@@ -1,8 +1,5 @@
 """
-Profile service for read-only self-service operations.
-
-Profile editing (account updates, password changes) is deferred until the
-authentication system is complete and manager dashboard flows are designed.
+Self-service read operations for the current Playspace user.
 """
 
 from __future__ import annotations
@@ -17,14 +14,14 @@ from sqlalchemy.orm import joinedload
 from app.models import Account, AuditorProfile
 
 
-class PlayspaceProfileService:
-    """Handles read-only profile lookups for the current user."""
+class PlayspaceMeService:
+    """Read-only current-user queries for account and auditor profile details."""
 
     def __init__(self, *, session: AsyncSession) -> None:
         self._session = session
 
     async def get_account(self, *, account_id: uuid.UUID) -> Account:
-        """Fetch account by ID or raise 404."""
+        """Fetch an account by ID or raise 404."""
 
         result = await self._session.execute(
             select(Account)
@@ -40,7 +37,7 @@ class PlayspaceProfileService:
         return account
 
     async def get_auditor_profile(self, *, account_id: uuid.UUID) -> AuditorProfile:
-        """Fetch auditor profile for the given account or raise 404."""
+        """Fetch an auditor profile for the given account or raise 404."""
 
         result = await self._session.execute(
             select(AuditorProfile).where(AuditorProfile.account_id == account_id)

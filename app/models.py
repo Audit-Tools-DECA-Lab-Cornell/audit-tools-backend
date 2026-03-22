@@ -48,6 +48,7 @@ class Base(DeclarativeBase):
 class AccountType(str, Enum):
     """High-level access class shared by dummy auth and account modeling."""
 
+    ADMIN = "ADMIN"
     MANAGER = "MANAGER"
     AUDITOR = "AUDITOR"
 

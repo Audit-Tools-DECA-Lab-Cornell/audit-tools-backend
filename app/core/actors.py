@@ -19,6 +19,7 @@ from app.core.demo_data import DEMO_ACCOUNT_ID
 class CurrentUserRole(str, Enum):
     """Roles understood by backend route services."""
 
+    ADMIN = "admin"
     MANAGER = "manager"
     AUDITOR = "auditor"
 
@@ -39,6 +40,8 @@ def _parse_role(raw_value: str | None) -> CurrentUserRole | None:
         return None
 
     normalized_value = raw_value.strip().lower()
+    if normalized_value == CurrentUserRole.ADMIN.value:
+        return CurrentUserRole.ADMIN
     if normalized_value == CurrentUserRole.MANAGER.value:
         return CurrentUserRole.MANAGER
     if normalized_value == CurrentUserRole.AUDITOR.value:
@@ -79,9 +82,10 @@ def resolve_current_user(request: Request, product: str = "playspace") -> Curren
 
     header_account_id = _parse_uuid(request.headers.get("x-demo-account-id"))
     cookie_account_id = _parse_uuid(request.cookies.get(f"{product}_account_id"))
-
     if resolved_role == CurrentUserRole.MANAGER:
         resolved_account_id = header_account_id or cookie_account_id or DEMO_ACCOUNT_ID
+    elif resolved_role == CurrentUserRole.ADMIN:
+        resolved_account_id = header_account_id or cookie_account_id
     else:
         resolved_account_id = header_account_id or cookie_account_id
 
@@ -105,4 +109,26 @@ def require_manager_user(current_user: CurrentUserContext) -> CurrentUserContext
             detail="Manager access is required for this endpoint.",
         )
 
+    return current_user
+
+
+def require_admin_user(current_user: CurrentUserContext) -> CurrentUserContext:
+    """Reject non-admin users from admin-only endpoints."""
+
+    if current_user.role != CurrentUserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access is required for this endpoint.",
+        )
+    return current_user
+
+
+def require_manager_or_admin_user(current_user: CurrentUserContext) -> CurrentUserContext:
+    """Allow only manager or admin users."""
+
+    if current_user.role not in {CurrentUserRole.MANAGER, CurrentUserRole.ADMIN}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manager or administrator access is required for this endpoint.",
+        )
     return current_user

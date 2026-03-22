@@ -181,6 +181,33 @@ class AuditorPlaceResponse(ApiModel):
     progress_percent: float | None
 
 
+class AuditorAuditSummaryResponse(ApiModel):
+    """Audit row visible in auditor report and activity screens."""
+
+    audit_id: uuid.UUID
+    audit_code: str
+    place_id: uuid.UUID
+    place_name: str
+    project_id: uuid.UUID
+    project_name: str
+    status: AuditStatus
+    started_at: datetime
+    submitted_at: datetime | None
+    summary_score: float | None
+    score_totals: AuditScoreTotalsResponse | None = None
+    progress_percent: float | None
+
+
+class AuditorDashboardSummaryResponse(ApiModel):
+    """Top-level auditor dashboard metrics."""
+
+    total_assigned_places: int
+    in_progress_audits: int
+    submitted_audits: int
+    pending_places: int
+    average_submitted_score: float | None
+
+
 class AuditSessionResponse(ApiModel):
     """Audit state returned for create/resume, draft saves, and submission."""
 

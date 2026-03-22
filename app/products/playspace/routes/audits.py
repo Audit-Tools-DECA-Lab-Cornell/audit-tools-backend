@@ -15,7 +15,6 @@ from app.products.playspace.routes.dependencies import (
 )
 from app.products.playspace.schemas import (
     AuditDraftPatchRequest,
-    AuditorPlaceResponse,
     AuditSessionResponse,
     PlaceAuditAccessRequest,
 )
@@ -26,16 +25,6 @@ from app.products.playspace.services import PlayspaceAuditService
 ######################################################################################
 
 router = APIRouter(tags=["playspace"])
-
-
-@router.get("/auditor/me/places")
-async def list_my_assigned_places(
-    current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
-    service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
-) -> list[AuditorPlaceResponse]:
-    """Return places assigned to the current auditor with latest audit status."""
-
-    return await service.list_auditor_places(actor=current_user)
 
 
 @router.post("/places/{place_id}/audits/access")

@@ -1,5 +1,5 @@
 """
-Dashboard endpoints for Playspace.
+Manager dashboard endpoints for Playspace.
 """
 
 from __future__ import annotations
@@ -9,11 +9,6 @@ import uuid
 from fastapi import APIRouter
 
 from app.core.actors import CurrentUserContext
-from app.products.playspace.instrument import (
-    INSTRUMENT_KEY,
-    INSTRUMENT_NAME,
-    INSTRUMENT_VERSION,
-)
 from app.products.playspace.routes.dependencies import (
     CURRENT_USER_DEPENDENCY,
     DASHBOARD_SERVICE_DEPENDENCY,
@@ -22,6 +17,8 @@ from app.products.playspace.schemas import (
     AccountDetailResponse,
     AuditorSummaryResponse,
     ManagerProfileResponse,
+    PlaceAuditHistoryItemResponse,
+    PlaceHistoryResponse,
     PlaceSummaryResponse,
     ProjectDetailResponse,
     ProjectStatsResponse,
@@ -29,11 +26,7 @@ from app.products.playspace.schemas import (
 )
 from app.products.playspace.services import PlayspaceDashboardService
 
-######################################################################################
-############################### Dashboard Endpoints ##################################
-######################################################################################
-
-router = APIRouter(tags=["playspace"])
+router = APIRouter(tags=["playspace-manager-dashboard"])
 
 
 @router.get("/accounts/{account_id}")
@@ -113,15 +106,23 @@ async def list_project_places(
     return await service.list_project_places(actor=current_user, project_id=project_id)
 
 
-@router.get("/instrument")
-async def get_instrument_metadata(
+@router.get("/places/{place_id}/audits")
+async def list_place_audit_history(
+    place_id: uuid.UUID,
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Return version metadata for the Playspace instrument."""
+    service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> list[PlaceAuditHistoryItemResponse]:
+    """Return all audit rows for a place."""
 
-    _ = current_user
-    return {
-        "instrument_key": INSTRUMENT_KEY,
-        "instrument_name": INSTRUMENT_NAME,
-        "instrument_version": INSTRUMENT_VERSION,
-    }
+    return await service.list_place_audits(actor=current_user, place_id=place_id)
+
+
+@router.get("/places/{place_id}/history")
+async def get_place_history(
+    place_id: uuid.UUID,
+    current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+    service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> PlaceHistoryResponse:
+    """Return aggregate history metrics for one place."""
+
+    return await service.get_place_history(actor=current_user, place_id=place_id)

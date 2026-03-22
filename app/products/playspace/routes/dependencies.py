@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import resolve_current_user
 from app.database import get_async_session_playspace
-from app.products.playspace.services import PlayspaceAuditService, PlayspaceDashboardService
+from app.products.playspace.services import (
+    PlayspaceAdminService,
+    PlayspaceAuditService,
+    PlayspaceDashboardService,
+    PlayspaceManagementService,
+)
 
 ######################################################################################
 ############################### Route Dependencies ###################################
@@ -38,5 +43,23 @@ def get_audit_service(
     return PlayspaceAuditService(session=session)
 
 
+def get_management_service(
+    session: AsyncSession = SESSION_DEPENDENCY,
+) -> PlayspaceManagementService:
+    """Return a Playspace manager/admin write service for this request."""
+
+    return PlayspaceManagementService(session=session)
+
+
+def get_admin_service(
+    session: AsyncSession = SESSION_DEPENDENCY,
+) -> PlayspaceAdminService:
+    """Return an admin-focused Playspace read service for this request."""
+
+    return PlayspaceAdminService(session=session)
+
+
 DASHBOARD_SERVICE_DEPENDENCY = Depends(get_dashboard_service)
 AUDIT_SERVICE_DEPENDENCY = Depends(get_audit_service)
+MANAGEMENT_SERVICE_DEPENDENCY = Depends(get_management_service)
+ADMIN_SERVICE_DEPENDENCY = Depends(get_admin_service)

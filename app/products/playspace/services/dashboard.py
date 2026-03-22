@@ -28,7 +28,9 @@ from app.products.playspace.schemas import (
     AccountStatsResponse,
     AuditorSummaryResponse,
     ManagerProfileResponse,
+    PlaceAuditHistoryItemResponse,
     PlaceActivityStatus,
+    PlaceHistoryResponse,
     PlaceSummaryResponse,
     ProjectDetailResponse,
     ProjectStatsResponse,
@@ -36,7 +38,6 @@ from app.products.playspace.schemas import (
     ProjectSummaryResponse,
     RecentActivityResponse,
 )
-
 PROJECT_NOT_FOUND_DETAIL = "Project not found."
 
 
@@ -114,7 +115,12 @@ class PlayspaceDashboardService:
         """Enforce manager access and account ownership boundaries."""
 
         require_manager_user(actor)
-        if actor.account_id is not None and actor.account_id != account_id:
+        if actor.account_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Manager account context is required for this endpoint.",
+            )
+        if actor.account_id != account_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="This actor cannot access the requested account.",
@@ -146,6 +152,20 @@ class PlayspaceDashboardService:
                 selectinload(Project.assignments),
                 selectinload(Project.places).selectinload(Place.audits),
                 selectinload(Project.places).selectinload(Place.assignments),
+            )
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def _get_place_model(self, place_id: uuid.UUID) -> Place | None:
+        """Load a place with project, audits, and auditor profile relationships."""
+
+        stmt = (
+            select(Place)
+            .where(Place.id == place_id)
+            .options(
+                selectinload(Place.project),
+                selectinload(Place.audits).selectinload(Audit.auditor_profile),
             )
         )
         result = await self._session.execute(stmt)
@@ -184,6 +204,23 @@ class PlayspaceDashboardService:
             )
         self._ensure_manager_scope(actor, project.account_id)
         return project
+
+    async def _require_place_for_actor(
+        self,
+        *,
+        actor: CurrentUserContext,
+        place_id: uuid.UUID,
+    ) -> Place:
+        """Load a place and enforce manager access to its parent account."""
+
+        place = await self._get_place_model(place_id)
+        if place is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Place not found.",
+            )
+        self._ensure_manager_scope(actor, place.project.account_id)
+        return place
 
     async def _get_account_auditor_summaries_db(
         self,
@@ -257,7 +294,7 @@ class PlayspaceDashboardService:
                 ),
             )
 
-        return sorted(hydrated_summaries, key=lambda summary: summary.full_name.lower())
+        return sorted(hydrated_summaries, key=lambda summary: summary.auditor_code.lower())
 
     async def get_account_detail(
         self,
@@ -511,3 +548,63 @@ class PlayspaceDashboardService:
             )
 
         return place_summaries
+
+    async def list_place_audits(
+        self,
+        *,
+        actor: CurrentUserContext,
+        place_id: uuid.UUID,
+    ) -> list[PlaceAuditHistoryItemResponse]:
+        """Return audit history rows for one place."""
+
+        place = await self._require_place_for_actor(actor=actor, place_id=place_id)
+        sorted_audits = sorted(
+            place.audits,
+            key=lambda audit: (
+                audit.submitted_at if audit.submitted_at is not None else audit.started_at
+            ),
+            reverse=True,
+        )
+        history_rows: list[PlaceAuditHistoryItemResponse] = []
+        for audit in sorted_audits:
+            history_rows.append(
+                PlaceAuditHistoryItemResponse(
+                    audit_id=audit.id,
+                    audit_code=audit.audit_code,
+                    auditor_code=audit.auditor_profile.auditor_code,
+                    status=audit.status.value,
+                    started_at=audit.started_at,
+                    submitted_at=audit.submitted_at,
+                    summary_score=_round_score(audit.summary_score),
+                )
+            )
+        return history_rows
+
+    async def get_place_history(
+        self,
+        *,
+        actor: CurrentUserContext,
+        place_id: uuid.UUID,
+    ) -> PlaceHistoryResponse:
+        """Return aggregate history metrics plus audit rows for one place."""
+
+        place = await self._require_place_for_actor(actor=actor, place_id=place_id)
+        audits = place.audits
+        submitted_audits = [audit for audit in audits if audit.status == AuditStatus.SUBMITTED]
+        in_progress_audits = [
+            audit for audit in audits if audit.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
+        ]
+        history_rows = await self.list_place_audits(actor=actor, place_id=place_id)
+
+        latest_submitted_at = _latest_activity_timestamp(submitted_audits)
+        return PlaceHistoryResponse(
+            place_id=place.id,
+            place_name=place.name,
+            project_id=place.project_id,
+            total_audits=len(audits),
+            submitted_audits=len(submitted_audits),
+            in_progress_audits=len(in_progress_audits),
+            average_submitted_score=_average_submitted_score(submitted_audits),
+            latest_submitted_at=latest_submitted_at,
+            audits=history_rows,
+        )
