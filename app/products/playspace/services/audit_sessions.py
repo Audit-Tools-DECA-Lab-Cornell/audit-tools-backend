@@ -4,11 +4,13 @@ Audit session-focused methods for the Playspace audit service.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import math
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import Float, and_, cast, func, or_, select, union
 from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
@@ -18,6 +20,7 @@ from app.models import (
     AuditorProfile,
     AuditStatus,
     Place,
+    PlayspaceAuditContext,
     PlayspaceAuditSection,
     PlayspaceQuestionResponse,
     Project,
@@ -37,11 +40,13 @@ from app.products.playspace.instrument import (
 from app.products.playspace.schemas import (
     AssignmentRole,
     AuditDraftPatchRequest,
+    AuditDraftSaveResponse,
     AuditMetaResponse,
     AuditorAuditSummaryResponse,
     AuditorDashboardSummaryResponse,
     AuditorPlaceResponse,
     AuditProgressResponse,
+    PaginatedResponse,
     AuditScoresResponse,
     AuditScoreTotalsResponse,
     AuditSectionStateResponse,
@@ -78,127 +83,395 @@ def _average(values: list[float]) -> float | None:
     return _round_score(sum(values) / len(values))
 
 
+def _total_pages(total_count: int, page_size: int) -> int:
+    """Return a stable page count for paginated list responses."""
+
+    if total_count <= 0:
+        return 1
+    return max(1, math.ceil(total_count / page_size))
+
+
+@dataclass(slots=True)
+class _AssignedPlaceSummary:
+    """Compact assigned-place row aggregated across overlapping assignments."""
+
+    place_id: uuid.UUID
+    place_name: str
+    place_type: str | None
+    project_id: uuid.UUID
+    project_name: str
+    city: str | None
+    province: str | None
+    country: str | None
+    db_roles: list[str]
+
+
+@dataclass(slots=True)
+class _CompactAuditSnapshot:
+    """Minimal audit snapshot used by auditor list and dashboard surfaces."""
+
+    audit_id: uuid.UUID
+    place_id: uuid.UUID
+    audit_code: str
+    status: AuditStatus
+    started_at: datetime
+    submitted_at: datetime | None
+    summary_score: float | None
+    score_totals: AuditScoreTotalsResponse | None
+    progress_percent: float | None
+
+
 class PlayspaceAuditSessionsMixin:
     """Mixin containing audit-session operations. Inherits from PlayspaceAuditService."""
+
+    async def _list_assigned_place_summaries(
+        self,
+        *,
+        auditor_profile_id: uuid.UUID,
+    ) -> list[_AssignedPlaceSummary]:
+        """Resolve unique place assignments without eagerly loading audit session graphs."""
+
+        direct_place_assignments_query = (
+            select(
+                Place.id.label("place_id"),
+                Place.name.label("place_name"),
+                Place.place_type.label("place_type"),
+                Place.project_id.label("project_id"),
+                Project.name.label("project_name"),
+                Place.city.label("city"),
+                Place.province.label("province"),
+                Place.country.label("country"),
+                AuditorAssignment.audit_roles.label("audit_roles"),
+            )
+            .join(Place, AuditorAssignment.place_id == Place.id)
+            .join(Project, Place.project_id == Project.id)
+            .where(
+                AuditorAssignment.auditor_profile_id == auditor_profile_id,
+                AuditorAssignment.place_id.is_not(None),
+            )
+        )
+        project_place_assignments_query = (
+            select(
+                Place.id.label("place_id"),
+                Place.name.label("place_name"),
+                Place.place_type.label("place_type"),
+                Place.project_id.label("project_id"),
+                Project.name.label("project_name"),
+                Place.city.label("city"),
+                Place.province.label("province"),
+                Place.country.label("country"),
+                AuditorAssignment.audit_roles.label("audit_roles"),
+            )
+            .join(Project, AuditorAssignment.project_id == Project.id)
+            .join(Place, Place.project_id == Project.id)
+            .where(
+                AuditorAssignment.auditor_profile_id == auditor_profile_id,
+                AuditorAssignment.project_id.is_not(None),
+                AuditorAssignment.place_id.is_(None),
+            )
+        )
+
+        assigned_places: dict[uuid.UUID, _AssignedPlaceSummary] = {}
+
+        def record_assignment_row(row: object) -> None:
+            """Merge one compact assignment row into the place summary map."""
+
+            place_id = getattr(row, "place_id", None)
+            project_id = getattr(row, "project_id", None)
+            place_name = getattr(row, "place_name", None)
+            if not isinstance(place_id, uuid.UUID):
+                return
+            if not isinstance(project_id, uuid.UUID):
+                return
+            if not isinstance(place_name, str):
+                return
+
+            summary = assigned_places.get(place_id)
+            if summary is None:
+                summary = _AssignedPlaceSummary(
+                    place_id=place_id,
+                    place_name=place_name,
+                    place_type=getattr(row, "place_type", None),
+                    project_id=project_id,
+                    project_name=getattr(row, "project_name", None) or "Unknown project",
+                    city=getattr(row, "city", None),
+                    province=getattr(row, "province", None),
+                    country=getattr(row, "country", None),
+                    db_roles=[],
+                )
+                assigned_places[place_id] = summary
+
+            for raw_role in self._to_string_list(getattr(row, "audit_roles", [])):
+                if raw_role not in summary.db_roles:
+                    summary.db_roles.append(raw_role)
+
+        direct_place_assignments_result = await self._session.execute(direct_place_assignments_query)
+        for row in direct_place_assignments_result.all():
+            record_assignment_row(row)
+
+        project_place_assignments_result = await self._session.execute(
+            project_place_assignments_query
+        )
+        for row in project_place_assignments_result.all():
+            record_assignment_row(row)
+
+        return sorted(assigned_places.values(), key=lambda place: place.place_name.lower())
+
+    async def _get_latest_audit_snapshots(
+        self,
+        *,
+        auditor_profile_id: uuid.UUID,
+        place_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, _CompactAuditSnapshot]:
+        """Return the latest compact audit row for each assigned place."""
+
+        if not place_ids:
+            return {}
+
+        latest_audit_rank = func.row_number().over(
+            partition_by=Audit.place_id,
+            order_by=(Audit.started_at.desc(), Audit.created_at.desc(), Audit.id.desc()),
+        )
+        latest_audits_subquery = (
+            select(
+                Audit.id.label("audit_id"),
+                Audit.place_id.label("place_id"),
+                Audit.audit_code.label("audit_code"),
+                Audit.status.label("status"),
+                Audit.started_at.label("started_at"),
+                Audit.submitted_at.label("submitted_at"),
+                Audit.summary_score.label("summary_score"),
+                Audit.scores_json.label("scores_json"),
+                PlayspaceAuditContext.draft_progress_percent.label("draft_progress_percent"),
+                latest_audit_rank.label("audit_rank"),
+            )
+            .outerjoin(PlayspaceAuditContext, PlayspaceAuditContext.audit_id == Audit.id)
+            .where(
+                Audit.auditor_profile_id == auditor_profile_id,
+                Audit.place_id.in_(place_ids),
+            )
+            .subquery()
+        )
+
+        latest_audits_result = await self._session.execute(
+            select(latest_audits_subquery).where(latest_audits_subquery.c.audit_rank == 1)
+        )
+
+        latest_audits_by_place: dict[uuid.UUID, _CompactAuditSnapshot] = {}
+        for row in latest_audits_result.all():
+            audit_id = getattr(row, "audit_id", None)
+            audit_code = getattr(row, "audit_code", None)
+            place_id = getattr(row, "place_id", None)
+            started_at = getattr(row, "started_at", None)
+            status_value = getattr(row, "status", None)
+            if not isinstance(audit_id, uuid.UUID):
+                continue
+            if not isinstance(audit_code, str):
+                continue
+            if not isinstance(place_id, uuid.UUID):
+                continue
+            if not isinstance(started_at, datetime):
+                continue
+            if not isinstance(status_value, AuditStatus):
+                continue
+
+            score_totals, summary_score = self._resolve_compact_audit_summary(
+                raw_scores=getattr(row, "scores_json", {}),
+                fallback_summary_score=getattr(row, "summary_score", None),
+            )
+            raw_progress_percent = getattr(row, "draft_progress_percent", None)
+            progress_percent = None
+            if status_value is not AuditStatus.SUBMITTED and isinstance(
+                raw_progress_percent, int | float
+            ):
+                progress_percent = float(raw_progress_percent)
+
+            latest_audits_by_place[place_id] = _CompactAuditSnapshot(
+                audit_id=audit_id,
+                place_id=place_id,
+                audit_code=audit_code,
+                status=status_value,
+                started_at=started_at,
+                submitted_at=getattr(row, "submitted_at", None),
+                summary_score=summary_score,
+                score_totals=score_totals,
+                progress_percent=progress_percent,
+            )
+
+        return latest_audits_by_place
+
+    async def _list_submitted_audit_scores(
+        self,
+        *,
+        auditor_profile_id: uuid.UUID,
+    ) -> list[float]:
+        """Return submitted-audit scores from compact cached payloads only."""
+
+        submitted_audits_result = await self._session.execute(
+            select(Audit.summary_score, Audit.scores_json).where(
+                Audit.auditor_profile_id == auditor_profile_id,
+                Audit.status == AuditStatus.SUBMITTED,
+            )
+        )
+
+        submitted_scores: list[float] = []
+        for row in submitted_audits_result.all():
+            _, summary_score = self._resolve_compact_audit_summary(
+                raw_scores=getattr(row, "scores_json", {}),
+                fallback_summary_score=getattr(row, "summary_score", None),
+            )
+            if summary_score is not None:
+                submitted_scores.append(float(summary_score))
+
+        return submitted_scores
 
     async def list_auditor_places(
         self,
         *,
         actor: CurrentUserContext,
-    ) -> list[AuditorPlaceResponse]:
+        page: int = 1,
+        page_size: int = 8,
+        search: str | None = None,
+        sort: str | None = None,
+        statuses: list[str] | None = None,
+    ) -> PaginatedResponse[AuditorPlaceResponse]:
         """Return assigned places for the current auditor with latest audit status."""
 
         auditor_profile = await self._require_auditor_profile(actor=actor)
-
-        assignments_result = await self._session.execute(
-            select(AuditorAssignment)
-            .where(AuditorAssignment.auditor_profile_id == auditor_profile.id)
-            .options(
-                selectinload(AuditorAssignment.place),
-                selectinload(AuditorAssignment.project).selectinload(Project.places),
-            )
+        normalized_search = search.strip().lower() if search is not None and search.strip() else None
+        normalized_statuses = {
+            raw_status
+            for raw_status in (statuses or [])
+            if raw_status in {"not_started", "IN_PROGRESS", "PAUSED", "SUBMITTED"}
+        }
+        safe_page_size = max(1, min(page_size, 100))
+        offset = max(page - 1, 0) * safe_page_size
+        assigned_places = await self._list_assigned_place_summaries(
+            auditor_profile_id=auditor_profile.id
         )
-        assignments = assignments_result.scalars().all()
-
-        place_roles: dict[uuid.UUID, set[str]] = {}
-        places_by_id: dict[uuid.UUID, Place] = {}
-        project_by_place: dict[uuid.UUID, Project] = {}
-
-        for assignment in assignments:
-            if assignment.place is not None:
-                place = assignment.place
-                places_by_id[place.id] = place
-                place_roles.setdefault(place.id, set()).update(assignment.audit_roles)
-            elif assignment.project is not None:
-                for place in assignment.project.places:
-                    places_by_id[place.id] = place
-                    place_roles.setdefault(place.id, set()).update(assignment.audit_roles)
-                    project_by_place[place.id] = assignment.project
-
-        for assignment in assignments:
-            if assignment.place is not None and assignment.place.project_id is not None:
-                project_result = await self._session.execute(
-                    select(Project).where(Project.id == assignment.place.project_id)
-                )
-                project = project_result.scalar_one_or_none()
-                if project is not None:
-                    project_by_place[assignment.place.id] = project
-
-        audits_result = await self._session.execute(
-            select(Audit)
-            .where(
-                Audit.auditor_profile_id == auditor_profile.id,
-                Audit.place_id.in_(list(places_by_id.keys())),
-            )
-            .order_by(Audit.started_at.desc())
-            .options(
-                selectinload(Audit.playspace_context),
-                selectinload(Audit.playspace_pre_audit_answers),
-                selectinload(Audit.playspace_sections)
-                .selectinload(PlayspaceAuditSection.question_responses)
-                .selectinload(PlayspaceQuestionResponse.scale_answers),
-            )
+        latest_audits_by_place = await self._get_latest_audit_snapshots(
+            auditor_profile_id=auditor_profile.id,
+            place_ids=[place.place_id for place in assigned_places],
         )
-        all_audits = audits_result.scalars().all()
-        latest_audit_by_place: dict[uuid.UUID, Audit] = {}
-        for audit in all_audits:
-            if audit.place_id not in latest_audit_by_place:
-                latest_audit_by_place[audit.place_id] = audit
 
         responses: list[AuditorPlaceResponse] = []
-        for place_id, place in sorted(places_by_id.items(), key=lambda p: p[1].name.lower()):
-            project = project_by_place.get(place_id)
+        for assigned_place in assigned_places:
+            latest_audit = latest_audits_by_place.get(assigned_place.place_id)
             roles = self._assignment_roles_from_db_values(
-                db_values=list(place_roles.get(place_id, {"auditor"})),
+                db_values=assigned_place.db_roles or ["auditor"],
             )
-            latest_audit = latest_audit_by_place.get(place_id)
-            score_payload = (
-                self._resolve_score_payload(audit=latest_audit) if latest_audit is not None else {}
-            )
-            score_totals = self._build_score_totals_response(score_payload.get("overall"))
-            summary_score = self._combined_construct_total(score_totals)
-            if summary_score is None and latest_audit is not None:
-                summary_score = latest_audit.summary_score
-
-            progress_percent: float | None = None
-            if latest_audit is not None and latest_audit.status is not AuditStatus.SUBMITTED:
-                progress_percent = get_draft_progress_percent(latest_audit)
-                if progress_percent is None:
-                    progress = build_audit_progress_for_audit(
-                        assignment_roles=roles,
-                        audit=latest_audit,
-                    )
-                    progress_percent = self._progress_percent(progress)
 
             responses.append(
                 AuditorPlaceResponse(
-                    place_id=place.id,
-                    place_name=place.name,
-                    place_type=place.place_type,
-                    project_id=place.project_id,
-                    project_name=project.name if project is not None else "Unknown project",
-                    city=place.city,
-                    province=place.province,
-                    country=place.country,
+                    place_id=assigned_place.place_id,
+                    place_name=assigned_place.place_name,
+                    place_type=assigned_place.place_type,
+                    project_id=assigned_place.project_id,
+                    project_name=assigned_place.project_name,
+                    city=assigned_place.city,
+                    province=assigned_place.province,
+                    country=assigned_place.country,
                     assignment_roles=roles,
                     audit_status=latest_audit.status if latest_audit is not None else None,
-                    audit_id=latest_audit.id if latest_audit is not None else None,
+                    audit_id=latest_audit.audit_id if latest_audit is not None else None,
                     started_at=latest_audit.started_at if latest_audit is not None else None,
                     submitted_at=latest_audit.submitted_at if latest_audit is not None else None,
-                    summary_score=summary_score,
-                    score_totals=score_totals,
-                    progress_percent=progress_percent,
+                    summary_score=latest_audit.summary_score if latest_audit is not None else None,
+                    score_totals=latest_audit.score_totals if latest_audit is not None else None,
+                    progress_percent=latest_audit.progress_percent if latest_audit is not None else None,
                 )
             )
 
-        return responses
+        filtered_responses = responses
+        if normalized_search is not None:
+            filtered_responses = [
+                response
+                for response in filtered_responses
+                if normalized_search
+                in " ".join(
+                    part
+                    for part in [
+                        response.place_name,
+                        response.project_name,
+                        response.place_type or "",
+                        response.city or "",
+                        response.province or "",
+                        response.country or "",
+                    ]
+                ).lower()
+            ]
+
+        if normalized_statuses:
+            filtered_responses = [
+                response
+                for response in filtered_responses
+                if (
+                    response.audit_status is None
+                    and "not_started" in normalized_statuses
+                )
+                or (
+                    response.audit_status is not None
+                    and response.audit_status.value in normalized_statuses
+                )
+            ]
+
+        raw_sort = sort.strip() if sort is not None and sort.strip() else "place_name"
+        is_descending = raw_sort.startswith("-")
+        sort_key = raw_sort[1:] if is_descending else raw_sort
+
+        def build_sort_value(response: AuditorPlaceResponse) -> str | float | datetime | None:
+            """Return the sortable value for the requested auditor place column."""
+
+            if sort_key == "project_name":
+                return response.project_name.lower()
+            if sort_key == "audit_status":
+                return response.audit_status.value if response.audit_status is not None else None
+            if sort_key == "started_at":
+                return response.started_at
+            if sort_key == "submitted_at":
+                return response.submitted_at
+            if sort_key == "summary_score":
+                return response.summary_score
+            return response.place_name.lower()
+
+        non_null_rows = [
+            response
+            for response in filtered_responses
+            if build_sort_value(response) is not None
+        ]
+        null_rows = [
+            response
+            for response in filtered_responses
+            if build_sort_value(response) is None
+        ]
+        non_null_rows = sorted(
+            non_null_rows,
+            key=lambda response: (build_sort_value(response), response.place_name.lower()),
+            reverse=is_descending,
+        )
+        filtered_responses = [*non_null_rows, *null_rows]
+
+        total_count = len(filtered_responses)
+        page_items = filtered_responses[offset : offset + safe_page_size]
+
+        return PaginatedResponse[AuditorPlaceResponse](
+            items=page_items,
+            total_count=total_count,
+            page=page,
+            page_size=safe_page_size,
+            total_pages=_total_pages(total_count, safe_page_size),
+        )
 
     async def list_auditor_audits(
         self,
         *,
         actor: CurrentUserContext,
-        status_filter: str | None = None,
-    ) -> list[AuditorAuditSummaryResponse]:
+        page: int = 1,
+        page_size: int = 8,
+        search: str | None = None,
+        sort: str | None = None,
+        statuses: list[str] | None = None,
+    ) -> PaginatedResponse[AuditorAuditSummaryResponse]:
         """Return audit rows for the current auditor with optional status filtering."""
 
         auditor_profile = await self._require_auditor_profile(actor=actor)
@@ -207,66 +480,151 @@ class PlayspaceAuditSessionsMixin:
             "paused": AuditStatus.PAUSED,
             "submitted": AuditStatus.SUBMITTED,
         }
-        normalized_status_filter = (
-            status_filter.strip().lower() if status_filter is not None else None
-        )
-        if (
-            normalized_status_filter is not None
-            and normalized_status_filter not in status_by_filter
-        ):
+        normalized_search = search.strip() if search is not None and search.strip() else None
+        normalized_status_filters: list[AuditStatus] = []
+        invalid_statuses = []
+        for raw_status in statuses or []:
+            normalized_status = raw_status.strip().lower()
+            resolved_status = status_by_filter.get(normalized_status)
+            if resolved_status is None:
+                invalid_statuses.append(raw_status)
+                continue
+            normalized_status_filters.append(resolved_status)
+        if invalid_statuses:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="status must be one of in_progress, paused, submitted.",
             )
+        safe_page_size = max(1, min(page_size, 100))
+        offset = max(page - 1, 0) * safe_page_size
 
         query = (
-            select(Audit)
-            .where(Audit.auditor_profile_id == auditor_profile.id)
-            .order_by(Audit.started_at.desc())
-            .options(
-                selectinload(Audit.place).selectinload(Place.project),
-                selectinload(Audit.playspace_context),
-                selectinload(Audit.playspace_pre_audit_answers),
-                selectinload(Audit.playspace_sections)
-                .selectinload(PlayspaceAuditSection.question_responses)
-                .selectinload(PlayspaceQuestionResponse.scale_answers),
+            select(
+                Audit.id.label("audit_id"),
+                Audit.audit_code.label("audit_code"),
+                Audit.place_id.label("place_id"),
+                Place.name.label("place_name"),
+                Place.project_id.label("project_id"),
+                Project.name.label("project_name"),
+                Audit.status.label("status"),
+                Audit.started_at.label("started_at"),
+                Audit.submitted_at.label("submitted_at"),
+                Audit.summary_score.label("summary_score"),
+                Audit.scores_json.label("scores_json"),
+                PlayspaceAuditContext.draft_progress_percent.label("draft_progress_percent"),
             )
+            .join(Place, Audit.place_id == Place.id)
+            .join(Project, Place.project_id == Project.id)
+            .outerjoin(PlayspaceAuditContext, PlayspaceAuditContext.audit_id == Audit.id)
+            .where(Audit.auditor_profile_id == auditor_profile.id)
         )
-        if normalized_status_filter is not None:
-            query = query.where(Audit.status == status_by_filter[normalized_status_filter])
+        if normalized_search is not None:
+            search_term = f"%{normalized_search}%"
+            query = query.where(
+                or_(
+                    Audit.audit_code.ilike(search_term),
+                    Place.name.ilike(search_term),
+                    Project.name.ilike(search_term),
+                )
+            )
+        if normalized_status_filters:
+            query = query.where(Audit.status.in_(normalized_status_filters))
 
-        audits_result = await self._session.execute(query)
-        audits = audits_result.scalars().all()
+        filtered_rows_subquery = query.subquery()
+        total_count_result = await self._session.execute(
+            select(func.count()).select_from(filtered_rows_subquery)
+        )
+        total_count = int(total_count_result.scalar_one() or 0)
+
+        raw_sort = sort.strip() if sort is not None and sort.strip() else "-started_at"
+        is_descending = raw_sort.startswith("-")
+        sort_key = raw_sort[1:] if is_descending else raw_sort
+        sort_map = {
+            "audit_code": filtered_rows_subquery.c.audit_code,
+            "status": filtered_rows_subquery.c.status,
+            "place_name": filtered_rows_subquery.c.place_name,
+            "project_name": filtered_rows_subquery.c.project_name,
+            "started_at": filtered_rows_subquery.c.started_at,
+            "submitted_at": filtered_rows_subquery.c.submitted_at,
+            "summary_score": filtered_rows_subquery.c.summary_score,
+        }
+        sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.started_at)
+        primary_order = (
+            sort_column.desc().nulls_last()
+            if is_descending
+            else sort_column.asc().nulls_last()
+        )
+
+        audits_result = await self._session.execute(
+            select(filtered_rows_subquery)
+            .order_by(
+                primary_order,
+                filtered_rows_subquery.c.started_at.desc(),
+                filtered_rows_subquery.c.audit_id.desc(),
+            )
+            .offset(offset)
+            .limit(safe_page_size)
+        )
 
         responses: list[AuditorAuditSummaryResponse] = []
-        for audit in audits:
-            score_payload = self._resolve_score_payload(audit=audit)
-            score_totals = self._build_score_totals_response(score_payload.get("overall"))
-            summary_score = self._combined_construct_total(score_totals)
-            if summary_score is None:
-                summary_score = audit.summary_score
-            progress_percent = (
-                get_draft_progress_percent(audit)
-                if audit.status is not AuditStatus.SUBMITTED
-                else None
+        for row in audits_result.all():
+            audit_id = getattr(row, "audit_id", None)
+            audit_code = getattr(row, "audit_code", None)
+            place_id = getattr(row, "place_id", None)
+            place_name = getattr(row, "place_name", None)
+            project_id = getattr(row, "project_id", None)
+            project_name = getattr(row, "project_name", None)
+            started_at = getattr(row, "started_at", None)
+            status_value = getattr(row, "status", None)
+            if not isinstance(audit_id, uuid.UUID):
+                continue
+            if not isinstance(audit_code, str):
+                continue
+            if not isinstance(place_id, uuid.UUID):
+                continue
+            if not isinstance(place_name, str):
+                continue
+            if not isinstance(project_id, uuid.UUID):
+                continue
+            if not isinstance(project_name, str):
+                continue
+            if not isinstance(started_at, datetime):
+                continue
+            if not isinstance(status_value, AuditStatus):
+                continue
+
+            score_totals, summary_score = self._resolve_compact_audit_summary(
+                raw_scores=getattr(row, "scores_json", {}),
+                fallback_summary_score=getattr(row, "summary_score", None),
             )
+            raw_progress_percent = getattr(row, "draft_progress_percent", None)
+            progress_percent = None
+            if status_value is not AuditStatus.SUBMITTED and isinstance(raw_progress_percent, int | float):
+                progress_percent = float(raw_progress_percent)
+
             responses.append(
                 AuditorAuditSummaryResponse(
-                    audit_id=audit.id,
-                    audit_code=audit.audit_code,
-                    place_id=audit.place_id,
-                    place_name=audit.place.name,
-                    project_id=audit.place.project_id,
-                    project_name=audit.place.project.name,
-                    status=audit.status,
-                    started_at=audit.started_at,
-                    submitted_at=audit.submitted_at,
+                    audit_id=audit_id,
+                    audit_code=audit_code,
+                    place_id=place_id,
+                    place_name=place_name,
+                    project_id=project_id,
+                    project_name=project_name,
+                    status=status_value,
+                    started_at=started_at,
+                    submitted_at=getattr(row, "submitted_at", None),
                     summary_score=_round_score(summary_score),
                     score_totals=score_totals,
                     progress_percent=progress_percent,
                 )
             )
-        return responses
+        return PaginatedResponse[AuditorAuditSummaryResponse](
+            items=responses,
+            total_count=total_count,
+            page=page,
+            page_size=safe_page_size,
+            total_pages=_total_pages(total_count, safe_page_size),
+        )
 
     async def get_auditor_dashboard_summary(
         self,
@@ -275,24 +633,34 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditorDashboardSummaryResponse:
         """Return top-level counts and score average for the current auditor."""
 
-        places = await self.list_auditor_places(actor=actor)
-        submitted_audits = await self.list_auditor_audits(actor=actor, status_filter="submitted")
-        submitted_scores = [
-            audit.summary_score for audit in submitted_audits if audit.summary_score is not None
-        ]
+        auditor_profile = await self._require_auditor_profile(actor=actor)
+        assigned_places = await self._list_assigned_place_summaries(
+            auditor_profile_id=auditor_profile.id
+        )
+        latest_audits_by_place = await self._get_latest_audit_snapshots(
+            auditor_profile_id=auditor_profile.id,
+            place_ids=[place.place_id for place in assigned_places],
+        )
+        submitted_scores = await self._list_submitted_audit_scores(
+            auditor_profile_id=auditor_profile.id
+        )
         in_progress_count = sum(
             1
-            for place in places
-            if place.audit_status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
+            for audit_snapshot in latest_audits_by_place.values()
+            if audit_snapshot.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
         )
-        submitted_count = sum(1 for place in places if place.audit_status is AuditStatus.SUBMITTED)
-        pending_places = sum(1 for place in places if place.audit_status is None)
+        submitted_count = sum(
+            1
+            for audit_snapshot in latest_audits_by_place.values()
+            if audit_snapshot.status is AuditStatus.SUBMITTED
+        )
+        pending_places = len(assigned_places) - in_progress_count - submitted_count
         return AuditorDashboardSummaryResponse(
-            total_assigned_places=len(places),
+            total_assigned_places=len(assigned_places),
             in_progress_audits=in_progress_count,
             submitted_audits=submitted_count,
             pending_places=pending_places,
-            average_submitted_score=_average([float(score) for score in submitted_scores]),
+            average_submitted_score=_average(submitted_scores),
         )
 
     async def create_or_resume_audit(
@@ -388,8 +756,8 @@ class PlayspaceAuditSessionsMixin:
         actor: CurrentUserContext,
         audit_id: uuid.UUID,
         payload: AuditDraftPatchRequest,
-    ) -> AuditSessionResponse:
-        """Merge a draft patch into an in-progress audit and return the updated state."""
+    ) -> AuditDraftSaveResponse:
+        """Merge a draft patch into an in-progress audit and return a lightweight acknowledgement."""
 
         audit, assignment_roles = await self._load_accessible_audit_with_roles(
             actor=actor,
@@ -424,10 +792,11 @@ class PlayspaceAuditSessionsMixin:
         }
         await self._commit_and_refresh(audit)
 
-        return self._build_audit_session_response(
-            audit=audit,
-            place=audit.place,
-            assignment_roles=assignment_roles,
+        return AuditDraftSaveResponse(
+            audit_id=audit.id,
+            status=audit.status,
+            draft_progress_percent=draft_progress_percent,
+            saved_at=audit.updated_at,
         )
 
     async def patch_place_draft(
@@ -436,7 +805,7 @@ class PlayspaceAuditSessionsMixin:
         actor: CurrentUserContext,
         place_id: uuid.UUID,
         payload: AuditDraftPatchRequest,
-    ) -> AuditSessionResponse:
+    ) -> AuditDraftSaveResponse:
         """Compatibility helper for place-scoped draft saves used by the web scaffold."""
 
         session = await self.create_or_resume_audit(
@@ -799,6 +1168,20 @@ class PlayspaceAuditSessionsMixin:
             by_section=self._build_score_collection_response(raw_scores.get("by_section")),
             by_domain=self._build_score_collection_response(raw_scores.get("by_domain")),
         )
+
+    def _resolve_compact_audit_summary(
+        self,
+        *,
+        raw_scores: object,
+        fallback_summary_score: float | None,
+    ) -> tuple[AuditScoreTotalsResponse | None, float | None]:
+        """Resolve compact totals and summary score from cached values only."""
+
+        score_totals = self._build_score_totals_response(self._read_json_dict(raw_scores).get("overall"))
+        compact_summary_score = self._combined_construct_total(score_totals)
+        if compact_summary_score is not None:
+            return score_totals, compact_summary_score
+        return score_totals, fallback_summary_score
 
     def _resolve_score_payload(self, *, audit: Audit) -> dict[str, object]:
         """Return the current score payload, recalculating submitted audits when needed."""

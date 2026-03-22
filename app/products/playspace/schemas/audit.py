@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import Field, field_validator
 
@@ -25,6 +26,11 @@ class AssignmentResponse(ApiModel):
     auditor_profile_id: uuid.UUID
     project_id: uuid.UUID | None
     place_id: uuid.UUID | None
+    scope_type: Literal["project", "place"]
+    scope_id: uuid.UUID
+    scope_name: str
+    project_name: str
+    place_name: str | None
     audit_roles: list[AssignmentRole]
     assigned_at: datetime
 
@@ -130,6 +136,15 @@ class AuditDraftPatchRequest(RequestModel):
     meta: AuditMetaPatchRequest | None = None
     pre_audit: PreAuditPatchRequest | None = None
     sections: dict[str, SectionDraftPatchRequest] = Field(default_factory=dict)
+
+
+class AuditDraftSaveResponse(ApiModel):
+    """Lightweight acknowledgement returned after saving an audit draft."""
+
+    audit_id: uuid.UUID
+    status: AuditStatus
+    draft_progress_percent: float | None = None
+    saved_at: datetime
 
 
 class PlaceAuditAccessRequest(RequestModel):

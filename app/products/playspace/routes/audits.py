@@ -15,6 +15,7 @@ from app.products.playspace.routes.dependencies import (
 )
 from app.products.playspace.schemas import (
     AuditDraftPatchRequest,
+    AuditDraftSaveResponse,
     AuditSessionResponse,
     PlaceAuditAccessRequest,
 )
@@ -60,7 +61,7 @@ async def patch_audit_draft(
     payload: AuditDraftPatchRequest,
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
-) -> AuditSessionResponse:
+) -> AuditDraftSaveResponse:
     """Save a typed draft patch to an existing playspace audit."""
 
     return await service.patch_audit_draft(
@@ -76,7 +77,7 @@ async def patch_place_draft(
     payload: AuditDraftPatchRequest,
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
-) -> AuditSessionResponse:
+) -> AuditDraftSaveResponse:
     """Compatibility draft save endpoint keyed by place instead of audit id."""
 
     return await service.patch_place_draft(

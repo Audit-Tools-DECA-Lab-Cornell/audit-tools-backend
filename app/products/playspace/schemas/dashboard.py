@@ -130,6 +130,79 @@ class AuditorSummaryResponse(ApiModel):
     last_active_at: datetime | None
 
 
+class ManagerPlacesSummaryResponse(ApiModel):
+    """Top-level manager place metrics used by the places dashboard."""
+
+    total_places: int
+    submitted_places: int
+    in_progress_places: int
+    average_score: float | None
+
+
+class ManagerPlaceRowResponse(ApiModel):
+    """Manager-facing place row with joined project metadata."""
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    project_name: str
+    name: str
+    city: str | None
+    province: str | None
+    country: str | None
+    place_type: str | None
+    status: PlaceActivityStatus
+    audits_completed: int
+    average_score: float | None
+    last_audited_at: datetime | None
+
+
+class ManagerPlacesListResponse(ApiModel):
+    """Paginated manager place list plus account-wide summary metrics."""
+
+    items: list[ManagerPlaceRowResponse]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+    summary: ManagerPlacesSummaryResponse
+
+
+class ManagerAuditsSummaryResponse(ApiModel):
+    """Top-level manager audit metrics used by the audits dashboard."""
+
+    total_audits: int
+    submitted_audits: int
+    in_progress_audits: int
+    average_score: float | None
+
+
+class ManagerAuditRowResponse(ApiModel):
+    """Manager-facing audit row with joined place and project labels."""
+
+    audit_id: uuid.UUID
+    audit_code: str
+    status: str
+    auditor_code: str
+    project_id: uuid.UUID
+    project_name: str
+    place_id: uuid.UUID
+    place_name: str
+    started_at: datetime
+    submitted_at: datetime | None
+    summary_score: float | None
+
+
+class ManagerAuditsListResponse(ApiModel):
+    """Paginated manager audit list plus account-wide summary metrics."""
+
+    items: list[ManagerAuditRowResponse]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+    summary: ManagerAuditsSummaryResponse
+
+
 class PlaceAuditHistoryItemResponse(ApiModel):
     """One audit history row visible on manager/admin place detail screens."""
 

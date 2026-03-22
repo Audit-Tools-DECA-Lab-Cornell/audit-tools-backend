@@ -4,13 +4,14 @@ Playspace dashboard query service.
 
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import date, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import Float, and_, case, cast, distinct, func, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.core.actors import CurrentUserContext, require_manager_user
 from app.models import (
@@ -27,6 +28,12 @@ from app.products.playspace.schemas import (
     AccountDetailResponse,
     AccountStatsResponse,
     AuditorSummaryResponse,
+    ManagerAuditsListResponse,
+    ManagerAuditsSummaryResponse,
+    ManagerAuditRowResponse,
+    ManagerPlacesListResponse,
+    ManagerPlacesSummaryResponse,
+    ManagerPlaceRowResponse,
     ManagerProfileResponse,
     PlaceAuditHistoryItemResponse,
     PlaceActivityStatus,
@@ -40,6 +47,8 @@ from app.products.playspace.schemas import (
 )
 
 PROJECT_NOT_FOUND_DETAIL = "Project not found."
+DEFAULT_PAGE_SIZE = 10
+MAX_PAGE_SIZE = 100
 
 
 def _derive_project_status(start_date: date | None, end_date: date | None) -> ProjectStatus:
@@ -97,6 +106,14 @@ def _latest_activity_timestamp(audits: list[Audit]) -> datetime | None:
     return max(timestamps)
 
 
+def _total_pages(total_count: int, page_size: int) -> int:
+    """Return a stable page count for paginated responses."""
+
+    if total_count <= 0:
+        return 1
+    return max(1, math.ceil(total_count / page_size))
+
+
 def _collect_project_auditor_ids(project: Project) -> set[uuid.UUID]:
     """Collect unique auditor profile IDs assigned at project or place scope."""
 
@@ -128,18 +145,9 @@ class PlayspaceDashboardService:
             )
 
     async def _get_account_model(self, account_id: uuid.UUID) -> Account | None:
-        """Load an account with the relationships needed for the manager dashboard."""
+        """Load an account row without hydrating the full dashboard graph."""
 
-        stmt = (
-            select(Account)
-            .where(Account.id == account_id)
-            .options(
-                selectinload(Account.manager_profiles),
-                selectinload(Account.projects)
-                .selectinload(Project.places)
-                .selectinload(Place.audits),
-            )
-        )
+        stmt = select(Account).where(Account.id == account_id)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -228,74 +236,97 @@ class PlayspaceDashboardService:
         account_id: uuid.UUID,
     ) -> list[AuditorSummaryResponse]:
         """Fetch manager-facing auditor summaries for a real account."""
+        project_assignment_project = aliased(Project)
+        place_assignment_place = aliased(Place)
+        place_assignment_project = aliased(Project)
 
-        project_ids_result = await self._session.execute(
-            select(Project.id).where(Project.account_id == account_id),
-        )
-        project_ids = list(project_ids_result.scalars().all())
-        if not project_ids:
-            return []
-
-        place_ids_result = await self._session.execute(
-            select(Place.id).where(Place.project_id.in_(project_ids)),
-        )
-        place_ids = list(place_ids_result.scalars().all())
-
-        assignment_filters = []
-        if project_ids:
-            assignment_filters.append(AuditorAssignment.project_id.in_(project_ids))
-        if place_ids:
-            assignment_filters.append(AuditorAssignment.place_id.in_(place_ids))
-
-        if not assignment_filters:
-            return []
-
-        assignments_stmt = (
-            select(AuditorAssignment)
-            .where(or_(*assignment_filters))
-            .options(
-                selectinload(AuditorAssignment.auditor_profile).selectinload(AuditorProfile.audits),
+        assignment_counts_subquery = (
+            select(
+                AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
+                func.count(AuditorAssignment.id).label("assignments_count"),
             )
+            .select_from(AuditorAssignment)
+            .outerjoin(
+                project_assignment_project,
+                AuditorAssignment.project_id == project_assignment_project.id,
+            )
+            .outerjoin(
+                place_assignment_place,
+                AuditorAssignment.place_id == place_assignment_place.id,
+            )
+            .outerjoin(
+                place_assignment_project,
+                place_assignment_place.project_id == place_assignment_project.id,
+            )
+            .where(
+                or_(
+                    project_assignment_project.account_id == account_id,
+                    place_assignment_project.account_id == account_id,
+                )
+            )
+            .group_by(AuditorAssignment.auditor_profile_id)
+            .subquery()
         )
-        assignments_result = await self._session.execute(assignments_stmt)
-        assignments = assignments_result.scalars().all()
 
-        summaries_by_auditor_id: dict[uuid.UUID, AuditorSummaryResponse] = {}
-        assignment_counts: dict[uuid.UUID, int] = {}
-
-        for assignment in assignments:
-            profile = assignment.auditor_profile
-            assignment_counts[profile.id] = assignment_counts.get(profile.id, 0) + 1
-            if profile.id in summaries_by_auditor_id:
-                continue
-
-            completed_audits = sum(
-                1 for audit in profile.audits if audit.status == AuditStatus.SUBMITTED
-            )
-            summaries_by_auditor_id[profile.id] = AuditorSummaryResponse(
-                id=profile.id,
-                account_id=profile.account_id,
-                auditor_code=profile.auditor_code,
-                full_name=profile.full_name,
-                email=profile.email,
-                age_range=profile.age_range,
-                gender=profile.gender,
-                country=profile.country,
-                role=profile.role,
-                assignments_count=0,
-                completed_audits=completed_audits,
-                last_active_at=_latest_activity_timestamp(profile.audits),
-            )
-
-        hydrated_summaries: list[AuditorSummaryResponse] = []
-        for auditor_id, summary in summaries_by_auditor_id.items():
-            hydrated_summaries.append(
-                summary.model_copy(
-                    update={"assignments_count": assignment_counts.get(auditor_id, 0)},
+        audit_stats_subquery = (
+            select(
+                Audit.auditor_profile_id.label("auditor_profile_id"),
+                func.count(Audit.id)
+                .filter(Audit.status == AuditStatus.SUBMITTED)
+                .label("completed_audits"),
+                func.max(func.coalesce(Audit.submitted_at, Audit.started_at)).label(
+                    "last_active_at"
                 ),
             )
+            .group_by(Audit.auditor_profile_id)
+            .subquery()
+        )
 
-        return sorted(hydrated_summaries, key=lambda summary: summary.auditor_code.lower())
+        stmt = (
+            select(
+                AuditorProfile.id.label("id"),
+                AuditorProfile.account_id.label("account_id"),
+                AuditorProfile.auditor_code.label("auditor_code"),
+                AuditorProfile.full_name.label("full_name"),
+                AuditorProfile.email.label("email"),
+                AuditorProfile.age_range.label("age_range"),
+                AuditorProfile.gender.label("gender"),
+                AuditorProfile.country.label("country"),
+                AuditorProfile.role.label("role"),
+                assignment_counts_subquery.c.assignments_count.label("assignments_count"),
+                audit_stats_subquery.c.completed_audits.label("completed_audits"),
+                audit_stats_subquery.c.last_active_at.label("last_active_at"),
+            )
+            .join(
+                assignment_counts_subquery,
+                assignment_counts_subquery.c.auditor_profile_id == AuditorProfile.id,
+            )
+            .outerjoin(
+                audit_stats_subquery,
+                audit_stats_subquery.c.auditor_profile_id == AuditorProfile.id,
+            )
+            .order_by(func.lower(AuditorProfile.auditor_code).asc())
+        )
+        result = await self._session.execute(stmt)
+        rows = result.all()
+
+        return [
+            AuditorSummaryResponse(
+                id=row.id,
+                account_id=row.account_id,
+                auditor_code=row.auditor_code,
+                full_name=row.full_name,
+                email=row.email,
+                age_range=row.age_range,
+                gender=row.gender,
+                country=row.country,
+                role=row.role,
+                assignments_count=int(row.assignments_count or 0),
+                completed_audits=int(row.completed_audits or 0),
+                last_active_at=row.last_active_at,
+            )
+            for row in rows
+        ]
 
     async def get_account_detail(
         self,
@@ -311,33 +342,60 @@ class PlayspaceDashboardService:
 
         manager_profiles = await self.list_manager_profiles(actor=actor, account_id=account_id)
         auditors = await self._get_account_auditor_summaries_db(account_id=account_id)
-
-        recent_activity: list[RecentActivityResponse] = []
-        total_places = 0
-        total_audits_completed = 0
-
-        for project in account.projects:
-            for place in project.places:
-                total_places += 1
-                for audit in place.audits:
-                    if audit.status != AuditStatus.SUBMITTED or audit.submitted_at is None:
-                        continue
-
-                    total_audits_completed += 1
-                    recent_activity.append(
-                        RecentActivityResponse(
-                            audit_id=audit.id,
-                            audit_code=audit.audit_code,
-                            project_id=project.id,
-                            project_name=project.name,
-                            place_id=place.id,
-                            place_name=place.name,
-                            completed_at=audit.submitted_at,
-                            score=_round_score(audit.summary_score),
-                        ),
-                    )
-
-        recent_activity.sort(key=lambda activity: activity.completed_at, reverse=True)
+        total_projects_result = await self._session.execute(
+            select(func.count(Project.id)).where(Project.account_id == account_id)
+        )
+        total_places_result = await self._session.execute(
+            select(func.count(Place.id))
+            .select_from(Place)
+            .join(Project, Place.project_id == Project.id)
+            .where(Project.account_id == account_id)
+        )
+        total_audits_completed_result = await self._session.execute(
+            select(func.count(Audit.id))
+            .select_from(Audit)
+            .join(Place, Audit.place_id == Place.id)
+            .join(Project, Place.project_id == Project.id)
+            .where(
+                Project.account_id == account_id,
+                Audit.status == AuditStatus.SUBMITTED,
+            )
+        )
+        recent_activity_result = await self._session.execute(
+            select(
+                Audit.id.label("audit_id"),
+                Audit.audit_code.label("audit_code"),
+                Project.id.label("project_id"),
+                Project.name.label("project_name"),
+                Place.id.label("place_id"),
+                Place.name.label("place_name"),
+                Audit.submitted_at.label("completed_at"),
+                Audit.summary_score.label("score"),
+            )
+            .select_from(Audit)
+            .join(Place, Audit.place_id == Place.id)
+            .join(Project, Place.project_id == Project.id)
+            .where(
+                Project.account_id == account_id,
+                Audit.status == AuditStatus.SUBMITTED,
+                Audit.submitted_at.is_not(None),
+            )
+            .order_by(Audit.submitted_at.desc())
+            .limit(5)
+        )
+        recent_activity = [
+            RecentActivityResponse(
+                audit_id=row.audit_id,
+                audit_code=row.audit_code,
+                project_id=row.project_id,
+                project_name=row.project_name,
+                place_id=row.place_id,
+                place_name=row.place_name,
+                completed_at=row.completed_at,
+                score=_round_score(row.score),
+            )
+            for row in recent_activity_result.all()
+        ]
         primary_manager = next(
             (profile for profile in manager_profiles if profile.is_primary),
             manager_profiles[0] if manager_profiles else None,
@@ -351,12 +409,12 @@ class PlayspaceDashboardService:
             created_at=account.created_at,
             primary_manager=primary_manager,
             stats=AccountStatsResponse(
-                total_projects=len(account.projects),
-                total_places=total_places,
+                total_projects=int(total_projects_result.scalar_one() or 0),
+                total_places=int(total_places_result.scalar_one() or 0),
                 total_auditors=len(auditors),
-                total_audits_completed=total_audits_completed,
+                total_audits_completed=int(total_audits_completed_result.scalar_one() or 0),
             ),
-            recent_activity=recent_activity[:5],
+            recent_activity=recent_activity,
         )
 
     async def list_manager_profiles(
@@ -399,49 +457,108 @@ class PlayspaceDashboardService:
         """Return project summaries for the requested account."""
 
         self._ensure_manager_scope(actor, account_id)
-
-        stmt = (
-            select(Project)
-            .where(Project.account_id == account_id)
-            .order_by(Project.created_at.desc(), Project.name.asc())
-            .options(
-                selectinload(Project.assignments),
-                selectinload(Project.places).selectinload(Place.audits),
-                selectinload(Project.places).selectinload(Place.assignments),
+        places_count_subquery = (
+            select(
+                Place.project_id.label("project_id"),
+                func.count(Place.id).label("places_count"),
             )
+            .group_by(Place.project_id)
+            .subquery()
         )
-        result = await self._session.execute(stmt)
-        projects = result.scalars().all()
-
-        project_summaries: list[ProjectSummaryResponse] = []
-        for project in projects:
-            auditor_ids = _collect_project_auditor_ids(project)
-
-            submitted_audits = [
-                audit
-                for place in project.places
-                for audit in place.audits
-                if audit.status == AuditStatus.SUBMITTED
-            ]
-
-            project_summaries.append(
-                ProjectSummaryResponse(
-                    id=project.id,
-                    account_id=project.account_id,
-                    name=project.name,
-                    overview=project.overview,
-                    place_types=list(project.place_types),
-                    start_date=project.start_date,
-                    end_date=project.end_date,
-                    status=_derive_project_status(project.start_date, project.end_date),
-                    places_count=len(project.places),
-                    auditors_count=len(auditor_ids),
-                    audits_completed=len(submitted_audits),
-                    average_score=_average_submitted_score(submitted_audits),
+        project_assignment_scope = union_all(
+            select(
+                AuditorAssignment.project_id.label("project_id"),
+                AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
+            ).where(AuditorAssignment.project_id.is_not(None)),
+            select(
+                Place.project_id.label("project_id"),
+                AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
+            )
+            .select_from(AuditorAssignment)
+            .join(Place, AuditorAssignment.place_id == Place.id)
+            .where(AuditorAssignment.place_id.is_not(None)),
+        ).subquery()
+        auditors_count_subquery = (
+            select(
+                project_assignment_scope.c.project_id.label("project_id"),
+                func.count(distinct(project_assignment_scope.c.auditor_profile_id)).label(
+                    "auditors_count"
                 ),
             )
+            .group_by(project_assignment_scope.c.project_id)
+            .subquery()
+        )
+        audit_stats_subquery = (
+            select(
+                Place.project_id.label("project_id"),
+                func.count(Audit.id)
+                .filter(Audit.status == AuditStatus.SUBMITTED)
+                .label("audits_completed"),
+                func.avg(Audit.summary_score)
+                .filter(
+                    and_(
+                        Audit.status == AuditStatus.SUBMITTED,
+                        Audit.summary_score.is_not(None),
+                    )
+                )
+                .label("average_score"),
+            )
+            .select_from(Place)
+            .outerjoin(Audit, Audit.place_id == Place.id)
+            .group_by(Place.project_id)
+            .subquery()
+        )
 
-        return project_summaries
+        result = await self._session.execute(
+            select(
+                Project.id.label("id"),
+                Project.account_id.label("account_id"),
+                Project.name.label("name"),
+                Project.overview.label("overview"),
+                Project.place_types.label("place_types"),
+                Project.start_date.label("start_date"),
+                Project.end_date.label("end_date"),
+                places_count_subquery.c.places_count.label("places_count"),
+                auditors_count_subquery.c.auditors_count.label("auditors_count"),
+                audit_stats_subquery.c.audits_completed.label("audits_completed"),
+                audit_stats_subquery.c.average_score.label("average_score"),
+            )
+            .select_from(Project)
+            .outerjoin(
+                places_count_subquery,
+                places_count_subquery.c.project_id == Project.id,
+            )
+            .outerjoin(
+                auditors_count_subquery,
+                auditors_count_subquery.c.project_id == Project.id,
+            )
+            .outerjoin(
+                audit_stats_subquery,
+                audit_stats_subquery.c.project_id == Project.id,
+            )
+            .where(Project.account_id == account_id)
+            .order_by(Project.created_at.desc(), Project.name.asc())
+        )
+
+        return [
+            ProjectSummaryResponse(
+                id=row.id,
+                account_id=row.account_id,
+                name=row.name,
+                overview=row.overview,
+                place_types=list(row.place_types),
+                start_date=row.start_date,
+                end_date=row.end_date,
+                status=_derive_project_status(row.start_date, row.end_date),
+                places_count=int(row.places_count or 0),
+                auditors_count=int(row.auditors_count or 0),
+                audits_completed=int(row.audits_completed or 0),
+                average_score=_round_score(
+                    float(row.average_score) if row.average_score is not None else None
+                ),
+            )
+            for row in result.all()
+        ]
 
     async def list_account_auditors(
         self,
@@ -452,6 +569,377 @@ class PlayspaceDashboardService:
 
         self._ensure_manager_scope(actor, account_id)
         return await self._get_account_auditor_summaries_db(account_id=account_id)
+
+    async def list_account_places(
+        self,
+        *,
+        actor: CurrentUserContext,
+        account_id: uuid.UUID,
+        page: int = 1,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        search: str | None = None,
+        sort: str | None = None,
+        project_ids: list[uuid.UUID] | None = None,
+        statuses: list[str] | None = None,
+    ) -> ManagerPlacesListResponse:
+        """Return paginated manager place rows with SQL-backed filtering."""
+
+        await self._require_account_for_actor(actor=actor, account_id=account_id)
+
+        normalized_search = search.strip() if search is not None and search.strip() else None
+        normalized_project_ids = project_ids or []
+        normalized_statuses = {
+            raw_status
+            for raw_status in (statuses or [])
+            if raw_status in {"not_started", "in_progress", "submitted"}
+        }
+        safe_page_size = max(1, min(page_size, MAX_PAGE_SIZE))
+        offset = max(page - 1, 0) * safe_page_size
+
+        place_audit_summary_subquery = (
+            select(
+                Audit.place_id.label("place_id"),
+                func.count(Audit.id)
+                .filter(Audit.status == AuditStatus.SUBMITTED)
+                .label("audits_completed"),
+                func.avg(Audit.summary_score)
+                .filter(
+                    and_(
+                        Audit.status == AuditStatus.SUBMITTED,
+                        Audit.summary_score.is_not(None),
+                    )
+                )
+                .label("average_score"),
+                func.max(Audit.submitted_at)
+                .filter(
+                    and_(
+                        Audit.status == AuditStatus.SUBMITTED,
+                        Audit.submitted_at.is_not(None),
+                    )
+                )
+                .label("last_audited_at"),
+                func.max(
+                    case((Audit.status == AuditStatus.IN_PROGRESS, 1), else_=0)
+                ).label("has_in_progress"),
+                func.max(case((Audit.status == AuditStatus.SUBMITTED, 1), else_=0)).label(
+                    "has_submitted"
+                ),
+            )
+            .group_by(Audit.place_id)
+            .subquery()
+        )
+
+        has_in_progress = func.coalesce(place_audit_summary_subquery.c.has_in_progress, 0)
+        has_submitted = func.coalesce(place_audit_summary_subquery.c.has_submitted, 0)
+        status_expression = case(
+            (has_in_progress == 1, "in_progress"),
+            (has_submitted == 1, "submitted"),
+            else_="not_started",
+        ).label("status")
+
+        filtered_rows_query = (
+            select(
+                Place.id.label("id"),
+                Place.project_id.label("project_id"),
+                Project.name.label("project_name"),
+                Place.name.label("name"),
+                Place.city.label("city"),
+                Place.province.label("province"),
+                Place.country.label("country"),
+                Place.place_type.label("place_type"),
+                status_expression,
+                place_audit_summary_subquery.c.audits_completed.label("audits_completed"),
+                place_audit_summary_subquery.c.average_score.label("average_score"),
+                place_audit_summary_subquery.c.last_audited_at.label("last_audited_at"),
+            )
+            .select_from(Place)
+            .join(Project, Place.project_id == Project.id)
+            .outerjoin(
+                place_audit_summary_subquery,
+                place_audit_summary_subquery.c.place_id == Place.id,
+            )
+            .where(Project.account_id == account_id)
+        )
+
+        if normalized_search is not None:
+            search_term = f"%{normalized_search}%"
+            filtered_rows_query = filtered_rows_query.where(
+                or_(
+                    Place.name.ilike(search_term),
+                    Project.name.ilike(search_term),
+                    Place.city.ilike(search_term),
+                    Place.province.ilike(search_term),
+                    Place.country.ilike(search_term),
+                    Place.place_type.ilike(search_term),
+                )
+            )
+
+        if normalized_project_ids:
+            filtered_rows_query = filtered_rows_query.where(
+                Place.project_id.in_(normalized_project_ids)
+            )
+
+        if normalized_statuses:
+            status_conditions = []
+            if "in_progress" in normalized_statuses:
+                status_conditions.append(has_in_progress == 1)
+            if "submitted" in normalized_statuses:
+                status_conditions.append(and_(has_in_progress == 0, has_submitted == 1))
+            if "not_started" in normalized_statuses:
+                status_conditions.append(and_(has_in_progress == 0, has_submitted == 0))
+            filtered_rows_query = filtered_rows_query.where(or_(*status_conditions))
+
+        filtered_rows_subquery = filtered_rows_query.subquery()
+        total_count_result = await self._session.execute(
+            select(func.count()).select_from(filtered_rows_subquery)
+        )
+        total_count = int(total_count_result.scalar_one() or 0)
+
+        raw_sort = sort.strip() if sort is not None and sort.strip() else "-last_audited_at"
+        is_descending = raw_sort.startswith("-")
+        sort_key = raw_sort[1:] if is_descending else raw_sort
+        sort_map = {
+            "name": filtered_rows_subquery.c.name,
+            "project_name": filtered_rows_subquery.c.project_name,
+            "status": filtered_rows_subquery.c.status,
+            "audits_completed": filtered_rows_subquery.c.audits_completed,
+            "average_score": filtered_rows_subquery.c.average_score,
+            "last_audited_at": filtered_rows_subquery.c.last_audited_at,
+        }
+        sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.last_audited_at)
+        primary_order = (
+            sort_column.desc().nulls_last()
+            if is_descending
+            else sort_column.asc().nulls_last()
+        )
+
+        rows_result = await self._session.execute(
+            select(filtered_rows_subquery)
+            .order_by(
+                primary_order,
+                filtered_rows_subquery.c.name.asc(),
+                filtered_rows_subquery.c.id.asc(),
+            )
+            .offset(offset)
+            .limit(safe_page_size)
+        )
+        rows = rows_result.all()
+
+        summary_result = await self._session.execute(
+            select(
+                func.count(Place.id).label("total_places"),
+                func.sum(
+                    case((and_(has_in_progress == 0, has_submitted == 1), 1), else_=0)
+                ).label("submitted_places"),
+                func.sum(case((has_in_progress == 1, 1), else_=0)).label("in_progress_places"),
+                func.avg(place_audit_summary_subquery.c.average_score).label("average_score"),
+            )
+            .select_from(Place)
+            .join(Project, Place.project_id == Project.id)
+            .outerjoin(
+                place_audit_summary_subquery,
+                place_audit_summary_subquery.c.place_id == Place.id,
+            )
+            .where(Project.account_id == account_id)
+        )
+        summary_row = summary_result.one()
+
+        return ManagerPlacesListResponse(
+            items=[
+                ManagerPlaceRowResponse(
+                    id=row.id,
+                    project_id=row.project_id,
+                    project_name=row.project_name,
+                    name=row.name,
+                    city=row.city,
+                    province=row.province,
+                    country=row.country,
+                    place_type=row.place_type,
+                    status=row.status,
+                    audits_completed=int(row.audits_completed or 0),
+                    average_score=_round_score(
+                        float(row.average_score) if row.average_score is not None else None
+                    ),
+                    last_audited_at=row.last_audited_at,
+                )
+                for row in rows
+            ],
+            total_count=total_count,
+            page=page,
+            page_size=safe_page_size,
+            total_pages=_total_pages(total_count, safe_page_size),
+            summary=ManagerPlacesSummaryResponse(
+                total_places=int(summary_row.total_places or 0),
+                submitted_places=int(summary_row.submitted_places or 0),
+                in_progress_places=int(summary_row.in_progress_places or 0),
+                average_score=_round_score(
+                    float(summary_row.average_score)
+                    if summary_row.average_score is not None
+                    else None
+                ),
+            ),
+        )
+
+    async def list_account_audits(
+        self,
+        *,
+        actor: CurrentUserContext,
+        account_id: uuid.UUID,
+        page: int = 1,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        search: str | None = None,
+        sort: str | None = None,
+        project_ids: list[uuid.UUID] | None = None,
+        statuses: list[str] | None = None,
+    ) -> ManagerAuditsListResponse:
+        """Return paginated manager audit rows with SQL-backed filtering."""
+
+        await self._require_account_for_actor(actor=actor, account_id=account_id)
+
+        normalized_search = search.strip() if search is not None and search.strip() else None
+        normalized_project_ids = project_ids or []
+        normalized_statuses = {
+            raw_status
+            for raw_status in (statuses or [])
+            if raw_status in {"IN_PROGRESS", "PAUSED", "SUBMITTED"}
+        }
+        safe_page_size = max(1, min(page_size, MAX_PAGE_SIZE))
+        offset = max(page - 1, 0) * safe_page_size
+
+        filtered_rows_query = (
+            select(
+                Audit.id.label("audit_id"),
+                Audit.audit_code.label("audit_code"),
+                Audit.status.label("status"),
+                AuditorProfile.auditor_code.label("auditor_code"),
+                Project.id.label("project_id"),
+                Project.name.label("project_name"),
+                Place.id.label("place_id"),
+                Place.name.label("place_name"),
+                Audit.started_at.label("started_at"),
+                Audit.submitted_at.label("submitted_at"),
+                Audit.summary_score.label("summary_score"),
+            )
+            .select_from(Audit)
+            .join(Place, Audit.place_id == Place.id)
+            .join(Project, Place.project_id == Project.id)
+            .join(AuditorProfile, Audit.auditor_profile_id == AuditorProfile.id)
+            .where(Project.account_id == account_id)
+        )
+
+        if normalized_search is not None:
+            search_term = f"%{normalized_search}%"
+            filtered_rows_query = filtered_rows_query.where(
+                or_(
+                    Audit.audit_code.ilike(search_term),
+                    AuditorProfile.auditor_code.ilike(search_term),
+                    Place.name.ilike(search_term),
+                    Project.name.ilike(search_term),
+                )
+            )
+
+        if normalized_project_ids:
+            filtered_rows_query = filtered_rows_query.where(
+                Project.id.in_(normalized_project_ids)
+            )
+
+        if normalized_statuses:
+            filtered_rows_query = filtered_rows_query.where(Audit.status.in_(normalized_statuses))
+
+        filtered_rows_subquery = filtered_rows_query.subquery()
+        total_count_result = await self._session.execute(
+            select(func.count()).select_from(filtered_rows_subquery)
+        )
+        total_count = int(total_count_result.scalar_one() or 0)
+
+        raw_sort = sort.strip() if sort is not None and sort.strip() else "-submitted_at"
+        is_descending = raw_sort.startswith("-")
+        sort_key = raw_sort[1:] if is_descending else raw_sort
+        sort_map = {
+            "audit_code": filtered_rows_subquery.c.audit_code,
+            "status": filtered_rows_subquery.c.status,
+            "auditor_code": filtered_rows_subquery.c.auditor_code,
+            "project_name": filtered_rows_subquery.c.project_name,
+            "place_name": filtered_rows_subquery.c.place_name,
+            "started_at": filtered_rows_subquery.c.started_at,
+            "submitted_at": filtered_rows_subquery.c.submitted_at,
+            "summary_score": filtered_rows_subquery.c.summary_score,
+        }
+        sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.submitted_at)
+        primary_order = (
+            sort_column.desc().nulls_last()
+            if is_descending
+            else sort_column.asc().nulls_last()
+        )
+
+        rows_result = await self._session.execute(
+            select(filtered_rows_subquery)
+            .order_by(
+                primary_order,
+                filtered_rows_subquery.c.started_at.desc(),
+                filtered_rows_subquery.c.audit_id.desc(),
+            )
+            .offset(offset)
+            .limit(safe_page_size)
+        )
+        rows = rows_result.all()
+
+        summary_result = await self._session.execute(
+            select(
+                func.count(Audit.id).label("total_audits"),
+                func.count(Audit.id)
+                .filter(Audit.status == AuditStatus.SUBMITTED)
+                .label("submitted_audits"),
+                func.count(Audit.id)
+                .filter(
+                    Audit.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED])
+                )
+                .label("in_progress_audits"),
+                func.avg(Audit.summary_score)
+                .filter(Audit.summary_score.is_not(None))
+                .label("average_score"),
+            )
+            .select_from(Audit)
+            .join(Place, Audit.place_id == Place.id)
+            .join(Project, Place.project_id == Project.id)
+            .where(Project.account_id == account_id)
+        )
+        summary_row = summary_result.one()
+
+        return ManagerAuditsListResponse(
+            items=[
+                ManagerAuditRowResponse(
+                    audit_id=row.audit_id,
+                    audit_code=row.audit_code,
+                    status=row.status.value if isinstance(row.status, AuditStatus) else row.status,
+                    auditor_code=row.auditor_code,
+                    project_id=row.project_id,
+                    project_name=row.project_name,
+                    place_id=row.place_id,
+                    place_name=row.place_name,
+                    started_at=row.started_at,
+                    submitted_at=row.submitted_at,
+                    summary_score=_round_score(
+                        float(row.summary_score) if row.summary_score is not None else None
+                    ),
+                )
+                for row in rows
+            ],
+            total_count=total_count,
+            page=page,
+            page_size=safe_page_size,
+            total_pages=_total_pages(total_count, safe_page_size),
+            summary=ManagerAuditsSummaryResponse(
+                total_audits=int(summary_row.total_audits or 0),
+                submitted_audits=int(summary_row.submitted_audits or 0),
+                in_progress_audits=int(summary_row.in_progress_audits or 0),
+                average_score=_round_score(
+                    float(summary_row.average_score)
+                    if summary_row.average_score is not None
+                    else None
+                ),
+            ),
+        )
 
     async def get_project_detail(
         self,

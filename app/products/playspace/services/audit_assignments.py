@@ -8,6 +8,7 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select
+from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_or_admin_user
 from app.models import AuditorAssignment, AuditorProfile, Place, Project
@@ -36,6 +37,10 @@ class PlayspaceAuditAssignmentsMixin:
             select(AuditorAssignment)
             .where(AuditorAssignment.auditor_profile_id == auditor_profile_id)
             .order_by(AuditorAssignment.assigned_at.desc())
+            .options(
+                selectinload(AuditorAssignment.project),
+                selectinload(AuditorAssignment.place).selectinload(Place.project),
+            )
         )
         if actor.role is CurrentUserRole.MANAGER:
             if actor.account_id is None:
@@ -82,7 +87,11 @@ class PlayspaceAuditAssignmentsMixin:
         )
         self._session.add(assignment)
         await self._commit_and_refresh(assignment)
-        return self._serialize_assignment(assignment)
+        hydrated_assignment = await self._get_assignment_with_scope(
+            assignment_id=assignment.id,
+            auditor_profile_id=auditor_profile_id,
+        )
+        return self._serialize_assignment(hydrated_assignment)
 
     async def update_assignment(
         self,
@@ -111,7 +120,11 @@ class PlayspaceAuditAssignmentsMixin:
         assignment.place_id = payload.place_id
         assignment.audit_roles = self._assignment_roles_to_db_values(roles=payload.audit_roles)
         await self._commit_and_refresh(assignment)
-        return self._serialize_assignment(assignment)
+        hydrated_assignment = await self._get_assignment_with_scope(
+            assignment_id=assignment.id,
+            auditor_profile_id=auditor_profile_id,
+        )
+        return self._serialize_assignment(hydrated_assignment)
 
     async def delete_assignment(
         self,
@@ -162,6 +175,33 @@ class PlayspaceAuditAssignmentsMixin:
             select(AuditorAssignment).where(
                 AuditorAssignment.id == assignment_id,
                 AuditorAssignment.auditor_profile_id == auditor_profile_id,
+            )
+        )
+        assignment = result.scalar_one_or_none()
+        if assignment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Assignment not found.",
+            )
+        return assignment
+
+    async def _get_assignment_with_scope(
+        self,
+        *,
+        assignment_id: uuid.UUID,
+        auditor_profile_id: uuid.UUID,
+    ) -> AuditorAssignment:
+        """Load an assignment together with its project/place display relationships."""
+
+        result = await self._session.execute(
+            select(AuditorAssignment)
+            .where(
+                AuditorAssignment.id == assignment_id,
+                AuditorAssignment.auditor_profile_id == auditor_profile_id,
+            )
+            .options(
+                selectinload(AuditorAssignment.project),
+                selectinload(AuditorAssignment.place).selectinload(Place.project),
             )
         )
         assignment = result.scalar_one_or_none()
@@ -289,11 +329,37 @@ class PlayspaceAuditAssignmentsMixin:
     def _serialize_assignment(self, assignment: AuditorAssignment) -> AssignmentResponse:
         """Convert an ORM assignment row into the API response model."""
 
+        if assignment.place is not None:
+            project_name = (
+                assignment.place.project.name
+                if assignment.place.project is not None
+                else "Unknown project"
+            )
+            return AssignmentResponse(
+                id=assignment.id,
+                auditor_profile_id=assignment.auditor_profile_id,
+                project_id=assignment.place.project_id,
+                place_id=assignment.place_id,
+                scope_type="place",
+                scope_id=assignment.place.id,
+                scope_name=assignment.place.name,
+                project_name=project_name,
+                place_name=assignment.place.name,
+                audit_roles=self._assignment_roles_from_db_values(db_values=assignment.audit_roles),
+                assigned_at=assignment.assigned_at,
+            )
+
+        project_name = assignment.project.name if assignment.project is not None else "Unknown project"
         return AssignmentResponse(
             id=assignment.id,
             auditor_profile_id=assignment.auditor_profile_id,
             project_id=assignment.project_id,
             place_id=assignment.place_id,
+            scope_type="project",
+            scope_id=assignment.project_id if assignment.project_id is not None else assignment.id,
+            scope_name=project_name,
+            project_name=project_name,
+            place_name=None,
             audit_roles=self._assignment_roles_from_db_values(db_values=assignment.audit_roles),
             assigned_at=assignment.assigned_at,
         )

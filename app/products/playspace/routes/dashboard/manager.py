@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.actors import CurrentUserContext
 from app.products.playspace.routes.dependencies import (
@@ -16,6 +16,8 @@ from app.products.playspace.routes.dependencies import (
 from app.products.playspace.schemas import (
     AccountDetailResponse,
     AuditorSummaryResponse,
+    ManagerAuditsListResponse,
+    ManagerPlacesListResponse,
     ManagerProfileResponse,
     PlaceAuditHistoryItemResponse,
     PlaceHistoryResponse,
@@ -71,6 +73,58 @@ async def list_account_auditors(
     """Return manager-facing auditor summaries for a Playspace account."""
 
     return await service.list_account_auditors(actor=current_user, account_id=account_id)
+
+
+@router.get("/accounts/{account_id}/places")
+async def list_account_places(
+    account_id: uuid.UUID,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    search: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
+    project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+    statuses: list[str] | None = Query(default=None, alias="status"),
+    current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+    service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> ManagerPlacesListResponse:
+    """Return manager-visible account places with joined project metadata."""
+
+    return await service.list_account_places(
+        actor=current_user,
+        account_id=account_id,
+        page=page,
+        page_size=page_size,
+        search=search,
+        sort=sort,
+        project_ids=project_ids,
+        statuses=statuses,
+    )
+
+
+@router.get("/accounts/{account_id}/audits")
+async def list_account_audits(
+    account_id: uuid.UUID,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    search: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
+    project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+    statuses: list[str] | None = Query(default=None, alias="status"),
+    current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+    service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> ManagerAuditsListResponse:
+    """Return manager-visible account audits with joined place and project metadata."""
+
+    return await service.list_account_audits(
+        actor=current_user,
+        account_id=account_id,
+        page=page,
+        page_size=page_size,
+        search=search,
+        sort=sort,
+        project_ids=project_ids,
+        statuses=statuses,
+    )
 
 
 @router.get("/projects/{project_id}")

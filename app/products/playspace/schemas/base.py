@@ -4,7 +4,7 @@ Shared Playspace schema primitives and base model configuration.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -27,3 +27,16 @@ class RequestModel(BaseModel):
     """Strict request model used by playspace-specific endpoints."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+TItem = TypeVar("TItem")
+
+
+class PaginatedResponse(ApiModel, Generic[TItem]):
+    """Shared paginated list envelope for large Playspace collections."""
+
+    items: list[TItem]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
