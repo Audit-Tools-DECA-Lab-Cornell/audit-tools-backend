@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.models import Account, AccountType, Project
+from app.models import Account, AccountType, Audit, AuditorAssignment, Project, ProjectPlace
 from app.products.playspace.seed_data import build_playspace_seed_entities
 
 
@@ -30,3 +30,18 @@ def test_build_playspace_seed_entities_spreads_projects_across_manager_accounts(
     project_account_ids = {project.account_id for project in projects}
 
     assert len(project_account_ids) >= 2
+
+
+def test_build_playspace_seed_entities_include_project_place_links_and_pair_scoped_audits() -> None:
+    """Seed data should include join rows plus project-scoped assignments and audits."""
+
+    entities = build_playspace_seed_entities()
+    project_place_links = [
+        entity for entity in entities if isinstance(entity, ProjectPlace)
+    ]
+    assignments = [entity for entity in entities if isinstance(entity, AuditorAssignment)]
+    audits = [entity for entity in entities if isinstance(entity, Audit)]
+
+    assert len(project_place_links) > 0
+    assert all(assignment.project_id is not None for assignment in assignments)
+    assert all(audit.project_id is not None for audit in audits)

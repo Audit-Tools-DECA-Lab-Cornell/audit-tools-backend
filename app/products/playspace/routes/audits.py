@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.actors import CurrentUserContext
 from app.products.playspace.routes.dependencies import (
@@ -35,7 +35,7 @@ async def create_or_resume_place_audit(
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
 ) -> AuditSessionResponse:
-    """Create or resume the current auditor's active draft for a place."""
+    """Create or return the current auditor's audit for a project-place pair."""
 
     return await service.create_or_resume_audit(
         actor=current_user,
@@ -75,14 +75,16 @@ async def patch_audit_draft(
 async def patch_place_draft(
     place_id: uuid.UUID,
     payload: AuditDraftPatchRequest,
+    project_id: uuid.UUID = Query(...),
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
 ) -> AuditDraftSaveResponse:
-    """Compatibility draft save endpoint keyed by place instead of audit id."""
+    """Compatibility draft save endpoint keyed by project-place pair instead of audit id."""
 
     return await service.patch_place_draft(
         actor=current_user,
         place_id=place_id,
+        project_id=project_id,
         payload=payload,
     )
 

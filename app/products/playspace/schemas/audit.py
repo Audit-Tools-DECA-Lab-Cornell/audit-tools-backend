@@ -8,11 +8,11 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from app.models import AuditStatus
 from app.products.playspace.schemas.base import ApiModel, RequestModel
-from app.products.playspace.schemas.instrument import AssignmentRole, ExecutionMode
+from app.products.playspace.schemas.instrument import ExecutionMode
 
 ######################################################################################
 #################################### Audit Schemas ###################################
@@ -20,44 +20,25 @@ from app.products.playspace.schemas.instrument import AssignmentRole, ExecutionM
 
 
 class AssignmentResponse(ApiModel):
-    """Manager-facing assignment record with place-scoped capabilities."""
+    """Manager-facing assignment record for project or project-place scope."""
 
     id: uuid.UUID
     auditor_profile_id: uuid.UUID
-    project_id: uuid.UUID | None
+    project_id: uuid.UUID
     place_id: uuid.UUID | None
     scope_type: Literal["project", "place"]
     scope_id: uuid.UUID
     scope_name: str
     project_name: str
     place_name: str | None
-    audit_roles: list[AssignmentRole]
     assigned_at: datetime
 
 
 class AssignmentWriteRequest(RequestModel):
-    """Create or update a project/place assignment for an auditor profile."""
+    """Create or update a project or project-place assignment."""
 
-    project_id: uuid.UUID | None = None
+    project_id: uuid.UUID
     place_id: uuid.UUID | None = None
-    audit_roles: list[AssignmentRole] = Field(default_factory=lambda: [AssignmentRole.AUDITOR])
-
-    @field_validator("audit_roles")
-    @classmethod
-    def validate_audit_roles(cls, value: list[AssignmentRole]) -> list[AssignmentRole]:
-        """Ensure assignment roles are non-empty and de-duplicated."""
-
-        if not value:
-            raise ValueError("audit_roles must contain at least one role.")
-
-        ordered_unique: list[AssignmentRole] = []
-        seen: set[AssignmentRole] = set()
-        for role in value:
-            if role in seen:
-                continue
-            seen.add(role)
-            ordered_unique.append(role)
-        return ordered_unique
 
 
 class AuditMetaPatchRequest(RequestModel):
@@ -148,8 +129,9 @@ class AuditDraftSaveResponse(ApiModel):
 
 
 class PlaceAuditAccessRequest(RequestModel):
-    """Optional mode hint used when creating or resuming an audit session."""
+    """Project-place target used when creating or resuming an audit session."""
 
+    project_id: uuid.UUID
     execution_mode: ExecutionMode | None = None
 
 
@@ -176,7 +158,7 @@ class AuditProgressResponse(ApiModel):
 
 
 class AuditorPlaceResponse(ApiModel):
-    """Place summary visible to auditors on mobile dashboard and places tabs."""
+    """Project-place summary visible to auditors on dashboard and places tabs."""
 
     place_id: uuid.UUID
     place_name: str
@@ -186,7 +168,6 @@ class AuditorPlaceResponse(ApiModel):
     city: str | None
     province: str | None
     country: str | None
-    assignment_roles: list[AssignmentRole]
     audit_status: AuditStatus | None
     audit_id: uuid.UUID | None
     started_at: datetime | None
@@ -228,10 +209,11 @@ class AuditSessionResponse(ApiModel):
 
     audit_id: uuid.UUID
     audit_code: str
+    project_id: uuid.UUID
+    project_name: str
     place_id: uuid.UUID
     place_name: str
     place_type: str | None
-    assignment_roles: list[AssignmentRole]
     allowed_execution_modes: list[ExecutionMode]
     selected_execution_mode: ExecutionMode | None
     status: AuditStatus

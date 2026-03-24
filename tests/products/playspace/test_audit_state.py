@@ -28,6 +28,7 @@ def _build_audit() -> Audit:
     """Create an in-memory audit shell for relationship synchronization tests."""
 
     return Audit(
+        project_id=uuid.uuid4(),
         place_id=uuid.uuid4(),
         auditor_profile_id=uuid.uuid4(),
         audit_code=f"AUDIT-{uuid.uuid4()}",

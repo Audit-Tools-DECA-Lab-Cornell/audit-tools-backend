@@ -23,6 +23,7 @@ depends_on: Sequence[str] | None = None
 ACCOUNT_TYPE_ENUM = postgresql.ENUM(
     "MANAGER",
     "AUDITOR",
+    "ADMIN",
     name="shared_account_type",
     create_type=False,
 )

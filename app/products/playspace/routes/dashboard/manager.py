@@ -163,20 +163,30 @@ async def list_project_places(
 @router.get("/places/{place_id}/audits")
 async def list_place_audit_history(
     place_id: uuid.UUID,
+    project_id: uuid.UUID = Query(...),
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
 ) -> list[PlaceAuditHistoryItemResponse]:
-    """Return all audit rows for a place."""
+    """Return all audit rows for one project-place pair."""
 
-    return await service.list_place_audits(actor=current_user, place_id=place_id)
+    return await service.list_place_audits(
+        actor=current_user,
+        project_id=project_id,
+        place_id=place_id,
+    )
 
 
 @router.get("/places/{place_id}/history")
 async def get_place_history(
     place_id: uuid.UUID,
+    project_id: uuid.UUID = Query(...),
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
 ) -> PlaceHistoryResponse:
-    """Return aggregate history metrics for one place."""
+    """Return aggregate history metrics for one project-place pair."""
 
-    return await service.get_place_history(actor=current_user, place_id=place_id)
+    return await service.get_place_history(
+        actor=current_user,
+        project_id=project_id,
+        place_id=place_id,
+    )

@@ -42,10 +42,11 @@ from app.models import (
     ManagerProfile,
     Place,
     Project,
+    ProjectPlace,
 )
 from app.products.playspace.audit_state import hydrate_relations_from_cached_json
 from app.products.playspace.instrument import INSTRUMENT_KEY, INSTRUMENT_VERSION
-from app.products.playspace.schemas.instrument import AssignmentRole, ExecutionMode
+from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import (
     build_audit_progress_for_audit,
     get_allowed_execution_modes,
@@ -62,7 +63,14 @@ from app.products.playspace.scoring_metadata import (
 T = TypeVar("T")
 
 PlayspaceEntity = (
-    Account | ManagerProfile | AuditorProfile | Project | Place | AuditorAssignment | Audit
+    Account
+    | ManagerProfile
+    | AuditorProfile
+    | Project
+    | Place
+    | ProjectPlace
+    | AuditorAssignment
+    | Audit
 )
 SeedJson = dict[str, object]
 ProjectStatusLabel = Literal["completed", "active", "planned"]
@@ -503,7 +511,8 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         reference_date=reference_date,
         randomizer=randomizer,
     )
-    assignments, roles_by_place_and_auditor = _build_assignments(
+    project_place_links = _build_project_place_links(place_contexts=place_contexts)
+    assignments, execution_modes_by_place_and_auditor = _build_assignments(
         project_contexts=project_contexts,
         place_contexts=place_contexts,
         auditor_contexts=auditor_contexts,
@@ -513,12 +522,13 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
     _hydrate_estimated_counts(
         project_contexts=project_contexts,
         place_contexts=place_contexts,
-        roles_by_place_and_auditor=roles_by_place_and_auditor,
+        project_place_links=project_place_links,
+        execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
     )
     audits = _build_audits(
         place_contexts=place_contexts,
         auditor_contexts=auditor_contexts,
-        roles_by_place_and_auditor=roles_by_place_and_auditor,
+        execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
         reference_date=reference_date,
         randomizer=randomizer,
     )
@@ -539,6 +549,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         *auditor_profiles,
         *projects,
         *places,
+        *project_place_links,
         *assignments,
         *audits,
     ]
@@ -692,7 +703,6 @@ def _build_base_urban_places(
         PlaceSeedContext(
             place=Place(
                 id=DEMO_PLACE_RIVERSIDE_ID,
-                project_id=project.id,
                 name="Riverside Community Playground",
                 city="Auckland",
                 province="Auckland",
@@ -715,7 +725,6 @@ def _build_base_urban_places(
         PlaceSeedContext(
             place=Place(
                 id=DEMO_PLACE_KEPLER_ID,
-                project_id=project.id,
                 name="Kepler Family Park",
                 city="Auckland",
                 province="Auckland",
@@ -766,7 +775,6 @@ def _build_base_south_places(
         PlaceSeedContext(
             place=Place(
                 id=DEMO_PLACE_HILLCREST_ID,
-                project_id=project.id,
                 name="Hillcrest Shared Play Space",
                 city="Christchurch",
                 province="Canterbury",
@@ -789,7 +797,6 @@ def _build_base_south_places(
         PlaceSeedContext(
             place=Place(
                 id=DEMO_PLACE_MATAI_ID,
-                project_id=project.id,
                 name="Matai Neighborhood Play Area",
                 city="Christchurch",
                 province="Canterbury",
@@ -872,7 +879,6 @@ def _build_generated_places_for_project(
             PlaceSeedContext(
                 place=Place(
                     id=_stable_uuid("playspace-place", blueprint.key, place_name),
-                    project_id=project.id,
                     name=place_name,
                     city=blueprint.metro.city,
                     province=blueprint.metro.province,
@@ -903,6 +909,35 @@ def _build_generated_places_for_project(
     return contexts
 
 
+def _build_project_place_links(
+    *,
+    place_contexts: list[PlaceSeedContext],
+) -> list[ProjectPlace]:
+    """Create project-place links for seeded places."""
+
+    links_by_key: dict[tuple[uuid.UUID, uuid.UUID], ProjectPlace] = {}
+    for place_context in place_contexts:
+        key = (place_context.project_context.project.id, place_context.place.id)
+        links_by_key[key] = ProjectPlace(
+            project_id=place_context.project_context.project.id,
+            place_id=place_context.place.id,
+            linked_at=place_context.place.created_at,
+        )
+
+    shared_demo_place = next(
+        (place_context for place_context in place_contexts if place_context.place.id == DEMO_PLACE_HILLCREST_ID),
+        None,
+    )
+    if shared_demo_place is not None:
+        links_by_key[(DEMO_PROJECT_SOUTH_ID, shared_demo_place.place.id)] = ProjectPlace(
+            project_id=DEMO_PROJECT_SOUTH_ID,
+            place_id=shared_demo_place.place.id,
+            linked_at=shared_demo_place.place.created_at + timedelta(days=3),
+        )
+
+    return list(links_by_key.values())
+
+
 def _build_assignments(
     *,
     project_contexts: list[ProjectSeedContext],
@@ -910,15 +945,15 @@ def _build_assignments(
     auditor_contexts: list[AuditorSeedContext],
     reference_date: date,
     randomizer: Random,
-) -> tuple[list[AuditorAssignment], dict[tuple[uuid.UUID, uuid.UUID], list[AssignmentRole]]]:
-    """Create project and place assignments plus a resolved role map for audit generation."""
+) -> tuple[list[AuditorAssignment], dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]]]:
+    """Create project and place assignments plus a resolved execution-mode map."""
 
     assignments: list[AuditorAssignment] = []
-    roles_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], set[AssignmentRole]] = {}
+    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]] = {}
 
     places_by_project_id: dict[uuid.UUID, list[PlaceSeedContext]] = {}
     for place_context in place_contexts:
-        places_by_project_id.setdefault(place_context.place.project_id, []).append(place_context)
+        places_by_project_id.setdefault(place_context.project_context.project.id, []).append(place_context)
 
     auditors_by_city: dict[str, list[AuditorSeedContext]] = {}
     for auditor_context in auditor_contexts:
@@ -957,15 +992,14 @@ def _build_assignments(
                 auditor_profile_id=auditor_context.profile.id,
                 project_id=project_context.project.id,
                 place_id=None,
-                audit_roles=[AssignmentRole.AUDITOR.value],
                 assigned_at=assigned_at,
             )
             assignments.append(assignment)
             for place_context in places_by_project_id.get(project_context.project.id, []):
-                roles_by_place_and_auditor.setdefault(
+                execution_modes_by_place_and_auditor.setdefault(
                     (place_context.place.id, auditor_context.profile.id),
-                    set(),
-                ).add(AssignmentRole.AUDITOR)
+                    get_allowed_execution_modes(),
+                )
 
         for place_index, place_context in enumerate(
             sorted(
@@ -986,9 +1020,8 @@ def _build_assignments(
                     str(lead_context.profile.id),
                 ),
                 auditor_profile_id=lead_context.profile.id,
-                project_id=None,
+                project_id=project_context.project.id,
                 place_id=place_context.place.id,
-                audit_roles=[AssignmentRole.AUDITOR.value, AssignmentRole.PLACE_ADMIN.value],
                 assigned_at=datetime.combine(
                     (place_context.place.start_date or reference_date) - timedelta(days=2),
                     time(8, 30),
@@ -996,10 +1029,10 @@ def _build_assignments(
                 ),
             )
             assignments.append(lead_assignment)
-            roles_by_place_and_auditor.setdefault(
+            execution_modes_by_place_and_auditor.setdefault(
                 (place_context.place.id, lead_context.profile.id),
-                set(),
-            ).update({AssignmentRole.AUDITOR, AssignmentRole.PLACE_ADMIN})
+                get_allowed_execution_modes(),
+            )
 
             if randomizer.random() < 0.55 and len(project_auditors) > 1:
                 support_context = project_auditors[(place_index + 1) % len(project_auditors)]
@@ -1011,9 +1044,8 @@ def _build_assignments(
                         str(support_context.profile.id),
                     ),
                     auditor_profile_id=support_context.profile.id,
-                    project_id=None,
+                    project_id=project_context.project.id,
                     place_id=place_context.place.id,
-                    audit_roles=[AssignmentRole.AUDITOR.value],
                     assigned_at=datetime.combine(
                         (place_context.place.start_date or reference_date) - timedelta(days=1),
                         time(9, 10),
@@ -1021,10 +1053,10 @@ def _build_assignments(
                     ),
                 )
                 assignments.append(support_assignment)
-                roles_by_place_and_auditor.setdefault(
+                execution_modes_by_place_and_auditor.setdefault(
                     (place_context.place.id, support_context.profile.id),
-                    set(),
-                ).add(AssignmentRole.AUDITOR)
+                    get_allowed_execution_modes(),
+                )
 
             off_project_candidates = [
                 auditor_context
@@ -1045,9 +1077,8 @@ def _build_assignments(
                         str(specialist_context.profile.id),
                     ),
                     auditor_profile_id=specialist_context.profile.id,
-                    project_id=None,
+                    project_id=project_context.project.id,
                     place_id=place_context.place.id,
-                    audit_roles=[AssignmentRole.PLACE_ADMIN.value],
                     assigned_at=datetime.combine(
                         (place_context.place.start_date or reference_date) - timedelta(days=1),
                         time(10, 0),
@@ -1055,54 +1086,53 @@ def _build_assignments(
                     ),
                 )
                 assignments.append(specialist_assignment)
-                roles_by_place_and_auditor.setdefault(
+                execution_modes_by_place_and_auditor.setdefault(
                     (place_context.place.id, specialist_context.profile.id),
-                    set(),
-                ).add(AssignmentRole.PLACE_ADMIN)
+                    get_allowed_execution_modes(),
+                )
 
-    normalized_roles = {
-        key: sorted(role_set, key=lambda role: role.value)
-        for key, role_set in roles_by_place_and_auditor.items()
-    }
-    return assignments, normalized_roles
+    return assignments, execution_modes_by_place_and_auditor
 
 
 def _hydrate_estimated_counts(
     *,
     project_contexts: list[ProjectSeedContext],
     place_contexts: list[PlaceSeedContext],
-    roles_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[AssignmentRole]],
+    project_place_links: list[ProjectPlace],
+    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
 ) -> None:
     """Backfill count fields so the dashboard descriptions reflect the generated graph."""
 
-    places_by_project_id: dict[uuid.UUID, list[PlaceSeedContext]] = {}
-    for place_context in place_contexts:
-        places_by_project_id.setdefault(place_context.place.project_id, []).append(place_context)
+    places_by_project_id: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for project_place_link in project_place_links:
+        places_by_project_id.setdefault(project_place_link.project_id, set()).add(project_place_link.place_id)
 
     auditors_by_project_id: dict[uuid.UUID, set[uuid.UUID]] = {}
     auditors_by_place_id: dict[uuid.UUID, set[uuid.UUID]] = {}
-    for (place_id, auditor_profile_id), _roles in roles_by_place_and_auditor.items():
+    for (place_id, auditor_profile_id), _modes in execution_modes_by_place_and_auditor.items():
         auditors_by_place_id.setdefault(place_id, set()).add(auditor_profile_id)
 
-    for place_context in place_contexts:
-        auditors_by_project_id.setdefault(place_context.place.project_id, set()).update(
-            auditors_by_place_id.get(place_context.place.id, set())
-        )
-        place_context.place.est_auditors = len(
-            auditors_by_place_id.get(place_context.place.id, set())
-        )
+    place_context_by_id = {place_context.place.id: place_context for place_context in place_contexts}
+    for place_id, place_context in place_context_by_id.items():
+        place_context.place.est_auditors = len(auditors_by_place_id.get(place_id, set()))
+
+    for project_id, place_ids in places_by_project_id.items():
+        for place_id in place_ids:
+            auditors_by_project_id.setdefault(project_id, set()).update(
+                auditors_by_place_id.get(place_id, set())
+            )
 
     for project_context in project_contexts:
-        project_places = places_by_project_id.get(project_context.project.id, [])
-        project_context.project.est_places = len(project_places)
+        project_place_ids = places_by_project_id.get(project_context.project.id, set())
+        project_context.project.est_places = len(project_place_ids)
         project_context.project.est_auditors = len(
             auditors_by_project_id.get(project_context.project.id, set())
         )
         project_context.project.place_types = sorted(
             {
-                place_context.place.place_type
-                for place_context in project_places
-                if place_context.place.place_type is not None
+                place_context_by_id[place_id].place.place_type
+                for place_id in project_place_ids
+                if place_context_by_id[place_id].place.place_type is not None
             }
         )
 
@@ -1111,7 +1141,7 @@ def _build_audits(
     *,
     place_contexts: list[PlaceSeedContext],
     auditor_contexts: list[AuditorSeedContext],
-    roles_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[AssignmentRole]],
+    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
     reference_date: date,
     randomizer: Random,
 ) -> list[Audit]:
@@ -1135,7 +1165,7 @@ def _build_audits(
                 _build_fixed_base_audits_for_riverside(
                     place_context=place_context,
                     auditor_context_by_id=auditor_context_by_id,
-                    roles_by_place_and_auditor=roles_by_place_and_auditor,
+                    execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
                     reference_date=reference_date,
                     randomizer=randomizer,
                 )
@@ -1149,7 +1179,7 @@ def _build_audits(
                     slot_key="kepler-submitted",
                     place_context=place_context,
                     auditor_context=auditor_context_by_id[DEMO_AUDITOR_AKL02_ID],
-                    roles_by_place_and_auditor=roles_by_place_and_auditor,
+                    execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
                     reference_date=reference_date,
                     randomizer=randomizer,
                     status=AuditStatus.SUBMITTED,
@@ -1166,7 +1196,7 @@ def _build_audits(
                     slot_key="matai-submitted",
                     place_context=place_context,
                     auditor_context=auditor_context_by_id[DEMO_AUDITOR_CHC01_ID],
-                    roles_by_place_and_auditor=roles_by_place_and_auditor,
+                    execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
                     reference_date=reference_date,
                     randomizer=randomizer,
                     status=AuditStatus.SUBMITTED,
@@ -1183,7 +1213,7 @@ def _build_audits(
             _build_generated_audits_for_place(
                 place_context=place_context,
                 auditor_context_by_id=auditor_context_by_id,
-                roles_by_place_and_auditor=roles_by_place_and_auditor,
+                execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
                 reference_date=reference_date,
                 randomizer=randomizer,
             )
@@ -1196,7 +1226,7 @@ def _build_fixed_base_audits_for_riverside(
     *,
     place_context: PlaceSeedContext,
     auditor_context_by_id: dict[uuid.UUID, AuditorSeedContext],
-    roles_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[AssignmentRole]],
+    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
     reference_date: date,
     randomizer: Random,
 ) -> list[Audit]:
@@ -1207,7 +1237,7 @@ def _build_fixed_base_audits_for_riverside(
         slot_key="riverside-submitted",
         place_context=place_context,
         auditor_context=auditor_context_by_id[DEMO_AUDITOR_AKL01_ID],
-        roles_by_place_and_auditor=roles_by_place_and_auditor,
+        execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
         reference_date=reference_date,
         randomizer=randomizer,
         status=AuditStatus.SUBMITTED,
@@ -1219,7 +1249,7 @@ def _build_fixed_base_audits_for_riverside(
         slot_key="riverside-draft",
         place_context=place_context,
         auditor_context=auditor_context_by_id[DEMO_AUDITOR_AKL02_ID],
-        roles_by_place_and_auditor=roles_by_place_and_auditor,
+        execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
         reference_date=reference_date,
         randomizer=randomizer,
         status=AuditStatus.IN_PROGRESS,
@@ -1235,7 +1265,7 @@ def _build_fixed_base_audit(
     slot_key: str,
     place_context: PlaceSeedContext,
     auditor_context: AuditorSeedContext,
-    roles_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[AssignmentRole]],
+    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
     reference_date: date,
     randomizer: Random,
     status: AuditStatus,
@@ -1244,8 +1274,11 @@ def _build_fixed_base_audit(
 ) -> list[Audit]:
     """Create one known audit record using the same generation helpers as the bulk dataset."""
 
-    roles = roles_by_place_and_auditor.get((place_context.place.id, auditor_context.profile.id), [])
-    if not roles:
+    allowed_modes = execution_modes_by_place_and_auditor.get(
+        (place_context.place.id, auditor_context.profile.id),
+        [],
+    )
+    if not allowed_modes:
         return []
 
     reference_datetime = datetime.combine(reference_date, time(9, 0), tzinfo=UTC)
@@ -1257,7 +1290,7 @@ def _build_fixed_base_audit(
         slot_key=slot_key,
         place_context=place_context,
         auditor_context=auditor_context,
-        assignment_roles=roles,
+        allowed_execution_modes=allowed_modes,
         started_at=started_at,
         randomizer=randomizer,
         status=status,
@@ -1272,7 +1305,7 @@ def _build_generated_audits_for_place(
     *,
     place_context: PlaceSeedContext,
     auditor_context_by_id: dict[uuid.UUID, AuditorSeedContext],
-    roles_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[AssignmentRole]],
+    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
     reference_date: date,
     randomizer: Random,
 ) -> list[Audit]:
@@ -1291,7 +1324,7 @@ def _build_generated_audits_for_place(
 
     assigned_auditor_ids = [
         auditor_profile_id
-        for (place_id, auditor_profile_id), _roles in roles_by_place_and_auditor.items()
+        for (place_id, auditor_profile_id), _modes in execution_modes_by_place_and_auditor.items()
         if place_id == place_context.place.id
     ]
     assigned_auditor_ids = sorted(set(assigned_auditor_ids))
@@ -1314,7 +1347,9 @@ def _build_generated_audits_for_place(
     historical_author_ids = author_ids[:audit_count]
     for history_index, auditor_profile_id in enumerate(historical_author_ids):
         auditor_context = auditor_context_by_id[auditor_profile_id]
-        roles = roles_by_place_and_auditor[(place_context.place.id, auditor_profile_id)]
+        allowed_modes = execution_modes_by_place_and_auditor[
+            (place_context.place.id, auditor_profile_id)
+        ]
         started_at = _historical_started_at(
             place_context=place_context,
             reference_date=reference_date,
@@ -1327,6 +1362,7 @@ def _build_generated_audits_for_place(
             _build_audit_record(
                 audit_id=_stable_uuid(
                     "playspace-audit",
+                    str(place_context.project_context.project.id),
                     str(place_context.place.id),
                     str(auditor_profile_id),
                     "submitted",
@@ -1335,7 +1371,7 @@ def _build_generated_audits_for_place(
                 slot_key=f"submitted-{history_index}",
                 place_context=place_context,
                 auditor_context=auditor_context,
-                assignment_roles=roles,
+                allowed_execution_modes=allowed_modes,
                 started_at=started_at,
                 randomizer=randomizer,
                 status=AuditStatus.SUBMITTED,
@@ -1354,7 +1390,9 @@ def _build_generated_audits_for_place(
 
     draft_author_id = author_ids[-1]
     draft_author = auditor_context_by_id[draft_author_id]
-    draft_roles = roles_by_place_and_auditor[(place_context.place.id, draft_author_id)]
+    draft_allowed_modes = execution_modes_by_place_and_auditor[
+        (place_context.place.id, draft_author_id)
+    ]
     draft_status = AuditStatus.PAUSED if randomizer.random() < 0.35 else AuditStatus.IN_PROGRESS
     started_at = _draft_started_at(reference_date=reference_date, randomizer=randomizer)
     draft_ratio = randomizer.uniform(0.12, 0.88)
@@ -1362,6 +1400,7 @@ def _build_generated_audits_for_place(
         _build_audit_record(
             audit_id=_stable_uuid(
                 "playspace-audit",
+                str(place_context.project_context.project.id),
                 str(place_context.place.id),
                 str(draft_author_id),
                 draft_status.value.lower(),
@@ -1370,7 +1409,7 @@ def _build_generated_audits_for_place(
             slot_key=f"{draft_status.value.lower()}-current",
             place_context=place_context,
             auditor_context=draft_author,
-            assignment_roles=draft_roles,
+            allowed_execution_modes=draft_allowed_modes,
             started_at=started_at,
             randomizer=randomizer,
             status=draft_status,
@@ -1390,7 +1429,7 @@ def _build_audit_record(
     slot_key: str,
     place_context: PlaceSeedContext,
     auditor_context: AuditorSeedContext,
-    assignment_roles: list[AssignmentRole],
+    allowed_execution_modes: list[ExecutionMode],
     started_at: datetime,
     randomizer: Random,
     status: AuditStatus,
@@ -1401,7 +1440,7 @@ def _build_audit_record(
     """Create one audit row with responses and scores derived from live Playspace helpers."""
 
     execution_mode = _select_execution_mode(
-        assignment_roles=assignment_roles,
+        allowed_execution_modes=allowed_execution_modes,
         randomizer=randomizer,
         quality_bias=quality_bias,
     )
@@ -1420,6 +1459,7 @@ def _build_audit_record(
         submitted_at = started_at + timedelta(minutes=duration_minutes)
         submitted_audit = Audit(
             id=audit_id,
+            project_id=place_context.project_context.project.id,
             place_id=place_context.place.id,
             auditor_profile_id=auditor_context.profile.id,
             audit_code=_build_audit_code(
@@ -1441,10 +1481,7 @@ def _build_audit_record(
             updated_at=submitted_at,
         )
         hydrate_relations_from_cached_json(submitted_audit)
-        calculated_scores = score_audit_for_audit(
-            assignment_roles=assignment_roles,
-            audit=submitted_audit,
-        )
+        calculated_scores = score_audit_for_audit(audit=submitted_audit)
         submitted_audit.scores_json = calculated_scores
         overall_payload = calculated_scores.get("overall")
         submitted_audit.summary_score = (
@@ -1475,6 +1512,7 @@ def _build_audit_record(
     updated_at = started_at + timedelta(minutes=last_saved_minutes)
     draft_audit = Audit(
         id=audit_id,
+        project_id=place_context.project_context.project.id,
         place_id=place_context.place.id,
         auditor_profile_id=auditor_context.profile.id,
         audit_code=_build_audit_code(
@@ -1496,10 +1534,7 @@ def _build_audit_record(
         updated_at=updated_at,
     )
     hydrate_relations_from_cached_json(draft_audit)
-    progress = build_audit_progress_for_audit(
-        assignment_roles=assignment_roles,
-        audit=draft_audit,
-    )
+    progress = build_audit_progress_for_audit(audit=draft_audit)
     draft_audit.scores_json = {
         "draft_progress_percent": _progress_percent(progress=progress),
         "progress": progress.model_dump(),
@@ -1712,18 +1747,17 @@ def _build_section_note(
 
 def _select_execution_mode(
     *,
-    assignment_roles: list[AssignmentRole],
+    allowed_execution_modes: list[ExecutionMode],
     randomizer: Random,
     quality_bias: float,
 ) -> ExecutionMode:
-    """Pick a valid execution mode from the assignment-derived options."""
+    """Pick one auditor-selected execution mode from the available choices."""
 
-    allowed_modes = get_allowed_execution_modes(assignment_roles)
-    if len(allowed_modes) == 1:
-        return allowed_modes[0]
+    if len(allowed_execution_modes) == 1:
+        return allowed_execution_modes[0]
 
     weights: list[float] = []
-    for mode in allowed_modes:
+    for mode in allowed_execution_modes:
         if mode is ExecutionMode.BOTH:
             weights.append(1.6 + quality_bias)
             continue
@@ -1731,7 +1765,11 @@ def _select_execution_mode(
             weights.append(1.2 if quality_bias >= 0.55 else 0.9)
             continue
         weights.append(0.85)
-    return _weighted_choice(options=allowed_modes, weights=weights, randomizer=randomizer)
+    return _weighted_choice(
+        options=allowed_execution_modes,
+        weights=weights,
+        randomizer=randomizer,
+    )
 
 
 def _weighted_choice(*, options: list[T], weights: list[float], randomizer: Random) -> T:

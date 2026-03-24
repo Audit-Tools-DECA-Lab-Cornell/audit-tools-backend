@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 from app.models import Audit
 from app.products.playspace.schemas import (
-    AssignmentRole,
     AuditDraftPatchRequest,
     AuditProgressResponse,
     AuditSectionProgressResponse,
@@ -41,6 +40,11 @@ MULTI_SELECT_PRE_AUDIT_FIELDS = {
     "users_present",
     "age_groups",
 }
+ALL_EXECUTION_MODES = [
+    ExecutionMode.AUDIT,
+    ExecutionMode.SURVEY,
+    ExecutionMode.BOTH,
+]
 
 
 @dataclass(frozen=True)
@@ -64,65 +68,45 @@ class AuditStateSnapshot:
     sections_payload: dict[str, JsonDict]
 
 
-def get_allowed_execution_modes(assignment_roles: list[AssignmentRole]) -> list[ExecutionMode]:
-    """Map place-scoped assignment capabilities to visible execution modes."""
+def get_allowed_execution_modes() -> list[ExecutionMode]:
+    """Return the auditor-selectable execution modes."""
 
-    role_set = set(assignment_roles)
-    has_auditor = AssignmentRole.AUDITOR in role_set
-    has_place_admin = AssignmentRole.PLACE_ADMIN in role_set
-
-    if has_auditor and has_place_admin:
-        return [ExecutionMode.AUDIT, ExecutionMode.SURVEY, ExecutionMode.BOTH]
-    if has_place_admin:
-        return [ExecutionMode.SURVEY]
-    return [ExecutionMode.AUDIT]
+    return list(ALL_EXECUTION_MODES)
 
 
 def resolve_execution_mode(
     *,
-    assignment_roles: list[AssignmentRole],
     responses_json: JsonDict,
 ) -> ExecutionMode | None:
-    """Resolve the effective execution mode from saved metadata and assignment defaults."""
+    """Resolve the effective execution mode from saved metadata."""
 
     snapshot = _build_snapshot_from_json(responses_json)
-    return _resolve_execution_mode_from_value(
-        assignment_roles=assignment_roles,
-        execution_mode_value=snapshot.execution_mode_value,
-    )
+    return _resolve_execution_mode_from_value(execution_mode_value=snapshot.execution_mode_value)
 
 
 def resolve_execution_mode_for_audit(
     *,
-    assignment_roles: list[AssignmentRole],
     audit: Audit,
 ) -> ExecutionMode | None:
     """Resolve execution mode directly from normalized audit relations."""
 
     snapshot = _build_snapshot_from_audit(audit)
-    return _resolve_execution_mode_from_value(
-        assignment_roles=assignment_roles,
-        execution_mode_value=snapshot.execution_mode_value,
-    )
+    return _resolve_execution_mode_from_value(execution_mode_value=snapshot.execution_mode_value)
 
 
 def _resolve_execution_mode_from_value(
     *,
-    assignment_roles: list[AssignmentRole],
     execution_mode_value: str | None,
 ) -> ExecutionMode | None:
-    """Resolve execution mode from one stored string value and assignment rules."""
+    """Resolve execution mode from one stored string value."""
 
-    allowed_modes = get_allowed_execution_modes(assignment_roles)
     if isinstance(execution_mode_value, str):
         try:
             parsed_mode = ExecutionMode(execution_mode_value)
         except ValueError:
             parsed_mode = None
-        if parsed_mode is not None and parsed_mode in allowed_modes:
+        if parsed_mode is not None:
             return parsed_mode
-    if len(allowed_modes) == 1:
-        return allowed_modes[0]
     return None
 
 
@@ -161,42 +145,32 @@ def merge_draft_patch(
 
 def build_audit_progress(
     *,
-    assignment_roles: list[AssignmentRole],
     responses_json: JsonDict,
 ) -> AuditProgressResponse:
     """Build user-facing progress for the current draft state."""
 
     snapshot = _build_snapshot_from_json(responses_json)
-    return _build_audit_progress_from_snapshot(
-        assignment_roles=assignment_roles,
-        snapshot=snapshot,
-    )
+    return _build_audit_progress_from_snapshot(snapshot=snapshot)
 
 
 def build_audit_progress_for_audit(
     *,
-    assignment_roles: list[AssignmentRole],
     audit: Audit,
 ) -> AuditProgressResponse:
     """Build user-facing progress directly from normalized audit relations."""
 
     snapshot = _build_snapshot_from_audit(audit)
-    return _build_audit_progress_from_snapshot(
-        assignment_roles=assignment_roles,
-        snapshot=snapshot,
-    )
+    return _build_audit_progress_from_snapshot(snapshot=snapshot)
 
 
 def _build_audit_progress_from_snapshot(
     *,
-    assignment_roles: list[AssignmentRole],
     snapshot: AuditStateSnapshot,
 ) -> AuditProgressResponse:
     """Build user-facing progress from one storage-agnostic audit snapshot."""
 
     execution_mode = _resolve_execution_mode_from_value(
-        assignment_roles=assignment_roles,
-        execution_mode_value=snapshot.execution_mode_value,
+        execution_mode_value=snapshot.execution_mode_value
     )
     pre_audit_payload = snapshot.pre_audit_payload
     sections_payload = snapshot.sections_payload
@@ -259,42 +233,32 @@ def _build_audit_progress_from_snapshot(
 
 def score_audit(
     *,
-    assignment_roles: list[AssignmentRole],
     responses_json: JsonDict,
 ) -> JsonDict:
     """Calculate Playspace total buckets for a completed audit draft."""
 
     snapshot = _build_snapshot_from_json(responses_json)
-    return _score_audit_from_snapshot(
-        assignment_roles=assignment_roles,
-        snapshot=snapshot,
-    )
+    return _score_audit_from_snapshot(snapshot=snapshot)
 
 
 def score_audit_for_audit(
     *,
-    assignment_roles: list[AssignmentRole],
     audit: Audit,
 ) -> JsonDict:
     """Calculate Playspace total buckets directly from normalized audit relations."""
 
     snapshot = _build_snapshot_from_audit(audit)
-    return _score_audit_from_snapshot(
-        assignment_roles=assignment_roles,
-        snapshot=snapshot,
-    )
+    return _score_audit_from_snapshot(snapshot=snapshot)
 
 
 def _score_audit_from_snapshot(
     *,
-    assignment_roles: list[AssignmentRole],
     snapshot: AuditStateSnapshot,
 ) -> JsonDict:
     """Calculate scores from one storage-agnostic audit snapshot."""
 
     execution_mode = _resolve_execution_mode_from_value(
-        assignment_roles=assignment_roles,
-        execution_mode_value=snapshot.execution_mode_value,
+        execution_mode_value=snapshot.execution_mode_value
     )
     if execution_mode is None:
         raise ValueError("Execution mode must be selected before scoring the audit.")
@@ -391,11 +355,11 @@ def _get_visible_questions(
         return []
 
     mode_value = execution_mode.value
-    return [
-        question
-        for question in section.questions
-        if question.mode == "both" or question.mode == mode_value
-    ]
+
+    # if mode_value (user role) is both, return all questions. otherwise, return the mode questions and the both questions.
+    if mode_value == "both":
+        return section.questions
+    return [question for question in section.questions if question.mode == mode_value or question.mode == "both"]
 
 
 def _is_question_complete(

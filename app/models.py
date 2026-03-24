@@ -14,21 +14,24 @@ from enum import Enum
 
 from sqlalchemy import (
     Boolean,
-    CheckConstraint,
+    cast,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
+    Index,
     Integer,
     MetaData,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID, ENUM as PGEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.types import Enum as SAEnum
+from sqlalchemy.types import String as SAString, TypeDecorator
 
 NAMING_CONVENTION: dict[str, str] = {
     "ix": "ix_%(table_name)s_%(column_0_label)s",
@@ -63,6 +66,50 @@ class AuditStatus(str, Enum):
 
 JSONDict = dict[str, object]
 
+
+class PostgresEnumWithCast(TypeDecorator[str]):
+    """Bind PostgreSQL enum values with explicit casts for asyncpg compatibility."""
+
+    impl = SAString
+    cache_ok = True
+
+    def __init__(self, enum_class: type[Enum], *, name: str):
+        super().__init__()
+        self._enum_class = enum_class
+        self._enum_impl = PGEnum(enum_class, name=name, create_type=False)
+
+    def load_dialect_impl(self, dialect):
+        """Use the underlying PostgreSQL enum type on supported dialects."""
+
+        return dialect.type_descriptor(self._enum_impl)
+
+    def process_bind_param(self, value, dialect):
+        """Serialize Python enum values to their string representation."""
+
+        if value is None:
+            return None
+        if isinstance(value, self._enum_class):
+            return value.value
+        if isinstance(value, str):
+            return value
+        return self._enum_class(value).value
+
+    def process_result_value(self, value, dialect):
+        """Rehydrate database enum strings into Python enum members."""
+
+        if value is None or isinstance(value, self._enum_class):
+            return value
+        return self._enum_class(value)
+
+    def bind_expression(self, bindvalue):
+        """Force bind parameters to cast to the target PostgreSQL enum type."""
+
+        return cast(bindvalue, self._enum_impl)
+
+
+ACCOUNT_TYPE_ENUM = PostgresEnumWithCast(AccountType, name="shared_account_type")
+AUDIT_STATUS_ENUM = PostgresEnumWithCast(AuditStatus, name="shared_audit_status")
+
 # Shared cascade configuration for parent -> child relationships.
 CASCADE_DELETE_ORPHAN: str = "all, delete-orphan"
 
@@ -86,7 +133,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     account_type: Mapped[AccountType] = mapped_column(
-        SAEnum(AccountType, name="shared_account_type", create_type=False),
+        ACCOUNT_TYPE_ENUM,
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -116,7 +163,7 @@ class Account(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     account_type: Mapped[AccountType] = mapped_column(
-        SAEnum(AccountType, name="shared_account_type", create_type=False),
+        ACCOUNT_TYPE_ENUM,
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -202,11 +249,19 @@ class Project(Base):
     )
 
     account: Mapped[Account] = relationship(back_populates="projects")
-    places: Mapped[list[Place]] = relationship(
+    project_place_links: Mapped[list[ProjectPlace]] = relationship(
         back_populates="project",
         cascade=CASCADE_DELETE_ORPHAN,
     )
+    places: Mapped[list[Place]] = relationship(
+        secondary="project_places",
+        back_populates="projects",
+        overlaps="project_place_links,place,project,project_place_links",
+    )
     assignments: Mapped[list[AuditorAssignment]] = relationship(
+        back_populates="project",
+    )
+    audits: Mapped[list[Audit]] = relationship(
         back_populates="project",
     )
 
@@ -220,12 +275,6 @@ class Place(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     city: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -244,7 +293,15 @@ class Place(Base):
         nullable=False,
     )
 
-    project: Mapped[Project] = relationship(back_populates="places")
+    project_place_links: Mapped[list[ProjectPlace]] = relationship(
+        back_populates="place",
+        cascade=CASCADE_DELETE_ORPHAN,
+    )
+    projects: Mapped[list[Project]] = relationship(
+        secondary="project_places",
+        back_populates="places",
+        overlaps="project_place_links,project,place,project_place_links",
+    )
     assignments: Mapped[list[AuditorAssignment]] = relationship(
         back_populates="place",
         cascade=CASCADE_DELETE_ORPHAN,
@@ -252,6 +309,38 @@ class Place(Base):
     audits: Mapped[list[Audit]] = relationship(
         back_populates="place",
         cascade=CASCADE_DELETE_ORPHAN,
+    )
+
+
+class ProjectPlace(Base):
+    """Join row linking one place to one project."""
+
+    __tablename__ = "project_places"
+    __mapper_args__ = {"confirm_deleted_rows": False}
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    place_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    linked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    project: Mapped[Project] = relationship(
+        back_populates="project_place_links",
+        overlaps="places,projects",
+    )
+    place: Mapped[Place] = relationship(
+        back_populates="project_place_links",
+        overlaps="places,projects",
     )
 
 
@@ -298,26 +387,34 @@ class AuditorProfile(Base):
 
 class AuditorAssignment(Base):
     """
-    Assignment record for project-level or place-level auditor access.
+    Assignment record for project-level or project-place auditor access.
 
-    Exactly one of `project_id` or `place_id` must be present.
+    `project_id` is always required. When `place_id` is present, the assignment is
+    scoped to one specific project/place pair.
     """
 
     __tablename__ = "auditor_assignments"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_auditor_assignments_auditor_project_scope",
             "auditor_profile_id",
             "project_id",
-            name="uq_auditor_assignments_auditor_project",
+            unique=True,
+            postgresql_where=text("place_id IS NULL"),
         ),
-        UniqueConstraint(
+        Index(
+            "uq_auditor_assignments_auditor_project_place",
             "auditor_profile_id",
+            "project_id",
             "place_id",
-            name="uq_auditor_assignments_auditor_place",
+            unique=True,
+            postgresql_where=text("place_id IS NOT NULL"),
         ),
-        CheckConstraint(
-            "(project_id IS NOT NULL) <> (place_id IS NOT NULL)",
-            name="ck_auditor_assignments_single_scope",
+        ForeignKeyConstraint(
+            ["project_id", "place_id"],
+            ["project_places.project_id", "project_places.place_id"],
+            name="fk_auditor_assignments_project_place_pair",
+            ondelete="CASCADE",
         ),
     )
 
@@ -332,11 +429,11 @@ class AuditorAssignment(Base):
         index=True,
         nullable=False,
     )
-    project_id: Mapped[uuid.UUID | None] = mapped_column(
+    project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
         index=True,
-        nullable=True,
+        nullable=False,
     )
     place_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -347,11 +444,6 @@ class AuditorAssignment(Base):
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
-        nullable=False,
-    )
-    audit_roles: Mapped[list[str]] = mapped_column(
-        ARRAY(String(40)),
-        default=lambda: ["auditor"],
         nullable=False,
     )
 
@@ -371,11 +463,31 @@ class Audit(Base):
     """
 
     __tablename__ = "audits"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "place_id",
+            "auditor_profile_id",
+            name="uq_audits_project_place_auditor",
+        ),
+        ForeignKeyConstraint(
+            ["project_id", "place_id"],
+            ["project_places.project_id", "project_places.place_id"],
+            name="fk_audits_project_place_pair",
+            ondelete="CASCADE",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
     )
     place_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -393,7 +505,7 @@ class Audit(Base):
     instrument_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
     instrument_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[AuditStatus] = mapped_column(
-        SAEnum(AuditStatus, name="shared_audit_status", create_type=False),
+        AUDIT_STATUS_ENUM,
         nullable=False,
     )
     started_at: Mapped[datetime] = mapped_column(
@@ -418,6 +530,7 @@ class Audit(Base):
         nullable=False,
     )
 
+    project: Mapped[Project] = relationship(back_populates="audits")
     place: Mapped[Place] = relationship(back_populates="audits")
     auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits")
     playspace_context: Mapped[PlayspaceAuditContext | None] = relationship(

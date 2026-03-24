@@ -58,9 +58,9 @@ class ProjectUpdateRequest(RequestModel):
 
 
 class PlaceCreateRequest(RequestModel):
-    """Create a place under one project."""
+    """Create a place linked to one or more projects."""
 
-    project_id: uuid.UUID
+    project_ids: list[uuid.UUID] = Field(default_factory=list)
     name: str
     city: str | None = None
     province: str | None = None
@@ -77,6 +77,7 @@ class PlaceCreateRequest(RequestModel):
 class PlaceUpdateRequest(RequestModel):
     """Update mutable place fields."""
 
+    project_ids: list[uuid.UUID] | None = None
     name: str | None = None
     city: str | None = None
     province: str | None = None
@@ -94,7 +95,8 @@ class PlaceDetailResponse(ApiModel):
     """Detailed place payload for create/update manager flows."""
 
     id: uuid.UUID
-    project_id: uuid.UUID
+    project_ids: list[uuid.UUID]
+    project_names: list[str]
     name: str
     city: str | None
     province: str | None

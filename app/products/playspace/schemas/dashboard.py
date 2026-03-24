@@ -208,6 +208,8 @@ class PlaceAuditHistoryItemResponse(ApiModel):
 
     audit_id: uuid.UUID
     audit_code: str
+    project_id: uuid.UUID
+    project_name: str
     auditor_code: str
     status: str
     started_at: datetime
@@ -221,6 +223,7 @@ class PlaceHistoryResponse(ApiModel):
     place_id: uuid.UUID
     place_name: str
     project_id: uuid.UUID
+    project_name: str
     total_audits: int
     submitted_audits: int
     in_progress_audits: int

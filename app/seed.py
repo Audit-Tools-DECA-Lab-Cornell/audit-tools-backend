@@ -30,6 +30,7 @@ from app.models import (
     ManagerProfile,
     Place,
     Project,
+    ProjectPlace,
     User,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
@@ -85,6 +86,7 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
     for model in (
         Audit,
         AuditorAssignment,
+        ProjectPlace,
         Place,
         Project,
         ManagerProfile,
@@ -93,6 +95,47 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
         User,
     ):
         await session.execute(delete(model))
+
+
+async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -> None:
+    """Insert seed entities in stable FK dependency order.
+
+    asyncpg can fail to infer parameter types for large `executemany` inserts when
+    enum-typed ORM rows are mixed in one flush batch. Flushing one row at a time
+    keeps the dependency order deterministic and avoids that driver edge case.
+    """
+
+    ordered_types: tuple[type[object], ...] = (
+        User,
+        Account,
+        ManagerProfile,
+        AuditorProfile,
+        Project,
+        Place,
+        ProjectPlace,
+        AuditorAssignment,
+        Audit,
+    )
+    inserted_entity_ids: set[int] = set()
+
+    for model_type in ordered_types:
+        batch = [
+            entity
+            for entity in entities
+            if isinstance(entity, model_type) and id(entity) not in inserted_entity_ids
+        ]
+        if not batch:
+            continue
+        session.add_all(batch)
+        await session.flush()
+        inserted_entity_ids.update(id(entity) for entity in batch)
+
+    remaining_entities = [
+        entity for entity in entities if id(entity) not in inserted_entity_ids
+    ]
+    if remaining_entities:
+        session.add_all(remaining_entities)
+        await session.flush()
 
 
 def _build_playspace_entities() -> list[object]:
@@ -238,7 +281,6 @@ def _build_yee_entities() -> list[object]:
     places = [
         Place(
             id=YEE_PLACE_HUB_ID,
-            project_id=YEE_PROJECT_CORE_ID,
             name="Westside Youth Hub",
             city="Ithaca",
             province=NEW_YORK,
@@ -254,7 +296,6 @@ def _build_yee_entities() -> list[object]:
         ),
         Place(
             id=YEE_PLACE_PLAZA_ID,
-            project_id=YEE_PROJECT_CORE_ID,
             name="South Transit Plaza",
             city="Ithaca",
             province=NEW_YORK,
@@ -270,7 +311,6 @@ def _build_yee_entities() -> list[object]:
         ),
         Place(
             id=YEE_PLACE_LIBRARY_ID,
-            project_id=YEE_PROJECT_FOLLOW_UP_ID,
             name="Maple Library Plaza",
             city="Ithaca",
             province=NEW_YORK,
@@ -286,7 +326,6 @@ def _build_yee_entities() -> list[object]:
         ),
         Place(
             id=YEE_PLACE_COMMONS_ID,
-            project_id=YEE_PROJECT_FOLLOW_UP_ID,
             name="North School Commons",
             city="Ithaca",
             province=NEW_YORK,
@@ -301,6 +340,12 @@ def _build_yee_entities() -> list[object]:
             created_at=_utc_datetime("2026-03-02T11:10:00Z"),
         ),
     ]
+    project_places = [
+        ProjectPlace(project_id=YEE_PROJECT_CORE_ID, place_id=YEE_PLACE_HUB_ID),
+        ProjectPlace(project_id=YEE_PROJECT_CORE_ID, place_id=YEE_PLACE_PLAZA_ID),
+        ProjectPlace(project_id=YEE_PROJECT_FOLLOW_UP_ID, place_id=YEE_PLACE_LIBRARY_ID),
+        ProjectPlace(project_id=YEE_PROJECT_FOLLOW_UP_ID, place_id=YEE_PLACE_COMMONS_ID),
+    ]
 
     assignments = [
         AuditorAssignment(
@@ -313,7 +358,7 @@ def _build_yee_entities() -> list[object]:
         AuditorAssignment(
             id=uuid.UUID("d2000000-0000-4000-8000-000000000002"),
             auditor_profile_id=YEE_AUDITOR_PROFILE_01_ID,
-            project_id=None,
+            project_id=YEE_PROJECT_CORE_ID,
             place_id=YEE_PLACE_HUB_ID,
             assigned_at=_utc_datetime("2026-02-26T09:00:00Z"),
         ),
@@ -334,7 +379,7 @@ def _build_yee_entities() -> list[object]:
         AuditorAssignment(
             id=uuid.UUID("d2000000-0000-4000-8000-000000000005"),
             auditor_profile_id=YEE_AUDITOR_PROFILE_03_ID,
-            project_id=None,
+            project_id=YEE_PROJECT_FOLLOW_UP_ID,
             place_id=YEE_PLACE_LIBRARY_ID,
             assigned_at=_utc_datetime("2026-03-06T08:30:00Z"),
         ),
@@ -343,6 +388,7 @@ def _build_yee_entities() -> list[object]:
     audits = [
         Audit(
             id=YEE_AUDIT_HUB_ID,
+            project_id=YEE_PROJECT_CORE_ID,
             place_id=YEE_PLACE_HUB_ID,
             auditor_profile_id=YEE_AUDITOR_PROFILE_01_ID,
             audit_code="YEE-HUB-01-2026-03-02",
@@ -374,6 +420,7 @@ def _build_yee_entities() -> list[object]:
         ),
         Audit(
             id=YEE_AUDIT_PLAZA_ID,
+            project_id=YEE_PROJECT_CORE_ID,
             place_id=YEE_PLACE_PLAZA_ID,
             auditor_profile_id=YEE_AUDITOR_PROFILE_02_ID,
             audit_code="YEE-PLAZA-02-2026-03-03",
@@ -405,6 +452,7 @@ def _build_yee_entities() -> list[object]:
         ),
         Audit(
             id=YEE_AUDIT_LIBRARY_ID,
+            project_id=YEE_PROJECT_FOLLOW_UP_ID,
             place_id=YEE_PLACE_LIBRARY_ID,
             auditor_profile_id=YEE_AUDITOR_PROFILE_03_ID,
             audit_code="YEE-LIBRARY-03-2026-03-07",
@@ -436,6 +484,7 @@ def _build_yee_entities() -> list[object]:
         ),
         Audit(
             id=YEE_AUDIT_COMMONS_IN_PROGRESS_ID,
+            project_id=YEE_PROJECT_FOLLOW_UP_ID,
             place_id=YEE_PLACE_COMMONS_ID,
             auditor_profile_id=YEE_AUDITOR_PROFILE_03_ID,
             audit_code="YEE-COMMONS-03-2026-03-09",
@@ -464,6 +513,7 @@ def _build_yee_entities() -> list[object]:
         *auditor_profiles,
         *projects,
         *places,
+        *project_places,
         *assignments,
         *audits,
     ]
@@ -479,7 +529,7 @@ async def _seed_product(product: ProductKey) -> dict[str, int]:
 
     async with session_factory() as session:
         await _clear_shared_tables(session)
-        session.add_all(entities)
+        await _insert_seed_entities(session, entities)
         await session.commit()
 
     audit_count = sum(1 for entity in entities if isinstance(entity, Audit))

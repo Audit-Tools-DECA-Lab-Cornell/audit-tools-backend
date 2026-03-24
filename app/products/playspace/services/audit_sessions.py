@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import Float, and_, cast, func, or_, select, union
+from sqlalchemy import Float, cast, func, or_, select, tuple_
 from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
@@ -24,6 +24,7 @@ from app.models import (
     PlayspaceAuditSection,
     PlayspaceQuestionResponse,
     Project,
+    ProjectPlace,
 )
 from app.products.playspace.audit_state import (
     apply_draft_patch_to_relations,
@@ -38,7 +39,6 @@ from app.products.playspace.instrument import (
     INSTRUMENT_VERSION,
 )
 from app.products.playspace.schemas import (
-    AssignmentRole,
     AuditDraftPatchRequest,
     AuditDraftSaveResponse,
     AuditMetaResponse,
@@ -93,7 +93,7 @@ def _total_pages(total_count: int, page_size: int) -> int:
 
 @dataclass(slots=True)
 class _AssignedPlaceSummary:
-    """Compact assigned-place row aggregated across overlapping assignments."""
+    """Compact assigned project-place row aggregated across overlapping assignments."""
 
     place_id: uuid.UUID
     place_name: str
@@ -103,7 +103,6 @@ class _AssignedPlaceSummary:
     city: str | None
     province: str | None
     country: str | None
-    db_roles: list[str]
 
 
 @dataclass(slots=True)
@@ -111,6 +110,7 @@ class _CompactAuditSnapshot:
     """Minimal audit snapshot used by auditor list and dashboard surfaces."""
 
     audit_id: uuid.UUID
+    project_id: uuid.UUID
     place_id: uuid.UUID
     audit_code: str
     status: AuditStatus
@@ -129,22 +129,22 @@ class PlayspaceAuditSessionsMixin:
         *,
         auditor_profile_id: uuid.UUID,
     ) -> list[_AssignedPlaceSummary]:
-        """Resolve unique place assignments without eagerly loading audit session graphs."""
+        """Resolve unique project-place assignments without eager-loading audit graphs."""
 
         direct_place_assignments_query = (
             select(
                 Place.id.label("place_id"),
                 Place.name.label("place_name"),
                 Place.place_type.label("place_type"),
-                Place.project_id.label("project_id"),
+                AuditorAssignment.project_id.label("project_id"),
                 Project.name.label("project_name"),
                 Place.city.label("city"),
                 Place.province.label("province"),
                 Place.country.label("country"),
-                AuditorAssignment.audit_roles.label("audit_roles"),
             )
+            .select_from(AuditorAssignment)
+            .join(Project, AuditorAssignment.project_id == Project.id)
             .join(Place, AuditorAssignment.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
             .where(
                 AuditorAssignment.auditor_profile_id == auditor_profile_id,
                 AuditorAssignment.place_id.is_not(None),
@@ -155,23 +155,23 @@ class PlayspaceAuditSessionsMixin:
                 Place.id.label("place_id"),
                 Place.name.label("place_name"),
                 Place.place_type.label("place_type"),
-                Place.project_id.label("project_id"),
+                Project.id.label("project_id"),
                 Project.name.label("project_name"),
                 Place.city.label("city"),
                 Place.province.label("province"),
                 Place.country.label("country"),
-                AuditorAssignment.audit_roles.label("audit_roles"),
             )
+            .select_from(AuditorAssignment)
             .join(Project, AuditorAssignment.project_id == Project.id)
-            .join(Place, Place.project_id == Project.id)
+            .join(ProjectPlace, ProjectPlace.project_id == Project.id)
+            .join(Place, Place.id == ProjectPlace.place_id)
             .where(
                 AuditorAssignment.auditor_profile_id == auditor_profile_id,
-                AuditorAssignment.project_id.is_not(None),
                 AuditorAssignment.place_id.is_(None),
             )
         )
 
-        assigned_places: dict[uuid.UUID, _AssignedPlaceSummary] = {}
+        assigned_places: dict[tuple[uuid.UUID, uuid.UUID], _AssignedPlaceSummary] = {}
 
         def record_assignment_row(row: object) -> None:
             """Merge one compact assignment row into the place summary map."""
@@ -186,7 +186,8 @@ class PlayspaceAuditSessionsMixin:
             if not isinstance(place_name, str):
                 return
 
-            summary = assigned_places.get(place_id)
+            summary_key = (project_id, place_id)
+            summary = assigned_places.get(summary_key)
             if summary is None:
                 summary = _AssignedPlaceSummary(
                     place_id=place_id,
@@ -197,13 +198,8 @@ class PlayspaceAuditSessionsMixin:
                     city=getattr(row, "city", None),
                     province=getattr(row, "province", None),
                     country=getattr(row, "country", None),
-                    db_roles=[],
                 )
-                assigned_places[place_id] = summary
-
-            for raw_role in self._to_string_list(getattr(row, "audit_roles", [])):
-                if raw_role not in summary.db_roles:
-                    summary.db_roles.append(raw_role)
+                assigned_places[summary_key] = summary
 
         direct_place_assignments_result = await self._session.execute(direct_place_assignments_query)
         for row in direct_place_assignments_result.all():
@@ -215,26 +211,30 @@ class PlayspaceAuditSessionsMixin:
         for row in project_place_assignments_result.all():
             record_assignment_row(row)
 
-        return sorted(assigned_places.values(), key=lambda place: place.place_name.lower())
+        return sorted(
+            assigned_places.values(),
+            key=lambda place: (place.project_name.lower(), place.place_name.lower()),
+        )
 
     async def _get_latest_audit_snapshots(
         self,
         *,
         auditor_profile_id: uuid.UUID,
-        place_ids: list[uuid.UUID],
-    ) -> dict[uuid.UUID, _CompactAuditSnapshot]:
-        """Return the latest compact audit row for each assigned place."""
+        project_place_pairs: list[tuple[uuid.UUID, uuid.UUID]],
+    ) -> dict[tuple[uuid.UUID, uuid.UUID], _CompactAuditSnapshot]:
+        """Return the latest compact audit row for each assigned project-place pair."""
 
-        if not place_ids:
+        if not project_place_pairs:
             return {}
 
         latest_audit_rank = func.row_number().over(
-            partition_by=Audit.place_id,
+            partition_by=(Audit.project_id, Audit.place_id),
             order_by=(Audit.started_at.desc(), Audit.created_at.desc(), Audit.id.desc()),
         )
         latest_audits_subquery = (
             select(
                 Audit.id.label("audit_id"),
+                Audit.project_id.label("project_id"),
                 Audit.place_id.label("place_id"),
                 Audit.audit_code.label("audit_code"),
                 Audit.status.label("status"),
@@ -248,7 +248,7 @@ class PlayspaceAuditSessionsMixin:
             .outerjoin(PlayspaceAuditContext, PlayspaceAuditContext.audit_id == Audit.id)
             .where(
                 Audit.auditor_profile_id == auditor_profile_id,
-                Audit.place_id.in_(place_ids),
+                tuple_(Audit.project_id, Audit.place_id).in_(project_place_pairs),
             )
             .subquery()
         )
@@ -257,16 +257,19 @@ class PlayspaceAuditSessionsMixin:
             select(latest_audits_subquery).where(latest_audits_subquery.c.audit_rank == 1)
         )
 
-        latest_audits_by_place: dict[uuid.UUID, _CompactAuditSnapshot] = {}
+        latest_audits_by_place: dict[tuple[uuid.UUID, uuid.UUID], _CompactAuditSnapshot] = {}
         for row in latest_audits_result.all():
             audit_id = getattr(row, "audit_id", None)
             audit_code = getattr(row, "audit_code", None)
+            project_id = getattr(row, "project_id", None)
             place_id = getattr(row, "place_id", None)
             started_at = getattr(row, "started_at", None)
             status_value = getattr(row, "status", None)
             if not isinstance(audit_id, uuid.UUID):
                 continue
             if not isinstance(audit_code, str):
+                continue
+            if not isinstance(project_id, uuid.UUID):
                 continue
             if not isinstance(place_id, uuid.UUID):
                 continue
@@ -286,8 +289,9 @@ class PlayspaceAuditSessionsMixin:
             ):
                 progress_percent = float(raw_progress_percent)
 
-            latest_audits_by_place[place_id] = _CompactAuditSnapshot(
+            latest_audits_by_place[(project_id, place_id)] = _CompactAuditSnapshot(
                 audit_id=audit_id,
+                project_id=project_id,
                 place_id=place_id,
                 audit_code=audit_code,
                 status=status_value,
@@ -351,14 +355,15 @@ class PlayspaceAuditSessionsMixin:
         )
         latest_audits_by_place = await self._get_latest_audit_snapshots(
             auditor_profile_id=auditor_profile.id,
-            place_ids=[place.place_id for place in assigned_places],
+            project_place_pairs=[
+                (place.project_id, place.place_id) for place in assigned_places
+            ],
         )
 
         responses: list[AuditorPlaceResponse] = []
         for assigned_place in assigned_places:
-            latest_audit = latest_audits_by_place.get(assigned_place.place_id)
-            roles = self._assignment_roles_from_db_values(
-                db_values=assigned_place.db_roles or ["auditor"],
+            latest_audit = latest_audits_by_place.get(
+                (assigned_place.project_id, assigned_place.place_id)
             )
 
             responses.append(
@@ -371,7 +376,6 @@ class PlayspaceAuditSessionsMixin:
                     city=assigned_place.city,
                     province=assigned_place.province,
                     country=assigned_place.country,
-                    assignment_roles=roles,
                     audit_status=latest_audit.status if latest_audit is not None else None,
                     audit_id=latest_audit.audit_id if latest_audit is not None else None,
                     started_at=latest_audit.started_at if latest_audit is not None else None,
@@ -504,7 +508,7 @@ class PlayspaceAuditSessionsMixin:
                 Audit.audit_code.label("audit_code"),
                 Audit.place_id.label("place_id"),
                 Place.name.label("place_name"),
-                Place.project_id.label("project_id"),
+                Audit.project_id.label("project_id"),
                 Project.name.label("project_name"),
                 Audit.status.label("status"),
                 Audit.started_at.label("started_at"),
@@ -514,7 +518,7 @@ class PlayspaceAuditSessionsMixin:
                 PlayspaceAuditContext.draft_progress_percent.label("draft_progress_percent"),
             )
             .join(Place, Audit.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
+            .join(Project, Audit.project_id == Project.id)
             .outerjoin(PlayspaceAuditContext, PlayspaceAuditContext.audit_id == Audit.id)
             .where(Audit.auditor_profile_id == auditor_profile.id)
         )
@@ -639,7 +643,9 @@ class PlayspaceAuditSessionsMixin:
         )
         latest_audits_by_place = await self._get_latest_audit_snapshots(
             auditor_profile_id=auditor_profile.id,
-            place_ids=[place.place_id for place in assigned_places],
+            project_place_pairs=[
+                (place.project_id, place.place_id) for place in assigned_places
+            ],
         )
         submitted_scores = await self._list_submitted_audit_scores(
             auditor_profile_id=auditor_profile.id
@@ -670,22 +676,27 @@ class PlayspaceAuditSessionsMixin:
         place_id: uuid.UUID,
         payload: PlaceAuditAccessRequest,
     ) -> AuditSessionResponse:
-        """Create a new in-progress audit or return the active draft for this place."""
+        """Create or return the current auditor's audit for one project-place pair."""
 
         auditor_profile = await self._require_auditor_profile(actor=actor)
-        place = await self._get_place(place_id=place_id)
-        assignment_roles = await self._resolve_assignment_roles(
-            auditor_profile_id=auditor_profile.id,
-            place=place,
+        project, place = await self._get_project_place_pair(
+            project_id=payload.project_id,
+            place_id=place_id,
         )
-        allowed_modes = get_allowed_execution_modes(assignment_roles)
+        await self._ensure_auditor_assigned_to_pair(
+            auditor_profile_id=auditor_profile.id,
+            project_id=project.id,
+            place_id=place.id,
+        )
+        allowed_modes = get_allowed_execution_modes()
         self._ensure_mode_allowed(
             requested_mode=payload.execution_mode,
             allowed_modes=allowed_modes,
-            detail="The requested execution mode is not allowed for this place assignment.",
+            detail="The requested execution mode is not valid for this audit.",
         )
 
-        audit = await self._get_active_audit(
+        audit = await self._get_existing_audit(
+            project_id=project.id,
             place_id=place.id,
             auditor_profile_id=auditor_profile.id,
         )
@@ -698,9 +709,11 @@ class PlayspaceAuditSessionsMixin:
             )
 
             audit = Audit(
+                project_id=project.id,
                 place_id=place.id,
                 auditor_profile_id=auditor_profile.id,
                 audit_code=self._build_audit_code(
+                    project_name=project.name,
                     place_name=place.name,
                     auditor_code=auditor_profile.auditor_code,
                     created_at=now,
@@ -721,15 +734,15 @@ class PlayspaceAuditSessionsMixin:
             audit.responses_json = build_responses_json_from_relations(audit)
             self._session.add(audit)
             await self._commit_and_refresh(audit)
-        elif payload.execution_mode is not None:
+        elif audit.status is not AuditStatus.SUBMITTED and payload.execution_mode is not None:
             self._set_execution_mode(audit=audit, execution_mode=payload.execution_mode)
             audit.responses_json = build_responses_json_from_relations(audit)
             await self._commit_and_refresh(audit)
 
         return self._build_audit_session_response(
             audit=audit,
+            project=project,
             place=place,
-            assignment_roles=assignment_roles,
         )
 
     async def get_audit_session(
@@ -740,14 +753,11 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditSessionResponse:
         """Return the current audit state for the owning auditor or a manager."""
 
-        audit, assignment_roles = await self._load_accessible_audit_with_roles(
-            actor=actor,
-            audit_id=audit_id,
-        )
+        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
         return self._build_audit_session_response(
             audit=audit,
+            project=audit.project,
             place=audit.place,
-            assignment_roles=assignment_roles,
         )
 
     async def patch_audit_draft(
@@ -759,30 +769,24 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditDraftSaveResponse:
         """Merge a draft patch into an in-progress audit and return a lightweight acknowledgement."""
 
-        audit, assignment_roles = await self._load_accessible_audit_with_roles(
-            actor=actor,
-            audit_id=audit_id,
-        )
+        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
         self._ensure_not_submitted(
             audit=audit,
             detail="Submitted audits cannot be edited.",
         )
 
         requested_mode = payload.meta.execution_mode if payload.meta is not None else None
-        allowed_modes = get_allowed_execution_modes(assignment_roles)
+        allowed_modes = get_allowed_execution_modes()
         self._ensure_mode_allowed(
             requested_mode=requested_mode,
             allowed_modes=allowed_modes,
-            detail="The requested execution mode is not allowed for this assignment.",
+            detail="The requested execution mode is not valid for this audit.",
         )
 
         apply_draft_patch_to_relations(audit=audit, patch=payload)
         responses_json = build_responses_json_from_relations(audit)
         audit.responses_json = responses_json
-        progress = build_audit_progress_for_audit(
-            assignment_roles=assignment_roles,
-            audit=audit,
-        )
+        progress = build_audit_progress_for_audit(audit=audit)
         draft_progress_percent = self._progress_percent(progress)
         set_draft_progress_percent(audit=audit, draft_progress_percent=draft_progress_percent)
         audit.scores_json = {
@@ -804,6 +808,7 @@ class PlayspaceAuditSessionsMixin:
         *,
         actor: CurrentUserContext,
         place_id: uuid.UUID,
+        project_id: uuid.UUID,
         payload: AuditDraftPatchRequest,
     ) -> AuditDraftSaveResponse:
         """Compatibility helper for place-scoped draft saves used by the web scaffold."""
@@ -812,6 +817,7 @@ class PlayspaceAuditSessionsMixin:
             actor=actor,
             place_id=place_id,
             payload=PlaceAuditAccessRequest(
+                project_id=project_id,
                 execution_mode=payload.meta.execution_mode if payload.meta is not None else None,
             ),
         )
@@ -829,10 +835,7 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditSessionResponse:
         """Validate completion, calculate scores, and submit an in-progress audit."""
 
-        audit, assignment_roles = await self._load_accessible_audit_with_roles(
-            actor=actor,
-            audit_id=audit_id,
-        )
+        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
         self._ensure_not_submitted(
             audit=audit,
             detail="This audit has already been submitted.",
@@ -840,20 +843,14 @@ class PlayspaceAuditSessionsMixin:
 
         responses_json = build_responses_json_from_relations(audit)
         audit.responses_json = responses_json
-        progress = build_audit_progress_for_audit(
-            assignment_roles=assignment_roles,
-            audit=audit,
-        )
+        progress = build_audit_progress_for_audit(audit=audit)
         if not progress.ready_to_submit:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Complete the pre-audit fields and all visible sections before submitting.",
             )
 
-        calculated_scores = score_audit_for_audit(
-            assignment_roles=assignment_roles,
-            audit=audit,
-        )
+        calculated_scores = score_audit_for_audit(audit=audit)
         submitted_at = datetime.now(timezone.utc)
         elapsed_minutes = int((submitted_at - audit.started_at).total_seconds() // 60)
 
@@ -868,39 +865,52 @@ class PlayspaceAuditSessionsMixin:
 
         return self._build_audit_session_response(
             audit=audit,
+            project=audit.project,
             place=audit.place,
-            assignment_roles=assignment_roles,
         )
 
-    async def _load_accessible_audit_with_roles(
+    async def _load_accessible_audit(
         self,
         *,
         actor: CurrentUserContext,
         audit_id: uuid.UUID,
-    ) -> tuple[Audit, list[AssignmentRole]]:
-        """Load an audit, enforce access, and resolve assignment role in one step."""
+    ) -> Audit:
+        """Load an audit and enforce actor-aware access rules."""
 
         audit = await self._get_audit(audit_id=audit_id)
         self._ensure_audit_access(actor=actor, audit=audit)
-        assignment_roles = await self._resolve_assignment_roles(
-            auditor_profile_id=audit.auditor_profile_id,
-            place=audit.place,
-        )
-        return audit, assignment_roles
+        return audit
 
-    async def _get_place(self, *, place_id: uuid.UUID) -> Place:
-        """Load a place and its project, failing with 404 when not found."""
+    async def _get_project_place_pair(
+        self,
+        *,
+        project_id: uuid.UUID,
+        place_id: uuid.UUID,
+    ) -> tuple[Project, Place]:
+        """Load a linked project-place pair or fail with 404."""
 
         result = await self._session.execute(
-            select(Place).where(Place.id == place_id).options(selectinload(Place.project))
+            select(ProjectPlace)
+            .where(
+                ProjectPlace.project_id == project_id,
+                ProjectPlace.place_id == place_id,
+            )
+            .options(
+                selectinload(ProjectPlace.project),
+                selectinload(ProjectPlace.place),
+            )
         )
-        place = result.scalar_one_or_none()
-        if place is None:
+        project_place = result.scalar_one_or_none()
+        if (
+            project_place is None
+            or project_place.project is None
+            or project_place.place is None
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Place not found.",
+                detail="The requested place is not linked to the requested project.",
             )
-        return place
+        return project_place.project, project_place.place
 
     async def _get_audit(self, *, audit_id: uuid.UUID) -> Audit:
         """Load an audit with place and profile relationships."""
@@ -909,7 +919,8 @@ class PlayspaceAuditSessionsMixin:
             select(Audit)
             .where(Audit.id == audit_id)
             .options(
-                selectinload(Audit.place).selectinload(Place.project),
+                selectinload(Audit.project),
+                selectinload(Audit.place),
                 selectinload(Audit.auditor_profile),
                 selectinload(Audit.playspace_context),
                 selectinload(Audit.playspace_pre_audit_answers),
@@ -926,25 +937,26 @@ class PlayspaceAuditSessionsMixin:
             )
         return audit
 
-    async def _get_active_audit(
+    async def _get_existing_audit(
         self,
         *,
+        project_id: uuid.UUID,
         place_id: uuid.UUID,
         auditor_profile_id: uuid.UUID,
     ) -> Audit | None:
-        """Return the latest active draft for the same place and auditor profile."""
+        """Return the current audit for the same project-place pair and auditor."""
 
         result = await self._session.execute(
             select(Audit)
             .where(
+                Audit.project_id == project_id,
                 Audit.place_id == place_id,
                 Audit.auditor_profile_id == auditor_profile_id,
-                Audit.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED]),
             )
-            .order_by(Audit.started_at.desc())
             .limit(1)
             .options(
-                selectinload(Audit.place).selectinload(Place.project),
+                selectinload(Audit.project),
+                selectinload(Audit.place),
                 selectinload(Audit.auditor_profile),
                 selectinload(Audit.playspace_context),
                 selectinload(Audit.playspace_pre_audit_answers),
@@ -984,44 +996,45 @@ class PlayspaceAuditSessionsMixin:
             )
         return profile
 
-    async def _resolve_assignment_roles(
+    async def _ensure_auditor_assigned_to_pair(
         self,
         *,
         auditor_profile_id: uuid.UUID,
-        place: Place,
-    ) -> list[AssignmentRole]:
-        """Resolve place-specific capabilities by unioning roles from all matching assignments."""
+        project_id: uuid.UUID,
+        place_id: uuid.UUID,
+    ) -> None:
+        """Ensure an auditor is assigned to a project or a specific project-place pair."""
 
         result = await self._session.execute(
-            select(AuditorAssignment)
+            select(AuditorAssignment.id)
             .where(
                 AuditorAssignment.auditor_profile_id == auditor_profile_id,
+                AuditorAssignment.project_id == project_id,
                 or_(
-                    AuditorAssignment.place_id == place.id,
-                    and_(
-                        AuditorAssignment.project_id == place.project_id,
-                        AuditorAssignment.place_id.is_(None),
-                    ),
+                    AuditorAssignment.place_id == place_id,
+                    AuditorAssignment.place_id.is_(None),
                 ),
             )
-            .order_by(AuditorAssignment.place_id.is_not(None).desc())
+            .limit(1)
         )
-        assignments = result.scalars().all()
-        if not assignments:
+        assignment_id = result.scalar_one_or_none()
+        if assignment_id is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="The current auditor is not assigned to this place.",
+                detail="The current auditor is not assigned to this project/place pair.",
             )
 
-        all_db_roles: list[str] = []
-        for assignment in assignments:
-            all_db_roles.extend(assignment.audit_roles)
-        return self._assignment_roles_from_db_values(db_values=all_db_roles)
-
     def _ensure_audit_access(self, *, actor: CurrentUserContext, audit: Audit) -> None:
-        """Allow managers or the owning auditor account to access an audit."""
+        """Allow admins, project-owning managers, or the owning auditor to access an audit."""
 
-        if actor.role in {CurrentUserRole.MANAGER, CurrentUserRole.ADMIN}:
+        if actor.role is CurrentUserRole.ADMIN:
+            return
+        if actor.role is CurrentUserRole.MANAGER:
+            if actor.account_id is None or audit.project.account_id != actor.account_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to access this audit.",
+                )
             return
         if (
             actor.role is CurrentUserRole.AUDITOR
@@ -1043,28 +1056,23 @@ class PlayspaceAuditSessionsMixin:
         self,
         *,
         audit: Audit,
+        project: Project,
         place: Place,
-        assignment_roles: list[AssignmentRole],
     ) -> AuditSessionResponse:
         """Build the stable API payload shared by create/resume, save, and submit."""
 
         responses_json = build_responses_json_from_relations(audit)
-        allowed_modes = get_allowed_execution_modes(assignment_roles)
-        selected_mode = resolve_execution_mode_for_audit(
-            assignment_roles=assignment_roles,
-            audit=audit,
-        )
-        progress = build_audit_progress_for_audit(
-            assignment_roles=assignment_roles,
-            audit=audit,
-        )
+        allowed_modes = get_allowed_execution_modes()
+        selected_mode = resolve_execution_mode_for_audit(audit=audit)
+        progress = build_audit_progress_for_audit(audit=audit)
         return AuditSessionResponse(
             audit_id=audit.id,
             audit_code=audit.audit_code,
+            project_id=project.id,
+            project_name=project.name,
             place_id=place.id,
             place_name=place.name,
             place_type=place.place_type,
-            assignment_roles=assignment_roles,
             allowed_execution_modes=allowed_modes,
             selected_execution_mode=selected_mode,
             status=audit.status,
@@ -1085,18 +1093,21 @@ class PlayspaceAuditSessionsMixin:
     def _build_audit_code(
         self,
         *,
+        project_name: str,
         place_name: str,
         auditor_code: str,
         created_at: datetime,
     ) -> str:
         """Generate a deterministic-enough audit code for draft and export surfaces."""
 
-        place_segment = "".join(
-            character for character in place_name.upper() if character.isalnum()
+        project_segment = "".join(
+            character for character in project_name.upper() if character.isalnum()
         )
+        trimmed_project_segment = project_segment[:8] or "PROJECT"
+        place_segment = "".join(character for character in place_name.upper() if character.isalnum())
         trimmed_place_segment = place_segment[:12] or "PLAYSPACE"
         timestamp_segment = created_at.strftime("%Y%m%d%H%M%S")
-        return f"{trimmed_place_segment}-{auditor_code}-{timestamp_segment}"
+        return f"{trimmed_project_segment}-{trimmed_place_segment}-{auditor_code}-{timestamp_segment}"
 
     def _progress_percent(self, progress: AuditProgressResponse) -> float:
         """Convert answered-vs-total visible questions into a simple draft percentage."""
@@ -1195,12 +1206,7 @@ class PlayspaceAuditSessionsMixin:
             return raw_scores
 
         try:
-            return score_audit_for_audit(
-                assignment_roles=self._assignment_roles_from_db_values(
-                    db_values=["auditor", "place_admin"]
-                ),
-                audit=audit,
-            )
+            return score_audit_for_audit(audit=audit)
         except ValueError:
             return raw_scores
 

@@ -18,13 +18,6 @@ class ExecutionMode(str, Enum):
     BOTH = "both"
 
 
-class AssignmentRole(str, Enum):
-    """Place-scoped capabilities enabled for one assignment."""
-
-    AUDITOR = "auditor"
-    PLACE_ADMIN = "place_admin"
-
-
 class ConstructKey(str, Enum):
     """Construct bucket used for totals and exports."""
 

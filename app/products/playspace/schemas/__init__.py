@@ -76,7 +76,6 @@ from app.products.playspace.schemas.admin import (
     AdminSystemResponse,
 )
 from app.products.playspace.schemas.instrument import (
-    AssignmentRole,
     ConstructKey,
     ExecutionMode,
     PreAuditInputType,
@@ -97,7 +96,6 @@ __all__ = [
     "AccountUpdateRequest",
     "ApiModel",
     "AssignmentResponse",
-    "AssignmentRole",
     "AuditorAuditSummaryResponse",
     "AuditorDashboardSummaryResponse",
     "AuditorPlaceResponse",

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Audit, AuditorAssignment, AuditStatus
 from app.products.playspace.audit_state import set_execution_mode_value
-from app.products.playspace.schemas import AssignmentRole, ExecutionMode
+from app.products.playspace.schemas import ExecutionMode
 from app.products.playspace.services.audit_assignments import PlayspaceAuditAssignmentsMixin
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
 
@@ -31,52 +31,19 @@ class PlayspaceAuditService(
         """Persist and re-hydrate one ORM instance."""
 
         await self._session.commit()
-        await self._session.refresh(
-            instance, ["playspace_context", "playspace_pre_audit_answers", "playspace_sections"]
-        )
-
-    @staticmethod
-    def _normalize_assignment_roles(roles: list[AssignmentRole]) -> list[AssignmentRole]:
-        """Return ordered unique assignment roles with stable ordering."""
-
-        ordered_roles = [AssignmentRole.AUDITOR, AssignmentRole.PLACE_ADMIN]
-        role_set = set(roles)
-        return [role for role in ordered_roles if role in role_set]
-
-    def _assignment_roles_to_db_values(
-        self,
-        *,
-        roles: list[AssignmentRole],
-    ) -> list[str]:
-        """Convert API assignment role arrays into DB string-array storage."""
-
-        normalized_roles = self._normalize_assignment_roles(roles)
-        if not normalized_roles:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="audit_roles must include at least one role.",
+        if isinstance(instance, Audit):
+            await self._session.refresh(
+                instance,
+                [
+                    "updated_at",
+                    "playspace_context",
+                    "playspace_pre_audit_answers",
+                    "playspace_sections",
+                ],
             )
+            return
 
-        return [role.value for role in normalized_roles]
-
-    def _assignment_roles_from_db_values(
-        self,
-        *,
-        db_values: list[str],
-    ) -> list[AssignmentRole]:
-        """Convert DB string-array storage into normalized API assignment roles."""
-
-        parsed_roles: list[AssignmentRole] = []
-        for raw_value in db_values:
-            try:
-                parsed_roles.append(AssignmentRole(raw_value))
-            except ValueError:
-                continue
-
-        normalized_roles = self._normalize_assignment_roles(parsed_roles)
-        if normalized_roles:
-            return normalized_roles
-        return [AssignmentRole.AUDITOR]
+        await self._session.refresh(instance)
 
     @staticmethod
     def _ensure_mode_allowed(

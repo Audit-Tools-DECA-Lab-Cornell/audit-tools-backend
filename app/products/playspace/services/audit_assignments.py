@@ -7,11 +7,12 @@ from __future__ import annotations
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_or_admin_user
-from app.models import AuditorAssignment, AuditorProfile, Place, Project
+from app.models import AuditorAssignment, AuditorProfile, Place, Project, ProjectPlace
 from app.products.playspace.schemas import AssignmentResponse, AssignmentWriteRequest
 
 ######################################################################################
@@ -39,7 +40,7 @@ class PlayspaceAuditAssignmentsMixin:
             .order_by(AuditorAssignment.assigned_at.desc())
             .options(
                 selectinload(AuditorAssignment.project),
-                selectinload(AuditorAssignment.place).selectinload(Place.project),
+                selectinload(AuditorAssignment.place),
             )
         )
         if actor.role is CurrentUserRole.MANAGER:
@@ -48,14 +49,7 @@ class PlayspaceAuditAssignmentsMixin:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Manager account context is required for assignment access.",
                 )
-            query = query.where(
-                or_(
-                    AuditorAssignment.project.has(Project.account_id == actor.account_id),
-                    AuditorAssignment.place.has(
-                        Place.project.has(Project.account_id == actor.account_id)
-                    ),
-                )
-            )
+            query = query.where(AuditorAssignment.project.has(Project.account_id == actor.account_id))
 
         result = await self._session.execute(query)
         assignments = result.scalars().all()
@@ -68,7 +62,7 @@ class PlayspaceAuditAssignmentsMixin:
         auditor_profile_id: uuid.UUID,
         payload: AssignmentWriteRequest,
     ) -> AssignmentResponse:
-        """Create a project- or place-scoped assignment with role-array capabilities."""
+        """Create a project- or project-place-scoped assignment."""
 
         require_manager_or_admin_user(actor)
         await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
@@ -78,15 +72,24 @@ class PlayspaceAuditAssignmentsMixin:
             project_id=payload.project_id,
             place_id=payload.place_id,
         )
+        await self._ensure_assignment_scope_is_unique(
+            auditor_profile_id=auditor_profile_id,
+            project_id=payload.project_id,
+            place_id=payload.place_id,
+        )
 
         assignment = AuditorAssignment(
             auditor_profile_id=auditor_profile_id,
             project_id=payload.project_id,
             place_id=payload.place_id,
-            audit_roles=self._assignment_roles_to_db_values(roles=payload.audit_roles),
         )
         self._session.add(assignment)
-        await self._commit_and_refresh(assignment)
+        try:
+            await self._commit_and_refresh(assignment)
+        except IntegrityError as error:
+            await self._session.rollback()
+            self._raise_if_duplicate_assignment_integrity_error(error)
+            raise
         hydrated_assignment = await self._get_assignment_with_scope(
             assignment_id=assignment.id,
             auditor_profile_id=auditor_profile_id,
@@ -101,7 +104,7 @@ class PlayspaceAuditAssignmentsMixin:
         assignment_id: uuid.UUID,
         payload: AssignmentWriteRequest,
     ) -> AssignmentResponse:
-        """Update an existing assignment scope and role-array capabilities."""
+        """Update an existing assignment scope."""
 
         require_manager_or_admin_user(actor)
         await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
@@ -116,10 +119,20 @@ class PlayspaceAuditAssignmentsMixin:
             assignment_id=assignment_id,
             auditor_profile_id=auditor_profile_id,
         )
+        await self._ensure_assignment_scope_is_unique(
+            auditor_profile_id=auditor_profile_id,
+            project_id=payload.project_id,
+            place_id=payload.place_id,
+            exclude_assignment_id=assignment.id,
+        )
         assignment.project_id = payload.project_id
         assignment.place_id = payload.place_id
-        assignment.audit_roles = self._assignment_roles_to_db_values(roles=payload.audit_roles)
-        await self._commit_and_refresh(assignment)
+        try:
+            await self._commit_and_refresh(assignment)
+        except IntegrityError as error:
+            await self._session.rollback()
+            self._raise_if_duplicate_assignment_integrity_error(error)
+            raise
         hydrated_assignment = await self._get_assignment_with_scope(
             assignment_id=assignment.id,
             auditor_profile_id=auditor_profile_id,
@@ -201,7 +214,7 @@ class PlayspaceAuditAssignmentsMixin:
             )
             .options(
                 selectinload(AuditorAssignment.project),
-                selectinload(AuditorAssignment.place).selectinload(Place.project),
+                selectinload(AuditorAssignment.place),
             )
         )
         assignment = result.scalar_one_or_none()
@@ -213,24 +226,7 @@ class PlayspaceAuditAssignmentsMixin:
         return assignment
 
     async def _validate_assignment_scope(self, *, payload: AssignmentWriteRequest) -> None:
-        """Ensure the request targets exactly one real project or place."""
-
-        if (payload.project_id is None) == (payload.place_id is None):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Exactly one of project_id or place_id must be provided.",
-            )
-
-        if payload.place_id is not None:
-            place_result = await self._session.execute(
-                select(Place.id).where(Place.id == payload.place_id)
-            )
-            if place_result.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Place not found.",
-                )
-            return
+        """Ensure the request targets a real project or project-place pair."""
 
         project_result = await self._session.execute(
             select(Project.id).where(Project.id == payload.project_id)
@@ -239,6 +235,30 @@ class PlayspaceAuditAssignmentsMixin:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found.",
+            )
+
+        if payload.place_id is None:
+            return
+
+        place_result = await self._session.execute(
+            select(Place.id).where(Place.id == payload.place_id)
+        )
+        if place_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Place not found.",
+            )
+
+        pair_result = await self._session.execute(
+            select(ProjectPlace.project_id).where(
+                ProjectPlace.project_id == payload.project_id,
+                ProjectPlace.place_id == payload.place_id,
+            )
+        )
+        if pair_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The selected place is not linked to the selected project.",
             )
 
     def _ensure_profile_access(self, *, actor: CurrentUserContext, profile: AuditorProfile) -> None:
@@ -267,7 +287,7 @@ class PlayspaceAuditAssignmentsMixin:
         project_id: uuid.UUID | None,
         place_id: uuid.UUID | None,
     ) -> None:
-        """Ensure manager actors can only manage assignments inside their own account scope."""
+        """Ensure manager actors can only manage assignments inside their own project scope."""
 
         if actor.role is CurrentUserRole.ADMIN:
             return
@@ -277,37 +297,46 @@ class PlayspaceAuditAssignmentsMixin:
                 detail="Manager account context is required for assignment management.",
             )
 
-        scope_account_id = await self._resolve_scope_account_id(
-            project_id=project_id,
-            place_id=place_id,
-        )
+        scope_account_id = await self._resolve_scope_account_id(project_id=project_id)
         if scope_account_id != actor.account_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Managers can only manage assignments inside their own account.",
             )
 
+    async def _ensure_assignment_scope_is_unique(
+        self,
+        *,
+        auditor_profile_id: uuid.UUID,
+        project_id: uuid.UUID,
+        place_id: uuid.UUID | None,
+        exclude_assignment_id: uuid.UUID | None = None,
+    ) -> None:
+        """Reject duplicate assignment scopes before hitting DB constraints."""
+
+        query = select(AuditorAssignment.id).where(
+            AuditorAssignment.auditor_profile_id == auditor_profile_id,
+            AuditorAssignment.project_id == project_id,
+            AuditorAssignment.place_id == place_id,
+        )
+        if exclude_assignment_id is not None:
+            query = query.where(AuditorAssignment.id != exclude_assignment_id)
+
+        result = await self._session.execute(query.limit(1))
+        if result.scalar_one_or_none() is None:
+            return
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An assignment already exists for this auditor and scope.",
+        )
+
     async def _resolve_scope_account_id(
         self,
         *,
         project_id: uuid.UUID | None,
-        place_id: uuid.UUID | None,
     ) -> uuid.UUID:
         """Resolve the owning account id for one assignment scope."""
-
-        if place_id is not None:
-            place_account_result = await self._session.execute(
-                select(Project.account_id)
-                .join(Place, Place.project_id == Project.id)
-                .where(Place.id == place_id)
-            )
-            place_account_id = place_account_result.scalar_one_or_none()
-            if place_account_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Place not found.",
-                )
-            return place_account_id
 
         if project_id is None:
             raise HTTPException(
@@ -326,26 +355,36 @@ class PlayspaceAuditAssignmentsMixin:
             )
         return project_account_id
 
+    @staticmethod
+    def _raise_if_duplicate_assignment_integrity_error(error: IntegrityError) -> None:
+        """Convert known duplicate-scope assignment integrity errors into HTTP 409s."""
+
+        raw_error_message = str(getattr(error, "orig", error))
+        sqlstate = getattr(getattr(error, "orig", None), "sqlstate", None)
+        if sqlstate == "23505" and (
+            "uq_auditor_assignments_auditor_project_scope" in raw_error_message
+            or "uq_auditor_assignments_auditor_project_place" in raw_error_message
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An assignment already exists for this auditor and scope.",
+            ) from error
+
     def _serialize_assignment(self, assignment: AuditorAssignment) -> AssignmentResponse:
         """Convert an ORM assignment row into the API response model."""
 
         if assignment.place is not None:
-            project_name = (
-                assignment.place.project.name
-                if assignment.place.project is not None
-                else "Unknown project"
-            )
+            project_name = assignment.project.name if assignment.project is not None else "Unknown project"
             return AssignmentResponse(
                 id=assignment.id,
                 auditor_profile_id=assignment.auditor_profile_id,
-                project_id=assignment.place.project_id,
+                project_id=assignment.project_id,
                 place_id=assignment.place_id,
                 scope_type="place",
                 scope_id=assignment.place.id,
                 scope_name=assignment.place.name,
                 project_name=project_name,
                 place_name=assignment.place.name,
-                audit_roles=self._assignment_roles_from_db_values(db_values=assignment.audit_roles),
                 assigned_at=assignment.assigned_at,
             )
 
@@ -360,6 +399,5 @@ class PlayspaceAuditAssignmentsMixin:
             scope_name=project_name,
             project_name=project_name,
             place_name=None,
-            audit_roles=self._assignment_roles_from_db_values(db_values=assignment.audit_roles),
             assigned_at=assignment.assigned_at,
         )

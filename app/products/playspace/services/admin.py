@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, distinct, func, or_, select, union_all
+from sqlalchemy import and_, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import CurrentUserContext, require_admin_user
@@ -18,6 +18,7 @@ from app.models import (
     AuditStatus,
     Place,
     Project,
+    ProjectPlace,
 )
 from app.products.playspace.instrument import (
     INSTRUMENT_KEY,
@@ -136,10 +137,10 @@ class PlayspaceAdminService:
         places_count_subquery = (
             select(
                 Project.account_id.label("account_id"),
-                func.count(Place.id).label("places_count"),
+                func.count(ProjectPlace.place_id).label("places_count"),
             )
             .select_from(Project)
-            .outerjoin(Place, Place.project_id == Project.id)
+            .outerjoin(ProjectPlace, ProjectPlace.project_id == Project.id)
             .group_by(Project.account_id)
             .subquery()
         )
@@ -263,25 +264,20 @@ class PlayspaceAdminService:
 
         places_count_subquery = (
             select(
-                Place.project_id.label("project_id"),
-                func.count(Place.id).label("places_count"),
+                ProjectPlace.project_id.label("project_id"),
+                func.count(ProjectPlace.place_id).label("places_count"),
             )
-            .group_by(Place.project_id)
+            .group_by(ProjectPlace.project_id)
             .subquery()
         )
-        project_assignment_scope = union_all(
+        project_assignment_scope = (
             select(
                 AuditorAssignment.project_id.label("project_id"),
                 AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
-            ).where(AuditorAssignment.project_id.is_not(None)),
-            select(
-                Place.project_id.label("project_id"),
-                AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
             )
-            .select_from(AuditorAssignment)
-            .join(Place, AuditorAssignment.place_id == Place.id)
-            .where(AuditorAssignment.place_id.is_not(None)),
-        ).subquery()
+            .where(AuditorAssignment.project_id.is_not(None))
+            .subquery()
+        )
         auditors_count_subquery = (
             select(
                 project_assignment_scope.c.project_id.label("project_id"),
@@ -294,7 +290,7 @@ class PlayspaceAdminService:
         )
         audit_stats_subquery = (
             select(
-                Place.project_id.label("project_id"),
+                Audit.project_id.label("project_id"),
                 func.count(Audit.id)
                 .filter(Audit.status == AuditStatus.SUBMITTED)
                 .label("audits_completed"),
@@ -307,9 +303,8 @@ class PlayspaceAdminService:
                 )
                 .label("average_score"),
             )
-            .select_from(Place)
-            .outerjoin(Audit, Audit.place_id == Place.id)
-            .group_by(Place.project_id)
+            .select_from(Audit)
+            .group_by(Audit.project_id)
             .subquery()
         )
 
@@ -430,6 +425,7 @@ class PlayspaceAdminService:
 
         place_audit_summary_subquery = (
             select(
+                Audit.project_id.label("project_id"),
                 Audit.place_id.label("place_id"),
                 func.count(Audit.id)
                 .filter(Audit.status == AuditStatus.SUBMITTED)
@@ -451,13 +447,13 @@ class PlayspaceAdminService:
                 )
                 .label("last_audited_at"),
             )
-            .group_by(Audit.place_id)
+            .group_by(Audit.project_id, Audit.place_id)
             .subquery()
         )
 
         filtered_rows_query = (
             select(
-                Place.id.label("place_id"),
+                ProjectPlace.place_id.label("place_id"),
                 Project.id.label("project_id"),
                 Project.name.label("project_name"),
                 Account.id.label("account_id"),
@@ -470,12 +466,16 @@ class PlayspaceAdminService:
                 place_audit_summary_subquery.c.average_score.label("average_score"),
                 place_audit_summary_subquery.c.last_audited_at.label("last_audited_at"),
             )
-            .select_from(Place)
-            .join(Project, Place.project_id == Project.id)
+            .select_from(ProjectPlace)
+            .join(Project, ProjectPlace.project_id == Project.id)
             .join(Account, Project.account_id == Account.id)
+            .join(Place, ProjectPlace.place_id == Place.id)
             .outerjoin(
                 place_audit_summary_subquery,
-                place_audit_summary_subquery.c.place_id == Place.id,
+                and_(
+                    place_audit_summary_subquery.c.project_id == Project.id,
+                    place_audit_summary_subquery.c.place_id == Place.id,
+                ),
             )
         )
 
@@ -715,7 +715,7 @@ class PlayspaceAdminService:
             )
             .select_from(Audit)
             .join(Place, Audit.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
+            .join(Project, Audit.project_id == Project.id)
             .join(Account, Project.account_id == Account.id)
             .join(AuditorProfile, Audit.auditor_profile_id == AuditorProfile.id)
         )

@@ -15,7 +15,7 @@ from app.core.actors import (
     CurrentUserRole,
     require_manager_or_admin_user,
 )
-from app.models import Account, AccountType, AuditorProfile, Place, Project
+from app.models import Account, AccountType, AuditorProfile, Place, Project, ProjectPlace
 from app.products.playspace.schemas import (
     AccountManagementResponse,
     AccountUpdateRequest,
@@ -158,12 +158,13 @@ class PlayspaceManagementService:
         )
 
     @staticmethod
-    def _serialize_place(place: Place) -> PlaceDetailResponse:
+    def _serialize_place(place: Place, projects: list[Project]) -> PlaceDetailResponse:
         """Serialize a place detail payload."""
 
         return PlaceDetailResponse(
             id=place.id,
-            project_id=place.project_id,
+            project_ids=[project.id for project in projects],
+            project_names=[project.name for project in projects],
             name=place.name,
             city=place.city,
             province=place.province,
@@ -177,6 +178,50 @@ class PlayspaceManagementService:
             auditor_description=place.auditor_description,
             created_at=place.created_at,
         )
+
+    async def _get_projects_for_place(self, place_id: uuid.UUID) -> list[Project]:
+        """Load all linked projects for one place in stable display order."""
+
+        project_result = await self._session.execute(
+            select(Project)
+            .join(ProjectPlace, Project.id == ProjectPlace.project_id)
+            .where(ProjectPlace.place_id == place_id)
+            .order_by(Project.name.asc(), Project.id.asc())
+        )
+        return project_result.scalars().all()
+
+    async def _validate_project_ids(self, project_ids: list[uuid.UUID]) -> list[Project]:
+        """Load requested projects, requiring at least one and a shared owning account."""
+
+        normalized_project_ids = list(dict.fromkeys(project_ids))
+        if not normalized_project_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one project_id is required for a place.",
+            )
+
+        project_result = await self._session.execute(
+            select(Project).where(Project.id.in_(normalized_project_ids))
+        )
+        project_by_id = {project.id: project for project in project_result.scalars().all()}
+        ordered_projects: list[Project] = []
+        for project_id in normalized_project_ids:
+            project = project_by_id.get(project_id)
+            if project is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found.",
+                )
+            ordered_projects.append(project)
+
+        account_ids = {project.account_id for project in ordered_projects}
+        if len(account_ids) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="All projects linked to one place must belong to the same account.",
+            )
+
+        return ordered_projects
 
     @staticmethod
     def _serialize_auditor_profile(profile: AuditorProfile) -> AuditorProfileDetailResponse:
@@ -297,13 +342,12 @@ class PlayspaceManagementService:
         actor: CurrentUserContext,
         payload: PlaceCreateRequest,
     ) -> PlaceDetailResponse:
-        """Create one place row."""
+        """Create one place row and link it to one or more projects."""
 
         self._require_manager_or_admin(actor)
-        project = await self._get_project(payload.project_id)
-        self._ensure_account_access(actor=actor, account_id=project.account_id)
+        projects = await self._validate_project_ids(payload.project_ids)
+        self._ensure_account_access(actor=actor, account_id=projects[0].account_id)
         place = Place(
-            project_id=payload.project_id,
             name=payload.name,
             city=payload.city,
             province=payload.province,
@@ -317,9 +361,12 @@ class PlayspaceManagementService:
             auditor_description=payload.auditor_description,
         )
         self._session.add(place)
+        await self._session.flush()
+        for project in projects:
+            self._session.add(ProjectPlace(project_id=project.id, place_id=place.id))
         await self._session.commit()
         await self._session.refresh(place)
-        return self._serialize_place(place)
+        return self._serialize_place(place, projects)
 
     async def update_place(
         self,
@@ -332,14 +379,38 @@ class PlayspaceManagementService:
 
         self._require_manager_or_admin(actor)
         place = await self._get_place(place_id)
-        project = await self._get_project(place.project_id)
-        self._ensure_account_access(actor=actor, account_id=project.account_id)
+        current_projects = await self._get_projects_for_place(place.id)
+        if not current_projects:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The place is not linked to any project.",
+            )
+        self._ensure_account_access(actor=actor, account_id=current_projects[0].account_id)
         updates = payload.model_dump(exclude_unset=True)
+        next_project_ids = updates.pop("project_ids", None)
         for key, value in updates.items():
             setattr(place, key, value)
+
+        response_projects = current_projects
+        if next_project_ids is not None:
+            response_projects = await self._validate_project_ids(next_project_ids)
+            self._ensure_account_access(actor=actor, account_id=response_projects[0].account_id)
+            link_result = await self._session.execute(
+                select(ProjectPlace).where(ProjectPlace.place_id == place.id)
+            )
+            existing_links = link_result.scalars().all()
+            existing_project_ids = {link.project_id for link in existing_links}
+            next_project_id_set = {project.id for project in response_projects}
+            for existing_link in existing_links:
+                if existing_link.project_id not in next_project_id_set:
+                    await self._session.delete(existing_link)
+            for project in response_projects:
+                if project.id not in existing_project_ids:
+                    self._session.add(ProjectPlace(project_id=project.id, place_id=place.id))
+
         await self._session.commit()
         await self._session.refresh(place)
-        return self._serialize_place(place)
+        return self._serialize_place(place, response_projects)
 
     async def delete_place(
         self,
@@ -351,8 +422,13 @@ class PlayspaceManagementService:
 
         self._require_manager_or_admin(actor)
         place = await self._get_place(place_id)
-        project = await self._get_project(place.project_id)
-        self._ensure_account_access(actor=actor, account_id=project.account_id)
+        linked_projects = await self._get_projects_for_place(place.id)
+        if not linked_projects:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The place is not linked to any project.",
+            )
+        self._ensure_account_access(actor=actor, account_id=linked_projects[0].account_id)
         await self._session.delete(place)
         await self._session.commit()
 

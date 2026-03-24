@@ -9,9 +9,9 @@ import uuid
 from datetime import date, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import Float, and_, case, cast, distinct, func, or_, select, union_all
+from sqlalchemy import Float, and_, case, cast, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, require_manager_user
 from app.models import (
@@ -23,6 +23,7 @@ from app.models import (
     ManagerProfile,
     Place,
     Project,
+    ProjectPlace,
 )
 from app.products.playspace.schemas import (
     AccountDetailResponse,
@@ -117,10 +118,7 @@ def _total_pages(total_count: int, page_size: int) -> int:
 def _collect_project_auditor_ids(project: Project) -> set[uuid.UUID]:
     """Collect unique auditor profile IDs assigned at project or place scope."""
 
-    auditor_ids = {assignment.auditor_profile_id for assignment in project.assignments}
-    for place in project.places:
-        auditor_ids.update(assignment.auditor_profile_id for assignment in place.assignments)
-    return auditor_ids
+    return {assignment.auditor_profile_id for assignment in project.assignments}
 
 
 class PlayspaceDashboardService:
@@ -167,14 +165,15 @@ class PlayspaceDashboardService:
         return result.scalar_one_or_none()
 
     async def _get_place_model(self, place_id: uuid.UUID) -> Place | None:
-        """Load a place with project, audits, and auditor profile relationships."""
+        """Load a place with linked projects plus audit relationships."""
 
         stmt = (
             select(Place)
             .where(Place.id == place_id)
             .options(
-                selectinload(Place.project),
+                selectinload(Place.projects),
                 selectinload(Place.audits).selectinload(Audit.auditor_profile),
+                selectinload(Place.audits).selectinload(Audit.project),
             )
         )
         result = await self._session.execute(stmt)
@@ -218,27 +217,30 @@ class PlayspaceDashboardService:
         self,
         *,
         actor: CurrentUserContext,
+        project_id: uuid.UUID,
         place_id: uuid.UUID,
-    ) -> Place:
-        """Load a place and enforce manager access to its parent account."""
+    ) -> tuple[Project, Place]:
+        """Load a project-place pair and enforce manager access to the project owner."""
 
+        project = await self._require_project_for_actor(actor=actor, project_id=project_id)
         place = await self._get_place_model(place_id)
         if place is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Place not found.",
             )
-        self._ensure_manager_scope(actor, place.project.account_id)
-        return place
+        if not any(linked_project.id == project.id for linked_project in place.projects):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Place not found in the requested project.",
+            )
+        return project, place
 
     async def _get_account_auditor_summaries_db(
         self,
         account_id: uuid.UUID,
     ) -> list[AuditorSummaryResponse]:
         """Fetch manager-facing auditor summaries for a real account."""
-        project_assignment_project = aliased(Project)
-        place_assignment_place = aliased(Place)
-        place_assignment_project = aliased(Project)
 
         assignment_counts_subquery = (
             select(
@@ -246,24 +248,8 @@ class PlayspaceDashboardService:
                 func.count(AuditorAssignment.id).label("assignments_count"),
             )
             .select_from(AuditorAssignment)
-            .outerjoin(
-                project_assignment_project,
-                AuditorAssignment.project_id == project_assignment_project.id,
-            )
-            .outerjoin(
-                place_assignment_place,
-                AuditorAssignment.place_id == place_assignment_place.id,
-            )
-            .outerjoin(
-                place_assignment_project,
-                place_assignment_place.project_id == place_assignment_project.id,
-            )
-            .where(
-                or_(
-                    project_assignment_project.account_id == account_id,
-                    place_assignment_project.account_id == account_id,
-                )
-            )
+            .join(Project, AuditorAssignment.project_id == Project.id)
+            .where(Project.account_id == account_id)
             .group_by(AuditorAssignment.auditor_profile_id)
             .subquery()
         )
@@ -346,16 +332,15 @@ class PlayspaceDashboardService:
             select(func.count(Project.id)).where(Project.account_id == account_id)
         )
         total_places_result = await self._session.execute(
-            select(func.count(Place.id))
-            .select_from(Place)
-            .join(Project, Place.project_id == Project.id)
+            select(func.count(ProjectPlace.place_id))
+            .select_from(ProjectPlace)
+            .join(Project, ProjectPlace.project_id == Project.id)
             .where(Project.account_id == account_id)
         )
         total_audits_completed_result = await self._session.execute(
             select(func.count(Audit.id))
             .select_from(Audit)
-            .join(Place, Audit.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
+            .join(Project, Audit.project_id == Project.id)
             .where(
                 Project.account_id == account_id,
                 Audit.status == AuditStatus.SUBMITTED,
@@ -374,7 +359,7 @@ class PlayspaceDashboardService:
             )
             .select_from(Audit)
             .join(Place, Audit.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
+            .join(Project, Audit.project_id == Project.id)
             .where(
                 Project.account_id == account_id,
                 Audit.status == AuditStatus.SUBMITTED,
@@ -459,25 +444,20 @@ class PlayspaceDashboardService:
         self._ensure_manager_scope(actor, account_id)
         places_count_subquery = (
             select(
-                Place.project_id.label("project_id"),
-                func.count(Place.id).label("places_count"),
+                ProjectPlace.project_id.label("project_id"),
+                func.count(ProjectPlace.place_id).label("places_count"),
             )
-            .group_by(Place.project_id)
+            .group_by(ProjectPlace.project_id)
             .subquery()
         )
-        project_assignment_scope = union_all(
+        project_assignment_scope = (
             select(
                 AuditorAssignment.project_id.label("project_id"),
                 AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
-            ).where(AuditorAssignment.project_id.is_not(None)),
-            select(
-                Place.project_id.label("project_id"),
-                AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
             )
-            .select_from(AuditorAssignment)
-            .join(Place, AuditorAssignment.place_id == Place.id)
-            .where(AuditorAssignment.place_id.is_not(None)),
-        ).subquery()
+            .where(AuditorAssignment.project_id.is_not(None))
+            .subquery()
+        )
         auditors_count_subquery = (
             select(
                 project_assignment_scope.c.project_id.label("project_id"),
@@ -490,7 +470,7 @@ class PlayspaceDashboardService:
         )
         audit_stats_subquery = (
             select(
-                Place.project_id.label("project_id"),
+                Audit.project_id.label("project_id"),
                 func.count(Audit.id)
                 .filter(Audit.status == AuditStatus.SUBMITTED)
                 .label("audits_completed"),
@@ -503,9 +483,8 @@ class PlayspaceDashboardService:
                 )
                 .label("average_score"),
             )
-            .select_from(Place)
-            .outerjoin(Audit, Audit.place_id == Place.id)
-            .group_by(Place.project_id)
+            .select_from(Audit)
+            .group_by(Audit.project_id)
             .subquery()
         )
 
@@ -598,6 +577,7 @@ class PlayspaceDashboardService:
 
         place_audit_summary_subquery = (
             select(
+                Audit.project_id.label("project_id"),
                 Audit.place_id.label("place_id"),
                 func.count(Audit.id)
                 .filter(Audit.status == AuditStatus.SUBMITTED)
@@ -625,7 +605,7 @@ class PlayspaceDashboardService:
                     "has_submitted"
                 ),
             )
-            .group_by(Audit.place_id)
+            .group_by(Audit.project_id, Audit.place_id)
             .subquery()
         )
 
@@ -639,8 +619,8 @@ class PlayspaceDashboardService:
 
         filtered_rows_query = (
             select(
-                Place.id.label("id"),
-                Place.project_id.label("project_id"),
+                ProjectPlace.place_id.label("id"),
+                Project.id.label("project_id"),
                 Project.name.label("project_name"),
                 Place.name.label("name"),
                 Place.city.label("city"),
@@ -652,11 +632,15 @@ class PlayspaceDashboardService:
                 place_audit_summary_subquery.c.average_score.label("average_score"),
                 place_audit_summary_subquery.c.last_audited_at.label("last_audited_at"),
             )
-            .select_from(Place)
-            .join(Project, Place.project_id == Project.id)
+            .select_from(ProjectPlace)
+            .join(Project, ProjectPlace.project_id == Project.id)
+            .join(Place, ProjectPlace.place_id == Place.id)
             .outerjoin(
                 place_audit_summary_subquery,
-                place_audit_summary_subquery.c.place_id == Place.id,
+                and_(
+                    place_audit_summary_subquery.c.project_id == Project.id,
+                    place_audit_summary_subquery.c.place_id == Place.id,
+                ),
             )
             .where(Project.account_id == account_id)
         )
@@ -676,7 +660,7 @@ class PlayspaceDashboardService:
 
         if normalized_project_ids:
             filtered_rows_query = filtered_rows_query.where(
-                Place.project_id.in_(normalized_project_ids)
+                Project.id.in_(normalized_project_ids)
             )
 
         if normalized_statuses:
@@ -727,18 +711,22 @@ class PlayspaceDashboardService:
 
         summary_result = await self._session.execute(
             select(
-                func.count(Place.id).label("total_places"),
+                func.count(ProjectPlace.place_id).label("total_places"),
                 func.sum(
                     case((and_(has_in_progress == 0, has_submitted == 1), 1), else_=0)
                 ).label("submitted_places"),
                 func.sum(case((has_in_progress == 1, 1), else_=0)).label("in_progress_places"),
                 func.avg(place_audit_summary_subquery.c.average_score).label("average_score"),
             )
-            .select_from(Place)
-            .join(Project, Place.project_id == Project.id)
+            .select_from(ProjectPlace)
+            .join(Project, ProjectPlace.project_id == Project.id)
+            .join(Place, ProjectPlace.place_id == Place.id)
             .outerjoin(
                 place_audit_summary_subquery,
-                place_audit_summary_subquery.c.place_id == Place.id,
+                and_(
+                    place_audit_summary_subquery.c.project_id == Project.id,
+                    place_audit_summary_subquery.c.place_id == Place.id,
+                ),
             )
             .where(Project.account_id == account_id)
         )
@@ -822,7 +810,7 @@ class PlayspaceDashboardService:
             )
             .select_from(Audit)
             .join(Place, Audit.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
+            .join(Project, Audit.project_id == Project.id)
             .join(AuditorProfile, Audit.auditor_profile_id == AuditorProfile.id)
             .where(Project.account_id == account_id)
         )
@@ -900,8 +888,7 @@ class PlayspaceDashboardService:
                 .label("average_score"),
             )
             .select_from(Audit)
-            .join(Place, Audit.place_id == Place.id)
-            .join(Project, Place.project_id == Project.id)
+            .join(Project, Audit.project_id == Project.id)
             .where(Project.account_id == account_id)
         )
         summary_row = summary_result.one()
@@ -982,17 +969,21 @@ class PlayspaceDashboardService:
             audit
             for place in project.places
             for audit in place.audits
-            if audit.status == AuditStatus.SUBMITTED
+            if audit.project_id == project.id and audit.status == AuditStatus.SUBMITTED
         ]
         in_progress_audits = sum(
             1
             for place in project.places
             for audit in place.audits
-            if audit.status == AuditStatus.IN_PROGRESS
+            if audit.project_id == project.id and audit.status == AuditStatus.IN_PROGRESS
         )
         auditors_count = _collect_project_auditor_ids(project)
 
-        places_with_audits = sum(1 for place in project.places if place.audits)
+        places_with_audits = sum(
+            1
+            for place in project.places
+            if any(audit.project_id == project.id for audit in place.audits)
+        )
         return ProjectStatsResponse(
             project_id=project.id,
             places_count=len(project.places),
@@ -1018,18 +1009,23 @@ class PlayspaceDashboardService:
         place_summaries: list[PlaceSummaryResponse] = []
         for place in sorted(project.places, key=lambda current_place: current_place.name.lower()):
             submitted_audits = [
-                audit for audit in place.audits if audit.status == AuditStatus.SUBMITTED
+                audit
+                for audit in place.audits
+                if audit.project_id == project.id and audit.status == AuditStatus.SUBMITTED
+            ]
+            project_audits = [
+                audit for audit in place.audits if audit.project_id == project.id
             ]
             place_summaries.append(
                 PlaceSummaryResponse(
                     id=place.id,
-                    project_id=place.project_id,
+                    project_id=project.id,
                     name=place.name,
                     city=place.city,
                     province=place.province,
                     country=place.country,
                     place_type=place.place_type,
-                    status=_derive_place_status(place.audits),
+                    status=_derive_place_status(project_audits),
                     audits_completed=len(submitted_audits),
                     average_score=_average_submitted_score(submitted_audits),
                     last_audited_at=_latest_activity_timestamp(submitted_audits),
@@ -1042,13 +1038,18 @@ class PlayspaceDashboardService:
         self,
         *,
         actor: CurrentUserContext,
+        project_id: uuid.UUID,
         place_id: uuid.UUID,
     ) -> list[PlaceAuditHistoryItemResponse]:
         """Return audit history rows for one place."""
 
-        place = await self._require_place_for_actor(actor=actor, place_id=place_id)
+        project, place = await self._require_place_for_actor(
+            actor=actor,
+            project_id=project_id,
+            place_id=place_id,
+        )
         sorted_audits = sorted(
-            place.audits,
+            [audit for audit in place.audits if audit.project_id == project.id],
             key=lambda audit: (
                 audit.submitted_at if audit.submitted_at is not None else audit.started_at
             ),
@@ -1060,6 +1061,8 @@ class PlayspaceDashboardService:
                 PlaceAuditHistoryItemResponse(
                     audit_id=audit.id,
                     audit_code=audit.audit_code,
+                    project_id=project.id,
+                    project_name=project.name,
                     auditor_code=audit.auditor_profile.auditor_code,
                     status=audit.status.value,
                     started_at=audit.started_at,
@@ -1073,25 +1076,35 @@ class PlayspaceDashboardService:
         self,
         *,
         actor: CurrentUserContext,
+        project_id: uuid.UUID,
         place_id: uuid.UUID,
     ) -> PlaceHistoryResponse:
         """Return aggregate history metrics plus audit rows for one place."""
 
-        place = await self._require_place_for_actor(actor=actor, place_id=place_id)
-        audits = place.audits
+        project, place = await self._require_place_for_actor(
+            actor=actor,
+            project_id=project_id,
+            place_id=place_id,
+        )
+        audits = [audit for audit in place.audits if audit.project_id == project.id]
         submitted_audits = [audit for audit in audits if audit.status == AuditStatus.SUBMITTED]
         in_progress_audits = [
             audit
             for audit in audits
             if audit.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
         ]
-        history_rows = await self.list_place_audits(actor=actor, place_id=place_id)
+        history_rows = await self.list_place_audits(
+            actor=actor,
+            project_id=project.id,
+            place_id=place_id,
+        )
 
         latest_submitted_at = _latest_activity_timestamp(submitted_audits)
         return PlaceHistoryResponse(
             place_id=place.id,
             place_name=place.name,
-            project_id=place.project_id,
+            project_id=project.id,
+            project_name=project.name,
             total_audits=len(audits),
             submitted_audits=len(submitted_audits),
             in_progress_audits=len(in_progress_audits),
