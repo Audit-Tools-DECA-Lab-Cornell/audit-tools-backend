@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from conftest import PlayspaceSeedSnapshot
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
@@ -134,6 +135,50 @@ def _create_auditor_profile(
     return response.json()
 
 
+def _create_assigned_audit_context(
+    client: TestClient,
+    seed_snapshot: PlayspaceSeedSnapshot,
+    *,
+    suffix: str,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object], dict[str, str]]:
+    """Create a project-place-auditor trio and assign the auditor to the place."""
+
+    manager_headers = _manager_headers(seed_snapshot.manager_account_id)
+    project = _create_project(
+        client,
+        seed_snapshot.manager_account_id,
+        suffix=suffix,
+    )
+    place = _create_place(
+        client,
+        seed_snapshot.manager_account_id,
+        project_id=str(project["id"]),
+        suffix=suffix,
+    )
+    auditor_profile = _create_auditor_profile(
+        client,
+        seed_snapshot.manager_account_id,
+        suffix=suffix,
+    )
+
+    assignment_response = client.post(
+        f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
+        headers=manager_headers,
+        json={
+            "project_id": project["id"],
+            "place_id": place["id"],
+        },
+    )
+    assert assignment_response.status_code == 201
+
+    auditor_headers = {
+        "x-demo-role": "auditor",
+        "x-demo-account-id": auditor_profile["account_id"],
+        "x-demo-auditor-code": auditor_profile["auditor_code"],
+    }
+    return project, place, auditor_profile, auditor_headers
+
+
 def test_playspace_route_inventory_matches_expected_surface() -> None:
     """Keep the endpoint coverage suite aligned with the real Playspace route tree."""
 
@@ -228,7 +273,9 @@ def test_auth_self_service_and_instrument_endpoints(
         headers=_auditor_headers(playspace_seed_snapshot),
     )
     assert profile_response.status_code == 200
-    assert profile_response.json()["profile_id"] == playspace_seed_snapshot.seeded_auditor_profile_id
+    assert (
+        profile_response.json()["profile_id"] == playspace_seed_snapshot.seeded_auditor_profile_id
+    )
 
     instrument_response = playspace_client.get(
         "/playspace/instrument",

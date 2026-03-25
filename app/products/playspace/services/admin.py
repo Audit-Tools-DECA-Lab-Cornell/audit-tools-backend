@@ -209,9 +209,7 @@ class PlayspaceAdminService:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.created_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(
@@ -366,9 +364,7 @@ class PlayspaceAdminService:
         }
         sort_column = sort_map.get(sort_key, sort_map["date_range"])
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(
@@ -510,9 +506,7 @@ class PlayspaceAdminService:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.last_audited_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(
@@ -639,9 +633,7 @@ class PlayspaceAdminService:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.last_active_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(
@@ -753,9 +745,7 @@ class PlayspaceAdminService:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.submitted_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(

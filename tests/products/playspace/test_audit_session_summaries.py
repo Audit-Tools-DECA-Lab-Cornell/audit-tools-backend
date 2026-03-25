@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from app.products.playspace.scoring import _get_visible_questions
+from app.products.playspace.schemas.instrument import ExecutionMode
+from app.products.playspace.scoring_metadata import SCORING_SECTIONS
+
 from app.products.playspace.services.audit import PlayspaceAuditService
 
 
@@ -57,3 +61,20 @@ def test_resolve_compact_audit_summary_falls_back_to_stored_summary_score() -> N
 
     assert score_totals is None
     assert summary_score == 8.4
+
+
+def test_get_visible_questions_returns_all_questions_for_both_mode() -> None:
+    """Execution mode `both` should expose all questions in a section."""
+
+    section = next(
+        current_section
+        for current_section in SCORING_SECTIONS
+        if any(question.mode != "both" for question in current_section.questions)
+    )
+
+    visible_questions = _get_visible_questions(
+        section=section,
+        execution_mode=ExecutionMode.BOTH,
+    )
+
+    assert len(visible_questions) == len(section.questions)

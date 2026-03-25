@@ -359,7 +359,11 @@ def _get_visible_questions(
     # if mode_value (user role) is both, return all questions. otherwise, return the mode questions and the both questions.
     if mode_value == "both":
         return section.questions
-    return [question for question in section.questions if question.mode == mode_value or question.mode == "both"]
+    return [
+        question
+        for question in section.questions
+        if question.mode == mode_value or question.mode == "both"
+    ]
 
 
 def _is_question_complete(

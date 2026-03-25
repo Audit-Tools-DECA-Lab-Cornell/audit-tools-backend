@@ -36,9 +36,7 @@ def test_build_playspace_seed_entities_include_project_place_links_and_pair_scop
     """Seed data should include join rows plus project-scoped assignments and audits."""
 
     entities = build_playspace_seed_entities()
-    project_place_links = [
-        entity for entity in entities if isinstance(entity, ProjectPlace)
-    ]
+    project_place_links = [entity for entity in entities if isinstance(entity, ProjectPlace)]
     assignments = [entity for entity in entities if isinstance(entity, AuditorAssignment)]
     audits = [entity for entity in entities if isinstance(entity, Audit)]
 

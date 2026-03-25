@@ -4,13 +4,13 @@ Audit session-focused methods for the Playspace audit service.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import Float, cast, func, or_, select, tuple_
+from sqlalchemy import func, or_, select, tuple_
 from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
@@ -46,12 +46,12 @@ from app.products.playspace.schemas import (
     AuditorDashboardSummaryResponse,
     AuditorPlaceResponse,
     AuditProgressResponse,
-    PaginatedResponse,
     AuditScoresResponse,
     AuditScoreTotalsResponse,
     AuditSectionStateResponse,
     AuditSessionResponse,
     ExecutionMode,
+    PaginatedResponse,
     PlaceAuditAccessRequest,
     PreAuditResponse,
 )
@@ -201,7 +201,9 @@ class PlayspaceAuditSessionsMixin:
                 )
                 assigned_places[summary_key] = summary
 
-        direct_place_assignments_result = await self._session.execute(direct_place_assignments_query)
+        direct_place_assignments_result = await self._session.execute(
+            direct_place_assignments_query
+        )
         for row in direct_place_assignments_result.all():
             record_assignment_row(row)
 
@@ -342,7 +344,9 @@ class PlayspaceAuditSessionsMixin:
         """Return assigned places for the current auditor with latest audit status."""
 
         auditor_profile = await self._require_auditor_profile(actor=actor)
-        normalized_search = search.strip().lower() if search is not None and search.strip() else None
+        normalized_search = (
+            search.strip().lower() if search is not None and search.strip() else None
+        )
         normalized_statuses = {
             raw_status
             for raw_status in (statuses or [])
@@ -355,9 +359,7 @@ class PlayspaceAuditSessionsMixin:
         )
         latest_audits_by_place = await self._get_latest_audit_snapshots(
             auditor_profile_id=auditor_profile.id,
-            project_place_pairs=[
-                (place.project_id, place.place_id) for place in assigned_places
-            ],
+            project_place_pairs=[(place.project_id, place.place_id) for place in assigned_places],
         )
 
         responses: list[AuditorPlaceResponse] = []
@@ -382,7 +384,9 @@ class PlayspaceAuditSessionsMixin:
                     submitted_at=latest_audit.submitted_at if latest_audit is not None else None,
                     summary_score=latest_audit.summary_score if latest_audit is not None else None,
                     score_totals=latest_audit.score_totals if latest_audit is not None else None,
-                    progress_percent=latest_audit.progress_percent if latest_audit is not None else None,
+                    progress_percent=latest_audit.progress_percent
+                    if latest_audit is not None
+                    else None,
                 )
             )
 
@@ -409,10 +413,7 @@ class PlayspaceAuditSessionsMixin:
             filtered_responses = [
                 response
                 for response in filtered_responses
-                if (
-                    response.audit_status is None
-                    and "not_started" in normalized_statuses
-                )
+                if (response.audit_status is None and "not_started" in normalized_statuses)
                 or (
                     response.audit_status is not None
                     and response.audit_status.value in normalized_statuses
@@ -439,14 +440,10 @@ class PlayspaceAuditSessionsMixin:
             return response.place_name.lower()
 
         non_null_rows = [
-            response
-            for response in filtered_responses
-            if build_sort_value(response) is not None
+            response for response in filtered_responses if build_sort_value(response) is not None
         ]
         null_rows = [
-            response
-            for response in filtered_responses
-            if build_sort_value(response) is None
+            response for response in filtered_responses if build_sort_value(response) is None
         ]
         non_null_rows = sorted(
             non_null_rows,
@@ -554,9 +551,7 @@ class PlayspaceAuditSessionsMixin:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.started_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         audits_result = await self._session.execute(
@@ -603,7 +598,9 @@ class PlayspaceAuditSessionsMixin:
             )
             raw_progress_percent = getattr(row, "draft_progress_percent", None)
             progress_percent = None
-            if status_value is not AuditStatus.SUBMITTED and isinstance(raw_progress_percent, int | float):
+            if status_value is not AuditStatus.SUBMITTED and isinstance(
+                raw_progress_percent, int | float
+            ):
                 progress_percent = float(raw_progress_percent)
 
             responses.append(
@@ -643,9 +640,7 @@ class PlayspaceAuditSessionsMixin:
         )
         latest_audits_by_place = await self._get_latest_audit_snapshots(
             auditor_profile_id=auditor_profile.id,
-            project_place_pairs=[
-                (place.project_id, place.place_id) for place in assigned_places
-            ],
+            project_place_pairs=[(place.project_id, place.place_id) for place in assigned_places],
         )
         submitted_scores = await self._list_submitted_audit_scores(
             auditor_profile_id=auditor_profile.id
@@ -731,12 +726,12 @@ class PlayspaceAuditSessionsMixin:
             )
             if initial_execution_mode is not None:
                 set_execution_mode_value(audit=audit, execution_mode=initial_execution_mode)
-            audit.responses_json = build_responses_json_from_relations(audit)
+            self._refresh_draft_cache_fields(audit=audit)
             self._session.add(audit)
             await self._commit_and_refresh(audit)
         elif audit.status is not AuditStatus.SUBMITTED and payload.execution_mode is not None:
             self._set_execution_mode(audit=audit, execution_mode=payload.execution_mode)
-            audit.responses_json = build_responses_json_from_relations(audit)
+            self._refresh_draft_cache_fields(audit=audit)
             await self._commit_and_refresh(audit)
 
         return self._build_audit_session_response(
@@ -767,9 +762,12 @@ class PlayspaceAuditSessionsMixin:
         audit_id: uuid.UUID,
         payload: AuditDraftPatchRequest,
     ) -> AuditDraftSaveResponse:
-        """Merge a draft patch into an in-progress audit and return a lightweight acknowledgement."""
+        """Merge a draft patch into an in-progress audit and return a light acknowledgement."""
 
-        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
+        audit = await self._load_accessible_audit(
+            actor=actor,
+            audit_id=audit_id
+        )
         self._ensure_not_submitted(
             audit=audit,
             detail="Submitted audits cannot be edited.",
@@ -835,7 +833,10 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditSessionResponse:
         """Validate completion, calculate scores, and submit an in-progress audit."""
 
-        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
+        audit = await self._load_accessible_audit(
+            actor=actor,
+            audit_id=audit_id
+        )
         self._ensure_not_submitted(
             audit=audit,
             detail="This audit has already been submitted.",
@@ -901,11 +902,7 @@ class PlayspaceAuditSessionsMixin:
             )
         )
         project_place = result.scalar_one_or_none()
-        if (
-            project_place is None
-            or project_place.project is None
-            or project_place.place is None
-        ):
+        if project_place is None or project_place.project is None or project_place.place is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="The requested place is not linked to the requested project.",
@@ -1104,10 +1101,14 @@ class PlayspaceAuditSessionsMixin:
             character for character in project_name.upper() if character.isalnum()
         )
         trimmed_project_segment = project_segment[:8] or "PROJECT"
-        place_segment = "".join(character for character in place_name.upper() if character.isalnum())
+        place_segment = "".join(
+            character for character in place_name.upper() if character.isalnum()
+        )
         trimmed_place_segment = place_segment[:12] or "PLAYSPACE"
         timestamp_segment = created_at.strftime("%Y%m%d%H%M%S")
-        return f"{trimmed_project_segment}-{trimmed_place_segment}-{auditor_code}-{timestamp_segment}"
+        return (
+            f"{trimmed_project_segment}-{trimmed_place_segment}-{auditor_code}-{timestamp_segment}"
+        )
 
     def _progress_percent(self, progress: AuditProgressResponse) -> float:
         """Convert answered-vs-total visible questions into a simple draft percentage."""
@@ -1188,7 +1189,9 @@ class PlayspaceAuditSessionsMixin:
     ) -> tuple[AuditScoreTotalsResponse | None, float | None]:
         """Resolve compact totals and summary score from cached values only."""
 
-        score_totals = self._build_score_totals_response(self._read_json_dict(raw_scores).get("overall"))
+        score_totals = self._build_score_totals_response(
+            self._read_json_dict(raw_scores).get("overall")
+        )
         compact_summary_score = self._combined_construct_total(score_totals)
         if compact_summary_score is not None:
             return score_totals, compact_summary_score

@@ -49,7 +49,9 @@ class PlayspaceAuditAssignmentsMixin:
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Manager account context is required for assignment access.",
                 )
-            query = query.where(AuditorAssignment.project.has(Project.account_id == actor.account_id))
+            query = query.where(
+                AuditorAssignment.project.has(Project.account_id == actor.account_id)
+            )
 
         result = await self._session.execute(query)
         assignments = result.scalars().all()
@@ -374,7 +376,9 @@ class PlayspaceAuditAssignmentsMixin:
         """Convert an ORM assignment row into the API response model."""
 
         if assignment.place is not None:
-            project_name = assignment.project.name if assignment.project is not None else "Unknown project"
+            project_name = (
+                assignment.project.name if assignment.project is not None else "Unknown project"
+            )
             return AssignmentResponse(
                 id=assignment.id,
                 auditor_profile_id=assignment.auditor_profile_id,
@@ -388,7 +392,9 @@ class PlayspaceAuditAssignmentsMixin:
                 assigned_at=assignment.assigned_at,
             )
 
-        project_name = assignment.project.name if assignment.project is not None else "Unknown project"
+        project_name = (
+            assignment.project.name if assignment.project is not None else "Unknown project"
+        )
         return AssignmentResponse(
             id=assignment.id,
             auditor_profile_id=assignment.auditor_profile_id,

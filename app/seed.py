@@ -130,9 +130,7 @@ async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -
         await session.flush()
         inserted_entity_ids.update(id(entity) for entity in batch)
 
-    remaining_entities = [
-        entity for entity in entities if id(entity) not in inserted_entity_ids
-    ]
+    remaining_entities = [entity for entity in entities if id(entity) not in inserted_entity_ids]
     if remaining_entities:
         session.add_all(remaining_entities)
         await session.flush()

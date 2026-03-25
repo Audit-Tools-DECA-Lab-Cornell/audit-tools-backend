@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import Float, and_, case, cast, distinct, func, or_, select
+from sqlalchemy import and_, case, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -598,9 +598,9 @@ class PlayspaceDashboardService:
                     )
                 )
                 .label("last_audited_at"),
-                func.max(
-                    case((Audit.status == AuditStatus.IN_PROGRESS, 1), else_=0)
-                ).label("has_in_progress"),
+                func.max(case((Audit.status == AuditStatus.IN_PROGRESS, 1), else_=0)).label(
+                    "has_in_progress"
+                ),
                 func.max(case((Audit.status == AuditStatus.SUBMITTED, 1), else_=0)).label(
                     "has_submitted"
                 ),
@@ -659,9 +659,7 @@ class PlayspaceDashboardService:
             )
 
         if normalized_project_ids:
-            filtered_rows_query = filtered_rows_query.where(
-                Project.id.in_(normalized_project_ids)
-            )
+            filtered_rows_query = filtered_rows_query.where(Project.id.in_(normalized_project_ids))
 
         if normalized_statuses:
             status_conditions = []
@@ -692,9 +690,7 @@ class PlayspaceDashboardService:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.last_audited_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(
@@ -712,9 +708,9 @@ class PlayspaceDashboardService:
         summary_result = await self._session.execute(
             select(
                 func.count(ProjectPlace.place_id).label("total_places"),
-                func.sum(
-                    case((and_(has_in_progress == 0, has_submitted == 1), 1), else_=0)
-                ).label("submitted_places"),
+                func.sum(case((and_(has_in_progress == 0, has_submitted == 1), 1), else_=0)).label(
+                    "submitted_places"
+                ),
                 func.sum(case((has_in_progress == 1, 1), else_=0)).label("in_progress_places"),
                 func.avg(place_audit_summary_subquery.c.average_score).label("average_score"),
             )
@@ -827,9 +823,7 @@ class PlayspaceDashboardService:
             )
 
         if normalized_project_ids:
-            filtered_rows_query = filtered_rows_query.where(
-                Project.id.in_(normalized_project_ids)
-            )
+            filtered_rows_query = filtered_rows_query.where(Project.id.in_(normalized_project_ids))
 
         if normalized_statuses:
             filtered_rows_query = filtered_rows_query.where(Audit.status.in_(normalized_statuses))
@@ -855,9 +849,7 @@ class PlayspaceDashboardService:
         }
         sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.submitted_at)
         primary_order = (
-            sort_column.desc().nulls_last()
-            if is_descending
-            else sort_column.asc().nulls_last()
+            sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
         )
 
         rows_result = await self._session.execute(
@@ -879,9 +871,7 @@ class PlayspaceDashboardService:
                 .filter(Audit.status == AuditStatus.SUBMITTED)
                 .label("submitted_audits"),
                 func.count(Audit.id)
-                .filter(
-                    Audit.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED])
-                )
+                .filter(Audit.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED]))
                 .label("in_progress_audits"),
                 func.avg(Audit.summary_score)
                 .filter(Audit.summary_score.is_not(None))
@@ -1013,9 +1003,7 @@ class PlayspaceDashboardService:
                 for audit in place.audits
                 if audit.project_id == project.id and audit.status == AuditStatus.SUBMITTED
             ]
-            project_audits = [
-                audit for audit in place.audits if audit.project_id == project.id
-            ]
+            project_audits = [audit for audit in place.audits if audit.project_id == project.id]
             place_summaries.append(
                 PlaceSummaryResponse(
                     id=place.id,

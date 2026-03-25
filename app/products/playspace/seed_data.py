@@ -925,7 +925,11 @@ def _build_project_place_links(
         )
 
     shared_demo_place = next(
-        (place_context for place_context in place_contexts if place_context.place.id == DEMO_PLACE_HILLCREST_ID),
+        (
+            place_context
+            for place_context in place_contexts
+            if place_context.place.id == DEMO_PLACE_HILLCREST_ID
+        ),
         None,
     )
     if shared_demo_place is not None:
@@ -949,11 +953,15 @@ def _build_assignments(
     """Create project and place assignments plus a resolved execution-mode map."""
 
     assignments: list[AuditorAssignment] = []
-    execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]] = {}
+    execution_modes_by_place_and_auditor: dict[
+        tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]
+    ] = {}
 
     places_by_project_id: dict[uuid.UUID, list[PlaceSeedContext]] = {}
     for place_context in place_contexts:
-        places_by_project_id.setdefault(place_context.project_context.project.id, []).append(place_context)
+        places_by_project_id.setdefault(place_context.project_context.project.id, []).append(
+            place_context
+        )
 
     auditors_by_city: dict[str, list[AuditorSeedContext]] = {}
     for auditor_context in auditor_contexts:
@@ -1105,14 +1113,18 @@ def _hydrate_estimated_counts(
 
     places_by_project_id: dict[uuid.UUID, set[uuid.UUID]] = {}
     for project_place_link in project_place_links:
-        places_by_project_id.setdefault(project_place_link.project_id, set()).add(project_place_link.place_id)
+        places_by_project_id.setdefault(project_place_link.project_id, set()).add(
+            project_place_link.place_id
+        )
 
     auditors_by_project_id: dict[uuid.UUID, set[uuid.UUID]] = {}
     auditors_by_place_id: dict[uuid.UUID, set[uuid.UUID]] = {}
     for (place_id, auditor_profile_id), _modes in execution_modes_by_place_and_auditor.items():
         auditors_by_place_id.setdefault(place_id, set()).add(auditor_profile_id)
 
-    place_context_by_id = {place_context.place.id: place_context for place_context in place_contexts}
+    place_context_by_id = {
+        place_context.place.id: place_context for place_context in place_contexts
+    }
     for place_id, place_context in place_context_by_id.items():
         place_context.place.est_auditors = len(auditors_by_place_id.get(place_id, set()))
 
