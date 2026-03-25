@@ -283,6 +283,7 @@ def test_auth_self_service_and_instrument_endpoints(
     )
     assert instrument_response.status_code == 200
     assert instrument_response.json()["instrument_key"] == "pvua_v5_2"
+    assert len(instrument_response.json()["sections"]) > 0
 
 
 def test_manager_dashboard_endpoints(
@@ -655,6 +656,10 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
     audit_session = access_response.json()
     audit_id = audit_session["audit_id"]
     assert audit_session["project_id"] == project["id"]
+    assert audit_session["schema_version"] == 1
+    assert audit_session["revision"] == 1
+    assert audit_session["aggregate"]["schema_version"] == 1
+    assert audit_session["aggregate"]["revision"] == 1
 
     get_audit_response = playspace_client.get(
         f"/playspace/audits/{audit_id}",
@@ -667,24 +672,57 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
         f"/playspace/audits/{audit_id}/draft",
         headers=auditor_headers,
         json={
+            "expected_revision": audit_session["revision"],
             "meta": {"execution_mode": "survey"},
             "pre_audit": {"season": "summer"},
         },
     )
     assert patch_draft_response.status_code == 200
     assert patch_draft_response.json()["audit_id"] == audit_id
+    assert patch_draft_response.json()["revision"] == 2
+
+    stale_patch_response = playspace_client.patch(
+        f"/playspace/audits/{audit_id}/draft",
+        headers=auditor_headers,
+        json={
+            "expected_revision": 1,
+            "pre_audit": {"season": "winter"},
+        },
+    )
+    assert stale_patch_response.status_code == 409
 
     patch_place_draft_response = playspace_client.patch(
         f"/playspace/places/{place['id']}/audits/draft",
         headers=auditor_headers,
         params={"project_id": project["id"]},
         json={
-            "meta": {"execution_mode": "both"},
-            "pre_audit": {"season": "summer", "place_size": "medium"},
+            "expected_revision": patch_draft_response.json()["revision"],
+            "aggregate": {
+                "schema_version": 1,
+                "meta": {"execution_mode": "both"},
+                "pre_audit": {
+                    "season": "summer",
+                    "weather_conditions": [],
+                    "users_present": [],
+                    "user_count": None,
+                    "age_groups": [],
+                    "place_size": "medium",
+                },
+                "sections": {},
+            },
         },
     )
     assert patch_place_draft_response.status_code == 200
     assert patch_place_draft_response.json()["audit_id"] == audit_id
+    assert patch_place_draft_response.json()["revision"] == 3
+
+    refreshed_audit_response = playspace_client.get(
+        f"/playspace/audits/{audit_id}",
+        headers=auditor_headers,
+    )
+    assert refreshed_audit_response.status_code == 200
+    assert refreshed_audit_response.json()["revision"] == 3
+    assert refreshed_audit_response.json()["aggregate"]["meta"]["execution_mode"] == "both"
 
     submit_response = playspace_client.post(
         f"/playspace/audits/{audit_id}/submit",

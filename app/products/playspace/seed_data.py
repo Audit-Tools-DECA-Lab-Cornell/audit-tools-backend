@@ -44,7 +44,10 @@ from app.models import (
     Project,
     ProjectPlace,
 )
-from app.products.playspace.audit_state import hydrate_relations_from_cached_json
+from app.products.playspace.audit_state import (
+    CURRENT_AUDIT_SCHEMA_VERSION,
+    hydrate_relations_from_cached_json,
+)
 from app.products.playspace.instrument import INSTRUMENT_KEY, INSTRUMENT_VERSION
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import (
@@ -1629,6 +1632,8 @@ def _build_responses_json(
             remaining_questions -= answered_count
 
     return {
+        "schema_version": CURRENT_AUDIT_SCHEMA_VERSION,
+        "revision": 1,
         "meta": meta,
         "pre_audit": pre_audit,
         "sections": sections_payload,

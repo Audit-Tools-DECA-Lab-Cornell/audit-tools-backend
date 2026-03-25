@@ -8,11 +8,10 @@ from fastapi import APIRouter
 
 from app.core.actors import CurrentUserContext
 from app.products.playspace.instrument import (
-    INSTRUMENT_KEY,
-    INSTRUMENT_NAME,
-    INSTRUMENT_VERSION,
+    get_canonical_instrument_response,
 )
 from app.products.playspace.routes.dependencies import CURRENT_USER_DEPENDENCY
+from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
 router = APIRouter(tags=["playspace-instrument"])
 
@@ -20,12 +19,8 @@ router = APIRouter(tags=["playspace-instrument"])
 @router.get("/instrument")
 async def get_instrument_metadata(
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
-) -> dict[str, str]:
-    """Return version metadata for the Playspace instrument."""
+) -> PlayspaceInstrumentResponse:
+    """Return the canonical Playspace instrument contract."""
 
     _ = current_user
-    return {
-        "instrument_key": INSTRUMENT_KEY,
-        "instrument_name": INSTRUMENT_NAME,
-        "instrument_version": INSTRUMENT_VERSION,
-    }
+    return get_canonical_instrument_response()

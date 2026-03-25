@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.models import Audit
+from app.products.playspace.audit_state import build_responses_json_from_relations
 from app.products.playspace.schemas import (
     AuditDraftPatchRequest,
     AuditProgressResponse,
@@ -335,13 +336,9 @@ def _build_snapshot_from_json(responses_json: JsonDict) -> AuditStateSnapshot:
 
 
 def _build_snapshot_from_audit(audit: Audit) -> AuditStateSnapshot:
-    """Build a scoring snapshot directly from normalized Playspace audit relations."""
+    """Build a scoring snapshot from the canonical aggregate with legacy fallback."""
 
-    return AuditStateSnapshot(
-        execution_mode_value=_read_execution_mode_value_from_audit(audit),
-        pre_audit_payload=_build_pre_audit_payload_from_audit(audit),
-        sections_payload=_build_sections_payload_from_audit(audit),
-    )
+    return _build_snapshot_from_json(build_responses_json_from_relations(audit))
 
 
 def _get_visible_questions(

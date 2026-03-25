@@ -12,7 +12,10 @@ from pydantic import Field
 
 from app.models import AuditStatus
 from app.products.playspace.schemas.base import ApiModel, RequestModel
-from app.products.playspace.schemas.instrument import ExecutionMode
+from app.products.playspace.schemas.instrument import (
+    ExecutionMode,
+    PlayspaceInstrumentResponse,
+)
 
 ######################################################################################
 #################################### Audit Schemas ###################################
@@ -111,9 +114,30 @@ class AuditScoresResponse(ApiModel):
     by_domain: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
 
 
-class AuditDraftPatchRequest(RequestModel):
-    """Patch payload for saving an audit draft without replacing the full document."""
+class AuditAggregateWriteRequest(RequestModel):
+    """Canonical aggregate payload written by revision-aware draft sync clients."""
 
+    schema_version: int | None = Field(default=None, ge=1)
+    meta: AuditMetaPatchRequest | None = None
+    pre_audit: PreAuditPatchRequest | None = None
+    sections: dict[str, SectionDraftPatchRequest] = Field(default_factory=dict)
+
+
+class AuditAggregateResponse(ApiModel):
+    """Canonical audit aggregate returned by the backend."""
+
+    schema_version: int
+    revision: int
+    meta: AuditMetaResponse
+    pre_audit: PreAuditResponse
+    sections: dict[str, AuditSectionStateResponse]
+
+
+class AuditDraftPatchRequest(RequestModel):
+    """Draft-save payload supporting aggregate writes and legacy fragment compatibility."""
+
+    expected_revision: int | None = Field(default=None, ge=0)
+    aggregate: AuditAggregateWriteRequest | None = None
     meta: AuditMetaPatchRequest | None = None
     pre_audit: PreAuditPatchRequest | None = None
     sections: dict[str, SectionDraftPatchRequest] = Field(default_factory=dict)
@@ -124,8 +148,16 @@ class AuditDraftSaveResponse(ApiModel):
 
     audit_id: uuid.UUID
     status: AuditStatus
+    schema_version: int
+    revision: int
     draft_progress_percent: float | None = None
     saved_at: datetime
+
+
+class AuditSubmitRequest(RequestModel):
+    """Optional revision check payload for final audit submission."""
+
+    expected_revision: int | None = Field(default=None, ge=0)
 
 
 class PlaceAuditAccessRequest(RequestModel):
@@ -219,6 +251,10 @@ class AuditSessionResponse(ApiModel):
     status: AuditStatus
     instrument_key: str
     instrument_version: str
+    instrument: PlayspaceInstrumentResponse
+    schema_version: int
+    revision: int
+    aggregate: AuditAggregateResponse
     started_at: datetime
     submitted_at: datetime | None
     total_minutes: int | None

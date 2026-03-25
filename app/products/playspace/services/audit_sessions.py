@@ -29,16 +29,23 @@ from app.models import (
 from app.products.playspace.audit_state import (
     apply_draft_patch_to_relations,
     build_responses_json_from_relations,
+    CURRENT_AUDIT_SCHEMA_VERSION,
     get_draft_progress_percent,
+    get_aggregate_revision,
+    get_aggregate_schema_version,
     get_execution_mode_value,
+    replace_audit_aggregate,
+    set_aggregate_revision,
     set_draft_progress_percent,
     set_execution_mode_value,
 )
 from app.products.playspace.instrument import (
     INSTRUMENT_KEY,
     INSTRUMENT_VERSION,
+    get_canonical_instrument_response,
 )
 from app.products.playspace.schemas import (
+    AuditAggregateResponse,
     AuditDraftPatchRequest,
     AuditDraftSaveResponse,
     AuditMetaResponse,
@@ -50,6 +57,7 @@ from app.products.playspace.schemas import (
     AuditScoreTotalsResponse,
     AuditSectionStateResponse,
     AuditSessionResponse,
+    AuditSubmitRequest,
     ExecutionMode,
     PaginatedResponse,
     PlaceAuditAccessRequest,
@@ -727,11 +735,13 @@ class PlayspaceAuditSessionsMixin:
             if initial_execution_mode is not None:
                 set_execution_mode_value(audit=audit, execution_mode=initial_execution_mode)
             self._refresh_draft_cache_fields(audit=audit)
+            set_aggregate_revision(audit, 1)
             self._session.add(audit)
             await self._commit_and_refresh(audit)
         elif audit.status is not AuditStatus.SUBMITTED and payload.execution_mode is not None:
             self._set_execution_mode(audit=audit, execution_mode=payload.execution_mode)
             self._refresh_draft_cache_fields(audit=audit)
+            set_aggregate_revision(audit, get_aggregate_revision(audit) + 1)
             await self._commit_and_refresh(audit)
 
         return self._build_audit_session_response(
@@ -772,6 +782,14 @@ class PlayspaceAuditSessionsMixin:
             audit=audit,
             detail="Submitted audits cannot be edited.",
         )
+        self._ensure_expected_revision_matches(
+            audit=audit,
+            expected_revision=payload.expected_revision,
+        )
+        if payload.aggregate is not None:
+            self._ensure_supported_schema_version(
+                schema_version=payload.aggregate.schema_version
+            )
 
         requested_mode = payload.meta.execution_mode if payload.meta is not None else None
         allowed_modes = get_allowed_execution_modes()
@@ -781,7 +799,26 @@ class PlayspaceAuditSessionsMixin:
             detail="The requested execution mode is not valid for this audit.",
         )
 
-        apply_draft_patch_to_relations(audit=audit, patch=payload)
+        if payload.aggregate is not None:
+            aggregate_mode = (
+                payload.aggregate.meta.execution_mode
+                if payload.aggregate.meta is not None
+                else None
+            )
+            self._ensure_mode_allowed(
+                requested_mode=aggregate_mode,
+                allowed_modes=allowed_modes,
+                detail="The requested execution mode is not valid for this audit.",
+            )
+            replace_audit_aggregate(audit=audit, aggregate=payload.aggregate)
+            set_execution_mode_value(
+                audit=audit,
+                execution_mode=aggregate_mode.value if aggregate_mode is not None else None,
+            )
+        else:
+            apply_draft_patch_to_relations(audit=audit, patch=payload)
+
+        set_aggregate_revision(audit, get_aggregate_revision(audit) + 1)
         responses_json = build_responses_json_from_relations(audit)
         audit.responses_json = responses_json
         progress = build_audit_progress_for_audit(audit=audit)
@@ -797,6 +834,8 @@ class PlayspaceAuditSessionsMixin:
         return AuditDraftSaveResponse(
             audit_id=audit.id,
             status=audit.status,
+            schema_version=get_aggregate_schema_version(audit),
+            revision=get_aggregate_revision(audit),
             draft_progress_percent=draft_progress_percent,
             saved_at=audit.updated_at,
         )
@@ -830,6 +869,7 @@ class PlayspaceAuditSessionsMixin:
         *,
         actor: CurrentUserContext,
         audit_id: uuid.UUID,
+        payload: AuditSubmitRequest | None = None,
     ) -> AuditSessionResponse:
         """Validate completion, calculate scores, and submit an in-progress audit."""
 
@@ -840,6 +880,10 @@ class PlayspaceAuditSessionsMixin:
         self._ensure_not_submitted(
             audit=audit,
             detail="This audit has already been submitted.",
+        )
+        self._ensure_expected_revision_matches(
+            audit=audit,
+            expected_revision=payload.expected_revision if payload is not None else None,
         )
 
         responses_json = build_responses_json_from_relations(audit)
@@ -1062,6 +1106,16 @@ class PlayspaceAuditSessionsMixin:
         allowed_modes = get_allowed_execution_modes()
         selected_mode = resolve_execution_mode_for_audit(audit=audit)
         progress = build_audit_progress_for_audit(audit=audit)
+        instrument = get_canonical_instrument_response()
+        meta = AuditMetaResponse(
+            execution_mode=self._parse_execution_mode(get_execution_mode_value(audit))
+        )
+        pre_audit = self._build_pre_audit_response(responses_json=responses_json)
+        sections = self._build_section_state_response_map(responses_json=responses_json)
+        aggregate = self._build_audit_aggregate_response(
+            audit=audit,
+            responses_json=responses_json,
+        )
         return AuditSessionResponse(
             audit_id=audit.id,
             audit_code=audit.audit_code,
@@ -1075,14 +1129,16 @@ class PlayspaceAuditSessionsMixin:
             status=audit.status,
             instrument_key=audit.instrument_key or INSTRUMENT_KEY,
             instrument_version=audit.instrument_version or INSTRUMENT_VERSION,
+            instrument=instrument,
+            schema_version=aggregate.schema_version,
+            revision=aggregate.revision,
+            aggregate=aggregate,
             started_at=audit.started_at,
             submitted_at=audit.submitted_at,
             total_minutes=audit.total_minutes,
-            meta=AuditMetaResponse(
-                execution_mode=self._parse_execution_mode(get_execution_mode_value(audit))
-            ),
-            pre_audit=self._build_pre_audit_response(responses_json=responses_json),
-            sections=self._build_section_state_response_map(responses_json=responses_json),
+            meta=meta,
+            pre_audit=pre_audit,
+            sections=sections,
             scores=self._build_audit_scores_response(audit=audit, fallback_mode=selected_mode),
             progress=progress,
         )
@@ -1118,6 +1174,78 @@ class PlayspaceAuditSessionsMixin:
         if total_visible_questions <= 0:
             return 0.0
         return round((answered_visible_questions / total_visible_questions) * 100, 2)
+
+    def _ensure_expected_revision_matches(
+        self,
+        *,
+        audit: Audit,
+        expected_revision: int | None,
+    ) -> None:
+        """Reject stale writes when the client sync base is older than the server revision."""
+
+        if expected_revision is None:
+            return
+
+        current_revision = get_aggregate_revision(audit)
+        if expected_revision != current_revision:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The audit draft has changed on the server. Fetch the latest audit "
+                    "session and retry with the current revision."
+                ),
+            )
+
+    def _ensure_supported_schema_version(self, *, schema_version: int | None) -> None:
+        """Reject aggregate payloads targeting an unsupported schema version."""
+
+        if schema_version is None:
+            return
+
+        if schema_version != CURRENT_AUDIT_SCHEMA_VERSION:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "The submitted audit aggregate schema is not supported by this server."
+                ),
+            )
+
+    def _build_audit_aggregate_response(
+        self,
+        *,
+        audit: Audit,
+        responses_json: dict[str, object],
+    ) -> AuditAggregateResponse:
+        """Build the canonical aggregate payload returned to aggregate-sync clients."""
+
+        return AuditAggregateResponse(
+            schema_version=get_aggregate_schema_version(audit),
+            revision=get_aggregate_revision(audit),
+            meta=AuditMetaResponse(
+                execution_mode=self._parse_execution_mode(
+                    get_execution_mode_value(audit)
+                )
+            ),
+            pre_audit=self._build_pre_audit_response(responses_json=responses_json),
+            sections=self._build_section_state_response_map(responses_json=responses_json),
+        )
+
+    def _refresh_draft_cache_fields(self, *, audit: Audit) -> None:
+        """Rebuild cached draft JSON and progress projections after in-memory edits."""
+
+        responses_json = build_responses_json_from_relations(audit)
+        audit.responses_json = responses_json
+
+        progress = build_audit_progress_for_audit(audit=audit)
+        draft_progress_percent = self._progress_percent(progress)
+        set_draft_progress_percent(audit=audit, draft_progress_percent=draft_progress_percent)
+
+        existing_scores = dict(audit.scores_json) if isinstance(audit.scores_json, dict) else {}
+        audit.scores_json = {
+            **existing_scores,
+            "draft_progress_percent": draft_progress_percent,
+            "progress": progress.model_dump(),
+        }
 
     def _build_pre_audit_response(
         self,
