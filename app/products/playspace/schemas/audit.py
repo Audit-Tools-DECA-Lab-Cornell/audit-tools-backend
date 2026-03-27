@@ -200,6 +200,8 @@ class AuditorPlaceResponse(ApiModel):
     city: str | None
     province: str | None
     country: str | None
+    lat: float | None
+    lng: float | None
     audit_status: AuditStatus | None
     audit_id: uuid.UUID | None
     started_at: datetime | None

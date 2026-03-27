@@ -111,6 +111,8 @@ class _AssignedPlaceSummary:
     city: str | None
     province: str | None
     country: str | None
+    lat: float | None
+    lng: float | None
 
 
 @dataclass(slots=True)
@@ -149,6 +151,8 @@ class PlayspaceAuditSessionsMixin:
                 Place.city.label("city"),
                 Place.province.label("province"),
                 Place.country.label("country"),
+                Place.lat.label("lat"),
+                Place.lng.label("lng"),
             )
             .select_from(AuditorAssignment)
             .join(Project, AuditorAssignment.project_id == Project.id)
@@ -168,6 +172,8 @@ class PlayspaceAuditSessionsMixin:
                 Place.city.label("city"),
                 Place.province.label("province"),
                 Place.country.label("country"),
+                Place.lat.label("lat"),
+                Place.lng.label("lng"),
             )
             .select_from(AuditorAssignment)
             .join(Project, AuditorAssignment.project_id == Project.id)
@@ -206,6 +212,8 @@ class PlayspaceAuditSessionsMixin:
                     city=getattr(row, "city", None),
                     province=getattr(row, "province", None),
                     country=getattr(row, "country", None),
+                    lat=getattr(row, "lat", None),
+                    lng=getattr(row, "lng", None),
                 )
                 assigned_places[summary_key] = summary
 
@@ -386,6 +394,8 @@ class PlayspaceAuditSessionsMixin:
                     city=assigned_place.city,
                     province=assigned_place.province,
                     country=assigned_place.country,
+                    lat=assigned_place.lat,
+                    lng=assigned_place.lng,
                     audit_status=latest_audit.status if latest_audit is not None else None,
                     audit_id=latest_audit.audit_id if latest_audit is not None else None,
                     started_at=latest_audit.started_at if latest_audit is not None else None,
