@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+from pydantic import Field, model_validator
+
 from app.products.playspace.schemas.base import ApiModel
 
 
@@ -39,6 +41,20 @@ class PreAuditInputType(str, Enum):
     SINGLE_SELECT = "single_select"
     MULTI_SELECT = "multi_select"
     AUTO_TIMESTAMP = "auto_timestamp"
+
+
+class PreAuditPageKey(str, Enum):
+    """Supported setup screens that can render pre-audit prompts."""
+
+    AUDIT_INFO = "audit_info"
+    SPACE_SETUP = "space_setup"
+
+
+class InstrumentQuestionType(str, Enum):
+    """Supported section-question kinds in the Playspace instrument."""
+
+    SCALED = "scaled"
+    CHECKLIST = "checklist"
 
 
 class InstrumentChoiceOptionResponse(ApiModel):
@@ -79,6 +95,14 @@ class InstrumentQuestionScaleResponse(ApiModel):
     options: list[InstrumentScaleOptionResponse]
 
 
+class InstrumentQuestionDisplayConditionResponse(ApiModel):
+    """Simple parent-answer condition controlling question visibility."""
+
+    question_key: str
+    response_key: str = "quantity"
+    any_of_option_keys: list[str] = Field(default_factory=list)
+
+
 class InstrumentPreAuditQuestionResponse(ApiModel):
     """One structured question shown before the main audit sections."""
 
@@ -88,6 +112,15 @@ class InstrumentPreAuditQuestionResponse(ApiModel):
     input_type: PreAuditInputType
     required: bool
     options: list[InstrumentChoiceOptionResponse]
+    page_key: PreAuditPageKey = PreAuditPageKey.SPACE_SETUP
+    visible_modes: list[ExecutionMode] = Field(
+        default_factory=lambda: [
+            ExecutionMode.AUDIT,
+            ExecutionMode.SURVEY,
+            ExecutionMode.BOTH,
+        ]
+    )
+    group_key: str | None = None
 
 
 class InstrumentQuestionResponse(ApiModel):
@@ -99,7 +132,23 @@ class InstrumentQuestionResponse(ApiModel):
     domains: list[str]
     section_key: str
     prompt: str
-    scales: list[InstrumentQuestionScaleResponse]
+    question_type: InstrumentQuestionType = InstrumentQuestionType.SCALED
+    scales: list[InstrumentQuestionScaleResponse] = Field(default_factory=list)
+    options: list[InstrumentChoiceOptionResponse] = Field(default_factory=list)
+    required: bool = True
+    display_if: InstrumentQuestionDisplayConditionResponse | None = None
+
+    @model_validator(mode="after")
+    def validate_question_shape(self) -> "InstrumentQuestionResponse":
+        """Ensure each question kind carries the expected answer metadata."""
+
+        if self.question_type is InstrumentQuestionType.SCALED and len(self.scales) == 0:
+            raise ValueError("Scaled questions must define at least one scoring scale.")
+
+        if self.question_type is InstrumentQuestionType.CHECKLIST and len(self.options) == 0:
+            raise ValueError("Checklist questions must define at least one selectable option.")
+
+        return self
 
 
 class InstrumentSectionResponse(ApiModel):

@@ -56,7 +56,7 @@ from app.products.playspace.scoring import (
     score_audit_for_audit,
 )
 from app.products.playspace.scoring_metadata import (
-    SCORING_SECTIONS,
+    get_scoring_sections,
     ScoringQuestion,
     ScoringScale,
     ScoringScaleOption,
@@ -1578,16 +1578,18 @@ def _build_responses_json(
         randomizer=randomizer,
         complete_pre_audit=complete_pre_audit,
     )
-    visible_sections: list[tuple[ScoringSection, list[ScoringQuestion]]] = []
-    for section in SCORING_SECTIONS:
-        visible_questions = _visible_questions_for_mode(
-            section=section,
-            execution_mode=execution_mode,
-        )
-        if visible_questions:
-            visible_sections.append((section, visible_questions))
+    visible_sections = [
+        section
+        for section in get_scoring_sections()
+        if len(_visible_questions_for_mode(section=section, execution_mode=execution_mode)) > 0
+    ]
 
-    total_visible_questions = sum(len(questions) for _section, questions in visible_sections)
+    total_visible_questions = sum(
+        1
+        for section in visible_sections
+        for question in _visible_questions_for_mode(section=section, execution_mode=execution_mode)
+        if question.required and question.question_type == "scaled"
+    )
     target_answered_questions = min(
         total_visible_questions,
         max(0, round(total_visible_questions * target_completion_ratio)),
@@ -1604,32 +1606,65 @@ def _build_responses_json(
     sections_payload: SeedJson = {}
     remaining_questions = target_answered_questions
     # We fill sections in order so drafts look like a real session that progressed through the form.
-    for section, visible_questions in visible_sections:
+    for section in visible_sections:
         if remaining_questions <= 0:
             break
 
-        answered_count = min(len(visible_questions), remaining_questions)
-        answered_questions = visible_questions[:answered_count]
-        section_responses: dict[str, dict[str, str]] = {}
-        for question in answered_questions:
+        visible_questions = _visible_questions_for_mode(
+            section=section,
+            execution_mode=execution_mode,
+        )
+        answered_count = 0
+        section_responses: SeedJson = {}
+        for question in visible_questions:
+            if not _is_question_visible_for_seed(
+                question=question,
+                section_responses=section_responses,
+            ):
+                continue
+
+            if question.question_type == "checklist":
+                if question.required or randomizer.random() < 0.35:
+                    checklist_answers = _build_checklist_answers(
+                        question=question,
+                        randomizer=randomizer,
+                    )
+                    if checklist_answers:
+                        section_responses[question.question_key] = checklist_answers
+                continue
+
+            if remaining_questions <= 0:
+                continue
+
             section_responses[question.question_key] = _build_question_answers(
                 question=question,
                 quality_bias=quality_bias,
                 usage_bias=usage_bias,
                 randomizer=randomizer,
             )
+            answered_count += 1
+            remaining_questions -= 1
 
         if section_responses:
+            required_visible_question_count = sum(
+                1
+                for question in visible_questions
+                if question.required
+                and question.question_type == "scaled"
+                and _is_question_visible_for_seed(
+                    question=question,
+                    section_responses=section_responses,
+                )
+            )
             section_payload: SeedJson = {"responses": section_responses}
             if randomizer.random() < 0.45:
                 section_payload["note"] = _build_section_note(
                     section_key=section.section_key,
                     place_name=place_context.place.name,
                     focus_terms=place_context.project_context.blueprint.focus_terms,
-                    is_complete=answered_count == len(visible_questions),
+                    is_complete=answered_count == required_visible_question_count,
                 )
             sections_payload[section.section_key] = section_payload
-            remaining_questions -= answered_count
 
     return {
         "schema_version": CURRENT_AUDIT_SCHEMA_VERSION,
@@ -1676,6 +1711,30 @@ def _build_question_answers(
     return answers
 
 
+def _build_checklist_answers(
+    *,
+    question: ScoringQuestion,
+    randomizer: Random,
+) -> SeedJson:
+    """Build a simple optional checklist response payload for one follow-up question."""
+
+    option_keys = [option.key for option in question.options]
+    if len(option_keys) == 0:
+        return {}
+
+    max_selected = min(3, len(option_keys))
+    selected_count = randomizer.randint(1, max_selected)
+    selected_option_keys = randomizer.sample(option_keys, selected_count)
+    payload: SeedJson = {
+        "selected_option_keys": selected_option_keys,
+    }
+    if "other" in selected_option_keys:
+        payload["other_details"] = {
+            "text": "Additional seeded example",
+        }
+    return payload
+
+
 def _pick_option_for_scale(
     *,
     scale: ScoringScale,
@@ -1714,26 +1773,38 @@ def _build_pre_audit_payload(
         usage_bias=usage_bias,
         randomizer=randomizer,
     )
-    users_present = _users_present_from_usage(usage_bias=usage_bias, randomizer=randomizer)
-    user_count = _user_count_from_usage(usage_bias=usage_bias)
-    age_groups = _age_groups_for_place(place_context=place_context, randomizer=randomizer)
     place_size = _place_size_for_context(place_context=place_context)
+    current_user_counts = _current_user_counts_for_place(
+        place_context=place_context,
+        usage_bias=usage_bias,
+        randomizer=randomizer,
+    )
+    playspace_busyness = _playspace_busyness_from_usage(usage_bias=usage_bias)
+    wind_conditions = _wind_conditions_for_season(
+        season=season,
+        usage_bias=usage_bias,
+        randomizer=randomizer,
+    )
 
     payload: SeedJson = {
+        "place_size": place_size,
+        "current_users_0_5": current_user_counts["current_users_0_5"],
+        "current_users_6_12": current_user_counts["current_users_6_12"],
+        "current_users_13_17": current_user_counts["current_users_13_17"],
+        "current_users_18_plus": current_user_counts["current_users_18_plus"],
+        "playspace_busyness": playspace_busyness,
         "season": season,
         "weather_conditions": weather_conditions,
-        "users_present": users_present,
-        "user_count": user_count,
-        "age_groups": age_groups,
-        "place_size": place_size,
+        "wind_conditions": wind_conditions,
     }
     if complete_pre_audit:
         return payload
 
     partial_steps = [
+        ("place_size", place_size),
+        ("current_users_0_5", current_user_counts["current_users_0_5"]),
         ("season", season),
         ("weather_conditions", weather_conditions),
-        ("users_present", users_present),
     ]
     partial_payload: SeedJson = {}
     keep_count = randomizer.randint(1, len(partial_steps))
@@ -1932,6 +2003,31 @@ def _visible_questions_for_mode(
     ]
 
 
+def _is_question_visible_for_seed(
+    *,
+    question: ScoringQuestion,
+    section_responses: SeedJson,
+) -> bool:
+    """Evaluate simple intra-section display logic using already-built section answers."""
+
+    if question.display_if is None:
+        return True
+
+    parent_answers = section_responses.get(question.display_if.question_key)
+    if not isinstance(parent_answers, dict):
+        return False
+
+    selected_value = parent_answers.get(question.display_if.response_key)
+    if isinstance(selected_value, str):
+        return selected_value in question.display_if.any_of_option_keys
+    if isinstance(selected_value, list):
+        return any(
+            isinstance(entry, str) and entry in question.display_if.any_of_option_keys
+            for entry in selected_value
+        )
+    return False
+
+
 def _offset_coordinates(
     *,
     metro: MetroTemplate,
@@ -1988,7 +2084,7 @@ def _place_size_for_context(*, place_context: PlaceSeedContext) -> str:
 
     place_type = place_context.place.place_type
     if place_type in {DESTINATION_PLAYSPACE, WATERFRONT_PLAYSPACE}:
-        return "large"
+        return "very_large"
     if place_type == PRESCHOOL_PLAYSPACE:
         return "small"
     if place_context.usage_bias >= 0.72:
@@ -1998,35 +2094,73 @@ def _place_size_for_context(*, place_context: PlaceSeedContext) -> str:
     return "medium"
 
 
-def _users_present_from_usage(*, usage_bias: float, randomizer: Random) -> list[str]:
-    """Create realistic multi-select user values while keeping the payload complete."""
-
-    if usage_bias >= 0.7:
-        return ["children", "adults"]
-    if usage_bias >= 0.42:
-        return ["children"] if randomizer.random() < 0.6 else ["children", "adults"]
-    return ["adults"] if randomizer.random() < 0.35 else ["children"]
-
-
-def _user_count_from_usage(*, usage_bias: float) -> str:
-    """Convert usage bias into one of the expected user-count option keys."""
-
-    if usage_bias >= 0.72:
-        return "a_lot"
-    return "some"
-
-
-def _age_groups_for_place(*, place_context: PlaceSeedContext, randomizer: Random) -> list[str]:
-    """Choose realistic age groups while ensuring the required multi-select is populated."""
+def _current_user_counts_for_place(
+    *,
+    place_context: PlaceSeedContext,
+    usage_bias: float,
+    randomizer: Random,
+) -> SeedJson:
+    """Build age-group quantity values for the onsite setup matrix."""
 
     place_type = place_context.place.place_type
+    counts_by_group: SeedJson = {
+        "current_users_0_5": "none",
+        "current_users_6_12": "none",
+        "current_users_13_17": "none",
+        "current_users_18_plus": "none",
+    }
+
+    def resolve_count(*, base_bias: float) -> str:
+        adjusted_bias = _bounded_bias(base_bias + randomizer.uniform(-0.12, 0.12))
+        if adjusted_bias >= 0.72:
+            return "a_lot"
+        if adjusted_bias >= 0.32:
+            return "a_few"
+        return "none"
+
+    counts_by_group["current_users_18_plus"] = resolve_count(base_bias=max(0.28, usage_bias - 0.18))
+
     if place_type == PRESCHOOL_PLAYSPACE:
-        return ["under_5", "age_6_10"]
+        counts_by_group["current_users_0_5"] = resolve_count(base_bias=usage_bias + 0.18)
+        counts_by_group["current_users_6_12"] = resolve_count(base_bias=usage_bias - 0.12)
+        return counts_by_group
+
     if place_type == SCHOOL_PLAYSPACE:
-        return ["age_6_10", "age_11_plus"]
-    if randomizer.random() < 0.55:
-        return ["under_5", "age_6_10"]
-    return ["age_6_10", "age_11_plus"]
+        counts_by_group["current_users_6_12"] = resolve_count(base_bias=usage_bias + 0.2)
+        counts_by_group["current_users_13_17"] = resolve_count(base_bias=usage_bias - 0.02)
+        return counts_by_group
+
+    counts_by_group["current_users_0_5"] = resolve_count(base_bias=usage_bias - 0.08)
+    counts_by_group["current_users_6_12"] = resolve_count(base_bias=usage_bias + 0.1)
+    counts_by_group["current_users_13_17"] = resolve_count(base_bias=usage_bias - 0.04)
+    return counts_by_group
+
+
+def _playspace_busyness_from_usage(*, usage_bias: float) -> str:
+    """Convert usage bias into one of the busyness option keys."""
+
+    if usage_bias >= 0.72:
+        return "very_busy"
+    if usage_bias >= 0.34:
+        return "somewhat_busy"
+    return "not_at_all_busy"
+
+
+def _wind_conditions_for_season(
+    *,
+    season: str,
+    usage_bias: float,
+    randomizer: Random,
+) -> str:
+    """Pick one wind condition that aligns with the seeded season and weather."""
+
+    if season == "winter":
+        return "heavy_wind" if usage_bias < 0.45 and randomizer.random() < 0.35 else "occasional_gusts"
+    if season == "autumn":
+        return "occasional_gusts" if randomizer.random() < 0.55 else "light_wind"
+    if season == "summer":
+        return "no_wind" if usage_bias >= 0.62 and randomizer.random() < 0.5 else "light_wind"
+    return "light_wind" if randomizer.random() < 0.6 else "occasional_gusts"
 
 
 def _weather_for_season(
@@ -2039,13 +2173,17 @@ def _weather_for_season(
 
     if season == "summer":
         if usage_bias >= 0.7:
-            return ["sunshine"]
-        return ["sunshine", "windy"] if randomizer.random() < 0.35 else ["sunshine", "cloudy"]
+            return ["full_sun"]
+        return (
+            ["full_sun", "light_rain"]
+            if randomizer.random() < 0.18
+            else ["partial_sun_cloud"]
+        )
     if season == "autumn":
-        return ["cloudy", "windy"] if randomizer.random() < 0.4 else ["cloudy"]
+        return ["cloudy_overcast", "light_rain"] if randomizer.random() < 0.45 else ["foggy_misty"]
     if season == "winter":
-        return ["inclement_weather"] if randomizer.random() < 0.45 else ["cloudy", "windy"]
-    return ["sunshine", "cloudy"] if randomizer.random() < 0.4 else ["sunshine"]
+        return ["moderate_rain"] if randomizer.random() < 0.4 else ["cloudy_overcast", "light_rain"]
+    return ["partial_sun_cloud"] if randomizer.random() < 0.45 else ["full_sun"]
 
 
 def _season_for_new_zealand(*, date_value: date) -> str:

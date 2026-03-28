@@ -29,17 +29,18 @@ from app.products.playspace.schemas.audit import (
 
 CURRENT_AUDIT_SCHEMA_VERSION = 1
 PRE_AUDIT_FIELD_ORDER = (
+    "place_size",
+    "current_users_0_5",
+    "current_users_6_12",
+    "current_users_13_17",
+    "current_users_18_plus",
+    "playspace_busyness",
     "season",
     "weather_conditions",
-    "users_present",
-    "user_count",
-    "age_groups",
-    "place_size",
+    "wind_conditions",
 )
 MULTI_SELECT_PRE_AUDIT_FIELDS = {
     "weather_conditions",
-    "users_present",
-    "age_groups",
 }
 
 
@@ -207,16 +208,22 @@ def _merge_pre_audit_patch_into_payload(
 
     if "season" in fields_set:
         next_pre_audit["season"] = pre_audit_patch.season
-    if "weather_conditions" in fields_set:
-        next_pre_audit["weather_conditions"] = list(pre_audit_patch.weather_conditions)
-    if "users_present" in fields_set:
-        next_pre_audit["users_present"] = list(pre_audit_patch.users_present)
-    if "user_count" in fields_set:
-        next_pre_audit["user_count"] = pre_audit_patch.user_count
-    if "age_groups" in fields_set:
-        next_pre_audit["age_groups"] = list(pre_audit_patch.age_groups)
     if "place_size" in fields_set:
         next_pre_audit["place_size"] = pre_audit_patch.place_size
+    if "current_users_0_5" in fields_set:
+        next_pre_audit["current_users_0_5"] = pre_audit_patch.current_users_0_5
+    if "current_users_6_12" in fields_set:
+        next_pre_audit["current_users_6_12"] = pre_audit_patch.current_users_6_12
+    if "current_users_13_17" in fields_set:
+        next_pre_audit["current_users_13_17"] = pre_audit_patch.current_users_13_17
+    if "current_users_18_plus" in fields_set:
+        next_pre_audit["current_users_18_plus"] = pre_audit_patch.current_users_18_plus
+    if "playspace_busyness" in fields_set:
+        next_pre_audit["playspace_busyness"] = pre_audit_patch.playspace_busyness
+    if "weather_conditions" in fields_set:
+        next_pre_audit["weather_conditions"] = list(pre_audit_patch.weather_conditions)
+    if "wind_conditions" in fields_set:
+        next_pre_audit["wind_conditions"] = pre_audit_patch.wind_conditions
 
     payload["pre_audit"] = next_pre_audit
 
@@ -265,12 +272,15 @@ def _serialize_pre_audit_request(pre_audit: object) -> JSONDict:
         return {}
 
     return {
+        "place_size": getattr(pre_audit, "place_size", None),
+        "current_users_0_5": getattr(pre_audit, "current_users_0_5", None),
+        "current_users_6_12": getattr(pre_audit, "current_users_6_12", None),
+        "current_users_13_17": getattr(pre_audit, "current_users_13_17", None),
+        "current_users_18_plus": getattr(pre_audit, "current_users_18_plus", None),
+        "playspace_busyness": getattr(pre_audit, "playspace_busyness", None),
         "season": getattr(pre_audit, "season", None),
         "weather_conditions": list(getattr(pre_audit, "weather_conditions", [])),
-        "users_present": list(getattr(pre_audit, "users_present", [])),
-        "user_count": getattr(pre_audit, "user_count", None),
-        "age_groups": list(getattr(pre_audit, "age_groups", [])),
-        "place_size": getattr(pre_audit, "place_size", None),
+        "wind_conditions": getattr(pre_audit, "wind_conditions", None),
     }
 
 
@@ -304,16 +314,22 @@ def _apply_pre_audit_patch(
 
     if "season" in fields_set:
         next_pre_audit["season"] = pre_audit_patch.season
-    if "weather_conditions" in fields_set:
-        next_pre_audit["weather_conditions"] = list(pre_audit_patch.weather_conditions)
-    if "users_present" in fields_set:
-        next_pre_audit["users_present"] = list(pre_audit_patch.users_present)
-    if "user_count" in fields_set:
-        next_pre_audit["user_count"] = pre_audit_patch.user_count
-    if "age_groups" in fields_set:
-        next_pre_audit["age_groups"] = list(pre_audit_patch.age_groups)
     if "place_size" in fields_set:
         next_pre_audit["place_size"] = pre_audit_patch.place_size
+    if "current_users_0_5" in fields_set:
+        next_pre_audit["current_users_0_5"] = pre_audit_patch.current_users_0_5
+    if "current_users_6_12" in fields_set:
+        next_pre_audit["current_users_6_12"] = pre_audit_patch.current_users_6_12
+    if "current_users_13_17" in fields_set:
+        next_pre_audit["current_users_13_17"] = pre_audit_patch.current_users_13_17
+    if "current_users_18_plus" in fields_set:
+        next_pre_audit["current_users_18_plus"] = pre_audit_patch.current_users_18_plus
+    if "playspace_busyness" in fields_set:
+        next_pre_audit["playspace_busyness"] = pre_audit_patch.playspace_busyness
+    if "weather_conditions" in fields_set:
+        next_pre_audit["weather_conditions"] = list(pre_audit_patch.weather_conditions)
+    if "wind_conditions" in fields_set:
+        next_pre_audit["wind_conditions"] = pre_audit_patch.wind_conditions
 
     _replace_pre_audit_answers(audit=audit, payload=next_pre_audit)
 

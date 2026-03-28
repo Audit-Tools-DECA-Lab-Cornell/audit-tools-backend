@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from app.models import Audit
 from app.products.playspace.audit_state import build_responses_json_from_relations
+from app.products.playspace.instrument import get_canonical_instrument_response
 from app.products.playspace.schemas import (
     AuditDraftPatchRequest,
     AuditProgressResponse,
@@ -21,25 +22,16 @@ from app.products.playspace.schemas import (
     JsonDict,
     PreAuditPatchRequest,
 )
+from app.products.playspace.schemas.instrument import PreAuditInputType
 from app.products.playspace.scoring_metadata import (
-    SCORING_SECTIONS,
+    get_scoring_sections,
     ScoringQuestion,
     ScoringScaleOption,
     ScoringSection,
 )
 
-PRE_AUDIT_REQUIRED_KEYS = [
-    "season",
-    "weather_conditions",
-    "users_present",
-    "user_count",
-    "age_groups",
-    "place_size",
-]
 MULTI_SELECT_PRE_AUDIT_FIELDS = {
     "weather_conditions",
-    "users_present",
-    "age_groups",
 }
 ALL_EXECUTION_MODES = [
     ExecutionMode.AUDIT,
@@ -176,31 +168,39 @@ def _build_audit_progress_from_snapshot(
     pre_audit_payload = snapshot.pre_audit_payload
     sections_payload = snapshot.sections_payload
 
-    required_pre_audit_complete = _is_pre_audit_complete(pre_audit_payload)
+    required_pre_audit_complete = _is_pre_audit_complete(pre_audit_payload, execution_mode)
     section_progress: list[AuditSectionProgressResponse] = []
     visible_section_count = 0
     completed_section_count = 0
     total_visible_questions = 0
     answered_visible_questions = 0
 
-    for section in SCORING_SECTIONS:
+    for section in get_scoring_sections():
+        section_answers = _read_json_dict(sections_payload.get(section.section_key))
         visible_questions = _get_visible_questions(
             section=section,
             execution_mode=execution_mode,
+            section_answers=section_answers,
         )
         if not visible_questions:
             continue
 
         visible_section_count += 1
-        section_answers = _read_json_dict(sections_payload.get(section.section_key))
         answered_count = 0
         for question in visible_questions:
+            if not _question_counts_toward_completion(question):
+                continue
             if _is_question_complete(question=question, section_answers=section_answers):
                 answered_count += 1
 
-        total_visible_questions += len(visible_questions)
+        total_visible_questions += sum(
+            1 for question in visible_questions if _question_counts_toward_completion(question)
+        )
         answered_visible_questions += answered_count
-        is_complete = answered_count == len(visible_questions)
+        required_visible_question_count = sum(
+            1 for question in visible_questions if _question_counts_toward_completion(question)
+        )
+        is_complete = answered_count == required_visible_question_count
         if is_complete:
             completed_section_count += 1
 
@@ -208,7 +208,7 @@ def _build_audit_progress_from_snapshot(
             AuditSectionProgressResponse(
                 section_key=section.section_key,
                 title=section.section_key,
-                visible_question_count=len(visible_questions),
+                visible_question_count=required_visible_question_count,
                 answered_question_count=answered_count,
                 is_complete=is_complete,
             )
@@ -268,15 +268,16 @@ def _score_audit_from_snapshot(
     domain_scores: dict[str, ScoreTotals] = {}
     sections_payload = snapshot.sections_payload
 
-    for section in SCORING_SECTIONS:
+    for section in get_scoring_sections():
+        section_answers = _read_json_dict(sections_payload.get(section.section_key))
         visible_questions = _get_visible_questions(
             section=section,
             execution_mode=execution_mode,
+            section_answers=section_answers,
         )
         if not visible_questions:
             continue
 
-        section_answers = _read_json_dict(sections_payload.get(section.section_key))
         section_totals = ScoreTotals()
 
         for question in visible_questions:
@@ -345,22 +346,46 @@ def _get_visible_questions(
     *,
     section: ScoringSection,
     execution_mode: ExecutionMode | None,
+    section_answers: JsonDict,
 ) -> list[ScoringQuestion]:
-    """Filter section questions down to the active execution mode."""
+    """Filter section questions down to the active execution mode and display rules."""
 
     if execution_mode is None:
         return []
 
     mode_value = execution_mode.value
+    visible_questions: list[ScoringQuestion] = []
+    for question in section.questions:
+        if mode_value != "both" and question.mode not in {mode_value, "both"}:
+            continue
+        if not _is_question_visible(question=question, section_answers=section_answers):
+            continue
+        visible_questions.append(question)
+    return visible_questions
 
-    # if mode_value (user role) is both, return all questions. otherwise, return the mode questions and the both questions.
-    if mode_value == "both":
-        return section.questions
-    return [
-        question
-        for question in section.questions
-        if question.mode == mode_value or question.mode == "both"
-    ]
+
+def _is_question_visible(*, question: ScoringQuestion, section_answers: JsonDict) -> bool:
+    """Evaluate simple intra-section display logic for one question."""
+
+    if question.display_if is None:
+        return True
+
+    parent_answers = _read_json_dict(section_answers.get(question.display_if.question_key))
+    selected_value = parent_answers.get(question.display_if.response_key)
+    if isinstance(selected_value, str):
+        return selected_value in question.display_if.any_of_option_keys
+    if isinstance(selected_value, list):
+        return any(
+            isinstance(entry, str) and entry in question.display_if.any_of_option_keys
+            for entry in selected_value
+        )
+    return False
+
+
+def _question_counts_toward_completion(question: ScoringQuestion) -> bool:
+    """Return whether a visible question should block section completion."""
+
+    return question.required
 
 
 def _is_question_complete(
@@ -368,9 +393,16 @@ def _is_question_complete(
     question: ScoringQuestion,
     section_answers: JsonDict,
 ) -> bool:
-    """Determine whether a question has all answers required by quantity gating."""
+    """Determine whether a question has all answers required under its question type."""
 
     question_answers = _read_json_dict(section_answers.get(question.question_key))
+    if question.question_type == "checklist":
+        selected_option_keys = question_answers.get("selected_option_keys")
+        return isinstance(selected_option_keys, list) and any(
+            isinstance(option_key, str) and option_key.strip()
+            for option_key in selected_option_keys
+        )
+
     quantity_scale = next(
         (scale for scale in question.scales if scale.key == "quantity"),
         None,
@@ -405,12 +437,15 @@ def _serialize_pre_audit_patch(pre_audit: PreAuditPatchRequest) -> JsonDict:
     """Serialize the pre-audit patch with JSON-safe primitives only."""
 
     return {
+        "place_size": pre_audit.place_size,
+        "current_users_0_5": pre_audit.current_users_0_5,
+        "current_users_6_12": pre_audit.current_users_6_12,
+        "current_users_13_17": pre_audit.current_users_13_17,
+        "current_users_18_plus": pre_audit.current_users_18_plus,
+        "playspace_busyness": pre_audit.playspace_busyness,
         "season": pre_audit.season,
         "weather_conditions": list(pre_audit.weather_conditions),
-        "users_present": list(pre_audit.users_present),
-        "user_count": pre_audit.user_count,
-        "age_groups": list(pre_audit.age_groups),
-        "place_size": pre_audit.place_size,
+        "wind_conditions": pre_audit.wind_conditions,
     }
 
 
@@ -487,20 +522,31 @@ def _build_sections_payload_from_audit(audit: Audit) -> dict[str, JsonDict]:
     }
 
 
-def _is_pre_audit_complete(pre_audit_payload: JsonDict) -> bool:
+def _is_pre_audit_complete(
+    pre_audit_payload: JsonDict,
+    execution_mode: ExecutionMode | None,
+) -> bool:
     """Validate that all manual pre-audit prompts are filled."""
 
-    for field_name in PRE_AUDIT_REQUIRED_KEYS:
-        value = pre_audit_payload.get(field_name)
-        if isinstance(value, list):
-            if len(value) == 0:
-                return False
-            continue
-        if isinstance(value, str):
-            if not value.strip():
-                return False
-            continue
+    if execution_mode is None:
         return False
+
+    instrument = get_canonical_instrument_response()
+    for question in instrument.pre_audit_questions:
+        if not question.required or execution_mode not in question.visible_modes:
+            continue
+
+        if question.input_type == PreAuditInputType.AUTO_TIMESTAMP:
+            continue
+
+        value = pre_audit_payload.get(question.key)
+        if question.input_type == PreAuditInputType.MULTI_SELECT:
+            if not isinstance(value, list) or len(value) == 0:
+                return False
+            continue
+
+        if not isinstance(value, str) or not value.strip():
+            return False
     return True
 
 
@@ -522,6 +568,9 @@ def _score_question(
     section_answers: JsonDict,
 ) -> ScoreTotals:
     """Score one question according to the client-approved Playspace rules."""
+
+    if question.question_type != "scaled" or len(question.scales) == 0:
+        return ScoreTotals()
 
     question_answers = _read_json_dict(section_answers.get(question.question_key))
     quantity_scale = next(scale for scale in question.scales if scale.key == "quantity")

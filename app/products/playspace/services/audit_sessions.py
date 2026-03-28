@@ -4,6 +4,7 @@ Audit session-focused methods for the Playspace audit service.
 
 from __future__ import annotations
 
+import json
 import math
 import uuid
 from dataclasses import dataclass
@@ -129,6 +130,7 @@ class _CompactAuditSnapshot:
     summary_score: float | None
     score_totals: AuditScoreTotalsResponse | None
     progress_percent: float | None
+    selected_execution_mode: ExecutionMode | None
 
 
 class PlayspaceAuditSessionsMixin:
@@ -260,7 +262,9 @@ class PlayspaceAuditSessionsMixin:
                 Audit.submitted_at.label("submitted_at"),
                 Audit.summary_score.label("summary_score"),
                 Audit.scores_json.label("scores_json"),
+                Audit.responses_json.label("responses_json"),
                 PlayspaceAuditContext.draft_progress_percent.label("draft_progress_percent"),
+                PlayspaceAuditContext.execution_mode.label("selected_execution_mode"),
                 latest_audit_rank.label("audit_rank"),
             )
             .outerjoin(PlayspaceAuditContext, PlayspaceAuditContext.audit_id == Audit.id)
@@ -300,6 +304,8 @@ class PlayspaceAuditSessionsMixin:
                 raw_scores=getattr(row, "scores_json", {}),
                 fallback_summary_score=getattr(row, "summary_score", None),
             )
+            responses_payload = self._read_json_dict(getattr(row, "responses_json", {}))
+            meta_payload = self._read_json_dict(responses_payload.get("meta"))
             raw_progress_percent = getattr(row, "draft_progress_percent", None)
             progress_percent = None
             if status_value is not AuditStatus.SUBMITTED and isinstance(
@@ -318,6 +324,10 @@ class PlayspaceAuditSessionsMixin:
                 summary_score=summary_score,
                 score_totals=score_totals,
                 progress_percent=progress_percent,
+                selected_execution_mode=self._parse_execution_mode(
+                    getattr(row, "selected_execution_mode", None)
+                )
+                or self._parse_execution_mode(meta_payload.get("execution_mode")),
             )
 
         return latest_audits_by_place
@@ -403,6 +413,9 @@ class PlayspaceAuditSessionsMixin:
                     summary_score=latest_audit.summary_score if latest_audit is not None else None,
                     score_totals=latest_audit.score_totals if latest_audit is not None else None,
                     progress_percent=latest_audit.progress_percent
+                    if latest_audit is not None
+                    else None,
+                    selected_execution_mode=latest_audit.selected_execution_mode
                     if latest_audit is not None
                     else None,
                 )
@@ -788,6 +801,14 @@ class PlayspaceAuditSessionsMixin:
             actor=actor,
             audit_id=audit_id
         )
+        print("audit.status", audit.id)
+        print("audit.responses_json", json.dumps(audit.responses_json, indent=4))
+        print("audit.status", audit.status)
+        print("audit.submitted_at", audit.submitted_at)
+        print("audit.total_minutes", audit.total_minutes)
+        print("audit.summary_score", audit.summary_score)
+        print("audit.scores_json", json.dumps(audit.scores_json, indent=4))
+        
         self._ensure_not_submitted(
             audit=audit,
             detail="Submitted audits cannot be edited.",
@@ -1266,17 +1287,30 @@ class PlayspaceAuditSessionsMixin:
 
         pre_audit_payload = self._read_json_dict(responses_json.get("pre_audit"))
         return PreAuditResponse(
+            place_size=pre_audit_payload.get("place_size")
+            if isinstance(pre_audit_payload.get("place_size"), str)
+            else None,
+            current_users_0_5=pre_audit_payload.get("current_users_0_5")
+            if isinstance(pre_audit_payload.get("current_users_0_5"), str)
+            else None,
+            current_users_6_12=pre_audit_payload.get("current_users_6_12")
+            if isinstance(pre_audit_payload.get("current_users_6_12"), str)
+            else None,
+            current_users_13_17=pre_audit_payload.get("current_users_13_17")
+            if isinstance(pre_audit_payload.get("current_users_13_17"), str)
+            else None,
+            current_users_18_plus=pre_audit_payload.get("current_users_18_plus")
+            if isinstance(pre_audit_payload.get("current_users_18_plus"), str)
+            else None,
+            playspace_busyness=pre_audit_payload.get("playspace_busyness")
+            if isinstance(pre_audit_payload.get("playspace_busyness"), str)
+            else None,
             season=pre_audit_payload.get("season")
             if isinstance(pre_audit_payload.get("season"), str)
             else None,
             weather_conditions=self._to_string_list(pre_audit_payload.get("weather_conditions")),
-            users_present=self._to_string_list(pre_audit_payload.get("users_present")),
-            user_count=pre_audit_payload.get("user_count")
-            if isinstance(pre_audit_payload.get("user_count"), str)
-            else None,
-            age_groups=self._to_string_list(pre_audit_payload.get("age_groups")),
-            place_size=pre_audit_payload.get("place_size")
-            if isinstance(pre_audit_payload.get("place_size"), str)
+            wind_conditions=pre_audit_payload.get("wind_conditions")
+            if isinstance(pre_audit_payload.get("wind_conditions"), str)
             else None,
         )
 
@@ -1294,7 +1328,7 @@ class PlayspaceAuditSessionsMixin:
             note_value = section_payload.get("note")
             section_responses[section_key] = AuditSectionStateResponse(
                 section_key=section_key,
-                responses=self._read_nested_string_dict(section_payload.get("responses")),
+                responses=self._read_nested_response_payload_dict(section_payload.get("responses")),
                 note=note_value if isinstance(note_value, str) else None,
             )
         return section_responses
@@ -1422,24 +1456,65 @@ class PlayspaceAuditSessionsMixin:
 
         return dict(value) if isinstance(value, dict) else {}
 
-    @staticmethod
-    def _read_nested_string_dict(value: object) -> dict[str, dict[str, str]]:
-        """Safely coerce a nested question-answer mapping into string dictionaries."""
+    @classmethod
+    def _read_nested_response_payload_dict(
+        cls,
+        value: object,
+    ) -> dict[str, dict[str, str | list[str] | dict[str, str] | None]]:
+        """Safely coerce stored question answers into JSON-safe nested dictionaries."""
 
         if not isinstance(value, dict):
             return {}
 
-        nested_payload: dict[str, dict[str, str]] = {}
+        nested_payload: dict[str, dict[str, str | list[str] | dict[str, str] | None]] = {}
         for outer_key, outer_value in value.items():
             if not isinstance(outer_value, dict):
                 nested_payload[outer_key] = {}
                 continue
-            nested_payload[outer_key] = {
-                inner_key: inner_value
-                for inner_key, inner_value in outer_value.items()
-                if isinstance(inner_value, str)
-            }
+            nested_payload[outer_key] = cls._read_response_payload(outer_value)
         return nested_payload
+
+    @classmethod
+    def _read_response_payload(
+        cls,
+        value: object,
+    ) -> dict[str, str | list[str] | dict[str, str] | None]:
+        """Safely coerce one question response payload into JSON-safe values."""
+
+        if not isinstance(value, dict):
+            return {}
+
+        payload: dict[str, str | list[str] | dict[str, str] | None] = {}
+        for entry_key, entry_value in value.items():
+            if not isinstance(entry_key, str):
+                continue
+            coerced_value = cls._coerce_question_response_value(entry_value)
+            if coerced_value is None and entry_value is not None:
+                continue
+            payload[entry_key] = coerced_value
+        return payload
+
+    @classmethod
+    def _coerce_question_response_value(
+        cls,
+        value: object,
+    ) -> str | list[str] | dict[str, str] | None:
+        """Coerce one stored answer value into the supported checklist-response shapes."""
+
+        if value is None or isinstance(value, str):
+            return value
+
+        if isinstance(value, list):
+            return [entry for entry in value if isinstance(entry, str)]
+
+        if isinstance(value, dict):
+            return {
+                entry_key: entry_value
+                for entry_key, entry_value in value.items()
+                if isinstance(entry_key, str) and isinstance(entry_value, str)
+            }
+
+        return None
 
     @staticmethod
     def _to_string_list(value: object) -> list[str]:

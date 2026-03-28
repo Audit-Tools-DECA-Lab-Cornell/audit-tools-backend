@@ -21,6 +21,9 @@ from app.products.playspace.schemas.instrument import (
 #################################### Audit Schemas ###################################
 ######################################################################################
 
+QuestionResponseValue = str | list[str] | dict[str, str] | None
+QuestionResponsePayload = dict[str, QuestionResponseValue]
+
 
 class AssignmentResponse(ApiModel):
     """Manager-facing assignment record for project or project-place scope."""
@@ -59,29 +62,35 @@ class AuditMetaResponse(ApiModel):
 class PreAuditPatchRequest(RequestModel):
     """Structured pre-audit answers shown on the first page."""
 
+    place_size: str | None = None
+    current_users_0_5: str | None = None
+    current_users_6_12: str | None = None
+    current_users_13_17: str | None = None
+    current_users_18_plus: str | None = None
+    playspace_busyness: str | None = None
     season: str | None = None
     weather_conditions: list[str] = Field(default_factory=list)
-    users_present: list[str] = Field(default_factory=list)
-    user_count: str | None = None
-    age_groups: list[str] = Field(default_factory=list)
-    place_size: str | None = None
+    wind_conditions: str | None = None
 
 
 class PreAuditResponse(ApiModel):
     """Typed pre-audit answers returned with an audit session."""
 
+    place_size: str | None = None
+    current_users_0_5: str | None = None
+    current_users_6_12: str | None = None
+    current_users_13_17: str | None = None
+    current_users_18_plus: str | None = None
+    playspace_busyness: str | None = None
     season: str | None = None
     weather_conditions: list[str] = Field(default_factory=list)
-    users_present: list[str] = Field(default_factory=list)
-    user_count: str | None = None
-    age_groups: list[str] = Field(default_factory=list)
-    place_size: str | None = None
+    wind_conditions: str | None = None
 
 
 class SectionDraftPatchRequest(RequestModel):
     """Per-section draft answers and free-text note."""
 
-    responses: dict[str, dict[str, str]] = Field(default_factory=dict)
+    responses: dict[str, QuestionResponsePayload] = Field(default_factory=dict)
     note: str | None = None
 
 
@@ -89,7 +98,7 @@ class AuditSectionStateResponse(ApiModel):
     """Typed section payload returned with an audit session."""
 
     section_key: str
-    responses: dict[str, dict[str, str]] = Field(default_factory=dict)
+    responses: dict[str, QuestionResponsePayload] = Field(default_factory=dict)
     note: str | None = None
 
 
@@ -209,6 +218,7 @@ class AuditorPlaceResponse(ApiModel):
     summary_score: float | None
     score_totals: AuditScoreTotalsResponse | None = None
     progress_percent: float | None
+    selected_execution_mode: ExecutionMode | None = None
 
 
 class AuditorAuditSummaryResponse(ApiModel):

@@ -18,6 +18,7 @@ from app.products.playspace.audit_state import (
     apply_draft_patch_to_relations,
     replace_audit_aggregate,
 )
+from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
 from app.products.playspace.schemas.audit import (
     AuditAggregateWriteRequest,
     AuditDraftPatchRequest,
@@ -43,6 +44,10 @@ def _build_audit() -> Audit:
     )
 
 
+class _DummyAuditSessionsService(PlayspaceAuditSessionsMixin):
+    """Minimal mixin host used for focused response-shape tests."""
+
+
 def test_apply_draft_patch_merges_pre_audit_into_canonical_aggregate() -> None:
     """Pre-audit saves should update the canonical responses_json aggregate."""
 
@@ -58,12 +63,15 @@ def test_apply_draft_patch_merges_pre_audit_into_canonical_aggregate() -> None:
 
     patch = AuditDraftPatchRequest(
         pre_audit=PreAuditPatchRequest(
-            season="summer",
-            weather_conditions=["windy", "cloudy"],
-            users_present=["adults"],
-            user_count="a_lot",
-            age_groups=["age_11_plus"],
             place_size="large",
+            current_users_0_5="none",
+            current_users_6_12="a_few",
+            current_users_13_17="a_lot",
+            current_users_18_plus="a_few",
+            playspace_busyness="very_busy",
+            season="summer",
+            weather_conditions=["cloudy_overcast", "light_rain"],
+            wind_conditions="light_wind",
         )
     )
 
@@ -71,12 +79,15 @@ def test_apply_draft_patch_merges_pre_audit_into_canonical_aggregate() -> None:
 
     assert audit.responses_json["meta"] == {"execution_mode": "audit"}
     assert audit.responses_json["pre_audit"] == {
-        "season": "summer",
-        "weather_conditions": ["windy", "cloudy"],
-        "users_present": ["adults"],
-        "user_count": "a_lot",
-        "age_groups": ["age_11_plus"],
         "place_size": "large",
+        "current_users_0_5": "none",
+        "current_users_6_12": "a_few",
+        "current_users_13_17": "a_lot",
+        "current_users_18_plus": "a_few",
+        "playspace_busyness": "very_busy",
+        "season": "summer",
+        "weather_conditions": ["cloudy_overcast", "light_rain"],
+        "wind_conditions": "light_wind",
     }
 
 
@@ -206,12 +217,15 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
         "revision": 4,
         "meta": {"execution_mode": "survey"},
         "pre_audit": {
+            "place_size": None,
+            "current_users_0_5": None,
+            "current_users_6_12": None,
+            "current_users_13_17": None,
+            "current_users_18_plus": None,
+            "playspace_busyness": None,
             "season": "winter",
             "weather_conditions": ["windy"],
-            "users_present": [],
-            "user_count": None,
-            "age_groups": [],
-            "place_size": None,
+            "wind_conditions": None,
         },
         "sections": {
             "section_b": {
@@ -259,3 +273,69 @@ def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
     assert updated_question is question
     assert answers_by_scale["quantity"] is quantity
     assert sorted(answers_by_scale) == ["diversity", "quantity"]
+
+
+def test_apply_draft_patch_merges_checklist_question_payload_into_canonical_aggregate() -> None:
+    """Checklist-style follow-up answers should persist in the canonical aggregate."""
+
+    audit = _build_audit()
+
+    patch = AuditDraftPatchRequest(
+        sections={
+            "section_a": SectionDraftPatchRequest(
+                responses={
+                    "question_checklist": {
+                        "selected_option_keys": ["cups", "buckets", "other"],
+                        "other_details": {
+                            "text": "Loose timber offcuts",
+                        },
+                    }
+                }
+            )
+        }
+    )
+
+    apply_draft_patch_to_relations(audit=audit, patch=patch)
+
+    assert audit.responses_json["sections"] == {
+        "section_a": {
+            "responses": {
+                "question_checklist": {
+                    "selected_option_keys": ["cups", "buckets", "other"],
+                    "other_details": {
+                        "text": "Loose timber offcuts",
+                    },
+                }
+            }
+        }
+    }
+
+
+def test_section_state_response_map_preserves_checklist_question_payloads() -> None:
+    """Session responses should round-trip checklist answers without dropping nested values."""
+
+    service = _DummyAuditSessionsService()
+
+    section_map = service._build_section_state_response_map(
+        responses_json={
+            "sections": {
+                "section_a": {
+                    "responses": {
+                        "question_checklist": {
+                            "selected_option_keys": ["cups", "buckets"],
+                            "other_details": {
+                                "text": "Large foam blocks",
+                            },
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    assert section_map["section_a"].responses["question_checklist"] == {
+        "selected_option_keys": ["cups", "buckets"],
+        "other_details": {
+            "text": "Large foam blocks",
+        },
+    }

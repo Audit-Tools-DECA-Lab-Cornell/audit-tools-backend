@@ -3,6 +3,7 @@ Facade service for Playspace assignment and audit-session operations.
 """
 
 from __future__ import annotations
+import json
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +64,13 @@ class PlayspaceAuditService(
     @staticmethod
     def _ensure_not_submitted(*, audit: Audit, detail: str) -> None:
         """Reject writes to already-submitted audits."""
-
+        print("audit.status", audit.id)
+        print("audit.responses_json", json.dumps(audit.responses_json, indent=4))
+        print("audit.status", audit.status)
+        print("audit.submitted_at", audit.submitted_at)
+        print("audit.total_minutes", audit.total_minutes)
+        print("audit.summary_score", audit.summary_score)
+        print("audit.scores_json", json.dumps(audit.scores_json, indent=4))
         if audit.status is AuditStatus.SUBMITTED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
