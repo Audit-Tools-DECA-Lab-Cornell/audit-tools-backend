@@ -4,7 +4,6 @@ Audit session-focused methods for the Playspace audit service.
 
 from __future__ import annotations
 
-import json
 import math
 import uuid
 from dataclasses import dataclass
@@ -761,11 +760,6 @@ class PlayspaceAuditSessionsMixin:
             set_aggregate_revision(audit, 1)
             self._session.add(audit)
             await self._commit_and_refresh(audit)
-        elif audit.status is not AuditStatus.SUBMITTED and payload.execution_mode is not None:
-            self._set_execution_mode(audit=audit, execution_mode=payload.execution_mode)
-            self._refresh_draft_cache_fields(audit=audit)
-            set_aggregate_revision(audit, get_aggregate_revision(audit) + 1)
-            await self._commit_and_refresh(audit)
 
         return self._build_audit_session_response(
             audit=audit,
@@ -801,14 +795,7 @@ class PlayspaceAuditSessionsMixin:
             actor=actor,
             audit_id=audit_id
         )
-        print("audit.status", audit.id)
-        print("audit.responses_json", json.dumps(audit.responses_json, indent=4))
-        print("audit.status", audit.status)
-        print("audit.submitted_at", audit.submitted_at)
-        print("audit.total_minutes", audit.total_minutes)
-        print("audit.summary_score", audit.summary_score)
-        print("audit.scores_json", json.dumps(audit.scores_json, indent=4))
-        
+
         self._ensure_not_submitted(
             audit=audit,
             detail="Submitted audits cannot be edited.",

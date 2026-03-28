@@ -3,13 +3,11 @@ Facade service for Playspace assignment and audit-session operations.
 """
 
 from __future__ import annotations
-import json
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Audit, AuditorAssignment, AuditStatus
-from app.products.playspace.audit_state import set_execution_mode_value
 from app.products.playspace.schemas import ExecutionMode
 from app.products.playspace.services.audit_assignments import PlayspaceAuditAssignmentsMixin
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
@@ -64,13 +62,6 @@ class PlayspaceAuditService(
     @staticmethod
     def _ensure_not_submitted(*, audit: Audit, detail: str) -> None:
         """Reject writes to already-submitted audits."""
-        print("audit.status", audit.id)
-        print("audit.responses_json", json.dumps(audit.responses_json, indent=4))
-        print("audit.status", audit.status)
-        print("audit.submitted_at", audit.submitted_at)
-        print("audit.total_minutes", audit.total_minutes)
-        print("audit.summary_score", audit.summary_score)
-        print("audit.scores_json", json.dumps(audit.scores_json, indent=4))
         if audit.status is AuditStatus.SUBMITTED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -90,13 +81,3 @@ class PlayspaceAuditService(
         if len(allowed_modes) == 1:
             return allowed_modes[0].value
         return None
-
-    def _set_execution_mode(
-        self,
-        *,
-        audit: Audit,
-        execution_mode: ExecutionMode,
-    ) -> None:
-        """Write the selected execution mode into normalized Playspace storage."""
-
-        set_execution_mode_value(audit=audit, execution_mode=execution_mode.value)
