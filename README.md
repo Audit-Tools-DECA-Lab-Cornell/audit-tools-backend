@@ -1,346 +1,478 @@
-# Audit Tools Backend
+# Audit Tools: YEE Developer Guide
 
-FastAPI backend for Audit Tools with product-scoped databases and routes:
-- YEE (Youth Enabling Environments)
-- Playsafe
+This repository is the FastAPI backend for DECA Lab's Audit Tools platform, with the Youth Enabling Environments (YEE) website as the primary implemented product today.
 
-This guide is step-by-step for local setup and running.
+The platform is not just a survey page. It is a browser-based, role-aware system with:
 
-## 1. Prerequisites
+- authentication and onboarding
+- admin, manager, and auditor workspaces
+- project, place, auditor, and assignment management
+- multi-step YEE audit submission
+- scoring and reporting
+- raw data export
+- privacy-aware auditor identity handling
 
-- Python `3.11+`
-- `pip`
-- PostgreSQL connection strings (Neon recommended)
+The frontend and backend live in separate repositories and must stay separate:
 
-## 2. Clone and enter project
+- Backend: `/Users/andishasafdariyan/auditTools/audit-tools-backend`
+- Frontend: `/Users/andishasafdariyan/auditTools/audit-tools-yee-frontend`
+
+## Project Purpose
+
+The YEE website supports field auditing of youth enabling environments across real projects and places. Managers organize projects and places, invite and assign auditors, and review results. Auditors complete exactly one submitted audit per assigned place. Admins oversee users, workspaces, audits, and approvals across the whole system.
+
+This backend provides:
+
+- product-scoped data access for `/yee/*` and `/playsafe/*`
+- REST auth, dashboard, and YEE endpoints
+- YEE instrument loading and question scoring
+- scoped reporting and raw-data export
+- enforcement of assignment-based access and one-audit-per-place submission rules
+
+## Current Implementation Status
+
+### Implemented
+
+- Real auth flow with signup, login, email verification, resend verification, profile completion, and invite acceptance
+- Role-aware session responses including `role`, verification status, approval status, profile-completion status, `next_step`, and `dashboard_path`
+- `ADMIN`, `MANAGER`, and `AUDITOR` roles
+- Admin approval flow for pending users
+- Manager project creation, place creation, auditor invite creation, and place assignment
+- Auditor-assigned place scoping
+- Multi-step YEE audit flow in the frontend
+- Backend enforcement for one submitted audit per auditor per place
+- YEE question scoring from the source QSF instrument
+- Weighted YEE reporting totals used in comparisons and raw-data export
+- Place-level comparisons and CSV-ready raw data output
+- Generated auditor IDs used in reporting and exports instead of full names
+- Scoped project and place detail endpoints
+
+### Partially Implemented
+
+- Settings pages and richer profile management
+- Admin lifecycle actions beyond approval, such as deny, revoke, deactivate, or suspend
+- Verification UX for local/demo environments
+- Audit comparison filtering by arbitrary subset of audits within the same place
+- Production polish around email delivery, deployment configuration, and final QA
+
+### Intentionally Not Implemented Yet
+
+- Cap score logic
+
+The code is structured so cap scoring can be added later, but no final cap behavior is invented today.
+
+## User Roles And Permissions
+
+### ADMIN
+
+Admins can:
+
+- access all users, managers, auditors, projects, places, and audits
+- approve pending users
+- view all raw data and comparison reports
+- access system-wide settings when that UI is completed
+
+Primary routes in the frontend:
+
+- `/admin`
+- `/admin/users`
+- `/admin/projects`
+- `/admin/places`
+- `/admin/audits`
+- `/admin/raw-data`
+- `/admin/settings`
+
+### MANAGER
+
+Managers can:
+
+- create projects
+- create places
+- invite auditors
+- assign auditors to places
+- view audits, reports, and raw data within their own account scope
+
+Primary routes in the frontend:
+
+- `/dashboard`
+- `/dashboard/projects`
+- `/dashboard/projects/new`
+- `/dashboard/projects/[projectId]`
+- `/dashboard/places`
+- `/dashboard/places/new`
+- `/dashboard/places/[placeId]`
+- `/dashboard/auditors`
+- `/dashboard/auditors/invite`
+- `/dashboard/audits`
+- `/dashboard/raw-data`
+- `/dashboard/reports`
+- `/dashboard/settings`
+
+### AUDITOR
+
+Auditors can:
+
+- access only assigned places
+- complete profile setup
+- start or continue a draft audit
+- submit exactly one final audit per assigned place
+- view only their own audit history
+
+Primary routes in the frontend:
+
+- `/my-dashboard`
+- `/my-dashboard/places`
+- `/my-dashboard/audits`
+- `/my-dashboard/settings`
+- `/yee/introduction`
+- `/yee/audit/[placeId]/page/1` through `/page/8`
+- `/yee/audit/[placeId]/review`
+- `/yee/audit/[placeId]/submitted`
+
+See [roles-and-permissions.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/roles-and-permissions.md) for the full matrix.
+
+## Route Structure
+
+### Public / Account Flow
+
+- `/`
+- `/login`
+- `/signup`
+- `/verify-email`
+- `/invite/[token]`
+- `/waiting-approval`
+- `/complete-profile`
+
+### Backend Route Families
+
+- `/yee/auth/*`
+- `/playsafe/auth/*`
+- `/yee/dashboard/*`
+- `/yee/instrument`
+- `/yee/audits/score`
+- `/yee/audits`
+- `/yee/audits/{submission_id}`
+- `/yee/my-audits`
+- `/health`
+
+### Major Backend Endpoints
+
+Auth:
+
+- `POST /yee/auth/signup`
+- `GET /yee/auth/verify-email`
+- `POST /yee/auth/resend-verification`
+- `POST /yee/auth/login`
+- `GET /yee/auth/me`
+- `POST /yee/auth/complete-profile`
+- `GET /yee/auth/invite/{token}`
+- `POST /yee/auth/invite/{token}/accept`
+
+Dashboard:
+
+- `GET /yee/dashboard/overview`
+- `GET /yee/dashboard/projects`
+- `GET /yee/dashboard/projects/{project_id}`
+- `POST /yee/dashboard/projects`
+- `GET /yee/dashboard/places`
+- `GET /yee/dashboard/places/{place_id}`
+- `POST /yee/dashboard/places`
+- `GET /yee/dashboard/auditors`
+- `GET /yee/dashboard/audits`
+- `GET /yee/dashboard/users`
+- `POST /yee/dashboard/users/approve`
+- `POST /yee/dashboard/auditor-invites`
+- `POST /yee/dashboard/assignments`
+- `GET /yee/dashboard/my-places`
+- `GET /yee/dashboard/reports/place-comparisons`
+- `GET /yee/dashboard/raw-data`
+
+YEE:
+
+- `GET /yee/instrument`
+- `POST /yee/audits/score`
+- `POST /yee/audits`
+- `GET /yee/audits/{submission_id}`
+- `GET /yee/my-audits`
+
+## Frontend / Backend Architecture
+
+### High-Level Split
+
+Frontend responsibilities:
+
+- routing and layouts
+- role-specific dashboards
+- form rendering and survey step navigation
+- auth state handling in the browser
+- API proxy routes and UI presentation
+
+Backend responsibilities:
+
+- auth and session token creation
+- verification and invite processing
+- database ownership and account scoping
+- assignment enforcement
+- audit submission validation
+- scoring source of truth for question-level mapping
+- reporting and export data generation
+
+### Integration Pattern
+
+The frontend talks to the backend through a shared base URL:
+
+- `API_BASE_URL`
+- `NEXT_PUBLIC_API_BASE_URL`
+
+The frontend uses local Next.js API routes as thin proxies so the browser does not call backend URLs directly from every component.
+
+Examples:
+
+- frontend `/api/auth/login` -> backend `/yee/auth/login`
+- frontend `/api/dashboard/overview` -> backend `/yee/dashboard/overview`
+- frontend `/api/yee/audits` -> backend `/yee/audits`
+
+See [architecture.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/architecture.md) for the detailed system map.
+
+## YEE Survey Flow
+
+The YEE audit is intentionally not one long page.
+
+Current expected flow:
+
+1. Auditor lands in `/yee/introduction`
+2. Auditor chooses one assigned place
+3. Page 1 captures metadata and high-level questions
+4. Page 2 captures domain importance weights
+5. Pages 3-8 collect domain questions by section
+6. Review page shows draft answers and score summary
+7. Submitted page confirms completion
+
+Important behavior:
+
+- answers persist between steps
+- users can move backward and forward
+- selected answers remain visible when returning to earlier steps
+- submission is blocked if the place is not assigned to the logged-in auditor
+- backend blocks a second submitted audit for the same auditor/place pair
+
+## YEE Scoring Logic
+
+### Layer 1: Question Scoring
+
+Question-level scoring is derived from the source QSF file:
+
+- file: [app/data/yee_instrument.qsf](/Users/andishasafdariyan/auditTools/audit-tools-backend/app/data/yee_instrument.qsf)
+- logic: [app/yee_scoring.py](/Users/andishasafdariyan/auditTools/audit-tools-backend/app/yee_scoring.py)
+
+The backend reads Qualtrics grading definitions and preserves the score mappings already defined in the instrument. That includes special mappings and reverse-coded behavior present in the source instrument.
+
+### Layer 2: Aggregate Scoring
+
+For each audit:
+
+1. Raw Domain Score
+   - sum of scored item values inside each YEE domain
+2. Youth Weighted Domain Score
+   - raw domain score multiplied by the auditor’s importance weight for that domain
+3. Total Enabling Environment Raw Score
+   - sum of all raw domain scores
+4. Total Enabling Environment Youth-Weighted Score
+   - sum of all weighted domain scores
+
+Weight values:
+
+- `Very important to me = 3`
+- `Somewhat important to me = 2`
+- `Not really important to me = 1`
+
+See [scoring.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/scoring.md) for the exact model and implementation locations.
+
+## Auditor Privacy Rules
+
+The system is designed to avoid exposing personal identity in reporting views.
+
+Rules:
+
+- auditors receive a generated ID such as `AUD-ABC123`
+- reports, comparisons, and exports use the generated auditor ID by default
+- full names are not used in place-level comparison views
+- full names remain internal account/profile data only where permitted
+- generated IDs must not encode birth date, full name, or other personal identifiers
+
+## Local Setup
+
+### Backend
+
+1. Create a Python environment:
 
 ```bash
-git clone https://github.com/pratyush1712/audit-tools-backend.git
-cd audit-tools-backend
-```
-
-## 3. Create Python environment
-
-```bash
+cd /Users/andishasafdariyan/auditTools/audit-tools-backend
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-```
-
-Install runtime packages:
-
-```bash
 python -m pip install -r requirements.txt
 ```
 
-Optional dev tools:
-
-```bash
-python -m pip install -r requirements-dev.txt
-pre-commit install
-```
-
-## 4. Configure environment variables
-
-Create `.env`:
+2. Create `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Set DB URLs inside `.env`:
+3. Set environment values:
 
 ```env
-DATABASE_URL_YEE="postgresql://<user>:<password>@<host>/<yee_db>?sslmode=require&channel_binding=require"
-DATABASE_URL_PLAYSAFE="postgresql://<user>:<password>@<host>/<playsafe_db>?sslmode=require&channel_binding=require"
-```
-
-Notes:
-- `DATABASE_URL_YEE` powers `/yee/*`
-- `DATABASE_URL_PLAYSAFE` powers `/playsafe/*`
-- Legacy `DATABASE_URL` still works as a fallback for YEE only
-
-Optional auth/email env vars:
-
-```env
+DATABASE_URL_YEE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_yee
+DATABASE_URL_PLAYSAFE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_playsafe
+AUTH_TOKEN_SECRET_KEY=change-me
+AUTH_ACCESS_TOKEN_TTL_DAYS=7
 AUTH_EMAIL_VERIFY_TTL_HOURS=24
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USERNAME=your_user
-SMTP_PASSWORD=your_password
-SMTP_FROM_EMAIL=no-reply@example.com
-SMTP_USE_TLS=true
-TURNSTILE_SECRET_KEY=
-AUTH_VERIFY_URL_TEMPLATE=
+AUTH_VERIFY_URL_TEMPLATE=http://localhost:3000/verify-email?token={token}
 ```
 
-Notes:
-- If SMTP is not configured, verification links are logged in backend console.
-- If `TURNSTILE_SECRET_KEY` is set, signup/resend require a valid captcha token.
-- `AUTH_VERIFY_URL_TEMPLATE` can be used for frontend verification pages, example:
-  `http://localhost:3000/verify-email?token={token}`
-
-## 5. Run migrations
-
-Run YEE migrations:
+4. Run migrations:
 
 ```bash
 alembic -x product=yee upgrade head
-```
-
-Run Playsafe migrations:
-
-```bash
 alembic -x product=playsafe upgrade head
 ```
 
-## 6. Start backend
+5. Start the backend:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Backend runs at:
+Backend URLs:
+
 - `http://127.0.0.1:8000`
-- Health check: `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/health`
 
-## 7. Verify API quickly
+### Frontend
 
-### YEE REST
-
-- `GET /yee/instrument`
-- `POST /yee/audits/score`
-- `POST /yee/audits`
-- `GET /yee/audits/{id}`
-
-### Auth REST (YEE and Playsafe)
-
-These exist under both prefixes:
-- `/yee/auth/*`
-- `/playsafe/auth/*`
-
-Endpoints:
-- `POST /auth/signup` creates DB account and sends verification email
-- `GET /auth/verify-email?token=...` verifies email
-- `POST /auth/resend-verification` resends verification email
-- `POST /auth/login` allows login only after verified email
-
-Example:
+1. Install dependencies:
 
 ```bash
-curl http://127.0.0.1:8000/yee/instrument
-```
-
-### GraphQL
-
-- `http://127.0.0.1:8000/yee/graphql`
-- `http://127.0.0.1:8000/playsafe/graphql`
-
-## 8. Authorization: What it does
-
-This backend now supports real account creation instead of dummy auth.
-
-Simple version of the flow:
-- A user signs up with email and password.
-- The backend creates the user in the database.
-- The backend sends an email verification link.
-- The user clicks the link.
-- After verification, the user can log in.
-
-This works for both audit tools:
-- `/yee/auth/*`
-- `/playsafe/auth/*`
-
-The account data is stored in the correct database depending on the route prefix:
-- requests to `/yee/*` use the YEE database
-- requests to `/playsafe/*` use the Playsafe database
-
-## 9. Authorization: How it is implemented
-
-The auth system currently includes:
-- password hashing before saving to the database
-- email verification tokens
-- email verified / not verified tracking on the user
-- resend verification support
-- failed login attempt tracking
-- simple anti-bot protection
-
-Anti-bot protection currently includes:
-- a honeypot field called `website`
-- optional Cloudflare Turnstile validation if `TURNSTILE_SECRET_KEY` is configured
-
-Email sending works like this:
-- if SMTP env vars are configured, the backend sends a real email
-- if SMTP is not configured, the verification link is printed in the backend logs so local development still works
-
-## 10. Authorization: Endpoints and how to use them
-
-These endpoints exist for both products:
-- `POST /yee/auth/signup`
-- `GET /yee/auth/verify-email?token=...`
-- `POST /yee/auth/resend-verification`
-- `POST /yee/auth/login`
-- `POST /playsafe/auth/signup`
-- `GET /playsafe/auth/verify-email?token=...`
-- `POST /playsafe/auth/resend-verification`
-- `POST /playsafe/auth/login`
-
-### Signup
-
-Purpose:
-- create a new user in the database
-- send verification email
-
-Example request:
-
-```bash
-curl -X POST http://127.0.0.1:8000/yee/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "person@example.com",
-    "password": "StrongPass123!",
-    "name": "Example User",
-    "account_type": "MANAGER",
-    "website": ""
-  }'
-```
-
-What happens:
-- email is normalized
-- password is hashed
-- user is created in the database
-- verification token is generated
-- verification email is sent or logged
-
-### Verify email
-
-Purpose:
-- mark the email as verified
-- allow future login
-
-Example:
-
-```bash
-curl "http://127.0.0.1:8000/yee/auth/verify-email?token=YOUR_TOKEN_HERE"
-```
-
-What happens:
-- token is checked against the stored token hash
-- token expiration is checked
-- user is marked as verified
-
-### Resend verification
-
-Purpose:
-- send a new verification link if the user has not verified yet
-
-Example request:
-
-```bash
-curl -X POST http://127.0.0.1:8000/yee/auth/resend-verification \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "person@example.com",
-    "website": ""
-  }'
-```
-
-### Login
-
-Purpose:
-- authenticate a verified user
-- return a bearer token-style session token in the response
-
-Example request:
-
-```bash
-curl -X POST http://127.0.0.1:8000/yee/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "person@example.com",
-    "password": "StrongPass123!",
-    "website": ""
-  }'
-```
-
-What happens:
-- email is looked up in the correct product database
-- password hash is checked
-- login is blocked if email is not verified
-- login metadata is updated in the database
-- access token and user info are returned
-
-## 11. Authorization: How other parts of the app should use it
-
-If another frontend or service wants to use auth, the normal order is:
-
-1. Call `signup`
-2. Wait for the user to verify email
-3. Call `login`
-4. Store the returned token on the frontend
-5. Use the same product prefix for all later requests
-
-Important integration rule:
-- if the user signs up through `/yee/auth/signup`, then that same user should log in through `/yee/auth/login`
-- if the user signs up through `/playsafe/auth/signup`, then that same user should log in through `/playsafe/auth/login`
-
-Frontend integration notes:
-- the frontend should show a message after signup like: `Check your email to verify your account`
-- if SMTP is not configured in local development, check the backend terminal for the verification link
-- the frontend should handle `403` login responses as `email not verified yet`
-- the frontend can provide a `Resend verification email` button using `/auth/resend-verification`
-
-## 12. YEE frontend (separate repo)
-
-YEE frontend is intentionally split into its own repository:
-- https://github.com/Andisha2004/audit-tools-yee-frontend
-
-Run it separately (while backend is running):
-
-```bash
-cd /path/to/audit-tools-yee-frontend
+cd /Users/andishasafdariyan/auditTools/audit-tools-yee-frontend
 npm install
+```
+
+2. Create frontend env values:
+
+```env
+API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
+3. Start the frontend:
+
+```bash
 npm run dev
 ```
 
-## 13. Common issues
+Frontend URL:
 
-### `role "postgres" does not exist`
-Your `.env` is missing product DB URLs, so it falls back to local postgres defaults.
+- `http://localhost:3000`
 
-### `Can't locate revision identified by ...`
-Your DB `alembic_version` does not match local migration files. Pull latest repo and rerun migrations.
+## Deployment
 
-### Frontend shows `Failed to load instrument`
-Make sure backend is running on `127.0.0.1:8000` and `GET /yee/instrument` works directly.
+Recommended deployment split:
 
-### Signup works but no email is received
-SMTP is probably not configured. Check backend logs for the verification link.
+- frontend on a Next.js-capable host
+- backend on an ASGI-capable Python host
+- PostgreSQL for `DATABASE_URL_YEE` and `DATABASE_URL_PLAYSAFE`
 
-### Login returns `403`
-The account exists, but the email has not been verified yet.
+For local review links, `ngrok` has been used successfully to expose the frontend during development.
 
-## 14. Useful commands
+For full deployment notes, environment variables, and release checklist, see [deployment.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/deployment.md).
 
-Run tests:
+## Project File Structure
 
-```bash
-pytest
+### Backend
+
+```text
+audit-tools-backend/
+  alembic/
+  app/
+    auth.py
+    auth_security.py
+    dashboard_router.py
+    database.py
+    email_service.py
+    main.py
+    models.py
+    yee_router.py
+    yee_scoring.py
+    data/
+      yee_instrument.qsf
+  tests/
+  README.md
+  .env.example
 ```
 
-Lint/format:
+### Frontend
 
-```bash
-ruff check . --fix
-ruff format .
+```text
+audit-tools-yee-frontend/
+  src/
+    app/
+      admin/
+      dashboard/
+      my-dashboard/
+      login/
+      signup/
+      verify-email/
+      invite/[token]/
+      waiting-approval/
+      complete-profile/
+      yee/
+      api/
+    components/
+      auth/
+      dashboard/
+      reporting/
+      yee/
+      ui/
+    lib/
+      auth/
+      dashboard/
+      yee-*.ts
+  README.md
 ```
 
-## 15. Deploy (Render)
+## Integration Points
 
-Start command:
+Core integration contracts future engineers should know:
 
-```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
+- Backend auth response drives frontend routing:
+  - `role`
+  - `email_verified`
+  - `approved`
+  - `profile_completed`
+  - `next_step`
+  - `dashboard_path`
+- Backend owns assignment validation and submission rules
+- Backend owns question-level score mappings from the QSF
+- Frontend owns step UI, draft persistence, and page flow
+- Backend reporting endpoints provide comparison/export data scoped by account
 
-Use `/health` as health check path.
+## Documentation Map
+
+- [Architecture](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/architecture.md)
+- [Scoring](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/scoring.md)
+- [Roles And Permissions](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/roles-and-permissions.md)
+- [Deployment](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/deployment.md)
+
+## Pending Work / Future Work
+
+Important remaining work:
+
+- complete settings/profile management pages
+- add admin deny/revoke/deactivate lifecycle actions
+- improve verification and demo UX
+- allow report filtering by arbitrary selected audits
+- add final production deployment config, monitoring, and QA
+- add final cap score logic once the scoring rules are confirmed
+
+The current system is already a real multi-role website foundation, but future engineers should treat the items above as the next priority layer before public launch.

@@ -46,6 +46,7 @@ class Base(DeclarativeBase):
 class AccountType(str, Enum):
     """Account types for `User` (high-level access class)."""
 
+    ADMIN = "ADMIN"
     MANAGER = "MANAGER"
     AUDITOR = "AUDITOR"
 
@@ -75,6 +76,12 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     account_type: Mapped[AccountType] = mapped_column(
         SAEnum(AccountType, name="account_type"),
         nullable=False,
@@ -104,12 +111,33 @@ class User(Base):
         default=0,
         server_default="0",
     )
+    approved: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    profile_completed: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    profile_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
 
     # Optional one-to-one link: an auditor profile can be associated to a user account.
+    account: Mapped[Account | None] = relationship(back_populates="users")
     auditor_profile: Mapped[Auditor | None] = relationship(
         back_populates="user",
         uselist=False,
@@ -128,6 +156,7 @@ class Account(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 
+    users: Mapped[list[User]] = relationship(back_populates="account")
     projects: Mapped[list[Project]] = relationship(
         back_populates="account",
         cascade=CASCADE_DELETE_ORPHAN,
@@ -238,6 +267,52 @@ class Auditor(Base):
         back_populates="auditor",
         cascade=CASCADE_DELETE_ORPHAN,
     )
+    invites: Mapped[list[AuditorInvite]] = relationship(
+        back_populates="auditor",
+    )
+
+
+class AuditorInvite(Base):
+    """Manager-issued invite for an auditor account within an account scope."""
+
+    __tablename__ = "auditor_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    auditor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auditors.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    account: Mapped[Account] = relationship()
+    invited_by_user: Mapped[User] = relationship()
+    auditor: Mapped[Auditor | None] = relationship(back_populates="invites")
 
 
 class Assignment(Base):
@@ -347,6 +422,18 @@ class YeeAuditSubmission(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
+    auditor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auditors.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    place_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -356,3 +443,6 @@ class YeeAuditSubmission(Base):
     responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
     section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
     total_score: Mapped[int] = mapped_column(nullable=False)
+
+    auditor: Mapped[Auditor] = relationship()
+    place: Mapped[Place] = relationship()

@@ -15,6 +15,7 @@ from strawberry.fastapi import GraphQLRouter
 
 from app.auth import router as auth_router
 from app.database import dispose_engines, get_async_session_playsafe, get_async_session_yee
+from app.dashboard_router import router as dashboard_router
 from app.schema import GraphQLContext, schema
 from app.yee_router import router as yee_router
 
@@ -36,6 +37,7 @@ app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=li
 # Product-scoped REST routes (dummy auth for now).
 app.include_router(auth_router, prefix="/yee")
 app.include_router(auth_router, prefix="/playsafe")
+app.include_router(dashboard_router, prefix="/yee")
 app.include_router(yee_router)
 
 

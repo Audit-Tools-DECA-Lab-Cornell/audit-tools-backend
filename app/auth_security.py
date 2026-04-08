@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -62,11 +63,17 @@ def hash_verification_token(token: str) -> str:
 
 
 def generate_access_token(user_id: str) -> tuple[str, datetime]:
-    """Generate a simple bearer token and expiration timestamp."""
+    """Generate a signed bearer token and expiration timestamp."""
 
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    random_part = secrets.token_urlsafe(24)
-    token = f"session-{user_id}-{random_part}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=get_access_token_ttl_days())
+    payload_json = json.dumps(
+        {"sub": user_id, "exp": int(expires_at.timestamp())},
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    payload_b64 = base64.urlsafe_b64encode(payload_json).decode("utf-8").rstrip("=")
+    signature = _sign_token_payload(payload_b64)
+    token = f"session.{payload_b64}.{signature}"
     return token, expires_at
 
 
@@ -79,3 +86,61 @@ def get_verification_ttl_hours() -> int:
         return ttl if ttl > 0 else 24
     except ValueError:
         return 24
+
+
+def get_access_token_ttl_days() -> int:
+    """Read access token TTL (days) from env with safe fallback."""
+
+    raw = os.getenv("AUTH_ACCESS_TOKEN_TTL_DAYS", "7").strip()
+    try:
+        ttl = int(raw)
+        return ttl if ttl > 0 else 7
+    except ValueError:
+        return 7
+
+
+def verify_access_token(token: str) -> str | None:
+    """Return the user id encoded in a token if the signature and expiry are valid."""
+
+    parts = token.strip().split(".")
+    if len(parts) != 3 or parts[0] != "session":
+        return None
+
+    _, payload_b64, provided_signature = parts
+    expected_signature = _sign_token_payload(payload_b64)
+    if not hmac.compare_digest(expected_signature, provided_signature):
+        return None
+
+    try:
+        payload_json = _urlsafe_b64decode(payload_b64)
+        payload = json.loads(payload_json)
+        user_id = str(payload["sub"])
+        expires_at = datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
+    except Exception:
+        return None
+
+    if datetime.now(timezone.utc) > expires_at:
+        return None
+
+    return user_id
+
+
+def _get_access_token_secret() -> bytes:
+    secret = os.getenv("AUTH_TOKEN_SECRET_KEY", "").strip()
+    if not secret:
+        secret = "dev-insecure-auth-secret-change-me"
+    return secret.encode("utf-8")
+
+
+def _sign_token_payload(payload_b64: str) -> str:
+    digest = hmac.new(
+        _get_access_token_secret(),
+        payload_b64.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(digest).decode("utf-8").rstrip("=")
+
+
+def _urlsafe_b64decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("utf-8"))
