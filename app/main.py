@@ -1,7 +1,9 @@
 """
 FastAPI application entrypoint.
 
-This module initializes FastAPI and mounts the Strawberry GraphQL API.
+This module initializes FastAPI and mounts both the shared-core routes from
+`master` and the YEE-specific auth/dashboard/audit routes from the integration
+branch so neither side of the merge is lost.
 """
 
 from __future__ import annotations
@@ -16,11 +18,12 @@ from strawberry.fastapi import GraphQLRouter
 
 from app.auth import router as auth_router
 from app.database import dispose_engines, get_async_session_playspace, get_async_session_yee
+from app.dashboard_router import router as dashboard_router
 from app.products.playspace.routes import router as playspace_shared_router
 from app.products.yee.routes import router as yee_shared_router
 from app.schema import GraphQLContext, schema
+from app.yee_router import router as yee_router
 
-# cors
 origins = [
     "http://localhost:3000",
     "http://localhost:8000",
@@ -33,11 +36,7 @@ origins = [
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """
-    Application lifecycle handler.
-
-    Disposes the DB engine on shutdown so connections are closed cleanly.
-    """
+    """Dispose DB engines on shutdown."""
 
     yield
     await dispose_engines()
@@ -45,48 +44,38 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=lifespan)
 
-# Product-scoped REST routes (dummy auth for now).
+# Real auth is now mounted for both product prefixes.
 app.include_router(auth_router, prefix="/yee")
 app.include_router(auth_router, prefix="/playspace")
+
+# Shared-core product routes from master.
 app.include_router(yee_shared_router, prefix="/yee")
 app.include_router(playspace_shared_router, prefix="/playspace")
+
+# YEE-specific dashboard and audit routes from the YEE branch.
+app.include_router(dashboard_router, prefix="/yee")
+app.include_router(yee_router)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """Simple health check endpoint."""
-
     return {"status": "ok"}
 
 
 @app.get("/")
 def root() -> dict[str, str]:
-    """Root endpoint."""
-
     return {"status": "ok"}
 
 
 def get_graphql_context_yee(
     session: AsyncSession = Depends(get_async_session_yee),
 ) -> GraphQLContext:
-    """
-    Provide Strawberry with a per-request context.
-
-    FastAPI will create/cleanup the `AsyncSession` via `get_async_session_yee()`.
-    """
-
     return GraphQLContext(session=session)
 
 
 def get_graphql_context_playspace(
     session: AsyncSession = Depends(get_async_session_playspace),
 ) -> GraphQLContext:
-    """
-    Provide Strawberry with a per-request context.
-
-    FastAPI will create/cleanup the `AsyncSession` via `get_async_session_playspace()`.
-    """
-
     return GraphQLContext(session=session)
 
 
