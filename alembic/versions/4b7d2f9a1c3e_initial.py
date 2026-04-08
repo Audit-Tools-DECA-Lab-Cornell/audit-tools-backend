@@ -8,7 +8,7 @@ Create Date: 2026-03-06 16:20:00
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -18,7 +18,14 @@ branch_labels = None
 depends_on = None
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def upgrade() -> None:
+    if not _is_target_product("yee"):
+        return
     op.create_table(
         "accounts",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -177,6 +184,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _is_target_product("yee"):
+        return
     op.drop_index(op.f("ix_audits_place_id"), table_name="audits")
     op.drop_index(op.f("ix_audits_instrument_id"), table_name="audits")
     op.drop_index(op.f("ix_audits_auditor_id"), table_name="audits")

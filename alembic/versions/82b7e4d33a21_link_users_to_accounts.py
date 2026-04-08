@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision = "82b7e4d33a21"
@@ -35,7 +35,16 @@ accounts_table = sa.table(
 )
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def upgrade() -> None:
+    if not _is_target_product("yee"):
+        return
+    if context.is_offline_mode():
+        return
     op.add_column("users", sa.Column("account_id", sa.UUID(), nullable=True))
     op.create_index(op.f("ix_users_account_id"), "users", ["account_id"], unique=False)
     op.create_foreign_key(
@@ -72,6 +81,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _is_target_product("yee"):
+        return
+    if context.is_offline_mode():
+        return
     op.drop_constraint(op.f("fk_users_account_id_accounts"), "users", type_="foreignkey")
     op.drop_index(op.f("ix_users_account_id"), table_name="users")
     op.drop_column("users", "account_id")

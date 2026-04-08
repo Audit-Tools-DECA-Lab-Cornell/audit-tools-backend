@@ -12,7 +12,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260310_0001"
@@ -38,9 +38,16 @@ AUDIT_STATUS_ENUM = postgresql.ENUM(
 def _table_exists(table_name: str) -> bool:
     """Check whether a table exists before attempting to drop it."""
 
+    if context.is_offline_mode():
+        return False
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     return inspector.has_table(table_name)
+
+
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
 
 
 def _drop_table_if_exists(table_name: str) -> None:
@@ -52,6 +59,9 @@ def _drop_table_if_exists(table_name: str) -> None:
 
 def upgrade() -> None:
     """Create the shared dashboard hierarchy used by both products."""
+
+    if not _is_target_product("playspace"):
+        return
 
     bind = op.get_bind()
     ACCOUNT_TYPE_ENUM.create(bind, checkfirst=True)
@@ -360,6 +370,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _is_target_product("playspace"):
+        return
     """Drop the shared core dashboard schema."""
 
     bind = op.get_bind()

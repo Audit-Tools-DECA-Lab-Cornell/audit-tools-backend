@@ -54,15 +54,18 @@ def _get_database_url(product: ProductKey, development: bool = True) -> str:
       postgresql+asyncpg://user:password@localhost:5432/dbname
     """
 
-    # NOTE: We intentionally do not read/print environment variables in terminal commands.
-    # At runtime, your process environment can provide DATABASE_URL_* as needed.
-    # If development is True, use DEV_DATABASE_URL_*, otherwise use DATABASE_URL_*
-    env_var = f"{'DEV_' if development else ''}"
-    env_var += "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSPACE"
+    # Prefer explicit development URLs when present, but always fall back to the
+    # documented product-specific DATABASE_URL_* variables before using defaults.
+    base_env_var = "DATABASE_URL_YEE" if product is ProductKey.YEE else "DATABASE_URL_PLAYSPACE"
+    candidate_env_vars: list[str] = []
+    if development:
+        candidate_env_vars.append(f"DEV_{base_env_var}")
+    candidate_env_vars.append(base_env_var)
 
-    url = os.getenv(env_var)
-    if url and url.strip():
-        return url.strip()
+    for env_var in candidate_env_vars:
+        url = os.getenv(env_var)
+        if url and url.strip():
+            return url.strip()
 
     # Backwards-compatible fallback: a single `DATABASE_URL` is treated as YEE.
     if product is ProductKey.YEE:

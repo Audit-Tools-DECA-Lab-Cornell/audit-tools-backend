@@ -114,10 +114,9 @@ class Account(Base):
         back_populates="account",
         cascade=CASCADE_DELETE_ORPHAN,
     )
-    auditor_profile: Mapped[AuditorProfile | None] = relationship(
+    auditor_profiles: Mapped[list[AuditorProfile]] = relationship(
         back_populates="account",
         cascade=CASCADE_DELETE_ORPHAN,
-        uselist=False,
     )
 
 
@@ -229,7 +228,6 @@ class AuditorProfile(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("accounts.id", ondelete="CASCADE"),
-        unique=True,
         index=True,
         nullable=False,
     )
@@ -248,7 +246,7 @@ class AuditorProfile(Base):
     role: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    account: Mapped[Account] = relationship(back_populates="auditor_profile")
+    account: Mapped[Account] = relationship(back_populates="auditor_profiles")
     user: Mapped[User | None] = relationship(back_populates="auditor_profile")
     assignments: Mapped[list[AuditorAssignment]] = relationship(
         back_populates="auditor_profile",
@@ -398,4 +396,3 @@ class YeeAuditSubmission(Base):
 # Compatibility aliases for the YEE branch router code.
 Auditor = AuditorProfile
 Assignment = AuditorAssignment
-

@@ -34,6 +34,7 @@ from app.core.demo_data import (
     DEMO_PROJECT_URBAN_ID,
 )
 from app.core.source_materials import build_playspace_source_metadata, build_yee_source_metadata
+from app.auth_security import hash_password
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
 from app.models import (
     Account,
@@ -100,6 +101,12 @@ def _placeholder_password_hash(label: str) -> str:
     """Generate a stable placeholder password hash for demo seed records."""
 
     return f"seed::{label}"
+
+
+def _demo_password_hash() -> str:
+    """Return the shared demo login password hash used for seeded auth users."""
+
+    return hash_password("DemoPass123!")
 
 
 async def _clear_shared_tables(session: AsyncSession) -> None:
@@ -484,11 +491,94 @@ def _build_yee_entities() -> list[object]:
     manager_account = Account(
         id=DEMO_ACCOUNT_ID,
         name=YEE_ORGANIZATION_NAME,
-        email="yee-manager@example.org",
-        password_hash=_placeholder_password_hash("yee-manager"),
+        email="manager-demo@yee.local",
+        password_hash=_demo_password_hash(),
         account_type=AccountType.MANAGER,
         created_at=_utc_datetime("2026-02-20T08:00:00Z"),
     )
+
+    users = [
+        User(
+            id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd1"),
+            email="manager-demo@yee.local",
+            password_hash=_demo_password_hash(),
+            account_id=DEMO_ACCOUNT_ID,
+            account_type=AccountType.MANAGER,
+            name="Demo Manager",
+            email_verified=True,
+            email_verified_at=_utc_datetime("2026-02-20T08:05:00Z"),
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=_utc_datetime("2026-02-20T08:06:00Z"),
+            profile_completed=True,
+            profile_completed_at=_utc_datetime("2026-02-20T08:07:00Z"),
+            created_at=_utc_datetime("2026-02-20T08:00:00Z"),
+        ),
+        User(
+            id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd2"),
+            email="admin-demo@yee.local",
+            password_hash=_demo_password_hash(),
+            account_id=None,
+            account_type=AccountType.ADMIN,
+            name="Demo Admin",
+            email_verified=True,
+            email_verified_at=_utc_datetime("2026-02-20T08:15:00Z"),
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=_utc_datetime("2026-02-20T08:16:00Z"),
+            profile_completed=True,
+            profile_completed_at=_utc_datetime("2026-02-20T08:17:00Z"),
+            created_at=_utc_datetime("2026-02-20T08:10:00Z"),
+        ),
+        User(
+            id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd3"),
+            email="auditor-demo-1@yee.local",
+            password_hash=_demo_password_hash(),
+            account_id=DEMO_ACCOUNT_ID,
+            account_type=AccountType.AUDITOR,
+            name="Demo Auditor One",
+            email_verified=True,
+            email_verified_at=_utc_datetime("2026-02-22T09:10:00Z"),
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=_utc_datetime("2026-02-22T09:11:00Z"),
+            profile_completed=True,
+            profile_completed_at=_utc_datetime("2026-02-22T09:12:00Z"),
+            created_at=_utc_datetime("2026-02-22T09:00:00Z"),
+        ),
+        User(
+            id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd4"),
+            email="auditor-demo-2@yee.local",
+            password_hash=_demo_password_hash(),
+            account_id=DEMO_ACCOUNT_ID,
+            account_type=AccountType.AUDITOR,
+            name="Demo Auditor Two",
+            email_verified=True,
+            email_verified_at=_utc_datetime("2026-02-22T09:15:00Z"),
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=_utc_datetime("2026-02-22T09:16:00Z"),
+            profile_completed=True,
+            profile_completed_at=_utc_datetime("2026-02-22T09:17:00Z"),
+            created_at=_utc_datetime("2026-02-22T09:05:00Z"),
+        ),
+        User(
+            id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd5"),
+            email="auditor-demo-3@yee.local",
+            password_hash=_demo_password_hash(),
+            account_id=DEMO_ACCOUNT_ID,
+            account_type=AccountType.AUDITOR,
+            name="Demo Auditor Three",
+            email_verified=True,
+            email_verified_at=_utc_datetime("2026-02-22T09:20:00Z"),
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=_utc_datetime("2026-02-22T09:21:00Z"),
+            profile_completed=True,
+            profile_completed_at=_utc_datetime("2026-02-22T09:22:00Z"),
+            created_at=_utc_datetime("2026-02-22T09:10:00Z"),
+        ),
+    ]
 
     manager_profiles = [
         ManagerProfile(
@@ -545,10 +635,11 @@ def _build_yee_entities() -> list[object]:
     auditor_profiles = [
         AuditorProfile(
             id=YEE_AUDITOR_PROFILE_01_ID,
-            account_id=YEE_AUDITOR_ACCOUNT_01_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd3"),
             auditor_code="YEE-01",
-            email="leah.brown@example.org",
-            full_name="Leah Brown",
+            email="auditor-demo-1@yee.local",
+            full_name="Demo Auditor One",
             age_range="18-24",
             gender="Woman",
             country=UNITED_STATES,
@@ -557,10 +648,11 @@ def _build_yee_entities() -> list[object]:
         ),
         AuditorProfile(
             id=YEE_AUDITOR_PROFILE_02_ID,
-            account_id=YEE_AUDITOR_ACCOUNT_02_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd4"),
             auditor_code="YEE-02",
-            email="omar.rivera@example.org",
-            full_name="Omar Rivera",
+            email="auditor-demo-2@yee.local",
+            full_name="Demo Auditor Two",
             age_range="25-34",
             gender="Man",
             country=UNITED_STATES,
@@ -569,10 +661,11 @@ def _build_yee_entities() -> list[object]:
         ),
         AuditorProfile(
             id=YEE_AUDITOR_PROFILE_03_ID,
-            account_id=YEE_AUDITOR_ACCOUNT_03_ID,
+            account_id=DEMO_ACCOUNT_ID,
+            user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd5"),
             auditor_code="YEE-03",
-            email="sophie.chen@example.org",
-            full_name="Sophie Chen",
+            email="auditor-demo-3@yee.local",
+            full_name="Demo Auditor Three",
             age_range="18-24",
             gender="Woman",
             country=UNITED_STATES,
@@ -834,8 +927,8 @@ def _build_yee_entities() -> list[object]:
 
     return [
         manager_account,
+        *users,
         *manager_profiles,
-        *auditor_accounts,
         *auditor_profiles,
         *projects,
         *places,

@@ -8,7 +8,7 @@ Create Date: 2026-03-06 19:45:00
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision = "c4e9bd11c2a7"
@@ -17,7 +17,14 @@ branch_labels = None
 depends_on = None
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def upgrade() -> None:
+    if not _is_target_product("yee"):
+        return
     op.add_column(
         "users",
         sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
@@ -33,6 +40,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if not _is_target_product("yee"):
+        return
     op.drop_column("users", "last_login_at")
     op.drop_column("users", "failed_login_attempts")
     op.drop_column("users", "email_verified_at")

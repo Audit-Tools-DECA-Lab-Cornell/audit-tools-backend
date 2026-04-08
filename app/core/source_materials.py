@@ -91,6 +91,36 @@ def build_yee_source_metadata() -> dict[str, object]:
     pdf_path = repo_root / "yee" / "instructions" / "Youth Enabling Environments Audit Tool.pdf"
     qsf_path = repo_root / "yee" / "instructions" / "Youth_Enabling_Environments_Audit_Tool.json"
 
+    if not (instructions_path.exists() and pdf_path.exists() and qsf_path.exists()):
+        return {
+            "instrument_key": "yee_seed_instrument",
+            "instrument_name": "Youth Enabling Environments Audit Tool",
+            "instrument_version": "seed-fallback",
+            "source_files": [],
+            "section_names": [
+                "Access",
+                "Activity Spaces",
+                "Amenities",
+                "Experience of the Space",
+                "Aesthetics & Care",
+                "Use & Usability",
+            ],
+            "scoring_categories": [
+                "Score",
+                "Access",
+                "Activity",
+                "Amenities",
+                "Experience",
+                "Aesthetics & Care",
+                "Use & Usability",
+            ],
+            "sample_questions": [],
+            "scoring_notes": [
+                "Seed fallback metadata was used because the YEE source documents were not present locally."
+            ],
+            "weighting_questions_included": False,
+        }
+
     qsf_data = _load_json_dict(qsf_path)
     survey_entry = qsf_data.get("SurveyEntry")
     survey_elements = qsf_data.get("SurveyElements")
