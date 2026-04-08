@@ -12,7 +12,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260312_0002"
@@ -29,9 +29,16 @@ AUDIT_PARTICIPATION_ROLE_ENUM = postgresql.ENUM(
 )
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def upgrade() -> None:
     """Add the per-assignment Playspace form role column."""
 
+    if not _is_target_product("playspace"):
+        return
     bind = op.get_bind()
     AUDIT_PARTICIPATION_ROLE_ENUM.create(bind, checkfirst=True)
     op.add_column(
@@ -49,6 +56,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Remove the per-assignment Playspace form role column."""
 
+    if not _is_target_product("playspace"):
+        return
     bind = op.get_bind()
     op.drop_column("auditor_assignments", "audit_role")
     AUDIT_PARTICIPATION_ROLE_ENUM.drop(bind, checkfirst=True)

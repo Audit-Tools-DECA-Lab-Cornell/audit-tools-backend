@@ -115,13 +115,7 @@ CASCADE_DELETE_ORPHAN: str = "all, delete-orphan"
 
 
 class User(Base):
-    """
-    Temporary auth scaffold.
-
-    This table intentionally remains separate from the shared account hierarchy so
-    a teammate can replace the dummy auth implementation later without blocking the
-    dashboard/domain remodel.
-    """
+    """Platform user used by the real YEE auth and approval flows."""
 
     __tablename__ = "users"
 
@@ -132,25 +126,39 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     account_type: Mapped[AccountType] = mapped_column(
         ACCOUNT_TYPE_ENUM,
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    email_verification_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verification_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    profile_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    profile_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
 
+    account: Mapped[Account | None] = relationship(back_populates="users")
+    auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False)
+
 
 class Account(Base):
-    """
-    Shared tenant/account record.
-
-    A manager account owns projects and manager profiles.
-    An auditor account maps to exactly one auditor profile.
-    """
+    """Shared tenant/account record."""
 
     __tablename__ = "accounts"
 
@@ -172,6 +180,7 @@ class Account(Base):
         nullable=False,
     )
 
+    users: Mapped[list[User]] = relationship(back_populates="account")
     manager_profiles: Mapped[list[ManagerProfile]] = relationship(
         back_populates="account",
         cascade=CASCADE_DELETE_ORPHAN,
@@ -180,10 +189,9 @@ class Account(Base):
         back_populates="account",
         cascade=CASCADE_DELETE_ORPHAN,
     )
-    auditor_profile: Mapped[AuditorProfile | None] = relationship(
+    auditor_profiles: Mapped[list[AuditorProfile]] = relationship(
         back_populates="account",
         cascade=CASCADE_DELETE_ORPHAN,
-        uselist=False,
     )
 
 
@@ -265,6 +273,14 @@ class Project(Base):
         back_populates="project",
     )
 
+    @property
+    def description(self) -> str | None:
+        return self.overview
+
+    @description.setter
+    def description(self, value: str | None) -> None:
+        self.overview = value
+
 
 class Place(Base):
     """Shared place/location model used by both product databases."""
@@ -310,6 +326,22 @@ class Place(Base):
         back_populates="place",
         cascade=CASCADE_DELETE_ORPHAN,
     )
+
+    @property
+    def address(self) -> str:
+        return ", ".join(part for part in [self.city, self.province, self.country] if part) or "Address not set"
+
+    @address.setter
+    def address(self, value: str) -> None:
+        self.city = value.strip() if value else None
+
+    @property
+    def notes(self) -> str | None:
+        return self.auditor_description
+
+    @notes.setter
+    def notes(self, value: str | None) -> None:
+        self.auditor_description = value
 
 
 class ProjectPlace(Base):
@@ -357,9 +389,14 @@ class AuditorProfile(Base):
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("accounts.id", ondelete="CASCADE"),
-        unique=True,
         index=True,
         nullable=False,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        unique=True,
+        nullable=True,
     )
     auditor_code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
@@ -374,7 +411,8 @@ class AuditorProfile(Base):
         nullable=False,
     )
 
-    account: Mapped[Account] = relationship(back_populates="auditor_profile")
+    account: Mapped[Account] = relationship(back_populates="auditor_profiles")
+    user: Mapped[User | None] = relationship(back_populates="auditor_profile")
     assignments: Mapped[list[AuditorAssignment]] = relationship(
         back_populates="auditor_profile",
         cascade=CASCADE_DELETE_ORPHAN,
@@ -383,6 +421,40 @@ class AuditorProfile(Base):
         back_populates="auditor_profile",
         cascade=CASCADE_DELETE_ORPHAN,
     )
+    invites: Mapped[list[AuditorInvite]] = relationship(back_populates="auditor")
+
+
+class AuditorInvite(Base):
+    __tablename__ = "auditor_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    auditor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auditor_profiles.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    account: Mapped[Account] = relationship()
+    invited_by_user: Mapped[User] = relationship()
+    auditor: Mapped[AuditorProfile | None] = relationship(back_populates="invites")
 
 
 class AuditorAssignment(Base):
@@ -450,6 +522,10 @@ class AuditorAssignment(Base):
     auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments")
     project: Mapped[Project | None] = relationship(back_populates="assignments")
     place: Mapped[Place | None] = relationship(back_populates="assignments")
+
+    @property
+    def auditor_id(self) -> uuid.UUID:
+        return self.auditor_profile_id
 
 
 class Audit(Base):
@@ -546,6 +622,10 @@ class Audit(Base):
         back_populates="audit",
         cascade=CASCADE_DELETE_ORPHAN,
     )
+
+    @property
+    def auditor_id(self) -> uuid.UUID:
+        return self.auditor_profile_id
 
 
 class PlayspaceAuditContext(Base):
@@ -746,3 +826,34 @@ class PlayspaceScaleAnswer(Base):
     question_response: Mapped[PlayspaceQuestionResponse] = relationship(
         back_populates="scale_answers"
     )
+
+
+class YeeAuditSubmission(Base):
+    __tablename__ = "yee_audit_submissions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    auditor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auditor_profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    place_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    participant_info_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+    total_score: Mapped[int] = mapped_column(nullable=False)
+
+    auditor: Mapped[AuditorProfile] = relationship()
+    place: Mapped[Place] = relationship()
+
+
+# Compatibility aliases for the YEE router code.
+Auditor = AuditorProfile
+Assignment = AuditorAssignment

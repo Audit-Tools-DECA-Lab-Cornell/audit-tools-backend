@@ -45,7 +45,13 @@ def _resolve_raw_database_url(product: ProductKey) -> str:
         if normalized:
             return normalized
 
-    raise ValueError(f"No database URL found for product {product}")
+    if product is ProductKey.YEE:
+        legacy_url = os.getenv("DATABASE_URL")
+        if legacy_url and legacy_url.strip():
+            return legacy_url.strip()
+
+    default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
+    return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
 
 
 def _normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:

@@ -1,8 +1,4 @@
-"""
-FastAPI application entrypoint.
-
-This module initializes FastAPI and mounts product-scoped REST routes.
-"""
+"""FastAPI application entrypoint."""
 
 from __future__ import annotations
 
@@ -14,8 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth import router as auth_router
 from app.database import dispose_engines
+from app.dashboard_router import router as dashboard_router
 from app.products.playspace.routes import router as playspace_router
-from app.products.yee.routes import router as yee_router
+from app.products.yee.routes import router as yee_shared_router
+from app.yee_router import router as yee_router
 
 # cors
 origins = [
@@ -42,11 +40,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=lifespan)
 
-# Product-scoped REST routes (dummy auth for now).
+# Product-scoped REST routes.
 app.include_router(auth_router, prefix="/yee")
 app.include_router(auth_router, prefix="/playspace")
-app.include_router(yee_router, prefix="/yee")
+app.include_router(yee_shared_router, prefix="/yee")
 app.include_router(playspace_router, prefix="/playspace")
+app.include_router(dashboard_router, prefix="/yee")
+app.include_router(yee_router)
 
 
 @app.get("/health")

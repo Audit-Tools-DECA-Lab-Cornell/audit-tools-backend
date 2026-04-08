@@ -12,7 +12,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260323_0005"
@@ -23,9 +23,16 @@ depends_on: Sequence[str] | None = None
 NOW_SQL = sa.text("now()")
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def upgrade() -> None:
     """Move places/projects to many-to-many and audits/assignments to project-place pairs."""
 
+    if not _is_target_product("playspace"):
+        return
     op.create_table(
         "project_places",
         sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -182,6 +189,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Collapse project/place pairs back into one project per place."""
 
+    if not _is_target_product("playspace"):
+        return
     op.add_column(
         "places",
         sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),

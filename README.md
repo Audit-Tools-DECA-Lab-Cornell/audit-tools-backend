@@ -1,197 +1,256 @@
 # Audit Tools Backend
 
-> FastAPI + SQLAlchemy backend for the audit platform.
+This repository is the FastAPI backend for DECA Lab's Audit Tools platform.
 
-This repository owns the shared account/project/place/auditor model plus product-specific backend behavior for:
+It now combines:
 
-| Product | Status |
-|---|---|
-| **Playspace** |
-| **YEE** | Separate product track |
+- the shared-core dashboard architecture from `master`
+- the real YEE authentication, onboarding, dashboard, invite, submission, scoring, reporting, and export work from the YEE branch
 
----
+The platform is not just a survey page. It is a browser-based, role-aware system with:
 
-## Responsibilities
+- authentication and onboarding
+- admin, manager, and auditor workspaces
+- project, place, auditor, and assignment management
+- multi-step YEE audit submission
+- scoring and reporting
+- raw data export
+- privacy-aware auditor identity handling
 
-| In scope | Out of scope |
-|---|---|
-| Authentication/session support for platform users | Auditor mobile UI |
-| Shared account, project, place, auditor, and assignment data | Future manager web UI |
-| Playspace audit lifecycle (`access`, `draft`, `submit`, reporting payloads) | |
-| Playspace normalized audit storage and scoring | |
-| Seed/demo data and migrations | |
+The frontend and backend live in separate repositories and should remain separate:
 
----
+- Backend: `/Users/andishasafdariyan/auditTools/audit-tools-backend`
+- Frontend: `/Users/andishasafdariyan/auditTools/audit-tools-yee-frontend`
 
-## Documentation Map
+## Project Purpose
 
-This backend uses **one** README. The other root docs are focused references, not extra READMEs:
+The YEE website supports field auditing of youth enabling environments across real projects and places. Managers organize projects and places, invite and assign auditors, and review results. Auditors complete exactly one submitted audit per assigned place. Admins oversee users, workspaces, audits, and approvals across the whole system.
 
-| File | Purpose |
-|---|---|
-| `README.md` | Onboarding, setup, responsibilities, and high-level architecture |
-| `SCHEMA.md` | Current database/data contract |
-| `STRUCTURE.md` | Backend code organization and module boundaries |
+This backend provides:
 
----
+- product-scoped data access for `/yee/*` and `/playspace/*`
+- REST auth, dashboard, and YEE endpoints
+- shared-core product routes for YEE and Playspace
+- YEE instrument loading and question scoring
+- scoped reporting and raw-data export
+- enforcement of assignment-based access and one-audit-per-place submission rules
 
-## Current Playspace Status
+## Current Implementation Status
 
-Playspace no longer uses a generic blob-only audit persistence path.
+### Implemented
 
-**Current implementation:**
+- Real auth flow with signup, login, email verification, resend verification, profile completion, and invite acceptance
+- Role-aware session responses including `role`, verification status, approval status, profile-completion status, `next_step`, and `dashboard_path`
+- `ADMIN`, `MANAGER`, and `AUDITOR` roles
+- Admin approval flow for pending users
+- Manager project creation, place creation, auditor invite creation, and place assignment
+- Auditor-assigned place scoping
+- Multi-step YEE audit flow in the frontend
+- Backend enforcement for one submitted audit per auditor per place
+- YEE question scoring from the source QSF instrument
+- Weighted YEE reporting totals used in comparisons and raw-data export
+- Place-level comparisons and CSV-ready raw data output
+- Generated auditor IDs used in reporting and exports instead of full names
+- Scoped project and place detail endpoints
+- Shared-core YEE and Playspace dashboard route wrappers
+- Deterministic seed data for the shared-core hierarchy
 
-- Writes normalized Playspace audit rows first
-- Computes raw totals from normalized rows
-- Keeps `responses_json` and `scores_json` as compatibility caches
-- Serves typed auditor/mobile responses for `meta`, `pre_audit`, `sections`, `scores`, and `progress`
+### Partially Implemented
 
-**Recent hardening:**
+- Settings pages and richer profile management
+- Admin lifecycle actions beyond approval, such as deny, revoke, deactivate, or suspend
+- Verification UX for local/demo environments
+- Audit comparison filtering by arbitrary subset of audits within the same place
+- Production polish around email delivery, deployment configuration, and final QA
+- Full architectural reconciliation between the legacy YEE branch model assumptions and the new shared-core model is in progress on the integration branch
 
-- Draft patch normalization now reuses existing ORM child rows by natural unique keys instead of delete/reinsert replacement
-- This avoids duplicate-key failures on repeated saves for pre-audit answers, section rows, question responses, and scale answers
+### Intentionally Not Implemented Yet
 
----
+- Cap score logic
+
+## User Roles And Permissions
+
+### ADMIN
+
+Admins can:
+
+- access all users, managers, auditors, projects, places, and audits
+- approve pending users
+- view all raw data and comparison reports
+- access system-wide settings when that UI is completed
+
+### MANAGER
+
+Managers can:
+
+- create projects
+- create places
+- invite auditors
+- assign auditors to places
+- view audits, reports, and raw data within their own account scope
+
+### AUDITOR
+
+Auditors can:
+
+- access only assigned places
+- complete profile setup
+- start or continue a draft audit
+- submit exactly one final audit per assigned place
+- view only their own audit history
+
+See [docs/roles-and-permissions.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/roles-and-permissions.md) for the full matrix.
+
+## Backend Route Families
+
+- `/yee/auth/*`
+- `/playspace/auth/*`
+- `/yee/dashboard/*`
+- `/yee/instrument`
+- `/yee/audits/score`
+- `/yee/audits`
+- `/yee/audits/{submission_id}`
+- `/yee/my-audits`
+- `/yee/graphql`
+- `/playspace/graphql`
+- `/health`
 
 ## Local Setup
 
-### 1. Create a virtualenv
+### Backend
+
+1. Create a Python environment:
 
 ```bash
+cd /Users/andishasafdariyan/auditTools/audit-tools-backend
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-```
-
-### 2. Install dependencies
-
-```bash
 python -m pip install -r requirements.txt
-python -m pip install -r requirements-dev.txt
-pre-commit install
 ```
 
-### 3. Configure database access
+2. Create `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Set the following in `.env`:
+3. Set environment values:
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL_YEE` | Neon `postgresql://...` URL for YEE |
-| `DATABASE_URL_PLAYSPACE` | Neon `postgresql://...` URL for Playspace |
+```env
+DATABASE_URL_YEE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_yee
+DATABASE_URL_PLAYSPACE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_playspace
+AUTH_TOKEN_SECRET_KEY=change-me
+AUTH_ACCESS_TOKEN_TTL_DAYS=7
+AUTH_EMAIL_VERIFY_TTL_HOURS=24
+AUTH_VERIFY_URL_TEMPLATE=http://localhost:3000/verify-email?token={token}
+```
 
-> Neon URLs can be pasted directly — `app/database.py` normalizes them for async SQLAlchemy.
-
----
-
-## Migrations
-
-Apply migrations per product database:
+4. Run migrations:
 
 ```bash
 alembic -x product=yee upgrade head
 alembic -x product=playspace upgrade head
 ```
 
----
-
-## Seed Demo Data
+5. Seed demo/shared-core data if needed:
 
 ```bash
-# Seed both products
 ./.venv/bin/python -m app.seed
+```
 
-# Seed one product only
+Single product seed:
+
+```bash
 ./.venv/bin/python -m app.seed --product yee
 ./.venv/bin/python -m app.seed --product playspace
 ```
 
-The Playspace seed flow builds realistic audit payloads, hydrates normalized relations, computes score totals, and keeps compatibility JSON caches populated.
-
----
-
-## Run the API
+6. Start the backend:
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload
 ```
 
-| URL | Description |
-|---|---|
-| `http://127.0.0.1:8000/health` | Health check |
-| `http://127.0.0.1:8000/playspace/*` | Playspace namespace |
-| `http://127.0.0.1:8000/yee/status` | YEE namespace status |
+Backend URLs:
 
----
+- `http://127.0.0.1:8000`
+- `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/yee/graphql`
+- `http://127.0.0.1:8000/playspace/graphql`
 
-## Playspace Backend Notes
+### Frontend
 
-### Normalized Audit Tables
-
-Playspace currently writes to these tables, which back the draft, scoring, and submit flows:
-
-| Table | Description |
-|---|---|
-| `playspace_audit_contexts` |
-| `playspace_pre_audit_answers` |
-| `playspace_audit_sections` |
-| `playspace_question_responses` |
-| `playspace_scale_answers` |
-
-### Score Shape
-
-| Bucket | Type |
-|---|---|
-| `quantity_total` | Column total |
-| `diversity_total` | Column total |
-| `challenge_total` | Column total |
-| `sociability_total` | Construct total |
-| `play_value_total` | Construct total |
-| `usability_total` | Construct total |
-
-```
-summary_score = play_value_total + usability_total
-```
-
-### Mobile Integration Notes
-
-- The Playspace mobile app is offline-first and syncs draft patches to this backend
-- Exports are currently generated on the mobile client from submitted audit payloads
-- There is no dedicated backend export endpoint yet for manager/project reporting
-
----
-
-## Useful Commands
-
-### Tests
+1. Install dependencies:
 
 ```bash
-# Run all tests
-pytest
-
-# Targeted Playspace validation
-./.venv/bin/ruff check app/products/playspace
-./.venv/bin/python -m py_compile app/products/playspace/scoring.py app/products/playspace/services/audit_sessions.py
-./.venv/bin/python -m app.seed --product playspace
+cd /Users/andishasafdariyan/auditTools/audit-tools-yee-frontend
+npm install
 ```
 
-### Lint & Format
+2. Create frontend env values:
+
+```env
+API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
+3. Start the frontend:
 
 ```bash
-ruff check . --fix
-ruff format .
+npm run dev
 ```
 
----
+Frontend URL:
 
-## Deployment
+- `http://localhost:3000`
 
-Render start command:
+## File Structure
 
-```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+### Backend
+
+```text
+audit-tools-backend/
+  alembic/
+  app/
+    auth.py
+    auth_security.py
+    core/
+    dashboard_router.py
+    data/
+      yee_instrument.qsf
+    database.py
+    email_service.py
+    main.py
+    models.py
+    products/
+      playspace/
+      yee/
+    schema.py
+    seed.py
+    yee_router.py
+    yee_scoring.py
+  docs/
+  tests/
+  README.md
+  .env.example
 ```
+
+## Documentation Map
+
+- [docs/architecture.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/architecture.md)
+- [docs/scoring.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/scoring.md)
+- [docs/roles-and-permissions.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/roles-and-permissions.md)
+- [docs/deployment.md](/Users/andishasafdariyan/auditTools/audit-tools-backend/docs/deployment.md)
+
+## Pending Work / Future Work
+
+Important remaining work:
+
+- complete settings/profile management pages
+- add admin deny/revoke/deactivate lifecycle actions
+- improve verification and demo UX
+- allow report filtering by arbitrary selected audits
+- finish the architectural integration between shared-core dashboard models and the YEE auth/reporting layer
+- add final production deployment config, monitoring, and QA
+- add final cap score logic once confirmed
