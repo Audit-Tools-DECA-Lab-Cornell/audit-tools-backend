@@ -13,7 +13,11 @@ import argparse
 import asyncio
 import uuid
 from datetime import date, datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +38,8 @@ from app.models import (
     User,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 YEE_ORGANIZATION_NAME = "Youth Enabling Environments Collaborative"
 
@@ -95,6 +101,20 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
         User,
     ):
         await session.execute(delete(model))
+
+
+def _run_product_upgrade(product: ProductKey) -> None:
+    """Run Alembic for one product in a synchronous context."""
+
+    alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
+    alembic_config.cmd_opts = SimpleNamespace(x=[f"product={product.value}"])
+    command.upgrade(alembic_config, "head")
+
+
+async def _upgrade_product_database(product: ProductKey) -> None:
+    """Ensure the selected product database schema exists before seeding."""
+
+    await asyncio.to_thread(_run_product_upgrade, product)
 
 
 async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -> None:
@@ -520,6 +540,7 @@ def _build_yee_entities() -> list[object]:
 async def _seed_product(product: ProductKey) -> dict[str, int]:
     """Clear and repopulate one product database."""
 
+    await _upgrade_product_database(product)
     session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[product]
     entities = (
         _build_playspace_entities() if product is ProductKey.PLAYSPACE else _build_yee_entities()

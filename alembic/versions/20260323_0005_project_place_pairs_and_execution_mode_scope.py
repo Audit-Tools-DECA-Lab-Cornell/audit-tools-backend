@@ -114,6 +114,22 @@ def upgrade() -> None:
         ["project_id", "place_id", "auditor_profile_id"],
     )
 
+    op.drop_constraint(
+        "ck_auditor_assignments_single_scope",
+        "auditor_assignments",
+        type_="check",
+    )
+    op.drop_constraint(
+        "uq_auditor_assignments_auditor_project",
+        "auditor_assignments",
+        type_="unique",
+    )
+    op.drop_constraint(
+        "uq_auditor_assignments_auditor_place",
+        "auditor_assignments",
+        type_="unique",
+    )
+    # Remove legacy single-scope constraints before backfilling project ids for place rows.
     op.execute(
         sa.text(
             """
@@ -130,21 +146,6 @@ def upgrade() -> None:
         "project_id",
         existing_type=postgresql.UUID(as_uuid=True),
         nullable=False,
-    )
-    op.drop_constraint(
-        "ck_auditor_assignments_single_scope",
-        "auditor_assignments",
-        type_="check",
-    )
-    op.drop_constraint(
-        "uq_auditor_assignments_auditor_project",
-        "auditor_assignments",
-        type_="unique",
-    )
-    op.drop_constraint(
-        "uq_auditor_assignments_auditor_place",
-        "auditor_assignments",
-        type_="unique",
     )
     op.create_foreign_key(
         "fk_auditor_assignments_project_place_pair",
