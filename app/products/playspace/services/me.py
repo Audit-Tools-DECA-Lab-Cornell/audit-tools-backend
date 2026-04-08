@@ -25,7 +25,7 @@ class PlayspaceMeService:
 
         result = await self._session.execute(
             select(Account)
-            .options(joinedload(Account.auditor_profile))
+            .options(joinedload(Account.auditor_profiles))
             .where(Account.id == account_id)
         )
         account = result.unique().scalar_one_or_none()

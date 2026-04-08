@@ -13,7 +13,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260320_0004"
@@ -38,9 +38,16 @@ PRE_AUDIT_FIELD_ORDER = (
 )
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def upgrade() -> None:
     """Create normalized Playspace audit tables and backfill existing rows."""
 
+    if not _is_target_product("playspace"):
+        return
     op.create_table(
         "playspace_audit_contexts",
         sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -220,6 +227,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop normalized Playspace audit tables."""
 
+    if not _is_target_product("playspace"):
+        return
     op.drop_index(
         "ix_playspace_scale_answers_question_response_id",
         table_name="playspace_scale_answers",

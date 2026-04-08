@@ -12,7 +12,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from alembic import op
+from alembic import context, op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260319_0003"
@@ -29,6 +29,11 @@ AUDIT_PARTICIPATION_ROLE_ENUM = postgresql.ENUM(
 )
 
 
+def _is_target_product(product_key: str) -> bool:
+    x_args = context.get_x_argument(as_dictionary=True)
+    return x_args.get("product", "yee").strip().lower() == product_key
+
+
 def _has_column(table_name: str, column_name: str) -> bool:
     """Return whether a column currently exists on a table."""
 
@@ -41,6 +46,8 @@ def _has_column(table_name: str, column_name: str) -> bool:
 def upgrade() -> None:
     """Migrate assignment participation storage from enum to role arrays."""
 
+    if not _is_target_product("playspace"):
+        return
     has_audit_role = _has_column("auditor_assignments", "audit_role")
     has_audit_roles = _has_column("auditor_assignments", "audit_roles")
 
@@ -88,6 +95,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Recreate enum-based assignment participation storage."""
 
+    if not _is_target_product("playspace"):
+        return
     has_audit_role = _has_column("auditor_assignments", "audit_role")
     has_audit_roles = _has_column("auditor_assignments", "audit_roles")
 
