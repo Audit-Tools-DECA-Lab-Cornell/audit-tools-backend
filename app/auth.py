@@ -124,6 +124,12 @@ def _get_product_from_path(path: str) -> ProductKey:
     return ProductKey.YEE
 
 
+def _is_playspace_request(request: FastAPIRequest) -> bool:
+    """Return whether the current auth request targets the Playspace product."""
+
+    return _get_product_from_path(request.url.path) is ProductKey.PLAYSPACE
+
+
 async def get_auth_session(request: FastAPIRequest) -> AsyncIterator[AsyncSession]:
     """Pick YEE vs Playsafe DB session from URL prefix."""
 
@@ -164,6 +170,107 @@ def _serialize_auth_user(user: User) -> AuthUser:
         next_step=_next_step_for_user(user),
         dashboard_path=_dashboard_path_for_account_type(user.account_type),
     )
+
+
+def _serialize_playspace_account_user(account: Account) -> AuthUser:
+    """Build the legacy lightweight auth payload for Playspace account login."""
+
+    return AuthUser(
+        id=account.id,
+        email=account.email,
+        name=account.name,
+        account_id=account.id,
+        organization=account.name if account.account_type == AccountType.MANAGER else None,
+        account_type=account.account_type,
+        email_verified=True,
+        approved=True,
+        profile_completed=True,
+        next_step="DASHBOARD",
+        dashboard_path=_dashboard_path_for_account_type(account.account_type),
+    )
+
+
+def _build_playspace_auth_response(account: Account) -> AuthResponse:
+    """Return the pre-merge Playspace-style auth response."""
+
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    access_token = f"dummy-token-{account.id}"
+    return AuthResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_at=expires_at,
+        user=_serialize_playspace_account_user(account),
+    )
+
+
+async def _find_account_by_email(
+    *,
+    session: AsyncSession,
+    email: str,
+) -> Account | None:
+    """Look up one account row by normalized email."""
+
+    result = await session.execute(select(Account).where(Account.email == email))
+    return result.scalar_one_or_none()
+
+
+async def _playspace_signup(
+    *,
+    payload: SignupRequest,
+    session: AsyncSession,
+) -> AuthResponse:
+    """Restore lightweight Playspace signup without depending on the User schema."""
+
+    email = _normalize_email(payload.email)
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required.")
+
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    account_type = payload.account_type or AccountType.MANAGER
+    if account_type == AccountType.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin accounts cannot be created through public signup.")
+
+    clean_name = _clean_name(payload.name)
+    existing_account = await _find_account_by_email(session=session, email=email)
+    if existing_account is not None:
+        return _build_playspace_auth_response(existing_account)
+
+    account_name = (
+        _manager_account_name(clean_name, email)
+        if account_type == AccountType.MANAGER
+        else (clean_name or email.split("@", 1)[0])
+    )
+    account = Account(
+        name=account_name,
+        email=email,
+        password_hash=hash_password(payload.password),
+        account_type=account_type,
+    )
+    session.add(account)
+    try:
+        await session.commit()
+    except IntegrityError as err:
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Unable to create account.") from err
+    await session.refresh(account)
+    return _build_playspace_auth_response(account)
+
+
+async def _playspace_login(
+    *,
+    payload: LoginRequest,
+    session: AsyncSession,
+) -> AuthResponse:
+    """Restore lightweight Playspace login against Account rows only."""
+
+    email = _normalize_email(payload.email)
+    account = await _find_account_by_email(session=session, email=email)
+    if account is None:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    return _build_playspace_auth_response(account)
 
 
 async def get_current_user(
@@ -287,16 +394,19 @@ async def _send_or_log_verification_email(
     await session.commit()
 
 
-@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", response_model=AuthResponse | SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(
     payload: SignupRequest,
     request: FastAPIRequest,
     session: AsyncSession = Depends(get_auth_session),
-) -> SignupResponse:
+) -> AuthResponse | SignupResponse:
     """Create account in DB and send email verification link."""
 
     if payload.website and payload.website.strip():
         raise HTTPException(status_code=400, detail="Spam check failed.")
+
+    if _is_playspace_request(request):
+        return await _playspace_signup(payload=payload, session=session)
 
     _verify_turnstile_if_enabled(captcha_token=payload.captcha_token, remote_ip=request.client.host if request.client else None)
 
@@ -442,12 +552,16 @@ async def resend_verification(
 @router.post("/login", response_model=AuthResponse)
 async def login(
     payload: LoginRequest,
+    request: FastAPIRequest,
     session: AsyncSession = Depends(get_auth_session),
 ) -> AuthResponse:
     """Authenticate user with password and verified email requirement."""
 
     if payload.website and payload.website.strip():
         raise HTTPException(status_code=400, detail="Spam check failed.")
+
+    if _is_playspace_request(request):
+        return await _playspace_login(payload=payload, session=session)
 
     email = _normalize_email(payload.email)
     result = await session.execute(select(User).where(User.email == email))
