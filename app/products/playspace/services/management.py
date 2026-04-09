@@ -5,6 +5,7 @@ Manager/admin write-path service for Playspace dashboard workflows.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, select
@@ -15,7 +16,7 @@ from app.core.actors import (
     CurrentUserRole,
     require_manager_or_admin_user,
 )
-from app.models import Account, AccountType, AuditorProfile, Place, Project, ProjectPlace
+from app.models import Account, AccountType, AuditorProfile, Place, Project, ProjectPlace, User
 from app.products.playspace.schemas import (
     AccountManagementResponse,
     AccountUpdateRequest,
@@ -474,8 +475,26 @@ class PlayspaceManagementService:
         self._session.add(account)
         await self._session.flush()
 
+        user = User(
+            email=payload.email,
+            password_hash=None,
+            account_id=account.id,
+            account_type=AccountType.AUDITOR,
+            name=payload.full_name,
+            email_verified=True,
+            email_verified_at=datetime.now(timezone.utc),
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=datetime.now(timezone.utc),
+            profile_completed=True,
+            profile_completed_at=datetime.now(timezone.utc),
+        )
+        self._session.add(user)
+        await self._session.flush()
+
         profile = AuditorProfile(
             account_id=account.id,
+            user_id=user.id,
             auditor_code=payload.auditor_code,
             email=payload.email,
             full_name=payload.full_name,

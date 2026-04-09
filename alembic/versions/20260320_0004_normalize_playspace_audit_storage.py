@@ -38,6 +38,25 @@ PRE_AUDIT_FIELD_ORDER = (
 )
 
 
+def _inspector() -> sa.Inspector:
+    if context.is_offline_mode():
+        raise RuntimeError("Schema inspection is unavailable in offline migration mode.")
+    return sa.inspect(op.get_bind())
+
+
+def _table_exists(table_name: str) -> bool:
+    return _inspector().has_table(table_name)
+
+
+def _index_exists(index_name: str) -> bool:
+    inspector = _inspector()
+    for table_name in inspector.get_table_names():
+        for idx in inspector.get_indexes(table_name):
+            if idx["name"] == index_name:
+                return True
+    return False
+
+
 def _is_target_product(product_key: str) -> bool:
     x_args = context.get_x_argument(as_dictionary=True)
     return x_args.get("product", "yee").strip().lower() == product_key
@@ -48,178 +67,188 @@ def upgrade() -> None:
 
     if not _is_target_product("playspace"):
         return
-    op.create_table(
-        "playspace_audit_contexts",
-        sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("execution_mode", sa.String(length=20), nullable=True),
-        sa.Column("draft_progress_percent", sa.Float(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["audit_id"],
-            ["audits.id"],
-            name="fk_ps_context_audit",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("audit_id", name="pk_playspace_audit_contexts"),
-    )
 
-    op.create_table(
-        "playspace_pre_audit_answers",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("field_key", sa.String(length=80), nullable=False),
-        sa.Column("selected_value", sa.String(length=80), nullable=False),
-        sa.Column("sort_order", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["audit_id"],
-            ["audits.id"],
-            name="fk_ps_pre_audit_answer_audit",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name="pk_playspace_pre_audit_answers"),
-        sa.UniqueConstraint(
-            "audit_id",
-            "field_key",
-            "selected_value",
-            name="uq_playspace_pre_audit_answers_audit_field_value",
-        ),
-    )
-    op.create_index(
-        "ix_playspace_pre_audit_answers_audit_id",
-        "playspace_pre_audit_answers",
-        ["audit_id"],
-        unique=False,
-    )
+    if not _table_exists("playspace_audit_contexts"):
+        op.create_table(
+            "playspace_audit_contexts",
+            sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("execution_mode", sa.String(length=20), nullable=True),
+            sa.Column("draft_progress_percent", sa.Float(), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(
+                ["audit_id"],
+                ["audits.id"],
+                name="fk_ps_context_audit",
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint("audit_id", name="pk_playspace_audit_contexts"),
+        )
 
-    op.create_table(
-        "playspace_audit_sections",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("section_key", sa.String(length=120), nullable=False),
-        sa.Column("note", sa.Text(), nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
+    if not _table_exists("playspace_pre_audit_answers"):
+        op.create_table(
+            "playspace_pre_audit_answers",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("field_key", sa.String(length=80), nullable=False),
+            sa.Column("selected_value", sa.String(length=80), nullable=False),
+            sa.Column("sort_order", sa.Integer(), nullable=False, server_default=sa.text("0")),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(
+                ["audit_id"],
+                ["audits.id"],
+                name="fk_ps_pre_audit_answer_audit",
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint("id", name="pk_playspace_pre_audit_answers"),
+            sa.UniqueConstraint(
+                "audit_id",
+                "field_key",
+                "selected_value",
+                name="uq_playspace_pre_audit_answers_audit_field_value",
+            ),
+        )
+    if not _index_exists("ix_playspace_pre_audit_answers_audit_id"):
+        op.create_index(
+            "ix_playspace_pre_audit_answers_audit_id",
+            "playspace_pre_audit_answers",
             ["audit_id"],
-            ["audits.id"],
-            name="fk_ps_audit_section_audit",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name="pk_playspace_audit_sections"),
-        sa.UniqueConstraint(
-            "audit_id",
-            "section_key",
-            name="uq_playspace_audit_sections_audit_section",
-        ),
-    )
-    op.create_index(
-        "ix_playspace_audit_sections_audit_id",
-        "playspace_audit_sections",
-        ["audit_id"],
-        unique=False,
-    )
+            unique=False,
+        )
 
-    op.create_table(
-        "playspace_question_responses",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("section_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("question_key", sa.String(length=120), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
+    if not _table_exists("playspace_audit_sections"):
+        op.create_table(
+            "playspace_audit_sections",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("audit_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("section_key", sa.String(length=120), nullable=False),
+            sa.Column("note", sa.Text(), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(
+                ["audit_id"],
+                ["audits.id"],
+                name="fk_ps_audit_section_audit",
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint("id", name="pk_playspace_audit_sections"),
+            sa.UniqueConstraint(
+                "audit_id",
+                "section_key",
+                name="uq_playspace_audit_sections_audit_section",
+            ),
+        )
+    if not _index_exists("ix_playspace_audit_sections_audit_id"):
+        op.create_index(
+            "ix_playspace_audit_sections_audit_id",
+            "playspace_audit_sections",
+            ["audit_id"],
+            unique=False,
+        )
+
+    if not _table_exists("playspace_question_responses"):
+        op.create_table(
+            "playspace_question_responses",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("section_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("question_key", sa.String(length=120), nullable=False),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(
+                ["section_id"],
+                ["playspace_audit_sections.id"],
+                name="fk_ps_question_response_section",
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint("id", name="pk_playspace_question_responses"),
+            sa.UniqueConstraint(
+                "section_id",
+                "question_key",
+                name="uq_playspace_question_responses_section_question",
+            ),
+        )
+    if not _index_exists("ix_playspace_question_responses_section_id"):
+        op.create_index(
+            "ix_playspace_question_responses_section_id",
+            "playspace_question_responses",
             ["section_id"],
-            ["playspace_audit_sections.id"],
-            name="fk_ps_question_response_section",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name="pk_playspace_question_responses"),
-        sa.UniqueConstraint(
-            "section_id",
-            "question_key",
-            name="uq_playspace_question_responses_section_question",
-        ),
-    )
-    op.create_index(
-        "ix_playspace_question_responses_section_id",
-        "playspace_question_responses",
-        ["section_id"],
-        unique=False,
-    )
+            unique=False,
+        )
 
-    op.create_table(
-        "playspace_scale_answers",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("question_response_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("scale_key", sa.String(length=40), nullable=False),
-        sa.Column("option_key", sa.String(length=80), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
+    if not _table_exists("playspace_scale_answers"):
+        op.create_table(
+            "playspace_scale_answers",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("question_response_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("scale_key", sa.String(length=40), nullable=False),
+            sa.Column("option_key", sa.String(length=80), nullable=False),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=NOW_SQL,
+                nullable=False,
+            ),
+            sa.ForeignKeyConstraint(
+                ["question_response_id"],
+                ["playspace_question_responses.id"],
+                name="fk_ps_scale_answer_question_response",
+                ondelete="CASCADE",
+            ),
+            sa.PrimaryKeyConstraint("id", name="pk_playspace_scale_answers"),
+            sa.UniqueConstraint(
+                "question_response_id",
+                "scale_key",
+                name="uq_playspace_scale_answers_question_scale",
+            ),
+        )
+    if not _index_exists("ix_playspace_scale_answers_question_response_id"):
+        op.create_index(
+            "ix_playspace_scale_answers_question_response_id",
+            "playspace_scale_answers",
             ["question_response_id"],
-            ["playspace_question_responses.id"],
-            name="fk_ps_scale_answer_question_response",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name="pk_playspace_scale_answers"),
-        sa.UniqueConstraint(
-            "question_response_id",
-            "scale_key",
-            name="uq_playspace_scale_answers_question_scale",
-        ),
-    )
-    op.create_index(
-        "ix_playspace_scale_answers_question_response_id",
-        "playspace_scale_answers",
-        ["question_response_id"],
-        unique=False,
-    )
+            unique=False,
+        )
 
     _backfill_existing_playspace_audits()
 

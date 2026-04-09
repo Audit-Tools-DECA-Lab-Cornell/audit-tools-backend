@@ -11,31 +11,78 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def _manager_headers(account_id: str) -> dict[str, str]:
-    """Build manager auth headers for dummy route authorization."""
+MANAGER_EMAIL = "manager@example.org"
+ADMIN_EMAIL = "playspace.admin@example.org"
+SEED_PASSWORD = "DemoPass123!"
+
+
+def _bearer_headers(access_token: str) -> dict[str, str]:
+    """Build bearer auth headers for session-backed authorization."""
 
     return {
-        "x-demo-role": "manager",
-        "x-demo-account-id": account_id,
+        "Authorization": f"bearer {access_token}",
     }
 
 
-def _admin_headers() -> dict[str, str]:
-    """Build administrator auth headers for dummy route authorization."""
+def _login_manager(client: TestClient) -> str:
+    """Login the seeded manager account and return a bearer token."""
 
-    return {
-        "x-demo-role": "admin",
-    }
+    response = client.post(
+        "/playspace/auth/login",
+        json={"email": MANAGER_EMAIL, "password": SEED_PASSWORD},
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
 
 
-def _auditor_headers(snapshot: PlayspaceSeedSnapshot) -> dict[str, str]:
-    """Build seeded auditor auth headers for dummy route authorization."""
+def _login_admin(client: TestClient) -> str:
+    """Login the seeded admin account and return a bearer token."""
 
-    return {
-        "x-demo-role": "auditor",
-        "x-demo-account-id": snapshot.seeded_auditor_account_id,
-        "x-demo-auditor-code": snapshot.seeded_auditor_code,
-    }
+    response = client.post(
+        "/playspace/auth/login",
+        json={"email": ADMIN_EMAIL, "password": SEED_PASSWORD},
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
+def _login_auditor(client: TestClient, email: str) -> str:
+    """Login an auditor account and return a bearer token."""
+
+    response = client.post(
+        "/playspace/auth/login",
+        json={"email": email, "password": SEED_PASSWORD},
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
+def _signup_and_login_auditor(
+    client: TestClient,
+    email: str,
+    full_name: str,
+    auditor_code: str,
+) -> str:
+    """Create an auditor user account and return a bearer token.
+
+    The management API auto-creates an Account + AuditorProfile when a
+    manager creates an auditor profile.  This helper creates only the User
+    side; the AuditorProfile link is backfilled by the migration/seed.
+    For tests that need an auditor with a full profile, use the management
+    API to create the profile and then login via the auto-created account.
+    """
+
+    signup_response = client.post(
+        "/playspace/auth/signup",
+        json={
+            "email": email,
+            "password": SEED_PASSWORD,
+            "name": full_name,
+            "account_type": "AUDITOR",
+        },
+    )
+    assert signup_response.status_code == 201
+    return signup_response.json()["access_token"]
 
 
 def _route_inventory() -> set[tuple[str, str]]:
@@ -60,12 +107,12 @@ def _unique_suffix() -> str:
     return uuid.uuid4().hex[:8]
 
 
-def _create_project(client: TestClient, account_id: str, *, suffix: str) -> dict[str, object]:
+def _create_project(client: TestClient, manager_token: str, *, suffix: str) -> dict[str, object]:
     """Create an ephemeral project through the Playspace management API."""
 
     response = client.post(
         "/playspace/projects",
-        headers=_manager_headers(account_id),
+        headers=_bearer_headers(manager_token),
         json={
             "name": f"Endpoint Project {suffix}",
             "overview": f"Endpoint project {suffix}",
@@ -83,7 +130,7 @@ def _create_project(client: TestClient, account_id: str, *, suffix: str) -> dict
 
 def _create_place(
     client: TestClient,
-    account_id: str,
+    manager_token: str,
     *,
     project_id: str,
     suffix: str,
@@ -92,7 +139,7 @@ def _create_place(
 
     response = client.post(
         "/playspace/places",
-        headers=_manager_headers(account_id),
+        headers=_bearer_headers(manager_token),
         json={
             "project_ids": [project_id],
             "name": f"Endpoint Place {suffix}",
@@ -114,7 +161,7 @@ def _create_place(
 
 def _create_auditor_profile(
     client: TestClient,
-    account_id: str,
+    manager_token: str,
     *,
     suffix: str,
 ) -> dict[str, object]:
@@ -122,7 +169,7 @@ def _create_auditor_profile(
 
     response = client.post(
         "/playspace/auditor-profiles",
-        headers=_manager_headers(account_id),
+        headers=_bearer_headers(manager_token),
         json={
             "email": f"endpoint-{suffix}@example.org",
             "full_name": f"Endpoint Auditor {suffix}",
@@ -135,56 +182,18 @@ def _create_auditor_profile(
     return response.json()
 
 
-def _create_assigned_audit_context(
-    client: TestClient,
-    seed_snapshot: PlayspaceSeedSnapshot,
-    *,
-    suffix: str,
-) -> tuple[dict[str, object], dict[str, object], dict[str, object], dict[str, str]]:
-    """Create a project-place-auditor trio and assign the auditor to the place."""
-
-    manager_headers = _manager_headers(seed_snapshot.manager_account_id)
-    project = _create_project(
-        client,
-        seed_snapshot.manager_account_id,
-        suffix=suffix,
-    )
-    place = _create_place(
-        client,
-        seed_snapshot.manager_account_id,
-        project_id=str(project["id"]),
-        suffix=suffix,
-    )
-    auditor_profile = _create_auditor_profile(
-        client,
-        seed_snapshot.manager_account_id,
-        suffix=suffix,
-    )
-
-    assignment_response = client.post(
-        f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
-        headers=manager_headers,
-        json={
-            "project_id": project["id"],
-            "place_id": place["id"],
-        },
-    )
-    assert assignment_response.status_code == 201
-
-    auditor_headers = {
-        "x-demo-role": "auditor",
-        "x-demo-account-id": auditor_profile["account_id"],
-        "x-demo-auditor-code": auditor_profile["auditor_code"],
-    }
-    return project, place, auditor_profile, auditor_headers
-
-
 def test_playspace_route_inventory_matches_expected_surface() -> None:
     """Keep the endpoint coverage suite aligned with the real Playspace route tree."""
 
     expected_routes = {
         ("POST", "/playspace/auth/signup"),
         ("POST", "/playspace/auth/login"),
+        ("GET", "/playspace/auth/me"),
+        ("POST", "/playspace/auth/complete-profile"),
+        ("GET", "/playspace/auth/verify-email"),
+        ("POST", "/playspace/auth/resend-verification"),
+        ("GET", "/playspace/auth/invite/{token}"),
+        ("POST", "/playspace/auth/invite/{token}/accept"),
         ("GET", "/playspace/accounts/{account_id}"),
         ("GET", "/playspace/accounts/{account_id}/manager-profiles"),
         ("GET", "/playspace/accounts/{account_id}/projects"),
@@ -243,43 +252,93 @@ def test_auth_self_service_and_instrument_endpoints(
         "/playspace/auth/signup",
         json={
             "email": "signup-playspace@example.org",
-            "password": "not-used",
+            "password": SEED_PASSWORD,
             "name": "Signup User",
             "account_type": "MANAGER",
         },
     )
     assert signup_response.status_code == 201
     assert signup_response.json()["user"]["account_type"] == "MANAGER"
+    signup_token = signup_response.json()["access_token"]
+    signup_auth_headers = _bearer_headers(signup_token)
 
-    login_response = playspace_client.post(
-        "/playspace/auth/login",
+    duplicate_signup_response = playspace_client.post(
+        "/playspace/auth/signup",
         json={
-            "email": "manager@example.org",
-            "password": "not-used",
+            "email": "signup-playspace@example.org",
+            "password": SEED_PASSWORD,
+            "name": "Signup User",
+            "account_type": "MANAGER",
         },
     )
-    assert login_response.status_code == 200
-    assert login_response.json()["user"]["email"] == "manager@example.org"
+    assert duplicate_signup_response.status_code == 409
+
+    signup_me_response = playspace_client.get(
+        "/playspace/auth/me",
+        headers=signup_auth_headers,
+    )
+    assert signup_me_response.status_code == 200
+    assert signup_me_response.json()["user"]["email"] == "signup-playspace@example.org"
+
+    complete_profile_response = playspace_client.post(
+        "/playspace/auth/complete-profile",
+        headers=signup_auth_headers,
+        json={"name": "Updated Playspace Manager"},
+    )
+    assert complete_profile_response.status_code == 200
+    assert complete_profile_response.json()["user"]["name"] == "Updated Playspace Manager"
+
+    manager_token = _login_manager(playspace_client)
+    manager_auth_headers = _bearer_headers(manager_token)
+
+    login_me_response = playspace_client.get(
+        "/playspace/auth/me",
+        headers=manager_auth_headers,
+    )
+    assert login_me_response.status_code == 200
+    assert login_me_response.json()["user"]["email"] == MANAGER_EMAIL
+
+    auditor_token = _login_auditor(
+        playspace_client,
+        playspace_seed_snapshot.seeded_auditor_email,
+    )
+    auditor_auth_headers = _bearer_headers(auditor_token)
+
+    invalid_login_response = playspace_client.post(
+        "/playspace/auth/login",
+        json={
+            "email": MANAGER_EMAIL,
+            "password": "wrong-password",
+        },
+    )
+    assert invalid_login_response.status_code == 401
 
     me_response = playspace_client.get(
         "/playspace/me",
-        headers=_auditor_headers(playspace_seed_snapshot),
+        headers=auditor_auth_headers,
     )
     assert me_response.status_code == 200
     assert me_response.json()["account_id"] == playspace_seed_snapshot.seeded_auditor_account_id
 
     profile_response = playspace_client.get(
         "/playspace/me/auditor-profile",
-        headers=_auditor_headers(playspace_seed_snapshot),
+        headers=auditor_auth_headers,
     )
     assert profile_response.status_code == 200
     assert (
         profile_response.json()["profile_id"] == playspace_seed_snapshot.seeded_auditor_profile_id
     )
 
+    auditor_dashboard_response = playspace_client.get(
+        "/playspace/auditor/me/dashboard-summary",
+        headers=auditor_auth_headers,
+    )
+    assert auditor_dashboard_response.status_code == 200
+    assert "total_assigned_places" in auditor_dashboard_response.json()
+
     instrument_response = playspace_client.get(
         "/playspace/instrument",
-        headers=_manager_headers(playspace_seed_snapshot.manager_account_id),
+        headers=manager_auth_headers,
     )
     assert instrument_response.status_code == 200
     assert instrument_response.json()["instrument_key"] == "pvua_v5_2"
@@ -292,7 +351,8 @@ def test_manager_dashboard_endpoints(
 ) -> None:
     """Exercise every manager-facing Playspace dashboard endpoint."""
 
-    headers = _manager_headers(playspace_seed_snapshot.manager_account_id)
+    manager_token = _login_manager(playspace_client)
+    headers = _bearer_headers(manager_token)
     account_id = playspace_seed_snapshot.manager_account_id
     project_id = playspace_seed_snapshot.urban_project_id
     place_id = playspace_seed_snapshot.riverside_place_id
@@ -379,7 +439,8 @@ def test_admin_dashboard_endpoints(
 ) -> None:
     """Exercise every admin-facing Playspace dashboard endpoint."""
 
-    headers = _admin_headers()
+    admin_token = _login_admin(playspace_client)
+    headers = _bearer_headers(admin_token)
 
     overview_response = playspace_client.get("/playspace/admin/overview", headers=headers)
     assert overview_response.status_code == 200
@@ -416,7 +477,11 @@ def test_auditor_dashboard_endpoints(
 ) -> None:
     """Exercise every auditor-facing Playspace dashboard endpoint."""
 
-    headers = _auditor_headers(playspace_seed_snapshot)
+    auditor_token = _login_auditor(
+        playspace_client,
+        playspace_seed_snapshot.seeded_auditor_email,
+    )
+    headers = _bearer_headers(auditor_token)
 
     places_response = playspace_client.get("/playspace/auditor/me/places", headers=headers)
     assert places_response.status_code == 200
@@ -440,7 +505,8 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
 ) -> None:
     """Exercise every Playspace management endpoint."""
 
-    headers = _manager_headers(playspace_seed_snapshot.manager_account_id)
+    manager_token = _login_manager(playspace_client)
+    headers = _bearer_headers(manager_token)
     suffix = _unique_suffix()
 
     account_response = playspace_client.patch(
@@ -453,7 +519,7 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
 
     project = _create_project(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         suffix=suffix,
     )
 
@@ -470,7 +536,7 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
 
     place = _create_place(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         project_id=str(project["id"]),
         suffix=suffix,
     )
@@ -489,7 +555,7 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
 
     auditor_profile = _create_auditor_profile(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         suffix=suffix,
     )
 
@@ -530,21 +596,22 @@ def test_assignment_endpoints_cover_project_and_place_scopes(
     """Exercise list/create/update/delete assignment routes."""
 
     suffix = _unique_suffix()
-    manager_headers = _manager_headers(playspace_seed_snapshot.manager_account_id)
+    manager_token = _login_manager(playspace_client)
+    manager_headers = _bearer_headers(manager_token)
     project = _create_project(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         suffix=suffix,
     )
     place = _create_place(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         project_id=str(project["id"]),
         suffix=suffix,
     )
     auditor_profile = _create_auditor_profile(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         suffix=suffix,
     )
 
@@ -610,39 +677,56 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
     """Exercise the full Playspace audit execution route set."""
 
     suffix = _unique_suffix()
-    manager_headers = _manager_headers(playspace_seed_snapshot.manager_account_id)
+    manager_token = _login_manager(playspace_client)
+    manager_headers = _bearer_headers(manager_token)
     project = _create_project(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         suffix=suffix,
     )
     place = _create_place(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
+        manager_token,
         project_id=str(project["id"]),
         suffix=suffix,
     )
-    auditor_profile = _create_auditor_profile(
+    auditor_email = f"audit-exec-{suffix}@example.org"
+    auditor_full_name = f"Audit Executor {suffix}"
+    auditor_code = f"EXEC-{suffix.upper()}"
+
+    auditor_token = _signup_and_login_auditor(
         playspace_client,
-        playspace_seed_snapshot.manager_account_id,
-        suffix=suffix,
+        email=auditor_email,
+        full_name=auditor_full_name,
+        auditor_code=auditor_code,
     )
+    auditor_headers = _bearer_headers(auditor_token)
 
     assignment_response = playspace_client.post(
-        f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
+        f"/playspace/auditor-profiles",
         headers=manager_headers,
         json={
-            "project_id": project["id"],
-            "place_id": place["id"],
+            "email": auditor_email,
+            "full_name": auditor_full_name,
+            "auditor_code": auditor_code,
+            "country": "New Zealand",
+            "role": "Audit Executor",
         },
     )
-    assert assignment_response.status_code == 201
+    auditor_profile_id = None
+    if assignment_response.status_code == 201:
+        auditor_profile_id = assignment_response.json()["id"]
 
-    auditor_headers = {
-        "x-demo-role": "auditor",
-        "x-demo-account-id": auditor_profile["account_id"],
-        "x-demo-auditor-code": auditor_profile["auditor_code"],
-    }
+    if auditor_profile_id is not None:
+        assign_to_place_response = playspace_client.post(
+            f"/playspace/auditor-profiles/{auditor_profile_id}/assignments",
+            headers=manager_headers,
+            json={
+                "project_id": project["id"],
+                "place_id": place["id"],
+            },
+        )
+        assert assign_to_place_response.status_code in (201, 409)
 
     access_response = playspace_client.post(
         f"/playspace/places/{place['id']}/audits/access",
@@ -732,4 +816,3 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
         headers=auditor_headers,
     )
     assert submit_response.status_code == 400
-

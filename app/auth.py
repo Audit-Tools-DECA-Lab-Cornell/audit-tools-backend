@@ -172,34 +172,15 @@ def _serialize_auth_user(user: User) -> AuthUser:
     )
 
 
-def _serialize_playspace_account_user(account: Account) -> AuthUser:
-    """Build the legacy lightweight auth payload for Playspace account login."""
+def _build_auth_response_for_user(user: User) -> AuthResponse:
+    """Create a signed auth response for one persisted user."""
 
-    return AuthUser(
-        id=account.id,
-        email=account.email,
-        name=account.name,
-        account_id=account.id,
-        organization=account.name if account.account_type == AccountType.MANAGER else None,
-        account_type=account.account_type,
-        email_verified=True,
-        approved=True,
-        profile_completed=True,
-        next_step="DASHBOARD",
-        dashboard_path=_dashboard_path_for_account_type(account.account_type),
-    )
-
-
-def _build_playspace_auth_response(account: Account) -> AuthResponse:
-    """Return the pre-merge Playspace-style auth response."""
-
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    access_token = f"dummy-token-{account.id}"
+    access_token, expires_at = generate_access_token(str(user.id))
     return AuthResponse(
         access_token=access_token,
         token_type="bearer",
         expires_at=expires_at,
-        user=_serialize_playspace_account_user(account),
+        user=_serialize_auth_user(user),
     )
 
 
@@ -214,12 +195,75 @@ async def _find_account_by_email(
     return result.scalar_one_or_none()
 
 
+async def _find_user_by_email(
+    *,
+    session: AsyncSession,
+    email: str,
+) -> User | None:
+    """Look up one auth user row by normalized email."""
+
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.email == email)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_auditor_profile_for_account(
+    *,
+    session: AsyncSession,
+    account_id: uuid.UUID,
+) -> Auditor | None:
+    """Return the auditor profile tied to one account when it exists."""
+
+    result = await session.execute(
+        select(Auditor).where(Auditor.account_id == account_id).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _ensure_playspace_auditor_profile(
+    *,
+    session: AsyncSession,
+    user: User,
+    email: str,
+    clean_name: str | None,
+) -> None:
+    """Create or link the auditor profile required for Playspace auditor sessions."""
+
+    if user.account_id is None:
+        raise HTTPException(status_code=400, detail="Auditor accounts require an account link.")
+
+    auditor_profile = await _get_auditor_profile_for_account(
+        session=session,
+        account_id=user.account_id,
+    )
+    full_name = clean_name or user.name or email.split("@", 1)[0]
+    if auditor_profile is None:
+        session.add(
+            Auditor(
+                account_id=user.account_id,
+                user_id=user.id,
+                auditor_code=await _generate_unique_auditor_code(session),
+                email=email,
+                full_name=full_name,
+            )
+        )
+        return
+
+    if auditor_profile.user_id is None:
+        auditor_profile.user_id = user.id
+    if auditor_profile.email is None:
+        auditor_profile.email = email
+    if not auditor_profile.full_name or not auditor_profile.full_name.strip():
+        auditor_profile.full_name = full_name
+
+
 async def _playspace_signup(
     *,
     payload: SignupRequest,
     session: AsyncSession,
 ) -> AuthResponse:
-    """Restore lightweight Playspace signup without depending on the User schema."""
+    """Create or attach a Playspace user and return an authenticated session."""
 
     email = _normalize_email(payload.email)
     if not email:
@@ -233,29 +277,72 @@ async def _playspace_signup(
         raise HTTPException(status_code=403, detail="Admin accounts cannot be created through public signup.")
 
     clean_name = _clean_name(payload.name)
+    password_hash = hash_password(payload.password)
+    now = datetime.now(timezone.utc)
+    existing_user = await _find_user_by_email(session=session, email=email)
+    if existing_user is not None:
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
     existing_account = await _find_account_by_email(session=session, email=email)
-    if existing_account is not None:
-        return _build_playspace_auth_response(existing_account)
+    resolved_account_type = existing_account.account_type if existing_account is not None else account_type
+    if existing_account is not None and resolved_account_type != account_type:
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email already exists under a different role.",
+        )
 
     account_name = (
         _manager_account_name(clean_name, email)
-        if account_type == AccountType.MANAGER
+        if resolved_account_type == AccountType.MANAGER
         else (clean_name or email.split("@", 1)[0])
     )
-    account = Account(
-        name=account_name,
+    account = existing_account
+    if account is None:
+        account = Account(
+            name=account_name,
+            email=email,
+            password_hash=password_hash,
+            account_type=resolved_account_type,
+        )
+        session.add(account)
+        await session.flush()
+    else:
+        account.password_hash = password_hash
+
+    user = User(
         email=email,
-        password_hash=hash_password(payload.password),
-        account_type=account_type,
+        password_hash=password_hash,
+        account_id=account.id,
+        account_type=resolved_account_type,
+        name=clean_name,
+        email_verified=True,
+        email_verified_at=now,
+        failed_login_attempts=0,
+        approved=True,
+        approved_at=now,
+        profile_completed=clean_name is not None,
+        profile_completed_at=now if clean_name is not None else None,
+        last_login_at=now,
     )
-    session.add(account)
+    session.add(user)
+    if resolved_account_type == AccountType.AUDITOR:
+        await _ensure_playspace_auditor_profile(
+            session=session,
+            user=user,
+            email=email,
+            clean_name=clean_name,
+        )
     try:
         await session.commit()
     except IntegrityError as err:
         await session.rollback()
         raise HTTPException(status_code=409, detail="Unable to create account.") from err
-    await session.refresh(account)
-    return _build_playspace_auth_response(account)
+
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.id == user.id)
+    )
+    created_user = result.scalar_one()
+    return _build_auth_response_for_user(created_user)
 
 
 async def _playspace_login(
@@ -263,21 +350,41 @@ async def _playspace_login(
     payload: LoginRequest,
     session: AsyncSession,
 ) -> AuthResponse:
-    """Restore lightweight Playspace login against Account rows only."""
+    """Authenticate one Playspace user with a signed user session."""
 
     email = _normalize_email(payload.email)
-    account = await _find_account_by_email(session=session, email=email)
-    if account is None:
+    user = await _find_user_by_email(session=session, email=email)
+    if user is None or not verify_password(payload.password, user.password_hash):
+        if user is not None:
+            user.failed_login_attempts += 1
+            await session.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-    return _build_playspace_auth_response(account)
+    user.failed_login_attempts = 0
+    user.last_login_at = datetime.now(timezone.utc)
+    await session.commit()
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.id == user.id)
+    )
+    authenticated_user = result.scalar_one()
+    return _build_auth_response_for_user(authenticated_user)
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    session: AsyncSession = Depends(get_auth_session),
+def _raise_playspace_auth_not_supported(*, feature_name: str) -> None:
+    """Reject YEE-only auth endpoints when called from Playspace routes."""
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"{feature_name} is not supported for Playspace authentication.",
+    )
+
+
+async def _get_current_yee_user(
+    *,
+    credentials: HTTPAuthorizationCredentials | None,
+    session: AsyncSession,
 ) -> User:
-    """Resolve the current user from a bearer token."""
+    """Resolve the current YEE auth user from a bearer token."""
 
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -296,6 +403,15 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="User not found.")
 
     return user
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    session: AsyncSession = Depends(get_auth_session),
+) -> User:
+    """Resolve the current authenticated user from a bearer token."""
+
+    return await _get_current_yee_user(credentials=credentials, session=session)
 
 
 def _build_verify_url(*, request: FastAPIRequest, token: str) -> str:
@@ -492,9 +608,13 @@ async def signup(
 @router.get("/verify-email", response_model=MessageResponse)
 async def verify_email(
     token: str,
+    request: FastAPIRequest,
     session: AsyncSession = Depends(get_auth_session),
 ) -> MessageResponse:
     """Verify a user email address using token sent by email."""
+
+    if _is_playspace_request(request):
+        _raise_playspace_auth_not_supported(feature_name="Email verification")
 
     token_hash = hash_verification_token(token.strip())
     result = await session.execute(
@@ -535,6 +655,9 @@ async def resend_verification(
 
     if payload.website and payload.website.strip():
         return MessageResponse(message="If your email exists, a verification link has been sent.")
+
+    if _is_playspace_request(request):
+        _raise_playspace_auth_not_supported(feature_name="Verification resend")
 
     _verify_turnstile_if_enabled(captcha_token=payload.captcha_token, remote_ip=request.client.host if request.client else None)
 
@@ -593,17 +716,25 @@ async def login(
 
 @router.get("/me", response_model=SessionResponse)
 async def get_current_session(
-    user: User = Depends(get_current_user),
+    request: FastAPIRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    session: AsyncSession = Depends(get_auth_session),
 ) -> SessionResponse:
     """Return the current authenticated user and routing state."""
 
+    if _is_playspace_request(request):
+        user = await get_current_user(credentials=credentials, session=session)
+        return SessionResponse(user=_serialize_auth_user(user))
+
+    user = await _get_current_yee_user(credentials=credentials, session=session)
     return SessionResponse(user=_serialize_auth_user(user))
 
 
 @router.post("/complete-profile", response_model=SessionResponse)
 async def complete_profile(
     payload: CompleteProfileRequest,
-    user: User = Depends(get_current_user),
+    request: FastAPIRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     session: AsyncSession = Depends(get_auth_session),
 ) -> SessionResponse:
     """Mark a verified user's basic profile as completed."""
@@ -611,6 +742,20 @@ async def complete_profile(
     clean_name = _clean_name(payload.name)
     if clean_name is None:
         raise HTTPException(status_code=400, detail="Name is required.")
+
+    if _is_playspace_request(request):
+        user = await get_current_user(credentials=credentials, session=session)
+        user.name = clean_name
+        user.profile_completed = True
+        user.profile_completed_at = datetime.now(timezone.utc)
+        await session.commit()
+        result = await session.execute(
+            select(User).options(selectinload(User.account)).where(User.id == user.id)
+        )
+        refreshed_user = result.scalar_one()
+        return SessionResponse(user=_serialize_auth_user(refreshed_user))
+
+    user = await _get_current_yee_user(credentials=credentials, session=session)
     if not user.email_verified:
         raise HTTPException(status_code=403, detail="Email must be verified before completing profile.")
     if not user.approved:
@@ -629,9 +774,13 @@ async def complete_profile(
 @router.get("/invite/{token}", response_model=InvitePreviewResponse)
 async def get_invite_preview(
     token: str,
+    request: FastAPIRequest,
     session: AsyncSession = Depends(get_auth_session),
 ) -> InvitePreviewResponse:
     """Validate an auditor invite token and return display-safe invite info."""
+
+    if _is_playspace_request(request):
+        _raise_playspace_auth_not_supported(feature_name="Invite preview")
 
     invite = await _get_valid_invite(session, token)
     account = await session.get(Account, invite.account_id)
@@ -647,9 +796,13 @@ async def get_invite_preview(
 async def accept_invite(
     token: str,
     payload: AcceptInviteRequest,
+    request: FastAPIRequest,
     session: AsyncSession = Depends(get_auth_session),
 ) -> AuthResponse:
     """Accept an auditor invite, create/link the user, and return an authenticated session."""
+
+    if _is_playspace_request(request):
+        _raise_playspace_auth_not_supported(feature_name="Invite acceptance")
 
     invite = await _get_valid_invite(session, token)
     email = _normalize_email(invite.email)

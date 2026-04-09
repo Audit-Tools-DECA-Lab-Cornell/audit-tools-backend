@@ -2,62 +2,47 @@
 
 ## Goal
 
-Deploy the YEE platform as two separate services:
+Deploy one backend service that serves both product namespaces:
 
-- frontend service
-- backend service
+- `/yee/*`
+- `/playspace/*`
 
-The repositories should remain separate in deployment, just as they are in local development.
+The backend still talks to two separate PostgreSQL databases, one per product.
 
 ## Deployment Topology
 
 ```mermaid
 flowchart LR
-    User["User Browser"] --> FE["Frontend Deployment"]
-    FE --> BE["Backend Deployment"]
-    BE --> DBY["YEE Postgres"]
-    BE --> DBP["Playsafe Postgres"]
+    Client["Web or Mobile Client"] --> Backend["FastAPI Backend"]
+    Backend --> YEE_DB["YEE PostgreSQL"]
+    Backend --> PLAYSPACE_DB["Playspace PostgreSQL"]
 ```
 
-## Required Services
+## Required Infrastructure
 
-### Backend
-
-Needs:
+Backend requirements:
 
 - Python runtime
-- ASGI-compatible host
-- access to PostgreSQL databases
+- ASGI host
 - environment variable management
+- network access to both product databases
 
-### Frontend
+Database requirements:
 
-Needs:
-
-- Next.js-capable host
-- environment variable management
-- ability to call the backend over HTTPS
-
-### Database
-
-Needs:
-
-- one database for YEE
-- one database for Playsafe
+- one database for `yee`
+- one database for `playspace`
 
 The backend expects:
 
 - `DATABASE_URL_YEE`
-- `DATABASE_URL_PLAYSAFE`
+- `DATABASE_URL_PLAYSPACE`
 
 ## Backend Environment Variables
-
-From [.env.example](/Users/andishasafdariyan/auditTools/audit-tools-backend/.env.example):
 
 Required:
 
 - `DATABASE_URL_YEE`
-- `DATABASE_URL_PLAYSAFE`
+- `DATABASE_URL_PLAYSPACE`
 - `AUTH_TOKEN_SECRET_KEY`
 
 Recommended:
@@ -66,7 +51,7 @@ Recommended:
 - `AUTH_EMAIL_VERIFY_TTL_HOURS`
 - `AUTH_VERIFY_URL_TEMPLATE`
 
-Optional but important for production:
+Optional but important in production:
 
 - `SMTP_HOST`
 - `SMTP_PORT`
@@ -76,77 +61,55 @@ Optional but important for production:
 - `SMTP_USE_TLS`
 - `TURNSTILE_SECRET_KEY`
 
-## Frontend Environment Variables
+## Migration Runbook
 
-Required:
-
-- `API_BASE_URL`
-- `NEXT_PUBLIC_API_BASE_URL`
-
-Typical value:
-
-```env
-API_BASE_URL=https://your-backend-domain.example
-NEXT_PUBLIC_API_BASE_URL=https://your-backend-domain.example
-```
-
-## Production Checklist
-
-### Backend
-
-1. Provision PostgreSQL databases
-2. Set all production environment variables
-3. Run migrations:
+The backend migration history is product-scoped. You must run Alembic once per
+database:
 
 ```bash
 alembic -x product=yee upgrade head
-alembic -x product=playsafe upgrade head
+alembic -x product=playspace upgrade head
 ```
 
-4. Start the app with an ASGI server
-5. Verify:
-   - `/health`
-   - auth endpoints
-   - dashboard endpoints
-   - YEE instrument endpoint
+Important notes:
 
-### Frontend
+- do not assume a successful code deploy means both databases are migrated
+- several compatibility migrations are one-way and should be treated as
+  production operations
+- back up both databases before applying migration batches in shared-core merge windows
 
-1. Set production backend URL env vars
-2. Build the app:
+## Render Note
 
-```bash
-npm run build
-```
+The checked-in `render.yaml` installs dependencies and starts `uvicorn`, but it
+does not itself guarantee that Alembic ran first.
 
-3. Deploy the Next.js application
-4. Verify:
-   - `/login`
-   - `/signup`
-   - `/admin`
-   - `/dashboard`
-   - `/my-dashboard`
-   - `/yee/introduction`
+If you deploy on Render, make sure your release process includes the two product
+migration commands above, either through:
 
-## Demo / Review Links
+- a release/pre-deploy command
+- a CI job that runs before traffic is shifted
+- a manual runbook step
 
-For temporary stakeholder review:
+If you skip that step, merged code can reach production before the matching
+schema exists.
 
-- a local frontend can be exposed with `ngrok`
-- this is good for short-term demos
-- it is not stable enough for production or long-lived review access
+## Production Checklist
 
-Important behavior:
+1. Provision both PostgreSQL databases
+2. Set all backend environment variables
+3. Run `alembic -x product=yee upgrade head`
+4. Run `alembic -x product=playspace upgrade head`
+5. Start the backend service
+6. Verify `/health`
+7. Verify one YEE auth flow and one Playspace auth flow
+8. Verify one YEE product flow and one Playspace product flow
 
-- the tunnel only works while the local machine and local processes are running
-- if the laptop sleeps or the tunnel restarts, the public link changes or goes offline
+## Verification Flow
 
-## Verification Flow In Production
+YEE email verification requires:
 
-To avoid the confusing local-development verification experience:
-
-- configure real SMTP delivery
-- set `AUTH_VERIFY_URL_TEMPLATE` to the public frontend URL
+- real SMTP delivery
+- a valid `AUTH_VERIFY_URL_TEMPLATE`
 
 Example:
 
@@ -154,36 +117,21 @@ Example:
 AUTH_VERIFY_URL_TEMPLATE=https://your-frontend-domain.example/verify-email?token={token}
 ```
 
-This ensures users can click the verification link directly from email and land in the correct frontend screen.
+## Suggested Release Validation
+
+Minimum release smoke test:
+
+- `GET /health`
+- YEE login or invite acceptance
+- Playspace login
+- one YEE manager/admin dashboard call
+- one Playspace dashboard or instrument call
+- one migration status check per database
 
 ## Security Notes
 
-- set a strong `AUTH_TOKEN_SECRET_KEY`
-- use HTTPS for frontend and backend
-- do not expose raw database credentials in client-side env vars
-- keep authorization checks in backend routes even if the frontend already hides UI
-- keep generated auditor IDs as the default reporting identity
-
-## Current Deployment Gaps
-
-Before public launch, future engineers should still complete:
-
-- final production email delivery configuration
-- final settings/profile flows
-- admin deny/revoke/deactivate lifecycle actions
-- broader QA with seeded accounts and test data
-- monitoring/logging decisions
-- final review of privacy handling and export contents
-
-## Suggested Release Validation
-
-Minimum release test matrix:
-
-- admin login and user approval
-- manager signup, profile completion, project creation, place creation
-- auditor invite accept, verification, profile completion
-- auditor assignment visibility in `/my-dashboard`
-- one successful YEE submission
-- duplicate submission blocked for same auditor/place
-- manager place comparison report loads
-- raw data export downloads expected fields
+- use a strong `AUTH_TOKEN_SECRET_KEY`
+- use HTTPS for all public traffic
+- never expose database credentials to client-side code
+- keep authorization checks in backend services, not only in the UI
+- prefer failing a deploy on migration mismatch over serving schema-drifted code

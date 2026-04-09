@@ -50,6 +50,7 @@ class PlayspaceSeedSnapshot:
     manager_account_id: str
     seeded_auditor_profile_id: str
     seeded_auditor_account_id: str
+    seeded_auditor_email: str
     seeded_auditor_code: str
     urban_project_id: str
     riverside_place_id: str
@@ -98,6 +99,7 @@ async def _load_seed_snapshot(
             manager_account_id=str(DEMO_ACCOUNT_ID),
             seeded_auditor_profile_id=str(profile.id),
             seeded_auditor_account_id=str(profile.account_id),
+            seeded_auditor_email=profile.email or "",
             seeded_auditor_code=profile.auditor_code,
             urban_project_id=str(DEMO_PROJECT_URBAN_ID),
             riverside_place_id=str(DEMO_PLACE_RIVERSIDE_ID),

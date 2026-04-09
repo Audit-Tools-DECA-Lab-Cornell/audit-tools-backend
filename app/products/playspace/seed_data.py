@@ -15,6 +15,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from random import Random
 from typing import Literal, TypeVar
 
+from app.auth_security import hash_password
 from app.core.demo_data import (
     DEMO_ACCOUNT_ID,
     DEMO_AUDIT_KEPLER_ID,
@@ -43,6 +44,7 @@ from app.models import (
     Place,
     Project,
     ProjectPlace,
+    User,
 )
 from app.products.playspace.audit_state import (
     CURRENT_AUDIT_SCHEMA_VERSION,
@@ -67,6 +69,7 @@ T = TypeVar("T")
 
 PlayspaceEntity = (
     Account
+    | User
     | ManagerProfile
     | AuditorProfile
     | Project
@@ -543,11 +546,17 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         *(context.account for context in auditor_contexts),
     ]
     auditor_profiles = [context.profile for context in auditor_contexts]
+    users = _build_user_entities(
+        accounts=accounts,
+        manager_profiles=manager_profiles,
+        auditor_profiles=auditor_profiles,
+    )
     projects = [context.project for context in project_contexts]
     places = [context.place for context in place_contexts]
 
     return [
         *accounts,
+        *users,
         *manager_profiles,
         *auditor_profiles,
         *projects,
@@ -611,6 +620,63 @@ def _build_auditor_contexts(*, reference_date: date) -> list[AuditorSeedContext]
         )
 
     return contexts
+
+
+def _build_user_entities(
+    *,
+    accounts: list[Account],
+    manager_profiles: list[ManagerProfile],
+    auditor_profiles: list[AuditorProfile],
+) -> list[User]:
+    """Create one auth user per seeded Playspace account."""
+
+    primary_manager_name_by_account_id = {
+        profile.account_id: profile.full_name
+        for profile in manager_profiles
+        if profile.is_primary
+    }
+    auditor_profile_by_account_id = {
+        profile.account_id: profile
+        for profile in auditor_profiles
+    }
+    users: list[User] = []
+
+    for account in accounts:
+        if account.account_type == AccountType.MANAGER:
+            display_name = primary_manager_name_by_account_id.get(account.id)
+        elif account.account_type == AccountType.AUDITOR:
+            auditor_profile = auditor_profile_by_account_id.get(account.id)
+            display_name = (
+                auditor_profile.full_name
+                if auditor_profile is not None
+                else account.name
+            )
+        else:
+            display_name = account.name
+
+        user = User(
+            id=_stable_uuid("playspace-user", account.email),
+            email=account.email,
+            password_hash=account.password_hash or _placeholder_password_hash(account.email),
+            account_id=account.id,
+            account_type=account.account_type,
+            name=display_name,
+            email_verified=True,
+            email_verified_at=account.created_at,
+            failed_login_attempts=0,
+            approved=True,
+            approved_at=account.created_at,
+            profile_completed=display_name is not None,
+            profile_completed_at=account.created_at if display_name is not None else None,
+            created_at=account.created_at,
+        )
+        users.append(user)
+
+        auditor_profile = auditor_profile_by_account_id.get(account.id)
+        if auditor_profile is not None:
+            auditor_profile.user_id = user.id
+
+    return users
 
 
 def _build_project_contexts(
@@ -2238,9 +2304,10 @@ def _email_from_name(full_name: str) -> str:
 
 
 def _placeholder_password_hash(label: str) -> str:
-    """Generate a stable placeholder password hash for demo seed records."""
+    """Return the shared demo password hash used by seeded Playspace accounts."""
 
-    return f"seed::{label}"
+    _ = label
+    return hash_password("DemoPass123!")
 
 
 def _stable_uuid(*parts: str) -> uuid.UUID:

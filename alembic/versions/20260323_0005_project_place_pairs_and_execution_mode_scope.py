@@ -23,6 +23,25 @@ depends_on: Sequence[str] | None = None
 NOW_SQL = sa.text("now()")
 
 
+def _inspector() -> sa.Inspector:
+    if context.is_offline_mode():
+        raise RuntimeError("Schema inspection is unavailable in offline migration mode.")
+    return sa.inspect(op.get_bind())
+
+
+def _table_exists(table_name: str) -> bool:
+    return _inspector().has_table(table_name)
+
+
+def _index_exists(index_name: str) -> bool:
+    inspector = _inspector()
+    for table_name in inspector.get_table_names():
+        for idx in inspector.get_indexes(table_name):
+            if idx["name"] == index_name:
+                return True
+    return False
+
+
 def _is_target_product(product_key: str) -> bool:
     x_args = context.get_x_argument(as_dictionary=True)
     return x_args.get("product", "yee").strip().lower() == product_key
@@ -33,6 +52,11 @@ def upgrade() -> None:
 
     if not _is_target_product("playspace"):
         return
+
+    # All operations in this migration are idempotent once project_places exists.
+    if _table_exists("project_places"):
+        return
+
     op.create_table(
         "project_places",
         sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),

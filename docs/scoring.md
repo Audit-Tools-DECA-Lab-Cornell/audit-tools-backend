@@ -13,11 +13,11 @@ The system should not invent missing score mappings. Question scoring must follo
 
 Question scoring is derived from:
 
-- [app/data/yee_instrument.qsf](/Users/andishasafdariyan/auditTools/audit-tools-backend/app/data/yee_instrument.qsf)
+- `app/data/yee_instrument.qsf`
 
 Parsing and score application are implemented in:
 
-- [app/yee_scoring.py](/Users/andishasafdariyan/auditTools/audit-tools-backend/app/yee_scoring.py)
+- `app/yee_scoring.py`
 
 ## Layer 1: Question-Level Scoring
 
@@ -111,9 +111,9 @@ For each domain:
 
 ### Backend
 
-- [app/yee_scoring.py](/Users/andishasafdariyan/auditTools/audit-tools-backend/app/yee_scoring.py)
+- `app/yee_scoring.py`
   - question-level matching and section score generation
-- [app/dashboard_router.py](/Users/andishasafdariyan/auditTools/audit-tools-backend/app/dashboard_router.py)
+- `app/dashboard_router.py`
   - aggregate reporting/export derivation from stored submission data
 
 Important helpers there include:
@@ -124,8 +124,8 @@ Important helpers there include:
 
 ### Frontend
 
-- [src/lib/yee-scoring.ts](/Users/andishasafdariyan/auditTools/audit-tools-yee-frontend/src/lib/yee-scoring.ts)
-- [src/components/yee/yee-score-summary.tsx](/Users/andishasafdariyan/auditTools/audit-tools-yee-frontend/src/components/yee/yee-score-summary.tsx)
+- `src/lib/yee-scoring.ts`
+- `src/components/yee/yee-score-summary.tsx`
 
 The frontend currently uses backend raw/section data and applies the weighting layer for review/submitted displays.
 

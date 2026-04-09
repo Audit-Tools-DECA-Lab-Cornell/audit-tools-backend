@@ -1,8 +1,9 @@
 """
-Dummy current-user resolution and authorization helpers.
+Legacy current-user resolution and authorization helpers.
 
-These helpers intentionally avoid real authentication so Playspace routes can
-be built now and later wired to a proper identity source.
+Playspace route dependencies now prefer real bearer-backed `User` sessions and
+only fall back to these header and cookie helpers when a request arrives
+without an authenticated session during the compatibility transition.
 """
 
 from __future__ import annotations

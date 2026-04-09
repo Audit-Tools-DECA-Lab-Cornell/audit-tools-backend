@@ -28,17 +28,49 @@ Intentionally split into: shared core tables · Playspace-specific normalized au
 
 ### `accounts`
 
-Top-level login/account record.
+Workspace/account record shared across products.
 
 
-| Column                      | Notes                  |
-| --------------------------- | ---------------------- |
-| `id`                        | UUID primary key       |
-| `name`                      | Account display name   |
-| `email`                     | Unique login email     |
-| `password_hash`             | Nullable               |
-| `account_type`              | `ADMIN`, `MANAGER`, or `AUDITOR` |
-| `created_at` / `updated_at` |                        |
+| Column          | Notes                             |
+| --------------- | --------------------------------- |
+| `id`            | UUID primary key                  |
+| `name`          | Account or workspace display name |
+| `email`         | Unique account email              |
+| `password_hash` | Nullable                          |
+| `account_type`  | `ADMIN`, `MANAGER`, or `AUDITOR`  |
+| `created_at`    |                                   |
+
+
+---
+
+### `users`
+
+Platform auth identity table used by the real YEE auth flow.
+
+Playspace currently uses a lighter account-based auth bootstrap for the mobile
+client, so `users` should be treated as the YEE-oriented auth table unless the
+Playspace client contract is intentionally migrated.
+
+
+| Column                          | Notes                                    |
+| ------------------------------- | ---------------------------------------- |
+| `id`                            | UUID primary key                         |
+| `email`                         | Unique login email                       |
+| `password_hash`                 | Required hashed password                 |
+| `account_id`                    | Nullable FK → `accounts`                 |
+| `account_type`                  | `ADMIN`, `MANAGER`, or `AUDITOR`         |
+| `name`                          | Nullable display name                    |
+| `email_verified`                | Boolean                                  |
+| `email_verification_token_hash` | Nullable                                 |
+| `email_verification_sent_at`    | Nullable                                 |
+| `email_verified_at`             | Nullable                                 |
+| `failed_login_attempts`         | Integer                                  |
+| `approved`                      | Boolean                                  |
+| `approved_at`                   | Nullable                                 |
+| `profile_completed`             | Boolean                                  |
+| `profile_completed_at`          | Nullable                                 |
+| `last_login_at`                 | Nullable                                 |
+| `created_at`                    |                                          |
 
 
 ---
@@ -55,7 +87,7 @@ Manager profile rows owned by a manager account.
 | `full_name` / `email` / `phone` |                  |
 | `position` / `organization`     |                  |
 | `is_primary`                    |                  |
-| `created_at` / `updated_at`     |                  |
+| `created_at`                    |                  |
 
 
 ---
@@ -68,11 +100,32 @@ Auditor identity/profile rows owned by auditor accounts.
 | Column                                                    | Notes                                                       |
 | --------------------------------------------------------- | ----------------------------------------------------------- |
 | `id`                                                      | UUID primary key                                            |
-| `account_id`                                              | Unique FK → `accounts`                                      |
+| `account_id`                                              | FK → `accounts`                                             |
+| `user_id`                                                 | Nullable, unique FK → `users`                               |
 | `auditor_code`                                            | Unique public-facing identifier used in reports and exports |
 | `email`                                                   | Nullable, unique when present                               |
 | `full_name` / `age_range` / `gender` / `country` / `role` |                                                             |
-| `created_at` / `updated_at`                               |                                                             |
+| `created_at`                                              |                                                             |
+
+
+---
+
+### `auditor_invites`
+
+Invite rows used by the YEE onboarding flow.
+
+
+| Column               | Notes                             |
+| -------------------- | --------------------------------- |
+| `id`                 | UUID primary key                  |
+| `account_id`         | FK → `accounts`                   |
+| `invited_by_user_id` | FK → `users`                      |
+| `auditor_id`         | Nullable FK → `auditor_profiles`  |
+| `email`              | Invite target email               |
+| `token_hash`         | Unique hashed invite token        |
+| `created_at`         |                                   |
+| `expires_at`         | Invite expiry timestamp           |
+| `accepted_at`        | Nullable until the invite is used |
 
 
 ---
@@ -91,7 +144,7 @@ Projects belong to one account.
 | `start_date` / `end_date`     |                  |
 | `est_places` / `est_auditors` |                  |
 | `auditor_description`         |                  |
-| `created_at` / `updated_at`   |                  |
+| `created_at`                  |                  |
 
 
 ---
@@ -109,7 +162,7 @@ Places are shared place records that can be linked to multiple projects.
 | `lat` / `lng`                            |                  |
 | `start_date` / `end_date`                |                  |
 | `est_auditors` / `auditor_description`   |                  |
-| `created_at` / `updated_at`              |                  |
+| `created_at`                             |                  |
 
 
 ---
@@ -135,13 +188,13 @@ Join table linking places to projects.
 Assignments grant project-level or project-place-level access to an auditor.
 
 
-| Column                                      | Notes                                   |
-| ------------------------------------------- | --------------------------------------- |
-| `id`                                        | UUID primary key                        |
-| `auditor_profile_id`                        | FK → `auditor_profiles`                 |
-| `project_id`                                | Required FK → `projects`                |
-| `place_id`                                  | Nullable FK → `places`                  |
-| `assigned_at` / `created_at` / `updated_at` |                                         |
+| Column               | Notes                           |
+| -------------------- | ------------------------------- |
+| `id`                 | UUID primary key                |
+| `auditor_profile_id` | FK → `auditor_profiles`         |
+| `project_id`         | Required FK → `projects`        |
+| `place_id`           | Nullable FK → `places`          |
+| `assigned_at`        |                                 |
 
 
 > **Invariant:** `project_id` is always set. When `place_id` is also set, the row is scoped to one specific `(project_id, place_id)` pair.
@@ -201,14 +254,14 @@ One-to-one audit metadata row.
 One row per pre-audit selection.
 
 
-| Column                      | Notes                                                                                     |
-| --------------------------- | ----------------------------------------------------------------------------------------- |
-| `id`                        | UUID primary key                                                                          |
-| `audit_id`                  | FK → `audits`                                                                             |
-| `field_key`                 | `season`, `weather_conditions`, `users_present`, `user_count`, `age_groups`, `place_size` |
-| `selected_value`            |                                                                                           |
-| `sort_order`                |                                                                                           |
-| `created_at` / `updated_at` |                                                                                           |
+| Column           | Notes                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `id`             | UUID primary key                                                                          |
+| `audit_id`       | FK → `audits`                                                                             |
+| `field_key`      | `season`, `weather_conditions`, `users_present`, `user_count`, `age_groups`, `place_size` |
+| `selected_value` |                                                                                           |
+| `sort_order`     |                                                                                           |
+| `created_at`     |                                                                                           |
 
 
 **Unique constraint:** `(audit_id, field_key, selected_value)`
