@@ -9,14 +9,14 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.auth import _build_invite_url, _manager_account_name, get_auth_session, get_current_user
 from app.auth_security import generate_email_verification_token, hash_verification_token
 from app.email_service import send_auditor_invite_email
-from app.models import Account, AccountType, Assignment, Audit, AuditStatus, Auditor, AuditorInvite, Place, Project, User, YeeAuditSubmission
+from app.models import Account, AccountType, Assignment, Audit, AuditStatus, Auditor, AuditorInvite, Place, Project, ProjectPlace, User, YeeAuditSubmission
 
 router: APIRouter = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -370,7 +370,8 @@ async def _fetch_reporting_rows(
     stmt = (
         select(YeeAuditSubmission, Place, Project, Auditor.auditor_code)
         .join(Place, YeeAuditSubmission.place_id == Place.id)
-        .join(Project, Place.project_id == Project.id)
+        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+        .join(Project, ProjectPlace.project_id == Project.id)
         .join(Auditor, YeeAuditSubmission.auditor_id == Auditor.id)
         .order_by(Project.name.asc(), Place.name.asc(), YeeAuditSubmission.submitted_at.desc())
     )
@@ -490,8 +491,8 @@ async def _fetch_latest_audits(session: AsyncSession, account_id: uuid.UUID | No
     stmt = (
         select(Audit, Place.name, Auditor.auditor_code)
         .join(Place, Audit.place_id == Place.id)
-        .join(Project, Place.project_id == Project.id)
-        .join(Auditor, Audit.auditor_id == Auditor.id)
+        .join(Project, Audit.project_id == Project.id)
+        .join(Auditor, Audit.auditor_profile_id == Auditor.id)
         .order_by(Audit.submitted_at.desc().nullslast(), Audit.started_at.desc())
         .limit(6)
     )
@@ -516,8 +517,9 @@ async def _fetch_projects(session: AsyncSession, account_id: uuid.UUID | None = 
     place_count = func.count(func.distinct(Place.id))
     stmt: Select[tuple[Project, int, int]] = (
         select(Project, place_count, audit_count)
-        .outerjoin(Place, Place.project_id == Project.id)
-        .outerjoin(Audit, Audit.place_id == Place.id)
+        .outerjoin(ProjectPlace, ProjectPlace.project_id == Project.id)
+        .outerjoin(Place, Place.id == ProjectPlace.place_id)
+        .outerjoin(Audit, and_(Audit.project_id == Project.id, Audit.place_id == ProjectPlace.place_id))
         .group_by(Project.id)
         .order_by(Project.name.asc())
     )
@@ -542,8 +544,9 @@ async def _fetch_places(session: AsyncSession, account_id: uuid.UUID | None = No
     audit_count = func.count(Audit.id)
     stmt = (
         select(Place, Project.name, audit_count, last_audit)
-        .join(Project, Place.project_id == Project.id)
-        .outerjoin(Audit, Audit.place_id == Place.id)
+        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+        .join(Project, ProjectPlace.project_id == Project.id)
+        .outerjoin(Audit, and_(Audit.project_id == Project.id, Audit.place_id == Place.id))
         .group_by(Place.id, Project.name)
         .order_by(Project.name.asc(), Place.name.asc())
     )
@@ -588,7 +591,8 @@ async def _get_scoped_place(
 ) -> tuple[Place, Project]:
     stmt = (
         select(Place, Project)
-        .join(Project, Place.project_id == Project.id)
+        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+        .join(Project, ProjectPlace.project_id == Project.id)
         .where(Place.id == place_id)
     )
     if account_id is not None:
@@ -610,8 +614,9 @@ async def _fetch_project_detail(
     audit_count = func.count(Audit.id)
     place_stmt = (
         select(Place, audit_count, last_audit)
-        .outerjoin(Audit, Audit.place_id == Place.id)
-        .where(Place.project_id == project.id)
+        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+        .outerjoin(Audit, and_(Audit.project_id == project.id, Audit.place_id == Place.id))
+        .where(ProjectPlace.project_id == project.id)
         .group_by(Place.id)
         .order_by(Place.name.asc())
     )
@@ -631,15 +636,14 @@ async def _fetch_project_detail(
     submitted_audits = await _count_rows(
         session,
         Audit,
-        (Audit.status == AuditStatus.SUBMITTED)
-        & (Audit.place_id.in_(select(Place.id).where(Place.project_id == project.id))),
+        (Audit.status == AuditStatus.SUBMITTED) & (Audit.project_id == project.id),
     )
 
     latest_stmt = (
         select(Audit, Place.name, Auditor.auditor_code)
         .join(Place, Audit.place_id == Place.id)
-        .join(Auditor, Audit.auditor_id == Auditor.id)
-        .where(Place.project_id == project.id)
+        .join(Auditor, Audit.auditor_profile_id == Auditor.id)
+        .where(Audit.project_id == project.id)
         .order_by(Audit.submitted_at.desc().nullslast(), Audit.started_at.desc())
         .limit(8)
     )
@@ -660,16 +664,16 @@ async def _fetch_project_detail(
     completed_audits = func.count(func.distinct(Audit.id))
     auditor_stmt = (
         select(Auditor, User.name, assigned_places, completed_audits)
-        .join(Assignment, Assignment.auditor_id == Auditor.id)
+        .join(Assignment, Assignment.auditor_profile_id == Auditor.id)
         .join(Place, Assignment.place_id == Place.id)
         .outerjoin(User, Auditor.user_id == User.id)
         .outerjoin(
             Audit,
-            (Audit.auditor_id == Auditor.id)
+            (Audit.auditor_profile_id == Auditor.id)
             & (Audit.status == AuditStatus.SUBMITTED)
-            & (Audit.place_id.in_(select(Place.id).where(Place.project_id == project.id))),
+            & (Audit.project_id == project.id),
         )
-        .where(Place.project_id == project.id)
+        .where(Assignment.project_id == project.id)
         .group_by(Auditor.id, User.name)
         .order_by(User.name.asc().nullslast(), Auditor.auditor_code.asc())
     )
@@ -724,11 +728,11 @@ async def _fetch_place_detail(
     audit_count = func.count(Audit.id)
     auditor_stmt = (
         select(Auditor, User.name, audit_count, last_audit)
-        .join(Assignment, Assignment.auditor_id == Auditor.id)
+        .join(Assignment, Assignment.auditor_profile_id == Auditor.id)
         .outerjoin(User, Auditor.user_id == User.id)
         .outerjoin(
             Audit,
-            (Audit.auditor_id == Auditor.id) & (Audit.place_id == place.id) & (Audit.status == AuditStatus.SUBMITTED),
+            (Audit.auditor_profile_id == Auditor.id) & (Audit.place_id == place.id) & (Audit.status == AuditStatus.SUBMITTED),
         )
         .where(Assignment.place_id == place.id)
         .group_by(Auditor.id, User.name)
@@ -776,8 +780,8 @@ async def _fetch_auditors(session: AsyncSession, account_id: uuid.UUID | None = 
     stmt = (
         select(Auditor, User.name, assigned_places, completed_audits)
         .outerjoin(User, Auditor.user_id == User.id)
-        .outerjoin(Assignment, Assignment.auditor_id == Auditor.id)
-        .outerjoin(Audit, (Audit.auditor_id == Auditor.id) & (Audit.status == AuditStatus.SUBMITTED))
+        .outerjoin(Assignment, Assignment.auditor_profile_id == Auditor.id)
+        .outerjoin(Audit, (Audit.auditor_profile_id == Auditor.id) & (Audit.status == AuditStatus.SUBMITTED))
         .group_by(Auditor.id, User.name)
         .order_by(User.name.asc().nullslast(), Auditor.auditor_code.asc())
     )
@@ -853,7 +857,15 @@ async def get_dashboard_overview(
 
     projects_count = await _count_rows(session, Project, Project.account_id == account_id) if account_id else await _count_rows(session, Project)
     places_count = (
-        await _count_rows(session, Place, Place.project_id.in_(select(Project.id).where(Project.account_id == account_id)))
+        int(
+            (
+                await session.execute(
+                    select(func.count(func.distinct(ProjectPlace.place_id)))
+                    .join(Project, ProjectPlace.project_id == Project.id)
+                    .where(Project.account_id == account_id)
+                )
+            ).scalar_one()
+        )
         if account_id
         else await _count_rows(session, Place)
     )
@@ -862,7 +874,7 @@ async def get_dashboard_overview(
         await _count_rows(
             session,
             Audit,
-            Audit.place_id.in_(select(Place.id).join(Project, Place.project_id == Project.id).where(Project.account_id == account_id))
+            (Audit.project_id.in_(select(Project.id).where(Project.account_id == account_id)))
             & (Audit.status == AuditStatus.SUBMITTED),
         )
         if account_id
@@ -1111,12 +1123,13 @@ async def create_place(
         raise HTTPException(status_code=403, detail="Project is outside your account scope.")
 
     place = Place(
-        project_id=project.id,
         name=payload.name.strip(),
         city=payload.address.strip(),
         auditor_description=payload.notes.strip() if payload.notes and payload.notes.strip() else None,
     )
     session.add(place)
+    await session.flush()
+    session.add(ProjectPlace(project_id=project.id, place_id=place.id))
     await session.commit()
 
     return PlaceListItem(
@@ -1185,16 +1198,19 @@ async def create_assignment(
         raise HTTPException(status_code=404, detail="Auditor not found in your account.")
 
     place_stmt = (
-        select(Place)
-        .join(Project, Place.project_id == Project.id)
+        select(Place, Project)
+        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+        .join(Project, ProjectPlace.project_id == Project.id)
         .where(Place.id == payload.place_id, Project.account_id == account_id)
     )
-    place = (await session.execute(place_stmt)).scalar_one_or_none()
-    if place is None:
+    place_row = (await session.execute(place_stmt)).first()
+    if place_row is None:
         raise HTTPException(status_code=404, detail="Place not found in your account.")
+    place, project = place_row
 
     existing_stmt = select(Assignment).where(
-        Assignment.auditor_id == auditor.id,
+        Assignment.auditor_profile_id == auditor.id,
+        Assignment.project_id == project.id,
         Assignment.place_id == place.id,
     )
     existing = (await session.execute(existing_stmt)).scalar_one_or_none()
@@ -1205,7 +1221,7 @@ async def create_assignment(
             place_id=str(existing.place_id),
         )
 
-    assignment = Assignment(auditor_id=auditor.id, place_id=place.id)
+    assignment = Assignment(auditor_profile_id=auditor.id, project_id=project.id, place_id=place.id)
     session.add(assignment)
     await session.commit()
     await session.refresh(assignment)
@@ -1230,9 +1246,12 @@ async def list_my_places(
     stmt = (
         select(Place, Project.name, audit_count)
         .join(Assignment, Assignment.place_id == Place.id)
-        .join(Project, Place.project_id == Project.id)
-        .outerjoin(Audit, (Audit.place_id == Place.id) & (Audit.auditor_id == auditor.id))
-        .where(Assignment.auditor_id == auditor.id)
+        .join(Project, Assignment.project_id == Project.id)
+        .outerjoin(
+            Audit,
+            (Audit.project_id == Project.id) & (Audit.place_id == Place.id) & (Audit.auditor_profile_id == auditor.id),
+        )
+        .where(Assignment.auditor_profile_id == auditor.id)
         .group_by(Place.id, Project.name)
         .order_by(Project.name.asc(), Place.name.asc())
     )
