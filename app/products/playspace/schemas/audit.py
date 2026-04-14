@@ -215,6 +215,7 @@ class AuditorPlaceResponse(ApiModel):
     audit_id: uuid.UUID | None
     started_at: datetime | None
     submitted_at: datetime | None
+    due_date: datetime | None = None
     summary_score: float | None
     score_totals: AuditScoreTotalsResponse | None = None
     progress_percent: float | None

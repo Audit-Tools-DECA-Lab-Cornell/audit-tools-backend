@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select, tuple_
@@ -113,6 +113,7 @@ class _AssignedPlaceSummary:
     country: str | None
     lat: float | None
     lng: float | None
+    end_date: date | None
 
 
 @dataclass(slots=True)
@@ -154,6 +155,7 @@ class PlayspaceAuditSessionsMixin:
                 Place.country.label("country"),
                 Place.lat.label("lat"),
                 Place.lng.label("lng"),
+                Place.end_date.label("end_date"),
             )
             .select_from(AuditorAssignment)
             .join(Project, AuditorAssignment.project_id == Project.id)
@@ -175,6 +177,7 @@ class PlayspaceAuditSessionsMixin:
                 Place.country.label("country"),
                 Place.lat.label("lat"),
                 Place.lng.label("lng"),
+                Place.end_date.label("end_date"),
             )
             .select_from(AuditorAssignment)
             .join(Project, AuditorAssignment.project_id == Project.id)
@@ -215,8 +218,15 @@ class PlayspaceAuditSessionsMixin:
                     country=getattr(row, "country", None),
                     lat=getattr(row, "lat", None),
                     lng=getattr(row, "lng", None),
+                    end_date=getattr(row, "end_date", None),
                 )
                 assigned_places[summary_key] = summary
+            else:
+                incoming_end_date = getattr(row, "end_date", None)
+                if isinstance(incoming_end_date, date) and (
+                    summary.end_date is None or incoming_end_date < summary.end_date
+                ):
+                    summary.end_date = incoming_end_date
 
         direct_place_assignments_result = await self._session.execute(
             direct_place_assignments_query
@@ -409,6 +419,13 @@ class PlayspaceAuditSessionsMixin:
                     audit_id=latest_audit.audit_id if latest_audit is not None else None,
                     started_at=latest_audit.started_at if latest_audit is not None else None,
                     submitted_at=latest_audit.submitted_at if latest_audit is not None else None,
+                    due_date=datetime.combine(
+                        assigned_place.end_date,
+                        time.min,
+                        tzinfo=timezone.utc,
+                    )
+                    if assigned_place.end_date is not None
+                    else None,
                     summary_score=latest_audit.summary_score if latest_audit is not None else None,
                     score_totals=latest_audit.score_totals if latest_audit is not None else None,
                     progress_percent=latest_audit.progress_percent
