@@ -44,6 +44,7 @@ from app.products.playspace.instrument import (
     INSTRUMENT_VERSION,
     get_canonical_instrument_response,
 )
+from app.products.playspace.services.instrument import get_active_instrument
 from app.products.playspace.schemas import (
     AuditAggregateResponse,
     AuditDraftPatchRequest,
@@ -61,6 +62,7 @@ from app.products.playspace.schemas import (
     ExecutionMode,
     PaginatedResponse,
     PlaceAuditAccessRequest,
+    PlayspaceInstrumentResponse,
     PreAuditResponse,
 )
 from app.products.playspace.scoring import (
@@ -778,7 +780,7 @@ class PlayspaceAuditSessionsMixin:
             self._session.add(audit)
             await self._commit_and_refresh(audit)
 
-        return self._build_audit_session_response(
+        return await self._build_audit_session_response(
             audit=audit,
             project=project,
             place=place,
@@ -793,7 +795,7 @@ class PlayspaceAuditSessionsMixin:
         """Return the current audit state for the owning auditor or a manager."""
 
         audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
-        return self._build_audit_session_response(
+        return await self._build_audit_session_response(
             audit=audit,
             project=audit.project,
             place=audit.place,
@@ -943,7 +945,7 @@ class PlayspaceAuditSessionsMixin:
         audit.summary_score = self._combined_construct_total(overall_payload)
         await self._commit_and_refresh(audit)
 
-        return self._build_audit_session_response(
+        return await self._build_audit_session_response(
             audit=audit,
             project=audit.project,
             place=audit.place,
@@ -1128,7 +1130,7 @@ class PlayspaceAuditSessionsMixin:
             detail="You do not have permission to access this audit.",
         )
 
-    def _build_audit_session_response(
+    async def _build_audit_session_response(
         self,
         *,
         audit: Audit,
@@ -1141,7 +1143,17 @@ class PlayspaceAuditSessionsMixin:
         allowed_modes = get_allowed_execution_modes()
         selected_mode = resolve_execution_mode_for_audit(audit=audit)
         progress = build_audit_progress_for_audit(audit=audit)
-        instrument = get_canonical_instrument_response()
+
+        db_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
+        if db_instrument is not None:
+            en_content = db_instrument.content.get("en")
+            if isinstance(en_content, dict):
+                instrument = PlayspaceInstrumentResponse.model_validate(en_content)
+            else:
+                instrument = get_canonical_instrument_response()
+        else:
+            instrument = get_canonical_instrument_response()
+
         meta = AuditMetaResponse(
             execution_mode=self._parse_execution_mode(get_execution_mode_value(audit))
         )

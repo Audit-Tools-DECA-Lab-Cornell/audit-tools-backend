@@ -32,8 +32,14 @@ from app.models import (
     AuditorAssignment,
     AuditorProfile,
     AuditStatus,
+    Instrument,
     ManagerProfile,
     Place,
+    PlayspaceAuditContext,
+    PlayspaceAuditSection,
+    PlayspacePreAuditAnswer,
+    PlayspaceQuestionResponse,
+    PlayspaceScaleAnswer,
     Project,
     ProjectPlace,
     User,
@@ -97,6 +103,12 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
     """Remove existing shared-core records before inserting fresh deterministic data."""
 
     for model in (
+        PlayspaceScaleAnswer,
+        PlayspaceQuestionResponse,
+        PlayspaceAuditSection,
+        PlayspacePreAuditAnswer,
+        PlayspaceAuditContext,
+        Instrument,
         Audit,
         AuditorAssignment,
         ProjectPlace,
@@ -135,6 +147,7 @@ async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -
     ordered_types: tuple[type[object], ...] = (
         Account,
         User,
+        Instrument,
         ManagerProfile,
         AuditorProfile,
         Project,
@@ -603,10 +616,11 @@ def _build_yee_entities() -> list[object]:
     ]
 
 
-async def _seed_product(product: ProductKey) -> dict[str, int]:
+async def _seed_product(product: ProductKey, *, skip_migrate: bool = False) -> dict[str, int]:
     """Clear and repopulate one product database."""
 
-    await _upgrade_product_database(product)
+    if not skip_migrate:
+        await _upgrade_product_database(product)
     session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[product]
     entities = (
         _build_playspace_entities() if product is ProductKey.PLAYSPACE else _build_yee_entities()
@@ -639,6 +653,12 @@ def _parse_args() -> argparse.Namespace:
         default="all",
         help="Seed one product database or both.",
     )
+    parser.add_argument(
+        "--skip-migrate",
+        action="store_true",
+        default=False,
+        help="Skip the Alembic upgrade step (use when the schema is already current).",
+    )
     return parser.parse_args()
 
 
@@ -653,7 +673,7 @@ async def _run() -> None:
     )
 
     for product in products:
-        summary = await _seed_product(product)
+        summary = await _seed_product(product, skip_migrate=args.skip_migrate)
         print(
             f"Seeded {product.value}: "
             f"{summary['projects']} projects, "

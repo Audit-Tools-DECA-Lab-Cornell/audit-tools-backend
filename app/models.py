@@ -857,3 +857,38 @@ class YeeAuditSubmission(Base):
 # Compatibility aliases for the YEE router code.
 Auditor = AuditorProfile
 Assignment = AuditorAssignment
+
+class Instrument(Base):
+    """
+    Source of Truth for an audit instrument (e.g. PVUA).
+    
+    Stored as a full versioned JSON object in the database to support
+    dynamic UI rendering and validation across web and mobile.
+    """
+
+    __tablename__ = "instruments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    instrument_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    instrument_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    content: Mapped[JSONDict] = mapped_column(JSONB, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Instrument(id='{self.id}', key='{self.instrument_key}', version='{self.instrument_version}')>"

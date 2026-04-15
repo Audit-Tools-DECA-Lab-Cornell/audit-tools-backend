@@ -147,3 +147,34 @@ class AuditorProfileDetailResponse(ApiModel):
     country: str | None
     role: str | None
     created_at: datetime
+
+
+######################################################################################
+########################### Instrument Management Schemas ############################
+######################################################################################
+
+
+class InstrumentVersionResponse(ApiModel):
+    """Full instrument record from the database."""
+
+    id: uuid.UUID
+    instrument_key: str
+    instrument_version: str
+    is_active: bool
+    content: dict[str, object]
+    created_at: datetime
+    updated_at: datetime
+
+
+class InstrumentCreateRequest(RequestModel):
+    """Payload to create a new instrument version."""
+
+    instrument_key: str
+    instrument_version: str
+    content: dict[str, object]
+
+
+class InstrumentActivateRequest(RequestModel):
+    """Payload to toggle activation status."""
+
+    is_active: bool

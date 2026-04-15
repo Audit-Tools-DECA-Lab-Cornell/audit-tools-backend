@@ -24,7 +24,9 @@ from app.products.playspace.instrument import (
     INSTRUMENT_KEY,
     INSTRUMENT_NAME,
     INSTRUMENT_VERSION,
+    get_canonical_instrument_payload,
 )
+from app.products.playspace.services.instrument import get_active_instrument
 from app.products.playspace.schemas import PaginatedResponse
 from app.products.playspace.schemas.admin import (
     AdminAccountRowResponse,
@@ -786,13 +788,24 @@ class PlayspaceAdminService:
             total_pages=_total_pages(total_count, safe_page_size),
         )
 
-    def get_system(self, *, actor: CurrentUserContext) -> AdminSystemResponse:
-        """Return system metadata for admin status pages."""
+    async def get_system(self, *, actor: CurrentUserContext) -> AdminSystemResponse:
+        """Return system metadata with the active instrument payload."""
 
         self._require_admin(actor)
+
+        db_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
+
+        if db_instrument is not None:
+            instrument_content = db_instrument.content
+            instrument_version = db_instrument.instrument_version
+        else:
+            instrument_content = {"en": get_canonical_instrument_payload()}
+            instrument_version = INSTRUMENT_VERSION
+
         return AdminSystemResponse(
             instrument_key=INSTRUMENT_KEY,
             instrument_name=INSTRUMENT_NAME,
-            instrument_version=INSTRUMENT_VERSION,
+            instrument_version=instrument_version,
             generated_at=datetime.now(timezone.utc),
+            instrument=instrument_content,
         )

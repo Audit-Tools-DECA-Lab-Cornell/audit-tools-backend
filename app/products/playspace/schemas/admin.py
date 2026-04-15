@@ -105,3 +105,4 @@ class AdminSystemResponse(ApiModel):
     instrument_name: str
     instrument_version: str
     generated_at: datetime
+    instrument: dict[str, object]

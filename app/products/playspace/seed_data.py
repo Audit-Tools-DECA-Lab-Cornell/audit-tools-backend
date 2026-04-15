@@ -40,6 +40,7 @@ from app.models import (
     AuditorAssignment,
     AuditorProfile,
     AuditStatus,
+    Instrument,
     ManagerProfile,
     Place,
     Project,
@@ -50,7 +51,11 @@ from app.products.playspace.audit_state import (
     CURRENT_AUDIT_SCHEMA_VERSION,
     hydrate_relations_from_cached_json,
 )
-from app.products.playspace.instrument import INSTRUMENT_KEY, INSTRUMENT_VERSION
+from app.products.playspace.instrument import (
+    INSTRUMENT_KEY,
+    INSTRUMENT_VERSION,
+    get_canonical_instrument_payload,
+)
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import (
     build_audit_progress_for_audit,
@@ -453,6 +458,15 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         account_type=AccountType.ADMIN,
         created_at=BASE_ADMIN_CREATED_AT,
     )
+    
+    canonical_instrument = Instrument(
+        instrument_key=INSTRUMENT_KEY,
+        instrument_version=INSTRUMENT_VERSION,
+        is_active=True,
+        content={"en": get_canonical_instrument_payload()},
+        created_at=BASE_ADMIN_CREATED_AT + timedelta(minutes=5),
+    )
+
     manager_profiles = [
         ManagerProfile(
             id=DEMO_MANAGER_PROFILE_PRIMARY_ID,
@@ -564,6 +578,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         *project_place_links,
         *assignments,
         *audits,
+        canonical_instrument,
     ]
 
 

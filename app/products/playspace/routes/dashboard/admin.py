@@ -141,10 +141,10 @@ async def list_admin_audits(
 
 
 @router.get("/system")
-def get_admin_system(
+async def get_admin_system(
     current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
     service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
 ) -> AdminSystemResponse:
     """Return system metadata for admin dashboards."""
 
-    return service.get_system(actor=current_user)
+    return await service.get_system(actor=current_user)

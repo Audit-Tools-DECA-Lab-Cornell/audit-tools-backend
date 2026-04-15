@@ -9413,7 +9413,7 @@
             "Novelty"
           ],
           "section_key": "section_19_novelty",
-          "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**\u2014creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
+          "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**&mdash;creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
           "scales": [
             {
               "key": "quantity",
@@ -10224,7 +10224,7 @@
     {
       "section_key": "section_20_sensory_qualities_regulation",
       "title": "Sensory Qualities & Regulation",
-      "description": "Sensory Qualities & Regulation evaluates how well a space supports diverse sensory experiences that enhance engagement, comfort, and well\u2011being. It considers the presence of visual, auditory, olfactory, and tactile elements that create interest and stimulation\u2014such as color accents, varied textures, sounds, pleasant smells, and interactive features. It also assesses whether the environment offers options for sensory retreat or reduced stimulation, as well as any persistent noise pollution (reverse\u2011coded), to ensure the space is supportive for individuals with varying sensory needs.",
+      "description": "Sensory Qualities & Regulation evaluates how well a space supports diverse sensory experiences that enhance engagement, comfort, and well\u2011being. It considers the presence of visual, auditory, olfactory, and tactile elements that create interest and stimulation&mdash;such as color accents, varied textures, sounds, pleasant smells, and interactive features. It also assesses whether the environment offers options for sensory retreat or reduced stimulation, as well as any persistent noise pollution (reverse\u2011coded), to ensure the space is supportive for individuals with varying sensory needs.",
       "instruction": "Read each statement and answer the questions. This playspace...",
       "notes_prompt": "Any comments? Describe one or more recommendations to improve the sensory qualitites of this playspace:",
       "questions": [
