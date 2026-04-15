@@ -459,28 +459,20 @@ class AuditorInvite(Base):
 
 class AuditorAssignment(Base):
     """
-    Assignment record for project-level or project-place auditor access.
+    Assignment record: exactly one auditor is tied to one project–place pair.
 
-    `project_id` is always required. When `place_id` is present, the assignment is
-    scoped to one specific project/place pair.
+    ``place_id`` is always required. Uniqueness of
+    ``(auditor_profile_id, project_id, place_id)`` is enforced with a single
+    database unique constraint (see ``uq_auditor_assignments_auditor_project_place``).
     """
 
     __tablename__ = "auditor_assignments"
     __table_args__ = (
-        Index(
-            "uq_auditor_assignments_auditor_project_scope",
-            "auditor_profile_id",
-            "project_id",
-            unique=True,
-            postgresql_where=text("place_id IS NULL"),
-        ),
-        Index(
-            "uq_auditor_assignments_auditor_project_place",
+        UniqueConstraint(
             "auditor_profile_id",
             "project_id",
             "place_id",
-            unique=True,
-            postgresql_where=text("place_id IS NOT NULL"),
+            name="uq_auditor_assignments_auditor_project_place",
         ),
         ForeignKeyConstraint(
             ["project_id", "place_id"],
@@ -507,11 +499,11 @@ class AuditorAssignment(Base):
         index=True,
         nullable=False,
     )
-    place_id: Mapped[uuid.UUID | None] = mapped_column(
+    place_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("places.id", ondelete="CASCADE"),
         index=True,
-        nullable=True,
+        nullable=False,
     )
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -521,7 +513,7 @@ class AuditorAssignment(Base):
 
     auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments")
     project: Mapped[Project | None] = relationship(back_populates="assignments")
-    place: Mapped[Place | None] = relationship(back_populates="assignments")
+    place: Mapped[Place] = relationship(back_populates="assignments")
 
     @property
     def auditor_id(self) -> uuid.UUID:

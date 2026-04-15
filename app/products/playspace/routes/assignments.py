@@ -13,7 +13,12 @@ from app.products.playspace.routes.dependencies import (
     AUDIT_SERVICE_DEPENDENCY,
     CURRENT_USER_DEPENDENCY,
 )
-from app.products.playspace.schemas import AssignmentResponse, AssignmentWriteRequest
+from app.products.playspace.schemas import (
+    AssignmentResponse,
+    AssignmentWriteRequest,
+    BulkAssignmentResponse,
+    BulkAssignmentWriteRequest,
+)
 from app.products.playspace.services import PlayspaceAuditService
 
 ######################################################################################
@@ -90,3 +95,21 @@ async def delete_auditor_assignment(
         auditor_profile_id=auditor_profile_id,
         assignment_id=assignment_id,
     )
+
+
+@router.post(
+    "/bulk-assignments",
+    status_code=201,
+)
+async def create_bulk_auditor_assignments(
+    payload: BulkAssignmentWriteRequest,
+    current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+    service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
+) -> BulkAssignmentResponse:
+    """Bulk create playspace assignments for multiple auditors and places."""
+
+    created_count = await service.create_bulk_assignments(
+        actor=current_user,
+        payload=payload,
+    )
+    return BulkAssignmentResponse(created_count=created_count)

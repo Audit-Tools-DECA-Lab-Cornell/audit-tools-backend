@@ -1036,6 +1036,10 @@ def _build_assignments(
 ) -> tuple[list[AuditorAssignment], dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]]]:
     """Create project and place assignments plus a resolved execution-mode map."""
 
+
+    # making sure the auditor_profile_id, place_id, project_id are unique for each assignment.
+    # no project-wide assignments. so, we don't have the project_auditors_by_project dictionary.
+
     assignments: list[AuditorAssignment] = []
     execution_modes_by_place_and_auditor: dict[
         tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]
@@ -1051,6 +1055,7 @@ def _build_assignments(
     for auditor_context in auditor_contexts:
         auditors_by_city.setdefault(auditor_context.home_city, []).append(auditor_context)
 
+    project_place_auditor_unique_assignments: set[tuple[str, str, str]] = set()
     project_auditors_by_project: dict[uuid.UUID, list[AuditorSeedContext]] = {}
     for index, project_context in enumerate(project_contexts):
         local_auditors = list(auditors_by_city.get(project_context.blueprint.metro.city, []))
@@ -1067,31 +1072,6 @@ def _build_assignments(
                 break
 
         project_auditors_by_project[project_context.project.id] = selected
-        for local_index, auditor_context in enumerate(selected):
-            assigned_at = datetime.combine(
-                (project_context.project.start_date or reference_date)
-                - timedelta(days=7 - local_index),
-                time(8, 0),
-                tzinfo=UTC,
-            )
-            assignment = AuditorAssignment(
-                id=_stable_uuid(
-                    "playspace-assignment",
-                    "project",
-                    str(project_context.project.id),
-                    str(auditor_context.profile.id),
-                ),
-                auditor_profile_id=auditor_context.profile.id,
-                project_id=project_context.project.id,
-                place_id=None,
-                assigned_at=assigned_at,
-            )
-            assignments.append(assignment)
-            for place_context in places_by_project_id.get(project_context.project.id, []):
-                execution_modes_by_place_and_auditor.setdefault(
-                    (place_context.place.id, auditor_context.profile.id),
-                    get_allowed_execution_modes(),
-                )
 
         for place_index, place_context in enumerate(
             sorted(
@@ -1102,53 +1082,84 @@ def _build_assignments(
             project_auditors = project_auditors_by_project[project_context.project.id]
             if not project_auditors:
                 continue
-
+            
             lead_context = project_auditors[place_index % len(project_auditors)]
-            lead_assignment = AuditorAssignment(
-                id=_stable_uuid(
-                    "playspace-assignment",
-                    "place-lead",
-                    str(place_context.place.id),
-                    str(lead_context.profile.id),
-                ),
-                auditor_profile_id=lead_context.profile.id,
-                project_id=project_context.project.id,
-                place_id=place_context.place.id,
-                assigned_at=datetime.combine(
-                    (place_context.place.start_date or reference_date) - timedelta(days=2),
-                    time(8, 30),
-                    tzinfo=UTC,
-                ),
+            
+            print(f"project_context.project.id: {project_place_auditor_unique_assignments}")
+            if (str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id)) in project_place_auditor_unique_assignments:
+                continue
+            project_place_auditor_unique_assignments.add(
+                (str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id))
             )
-            assignments.append(lead_assignment)
-            execution_modes_by_place_and_auditor.setdefault(
-                (place_context.place.id, lead_context.profile.id),
-                get_allowed_execution_modes(),
-            )
-
-            if randomizer.random() < 0.55 and len(project_auditors) > 1:
-                support_context = project_auditors[(place_index + 1) % len(project_auditors)]
-                support_assignment = AuditorAssignment(
+            try:
+                lead_assignment = AuditorAssignment(
                     id=_stable_uuid(
                         "playspace-assignment",
-                        "place-support",
+                        "place-lead",
                         str(place_context.place.id),
-                        str(support_context.profile.id),
+                        str(lead_context.profile.id),
                     ),
-                    auditor_profile_id=support_context.profile.id,
+                    auditor_profile_id=lead_context.profile.id,
                     project_id=project_context.project.id,
                     place_id=place_context.place.id,
                     assigned_at=datetime.combine(
-                        (place_context.place.start_date or reference_date) - timedelta(days=1),
-                        time(9, 10),
+                        (place_context.place.start_date or reference_date) - timedelta(days=2),
+                        time(8, 30),
                         tzinfo=UTC,
                     ),
                 )
-                assignments.append(support_assignment)
+                assignments.append(lead_assignment)
                 execution_modes_by_place_and_auditor.setdefault(
-                    (place_context.place.id, support_context.profile.id),
+                    (place_context.place.id, lead_context.profile.id),
                     get_allowed_execution_modes(),
                 )
+            except Exception as e:
+                print(f"Exception: {e}")
+                print(f"project_context.project.id: {project_context.project.id}")
+                print(f"place_context.place.id: {place_context.place.id}")
+                print(f"lead_context.profile.id: {lead_context.profile.id}")
+                print("--------------------------------")
+                print(f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id)}")
+                print(f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, lead_context.profile.id in project_place_auditor_unique_assignments}")
+
+            if randomizer.random() < 0.55 and len(project_auditors) > 1:
+                support_context = project_auditors[(place_index + 1) % len(project_auditors)]
+                
+                if (str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id)) in project_place_auditor_unique_assignments:
+                    continue
+                project_place_auditor_unique_assignments.add(
+                    (str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id))
+                )
+                try:
+                    support_assignment = AuditorAssignment(
+                        id=_stable_uuid(
+                            "playspace-assignment",
+                            "place-support",
+                            str(place_context.place.id),
+                            str(support_context.profile.id),
+                        ),
+                        auditor_profile_id=support_context.profile.id,
+                        project_id=project_context.project.id,
+                        place_id=place_context.place.id,
+                        assigned_at=datetime.combine(
+                            (place_context.place.start_date or reference_date) - timedelta(days=1),
+                            time(9, 10),
+                            tzinfo=UTC,
+                        ),
+                    )
+                    assignments.append(support_assignment)
+                    execution_modes_by_place_and_auditor.setdefault(
+                        (place_context.place.id, support_context.profile.id),
+                        get_allowed_execution_modes(),
+                    )
+                except Exception as e:
+                    print(f"Exception: {e}")
+                    print(f"project_context.project.id: {project_context.project.id}")
+                    print(f"place_context.place.id: {place_context.place.id}")
+                    print(f"support_context.profile.id: {support_context.profile.id}")
+                    print("--------------------------------")
+                    print(f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id)}")
+                    print(f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, support_context.profile.id in project_place_auditor_unique_assignments}")
 
             off_project_candidates = [
                 auditor_context
@@ -1161,27 +1172,41 @@ def _build_assignments(
                 specialist_context = off_project_candidates[
                     place_index % len(off_project_candidates)
                 ]
-                specialist_assignment = AuditorAssignment(
-                    id=_stable_uuid(
-                        "playspace-assignment",
-                        "place-specialist",
-                        str(place_context.place.id),
-                        str(specialist_context.profile.id),
-                    ),
-                    auditor_profile_id=specialist_context.profile.id,
-                    project_id=project_context.project.id,
-                    place_id=place_context.place.id,
-                    assigned_at=datetime.combine(
-                        (place_context.place.start_date or reference_date) - timedelta(days=1),
-                        time(10, 0),
-                        tzinfo=UTC,
-                    ),
+                if (str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id)) in project_place_auditor_unique_assignments:
+                    continue
+                project_place_auditor_unique_assignments.add(
+                    (str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id))
                 )
-                assignments.append(specialist_assignment)
-                execution_modes_by_place_and_auditor.setdefault(
-                    (place_context.place.id, specialist_context.profile.id),
-                    get_allowed_execution_modes(),
-                )
+                try:
+                    specialist_assignment = AuditorAssignment(
+                        id=_stable_uuid(
+                            "playspace-assignment",
+                            "place-specialist",
+                            str(place_context.place.id),
+                            str(specialist_context.profile.id),
+                        ),
+                        auditor_profile_id=specialist_context.profile.id,
+                        project_id=project_context.project.id,
+                        place_id=place_context.place.id,
+                        assigned_at=datetime.combine(
+                            (place_context.place.start_date or reference_date) - timedelta(days=1),
+                            time(10, 0),
+                            tzinfo=UTC,
+                        ),
+                    )
+                    assignments.append(specialist_assignment)
+                    execution_modes_by_place_and_auditor.setdefault(
+                        (place_context.place.id, specialist_context.profile.id),
+                        get_allowed_execution_modes(),
+                    )
+                except Exception as e:
+                    print(f"Exception: {e}")
+                    print(f"project_context.project.id: {project_context.project.id}")
+                    print(f"place_context.place.id: {place_context.place.id}")
+                    print(f"specialist_context.profile.id: {specialist_context.profile.id}")
+                    print("--------------------------------")
+                    print(f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id)}")
+                    print(f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, specialist_context.profile.id in project_place_auditor_unique_assignments}")
 
     return assignments, execution_modes_by_place_and_auditor
 

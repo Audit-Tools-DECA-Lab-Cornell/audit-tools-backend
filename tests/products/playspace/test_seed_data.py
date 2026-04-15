@@ -33,7 +33,7 @@ def test_build_playspace_seed_entities_spreads_projects_across_manager_accounts(
 
 
 def test_build_playspace_seed_entities_include_project_place_links_and_pair_scoped_audits() -> None:
-    """Seed data should include join rows plus project-scoped assignments and audits."""
+    """Seed data should include join rows plus place-scoped assignments and audits."""
 
     entities = build_playspace_seed_entities()
     project_place_links = [entity for entity in entities if isinstance(entity, ProjectPlace)]

@@ -24,10 +24,10 @@ from app.products.playspace.schemas import (
 )
 from app.products.playspace.schemas.instrument import PreAuditInputType
 from app.products.playspace.scoring_metadata import (
-    get_scoring_sections,
     ScoringQuestion,
     ScoringScaleOption,
     ScoringSection,
+    get_scoring_sections,
 )
 
 MULTI_SELECT_PRE_AUDIT_FIELDS = {
@@ -45,11 +45,17 @@ class ScoreTotals:
     """Internal aggregate for one section, domain, or overall audit score bucket."""
 
     quantity_total: float = 0.0
+    quantity_total_max: float = 0.0
     diversity_total: float = 0.0
+    diversity_total_max: float = 0.0
     challenge_total: float = 0.0
+    challenge_total_max: float = 0.0
     sociability_total: float = 0.0
+    sociability_total_max: float = 0.0
     play_value_total: float = 0.0
+    play_value_total_max: float = 0.0
     usability_total: float = 0.0
+    usability_total_max: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -235,26 +241,29 @@ def _build_audit_progress_from_snapshot(
 def score_audit(
     *,
     responses_json: JsonDict,
+    include_maximums: bool = False,
 ) -> JsonDict:
     """Calculate Playspace total buckets for a completed audit draft."""
 
     snapshot = _build_snapshot_from_json(responses_json)
-    return _score_audit_from_snapshot(snapshot=snapshot)
+    return _score_audit_from_snapshot(snapshot=snapshot, include_maximums=include_maximums)
 
 
 def score_audit_for_audit(
     *,
     audit: Audit,
+    include_maximums: bool = False,
 ) -> JsonDict:
     """Calculate Playspace total buckets directly from normalized audit relations."""
 
     snapshot = _build_snapshot_from_audit(audit)
-    return _score_audit_from_snapshot(snapshot=snapshot)
+    return _score_audit_from_snapshot(snapshot=snapshot, include_maximums=include_maximums)
 
 
 def _score_audit_from_snapshot(
     *,
     snapshot: AuditStateSnapshot,
+    include_maximums: bool,
 ) -> JsonDict:
     """Calculate scores from one storage-agnostic audit snapshot."""
 
@@ -294,10 +303,16 @@ def _score_audit_from_snapshot(
                     question_totals,
                 )
 
-        section_scores[section.section_key] = _serialize_score_totals(section_totals)
+        section_scores[section.section_key] = _serialize_score_totals(
+            section_totals,
+            include_maximums=include_maximums,
+        )
 
     serialized_domain_scores = {
-        domain_key: _serialize_score_totals(score_totals)
+        domain_key: _serialize_score_totals(
+            score_totals,
+            include_maximums=include_maximums,
+        )
         for domain_key, score_totals in domain_scores.items()
     }
     overall_totals = ScoreTotals()
@@ -305,7 +320,7 @@ def _score_audit_from_snapshot(
         overall_totals = _add_score_totals(overall_totals, domain_totals)
 
     return {
-        "overall": _serialize_score_totals(overall_totals),
+        "overall": _serialize_score_totals(overall_totals, include_maximums=include_maximums),
         "by_section": section_scores,
         "by_domain": serialized_domain_scores,
         "execution_mode": execution_mode.value,
@@ -583,9 +598,19 @@ def _score_question(
         return ScoreTotals()
 
     quantity_total = float(quantity_option.addition_value)
+    quantity_total_max = _read_quantity_scale_maximum(question=question)
     diversity_total = 0.0
+    diversity_total_max, diversity_multiplier_max = _read_multiplier_scale_maximum(
+        question=question,
+        scale_key="diversity",
+    )
     challenge_total = 0.0
+    challenge_total_max, challenge_multiplier_max = _read_multiplier_scale_maximum(
+        question=question,
+        scale_key="challenge",
+    )
     sociability_total = 0.0
+    sociability_total_max = _read_sociability_scale_maximum(question=question)
     diversity_multiplier = 1.0
     challenge_multiplier = 1.0
 
@@ -606,17 +631,38 @@ def _score_question(
         )
 
     construct_score = quantity_total * diversity_multiplier * challenge_multiplier
+    construct_score_max = quantity_total_max * diversity_multiplier_max * challenge_multiplier_max
     play_value_total = construct_score if "play_value" in question.constructs else 0.0
+    play_value_total_max = construct_score_max if "play_value" in question.constructs else 0.0
     usability_total = construct_score if "usability" in question.constructs else 0.0
+    usability_total_max = construct_score_max if "usability" in question.constructs else 0.0
 
     return ScoreTotals(
         quantity_total=round(quantity_total, 2),
+        quantity_total_max=round(quantity_total_max, 2),
         diversity_total=round(diversity_total, 2),
+        diversity_total_max=round(diversity_total_max, 2),
         challenge_total=round(challenge_total, 2),
+        challenge_total_max=round(challenge_total_max, 2),
         sociability_total=round(sociability_total, 2),
+        sociability_total_max=round(sociability_total_max, 2),
         play_value_total=round(play_value_total, 2),
+        play_value_total_max=round(play_value_total_max, 2),
         usability_total=round(usability_total, 2),
+        usability_total_max=round(usability_total_max, 2),
     )
+
+
+def _read_quantity_scale_maximum(*, question: ScoringQuestion) -> float:
+    """Return the highest provision score available for one question."""
+
+    quantity_scale = next(
+        (current_scale for current_scale in question.scales if current_scale.key == "quantity"),
+        None,
+    )
+    if quantity_scale is None:
+        return 0.0
+    return max((float(option.addition_value) for option in quantity_scale.options), default=0.0)
 
 
 def _read_multiplier_scale_score(
@@ -648,6 +694,28 @@ def _read_multiplier_scale_score(
     return column_total, float(selected_option.boost_value)
 
 
+def _read_multiplier_scale_maximum(
+    *,
+    question: ScoringQuestion,
+    scale_key: str,
+) -> tuple[float, float]:
+    """Return the highest available column score and construct multiplier for one scale."""
+
+    scale = next(
+        (current_scale for current_scale in question.scales if current_scale.key == scale_key),
+        None,
+    )
+    if scale is None:
+        return 0.0, 1.0
+
+    max_column_total = max(
+        (max(float(option.addition_value) - 1.0, 0.0) for option in scale.options),
+        default=0.0,
+    )
+    max_multiplier = max((float(option.boost_value) for option in scale.options), default=1.0)
+    return max_column_total, max(max_multiplier, 1.0)
+
+
 def _read_sociability_scale_score(
     *,
     question: ScoringQuestion,
@@ -673,27 +741,64 @@ def _read_sociability_scale_score(
     return max(float(selected_option.addition_value) - 1.0, 0.0)
 
 
+def _read_sociability_scale_maximum(*, question: ScoringQuestion) -> float:
+    """Return the highest available sociability column score for one question."""
+
+    scale = next(
+        (current_scale for current_scale in question.scales if current_scale.key == "sociability"),
+        None,
+    )
+    if scale is None:
+        return 0.0
+    return max(
+        (max(float(option.addition_value) - 1.0, 0.0) for option in scale.options),
+        default=0.0,
+    )
+
+
 def _add_score_totals(left: ScoreTotals, right: ScoreTotals) -> ScoreTotals:
     """Sum two immutable Playspace score-total buckets."""
 
     return ScoreTotals(
         quantity_total=left.quantity_total + right.quantity_total,
+        quantity_total_max=left.quantity_total_max + right.quantity_total_max,
         diversity_total=left.diversity_total + right.diversity_total,
+        diversity_total_max=left.diversity_total_max + right.diversity_total_max,
         challenge_total=left.challenge_total + right.challenge_total,
+        challenge_total_max=left.challenge_total_max + right.challenge_total_max,
         sociability_total=left.sociability_total + right.sociability_total,
+        sociability_total_max=left.sociability_total_max + right.sociability_total_max,
         play_value_total=left.play_value_total + right.play_value_total,
+        play_value_total_max=left.play_value_total_max + right.play_value_total_max,
         usability_total=left.usability_total + right.usability_total,
+        usability_total_max=left.usability_total_max + right.usability_total_max,
     )
 
 
-def _serialize_score_totals(score_totals: ScoreTotals) -> JsonDict:
+def _serialize_score_totals(
+    score_totals: ScoreTotals,
+    *,
+    include_maximums: bool,
+) -> JsonDict:
     """Convert one score-total bucket into a JSON-safe response payload."""
 
-    return {
+    payload = {
         "quantity_total": round(score_totals.quantity_total, 2),
         "diversity_total": round(score_totals.diversity_total, 2),
         "challenge_total": round(score_totals.challenge_total, 2),
         "sociability_total": round(score_totals.sociability_total, 2),
         "play_value_total": round(score_totals.play_value_total, 2),
         "usability_total": round(score_totals.usability_total, 2),
+    }
+    if not include_maximums:
+        return payload
+
+    return {
+        **payload,
+        "quantity_total_max": round(score_totals.quantity_total_max, 2),
+        "diversity_total_max": round(score_totals.diversity_total_max, 2),
+        "challenge_total_max": round(score_totals.challenge_total_max, 2),
+        "sociability_total_max": round(score_totals.sociability_total_max, 2),
+        "play_value_total_max": round(score_totals.play_value_total_max, 2),
+        "usability_total_max": round(score_totals.usability_total_max, 2),
     }

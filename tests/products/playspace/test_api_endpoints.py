@@ -589,11 +589,11 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
     assert delete_profile_response.status_code == 204
 
 
-def test_assignment_endpoints_cover_project_and_place_scopes(
+def test_assignment_endpoints_cover_place_scoped_assignments(
     playspace_client: TestClient,
     playspace_seed_snapshot: PlayspaceSeedSnapshot,
 ) -> None:
-    """Exercise list/create/update/delete assignment routes."""
+    """Exercise list/create/update/delete assignment routes for project–place rows."""
 
     suffix = _unique_suffix()
     manager_token = _login_manager(playspace_client)
@@ -603,11 +603,17 @@ def test_assignment_endpoints_cover_project_and_place_scopes(
         manager_token,
         suffix=suffix,
     )
-    place = _create_place(
+    place_a = _create_place(
         playspace_client,
         manager_token,
         project_id=str(project["id"]),
         suffix=suffix,
+    )
+    place_b = _create_place(
+        playspace_client,
+        manager_token,
+        project_id=str(project["id"]),
+        suffix=f"{suffix}-b",
     )
     auditor_profile = _create_auditor_profile(
         playspace_client,
@@ -627,19 +633,20 @@ def test_assignment_endpoints_cover_project_and_place_scopes(
         headers=manager_headers,
         json={
             "project_id": project["id"],
-            "place_id": None,
+            "place_id": place_a["id"],
         },
     )
     assert create_assignment_response.status_code == 201
     assignment = create_assignment_response.json()
-    assert assignment["scope_type"] == "project"
+    assert assignment["scope_type"] == "place"
+    assert assignment["place_id"] == place_a["id"]
 
     duplicate_assignment_response = playspace_client.post(
         f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
         headers=manager_headers,
         json={
             "project_id": project["id"],
-            "place_id": None,
+            "place_id": place_a["id"],
         },
     )
     assert duplicate_assignment_response.status_code == 409
@@ -650,11 +657,12 @@ def test_assignment_endpoints_cover_project_and_place_scopes(
         headers=manager_headers,
         json={
             "project_id": project["id"],
-            "place_id": place["id"],
+            "place_id": place_b["id"],
         },
     )
     assert update_assignment_response.status_code == 200
     assert update_assignment_response.json()["scope_type"] == "place"
+    assert update_assignment_response.json()["place_id"] == place_b["id"]
 
     list_after_update_response = playspace_client.get(
         f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",

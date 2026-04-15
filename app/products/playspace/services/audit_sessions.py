@@ -27,12 +27,12 @@ from app.models import (
     ProjectPlace,
 )
 from app.products.playspace.audit_state import (
+    CURRENT_AUDIT_SCHEMA_VERSION,
     apply_draft_patch_to_relations,
     build_responses_json_from_relations,
-    CURRENT_AUDIT_SCHEMA_VERSION,
-    get_draft_progress_percent,
     get_aggregate_revision,
     get_aggregate_schema_version,
+    get_draft_progress_percent,
     get_execution_mode_value,
     replace_audit_aggregate,
     set_aggregate_revision,
@@ -44,7 +44,6 @@ from app.products.playspace.instrument import (
     INSTRUMENT_VERSION,
     get_canonical_instrument_response,
 )
-from app.products.playspace.services.instrument import get_active_instrument
 from app.products.playspace.schemas import (
     AuditAggregateResponse,
     AuditDraftPatchRequest,
@@ -69,8 +68,10 @@ from app.products.playspace.scoring import (
     build_audit_progress_for_audit,
     get_allowed_execution_modes,
     resolve_execution_mode_for_audit,
+    score_audit,
     score_audit_for_audit,
 )
+from app.products.playspace.services.instrument import get_active_instrument
 
 ######################################################################################
 ############################## Audit Session Service Mixin ###########################
@@ -145,7 +146,7 @@ class PlayspaceAuditSessionsMixin:
     ) -> list[_AssignedPlaceSummary]:
         """Resolve unique project-place assignments without eager-loading audit graphs."""
 
-        direct_place_assignments_query = (
+        place_assignments_query = (
             select(
                 Place.id.label("place_id"),
                 Place.name.label("place_name"),
@@ -162,33 +163,7 @@ class PlayspaceAuditSessionsMixin:
             .select_from(AuditorAssignment)
             .join(Project, AuditorAssignment.project_id == Project.id)
             .join(Place, AuditorAssignment.place_id == Place.id)
-            .where(
-                AuditorAssignment.auditor_profile_id == auditor_profile_id,
-                AuditorAssignment.place_id.is_not(None),
-            )
-        )
-        project_place_assignments_query = (
-            select(
-                Place.id.label("place_id"),
-                Place.name.label("place_name"),
-                Place.place_type.label("place_type"),
-                Project.id.label("project_id"),
-                Project.name.label("project_name"),
-                Place.city.label("city"),
-                Place.province.label("province"),
-                Place.country.label("country"),
-                Place.lat.label("lat"),
-                Place.lng.label("lng"),
-                Place.end_date.label("end_date"),
-            )
-            .select_from(AuditorAssignment)
-            .join(Project, AuditorAssignment.project_id == Project.id)
-            .join(ProjectPlace, ProjectPlace.project_id == Project.id)
-            .join(Place, Place.id == ProjectPlace.place_id)
-            .where(
-                AuditorAssignment.auditor_profile_id == auditor_profile_id,
-                AuditorAssignment.place_id.is_(None),
-            )
+            .where(AuditorAssignment.auditor_profile_id == auditor_profile_id)
         )
 
         assigned_places: dict[tuple[uuid.UUID, uuid.UUID], _AssignedPlaceSummary] = {}
@@ -230,16 +205,8 @@ class PlayspaceAuditSessionsMixin:
                 ):
                     summary.end_date = incoming_end_date
 
-        direct_place_assignments_result = await self._session.execute(
-            direct_place_assignments_query
-        )
-        for row in direct_place_assignments_result.all():
-            record_assignment_row(row)
-
-        project_place_assignments_result = await self._session.execute(
-            project_place_assignments_query
-        )
-        for row in project_place_assignments_result.all():
+        place_assignments_result = await self._session.execute(place_assignments_query)
+        for row in place_assignments_result.all():
             record_assignment_row(row)
 
         return sorted(
@@ -313,6 +280,7 @@ class PlayspaceAuditSessionsMixin:
 
             score_totals, summary_score = self._resolve_compact_audit_summary(
                 raw_scores=getattr(row, "scores_json", {}),
+                responses_json=getattr(row, "responses_json", {}),
                 fallback_summary_score=getattr(row, "summary_score", None),
             )
             responses_payload = self._read_json_dict(getattr(row, "responses_json", {}))
@@ -561,6 +529,7 @@ class PlayspaceAuditSessionsMixin:
                 Audit.submitted_at.label("submitted_at"),
                 Audit.summary_score.label("summary_score"),
                 Audit.scores_json.label("scores_json"),
+                Audit.responses_json.label("responses_json"),
                 PlayspaceAuditContext.draft_progress_percent.label("draft_progress_percent"),
             )
             .join(Place, Audit.place_id == Place.id)
@@ -643,6 +612,7 @@ class PlayspaceAuditSessionsMixin:
 
             score_totals, summary_score = self._resolve_compact_audit_summary(
                 raw_scores=getattr(row, "scores_json", {}),
+                responses_json=getattr(row, "responses_json", {}),
                 fallback_summary_score=getattr(row, "summary_score", None),
             )
             raw_progress_percent = getattr(row, "draft_progress_percent", None)
@@ -1088,10 +1058,7 @@ class PlayspaceAuditSessionsMixin:
             .where(
                 AuditorAssignment.auditor_profile_id == auditor_profile_id,
                 AuditorAssignment.project_id == project_id,
-                or_(
-                    AuditorAssignment.place_id == place_id,
-                    AuditorAssignment.place_id.is_(None),
-                ),
+                AuditorAssignment.place_id == place_id,
             )
             .limit(1)
         )
@@ -1373,9 +1340,16 @@ class PlayspaceAuditSessionsMixin:
         self,
         *,
         raw_scores: object,
+        responses_json: object | None = None,
         fallback_summary_score: float | None,
     ) -> tuple[AuditScoreTotalsResponse | None, float | None]:
         """Resolve compact totals and summary score from cached values only."""
+
+        live_score_totals = self._build_live_score_totals_response(responses_json=responses_json)
+        if live_score_totals is not None:
+            live_summary_score = self._combined_construct_total(live_score_totals)
+            if live_summary_score is not None:
+                return live_score_totals, live_summary_score
 
         score_totals = self._build_score_totals_response(
             self._read_json_dict(raw_scores).get("overall")
@@ -1392,12 +1366,8 @@ class PlayspaceAuditSessionsMixin:
         if audit.status is not AuditStatus.SUBMITTED:
             return raw_scores
 
-        overall_payload = self._build_score_totals_response(raw_scores.get("overall"))
-        if overall_payload is not None:
-            return raw_scores
-
         try:
-            return score_audit_for_audit(audit=audit)
+            return score_audit_for_audit(audit=audit, include_maximums=True)
         except ValueError:
             return raw_scores
 
@@ -1423,29 +1393,68 @@ class PlayspaceAuditSessionsMixin:
 
         score_payload = self._read_json_dict(raw_score_payload)
         quantity_total = score_payload.get("quantity_total")
+        quantity_total_max = score_payload.get("quantity_total_max")
         diversity_total = score_payload.get("diversity_total")
+        diversity_total_max = score_payload.get("diversity_total_max")
         challenge_total = score_payload.get("challenge_total")
+        challenge_total_max = score_payload.get("challenge_total_max")
         sociability_total = score_payload.get("sociability_total")
+        sociability_total_max = score_payload.get("sociability_total_max")
         play_value_total = score_payload.get("play_value_total")
+        play_value_total_max = score_payload.get("play_value_total_max")
         usability_total = score_payload.get("usability_total")
+        usability_total_max = score_payload.get("usability_total_max")
         numeric_values = [
             quantity_total,
+            quantity_total_max,
             diversity_total,
+            diversity_total_max,
             challenge_total,
+            challenge_total_max,
             sociability_total,
+            sociability_total_max,
             play_value_total,
+            play_value_total_max,
             usability_total,
+            usability_total_max,
         ]
         if not all(isinstance(value, int | float) for value in numeric_values):
             return None
         return AuditScoreTotalsResponse(
             quantity_total=float(quantity_total),
+            quantity_total_max=float(quantity_total_max),
             diversity_total=float(diversity_total),
+            diversity_total_max=float(diversity_total_max),
             challenge_total=float(challenge_total),
+            challenge_total_max=float(challenge_total_max),
             sociability_total=float(sociability_total),
+            sociability_total_max=float(sociability_total_max),
             play_value_total=float(play_value_total),
+            play_value_total_max=float(play_value_total_max),
             usability_total=float(usability_total),
+            usability_total_max=float(usability_total_max),
         )
+
+    def _build_live_score_totals_response(
+        self,
+        *,
+        responses_json: object | None,
+    ) -> AuditScoreTotalsResponse | None:
+        """Calculate live totals with max values from one nested audit payload."""
+
+        responses_payload = self._read_json_dict(responses_json)
+        if not responses_payload:
+            return None
+
+        try:
+            live_scores = score_audit(
+                responses_json=responses_payload,
+                include_maximums=True,
+            )
+        except ValueError:
+            return None
+
+        return self._build_score_totals_response(live_scores.get("overall"))
 
     @staticmethod
     def _combined_construct_total(score_totals: AuditScoreTotalsResponse | None) -> float | None:

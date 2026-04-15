@@ -13,7 +13,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_or_admin_user
 from app.models import AuditorAssignment, AuditorProfile, Place, Project, ProjectPlace
-from app.products.playspace.schemas import AssignmentResponse, AssignmentWriteRequest
+from app.products.playspace.schemas import (
+    AssignmentResponse,
+    AssignmentWriteRequest,
+    BulkAssignmentWriteRequest,
+)
 
 ######################################################################################
 ############################# Assignment Service Mixin ###############################
@@ -92,11 +96,108 @@ class PlayspaceAuditAssignmentsMixin:
             await self._session.rollback()
             self._raise_if_duplicate_assignment_integrity_error(error)
             raise
+
         hydrated_assignment = await self._get_assignment_with_scope(
             assignment_id=assignment.id,
             auditor_profile_id=auditor_profile_id,
         )
         return self._serialize_assignment(hydrated_assignment)
+
+    async def create_bulk_assignments(
+        self,
+        *,
+        actor: CurrentUserContext,
+        payload: BulkAssignmentWriteRequest,
+    ) -> int:
+        """Bulk create project-place assignments for multiple auditors.
+
+        Validates the project, every auditor profile, and every place-project
+        pair up-front before inserting any rows. Existing duplicate assignments
+        are silently skipped.
+        """
+
+        require_manager_or_admin_user(actor)
+        await self._ensure_actor_can_manage_scope(
+            actor=actor,
+            project_id=payload.project_id,
+            place_id=None,
+        )
+
+        project_result = await self._session.execute(
+            select(Project.id).where(Project.id == payload.project_id)
+        )
+        if project_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found.",
+            )
+
+        profile_result = await self._session.execute(
+            select(AuditorProfile.id).where(
+                AuditorProfile.id.in_(payload.auditor_profile_ids)
+            )
+        )
+        found_profile_ids = set(profile_result.scalars().all())
+        missing_profiles = set(payload.auditor_profile_ids) - found_profile_ids
+        if missing_profiles:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more auditor profiles not found.",
+            )
+
+        linked_pair_result = await self._session.execute(
+            select(ProjectPlace.place_id).where(
+                ProjectPlace.project_id == payload.project_id,
+                ProjectPlace.place_id.in_(payload.place_ids),
+            )
+        )
+        found_place_ids = set(linked_pair_result.scalars().all())
+        missing_places = set(payload.place_ids) - found_place_ids
+        if missing_places:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more places are not linked to the selected project.",
+            )
+
+        existing_result = await self._session.execute(
+            select(
+                AuditorAssignment.auditor_profile_id,
+                AuditorAssignment.place_id,
+            ).where(
+                AuditorAssignment.project_id == payload.project_id,
+                AuditorAssignment.auditor_profile_id.in_(payload.auditor_profile_ids),
+                AuditorAssignment.place_id.in_(payload.place_ids),
+            )
+        )
+        existing_pairs: set[tuple[uuid.UUID, uuid.UUID | None]] = {
+            (row[0], row[1]) for row in existing_result.all()
+        }
+
+        created_count = 0
+        for auditor_id in payload.auditor_profile_ids:
+            for place_id in payload.place_ids:
+                if (auditor_id, place_id) in existing_pairs:
+                    continue
+
+                assignment = AuditorAssignment(
+                    auditor_profile_id=auditor_id,
+                    project_id=payload.project_id,
+                    place_id=place_id,
+                )
+                self._session.add(assignment)
+                created_count += 1
+
+        if created_count > 0:
+            try:
+                await self._session.commit()
+            except IntegrityError:
+                await self._session.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="One or more assignments already exist.",
+                )
+
+        return created_count
 
     async def update_assignment(
         self,
@@ -228,7 +329,7 @@ class PlayspaceAuditAssignmentsMixin:
         return assignment
 
     async def _validate_assignment_scope(self, *, payload: AssignmentWriteRequest) -> None:
-        """Ensure the request targets a real project or project-place pair."""
+        """Ensure the request targets a real project–place pair linked in ``project_places``."""
 
         project_result = await self._session.execute(
             select(Project.id).where(Project.id == payload.project_id)
@@ -238,9 +339,6 @@ class PlayspaceAuditAssignmentsMixin:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found.",
             )
-
-        if payload.place_id is None:
-            return
 
         place_result = await self._session.execute(
             select(Place.id).where(Place.id == payload.place_id)
@@ -311,7 +409,7 @@ class PlayspaceAuditAssignmentsMixin:
         *,
         auditor_profile_id: uuid.UUID,
         project_id: uuid.UUID,
-        place_id: uuid.UUID | None,
+        place_id: uuid.UUID,
         exclude_assignment_id: uuid.UUID | None = None,
     ) -> None:
         """Reject duplicate assignment scopes before hitting DB constraints."""
@@ -363,10 +461,7 @@ class PlayspaceAuditAssignmentsMixin:
 
         raw_error_message = str(getattr(error, "orig", error))
         sqlstate = getattr(getattr(error, "orig", None), "sqlstate", None)
-        if sqlstate == "23505" and (
-            "uq_auditor_assignments_auditor_project_scope" in raw_error_message
-            or "uq_auditor_assignments_auditor_project_place" in raw_error_message
-        ):
+        if sqlstate == "23505" and "uq_auditor_assignments_auditor_project_place" in raw_error_message:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="An assignment already exists for this auditor and scope.",
@@ -374,23 +469,6 @@ class PlayspaceAuditAssignmentsMixin:
 
     def _serialize_assignment(self, assignment: AuditorAssignment) -> AssignmentResponse:
         """Convert an ORM assignment row into the API response model."""
-
-        if assignment.place is not None:
-            project_name = (
-                assignment.project.name if assignment.project is not None else "Unknown project"
-            )
-            return AssignmentResponse(
-                id=assignment.id,
-                auditor_profile_id=assignment.auditor_profile_id,
-                project_id=assignment.project_id,
-                place_id=assignment.place_id,
-                scope_type="place",
-                scope_id=assignment.place.id,
-                scope_name=assignment.place.name,
-                project_name=project_name,
-                place_name=assignment.place.name,
-                assigned_at=assignment.assigned_at,
-            )
 
         project_name = (
             assignment.project.name if assignment.project is not None else "Unknown project"
@@ -400,10 +478,10 @@ class PlayspaceAuditAssignmentsMixin:
             auditor_profile_id=assignment.auditor_profile_id,
             project_id=assignment.project_id,
             place_id=assignment.place_id,
-            scope_type="project",
-            scope_id=assignment.project_id if assignment.project_id is not None else assignment.id,
-            scope_name=project_name,
+            scope_type="place",
+            scope_id=assignment.place.id,
+            scope_name=assignment.place.name,
             project_name=project_name,
-            place_name=None,
+            place_name=assignment.place.name,
             assigned_at=assignment.assigned_at,
         )

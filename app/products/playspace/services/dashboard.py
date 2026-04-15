@@ -264,6 +264,9 @@ class PlayspaceDashboardService:
                     "last_active_at"
                 ),
             )
+            .select_from(Audit)
+            .join(Project, Audit.project_id == Project.id)
+            .where(Project.account_id == account_id)
             .group_by(Audit.auditor_profile_id)
             .subquery()
         )

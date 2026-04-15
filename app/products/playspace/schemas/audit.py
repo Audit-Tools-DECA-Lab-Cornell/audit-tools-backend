@@ -26,25 +26,39 @@ QuestionResponsePayload = dict[str, QuestionResponseValue]
 
 
 class AssignmentResponse(ApiModel):
-    """Manager-facing assignment record for project or project-place scope."""
+    """Manager-facing assignment record for one project–place scope."""
 
     id: uuid.UUID
     auditor_profile_id: uuid.UUID
     project_id: uuid.UUID
-    place_id: uuid.UUID | None
-    scope_type: Literal["project", "place"]
+    place_id: uuid.UUID
+    scope_type: Literal["place"]
     scope_id: uuid.UUID
     scope_name: str
     project_name: str
-    place_name: str | None
+    place_name: str
     assigned_at: datetime
 
 
 class AssignmentWriteRequest(RequestModel):
-    """Create or update a project or project-place assignment."""
+    """Create or update an assignment for one place under a project."""
 
     project_id: uuid.UUID
-    place_id: uuid.UUID | None = None
+    place_id: uuid.UUID
+
+
+class BulkAssignmentWriteRequest(RequestModel):
+    """Bulk create project-place assignments for multiple auditors."""
+
+    project_id: uuid.UUID
+    auditor_profile_ids: list[uuid.UUID] = Field(min_length=1)
+    place_ids: list[uuid.UUID] = Field(min_length=1)
+
+
+class BulkAssignmentResponse(ApiModel):
+    """Result of a bulk assignment creation."""
+
+    created_count: int
 
 
 class AuditMetaPatchRequest(RequestModel):
@@ -106,11 +120,17 @@ class AuditScoreTotalsResponse(ApiModel):
     """One raw Playspace score bucket for overall, section, or domain totals."""
 
     quantity_total: float
+    quantity_total_max: float
     diversity_total: float
+    diversity_total_max: float
     challenge_total: float
+    challenge_total_max: float
     sociability_total: float
+    sociability_total_max: float
     play_value_total: float
+    play_value_total_max: float
     usability_total: float
+    usability_total_max: float
 
 
 class AuditScoresResponse(ApiModel):

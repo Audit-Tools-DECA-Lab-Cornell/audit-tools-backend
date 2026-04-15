@@ -5,6 +5,8 @@ Playspace API schema exports.
 from app.products.playspace.schemas.audit import (
     AssignmentResponse,
     AssignmentWriteRequest,
+    BulkAssignmentResponse,
+    BulkAssignmentWriteRequest,
     AuditAggregateResponse,
     AuditAggregateWriteRequest,
     AuditDraftPatchRequest,
@@ -113,6 +115,8 @@ __all__ = [
     "AuditorDashboardSummaryResponse",
     "AuditorPlaceResponse",
     "AssignmentWriteRequest",
+    "BulkAssignmentResponse",
+    "BulkAssignmentWriteRequest",
     "AuditAggregateResponse",
     "AuditAggregateWriteRequest",
     "AuditDraftPatchRequest",
