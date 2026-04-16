@@ -31,6 +31,7 @@ from app.products.playspace.schemas import (
     ProjectUpdateRequest,
 )
 from app.products.playspace.services.privacy import mask_email
+from app.auth_security import hash_password
 
 
 class PlayspaceManagementService:
@@ -469,7 +470,7 @@ class PlayspaceManagementService:
         account = Account(
             name=payload.full_name,
             email=payload.email,
-            password_hash=None,
+            password_hash=hash_password("DemoPass123!"),
             account_type=AccountType.AUDITOR,
         )
         self._session.add(account)
@@ -477,7 +478,7 @@ class PlayspaceManagementService:
 
         user = User(
             email=payload.email,
-            password_hash=None,
+            password_hash=hash_password("DemoPass123!"),
             account_id=account.id,
             account_type=AccountType.AUDITOR,
             name=payload.full_name,

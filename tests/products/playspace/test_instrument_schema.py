@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from app.products.playspace.instrument import get_canonical_instrument_payload
+from app.products.playspace.instrument import (
+    get_canonical_instrument_payload,
+    normalize_legacy_instrument_payload,
+)
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
 
@@ -39,7 +42,7 @@ def test_instrument_schema_accepts_checklist_follow_up_questions() -> None:
             ],
             "display_if": {
                 "question_key": "q_1_1",
-                "response_key": "quantity",
+                "response_key": "provision",
                 "any_of_option_keys": ["a_little_bit", "a_lot"],
             },
         }
@@ -54,3 +57,24 @@ def test_instrument_schema_accepts_checklist_follow_up_questions() -> None:
     assert [option.key for option in checklist_question.options] == ["cups", "other"]
     assert checklist_question.display_if is not None
     assert checklist_question.display_if.question_key == "q_1_1"
+
+
+def test_instrument_loader_normalizes_legacy_quantity_keys() -> None:
+    """Legacy instrument payloads should be normalized to the provision contract."""
+
+    payload = deepcopy(get_canonical_instrument_payload())
+    first_question = payload["sections"][0]["questions"][0]
+    first_question["scales"][0]["key"] = "quantity"
+    first_question["display_if"] = {
+        "question_key": "q_1_1",
+        "response_key": "quantity",
+        "any_of_option_keys": ["some"],
+    }
+    payload["scale_guidance"][0]["key"] = "quantity"
+
+    parsed = PlayspaceInstrumentResponse.model_validate(normalize_legacy_instrument_payload(payload))
+
+    assert parsed.scale_guidance[0].key.value == "provision"
+    assert parsed.sections[0].questions[0].scales[0].key.value == "provision"
+    assert parsed.sections[0].questions[0].display_if is not None
+    assert parsed.sections[0].questions[0].display_if.response_key == "provision"

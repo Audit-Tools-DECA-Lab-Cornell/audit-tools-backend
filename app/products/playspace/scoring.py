@@ -2,7 +2,7 @@
 Playspace audit runtime helpers for execution-mode filtering, progress, and scoring.
 
 The scoring model uses raw totals rather than normalized percentages:
-quantity is summed directly, diversity and challenge contribute both domain
+provision is summed directly, diversity and challenge contribute both domain
 column totals and construct multipliers, and sociability is tracked as a
 separate score stream alongside play value and usability.
 """
@@ -44,8 +44,8 @@ ALL_EXECUTION_MODES = [
 class ScoreTotals:
     """Internal aggregate for one section, domain, or overall audit score bucket."""
 
-    quantity_total: float = 0.0
-    quantity_total_max: float = 0.0
+    provision_total: float = 0.0
+    provision_total_max: float = 0.0
     diversity_total: float = 0.0
     diversity_total_max: float = 0.0
     challenge_total: float = 0.0
@@ -418,26 +418,26 @@ def _is_question_complete(
             for option_key in selected_option_keys
         )
 
-    quantity_scale = next(
-        (scale for scale in question.scales if scale.key == "quantity"),
+    provision_scale = next(
+        (scale for scale in question.scales if scale.key == "provision"),
         None,
     )
-    if quantity_scale is None:
+    if provision_scale is None:
         return False
 
-    raw_quantity_answer = question_answers.get("quantity")
-    if not isinstance(raw_quantity_answer, str):
+    raw_provision_answer = question_answers.get("provision")
+    if not isinstance(raw_provision_answer, str):
         return False
 
-    quantity_option = _find_option_by_key(quantity_scale.options, raw_quantity_answer)
-    if quantity_option is None:
+    provision_option = _find_option_by_key(provision_scale.options, raw_provision_answer)
+    if provision_option is None:
         return False
 
-    if not quantity_option.allows_follow_up_scales:
+    if not provision_option.allows_follow_up_scales:
         return True
 
     for scale in question.scales:
-        if scale.key == "quantity":
+        if scale.key == "provision":
             continue
         raw_answer = question_answers.get(scale.key)
         if not isinstance(raw_answer, str):
@@ -588,17 +588,17 @@ def _score_question(
         return ScoreTotals()
 
     question_answers = _read_json_dict(section_answers.get(question.question_key))
-    quantity_scale = next(scale for scale in question.scales if scale.key == "quantity")
-    quantity_answer_key = question_answers.get("quantity")
-    if not isinstance(quantity_answer_key, str):
+    provision_scale = next(scale for scale in question.scales if scale.key == "provision")
+    provision_answer_key = question_answers.get("provision")
+    if not isinstance(provision_answer_key, str):
         return ScoreTotals()
 
-    quantity_option = _find_option_by_key(quantity_scale.options, quantity_answer_key)
-    if quantity_option is None:
+    provision_option = _find_option_by_key(provision_scale.options, provision_answer_key)
+    if provision_option is None:
         return ScoreTotals()
 
-    quantity_total = float(quantity_option.addition_value)
-    quantity_total_max = _read_quantity_scale_maximum(question=question)
+    provision_total = float(provision_option.addition_value)
+    provision_total_max = _read_provision_scale_maximum(question=question)
     diversity_total = 0.0
     diversity_total_max, diversity_multiplier_max = _read_multiplier_scale_maximum(
         question=question,
@@ -614,7 +614,7 @@ def _score_question(
     diversity_multiplier = 1.0
     challenge_multiplier = 1.0
 
-    if quantity_option.allows_follow_up_scales:
+    if provision_option.allows_follow_up_scales:
         diversity_total, diversity_multiplier = _read_multiplier_scale_score(
             question=question,
             question_answers=question_answers,
@@ -630,16 +630,16 @@ def _score_question(
             question_answers=question_answers,
         )
 
-    construct_score = quantity_total * diversity_multiplier * challenge_multiplier
-    construct_score_max = quantity_total_max * diversity_multiplier_max * challenge_multiplier_max
+    construct_score = provision_total * diversity_multiplier * challenge_multiplier
+    construct_score_max = provision_total_max * diversity_multiplier_max * challenge_multiplier_max
     play_value_total = construct_score if "play_value" in question.constructs else 0.0
     play_value_total_max = construct_score_max if "play_value" in question.constructs else 0.0
     usability_total = construct_score if "usability" in question.constructs else 0.0
     usability_total_max = construct_score_max if "usability" in question.constructs else 0.0
 
     return ScoreTotals(
-        quantity_total=round(quantity_total, 2),
-        quantity_total_max=round(quantity_total_max, 2),
+        provision_total=round(provision_total, 2),
+        provision_total_max=round(provision_total_max, 2),
         diversity_total=round(diversity_total, 2),
         diversity_total_max=round(diversity_total_max, 2),
         challenge_total=round(challenge_total, 2),
@@ -653,16 +653,16 @@ def _score_question(
     )
 
 
-def _read_quantity_scale_maximum(*, question: ScoringQuestion) -> float:
+def _read_provision_scale_maximum(*, question: ScoringQuestion) -> float:
     """Return the highest provision score available for one question."""
 
-    quantity_scale = next(
-        (current_scale for current_scale in question.scales if current_scale.key == "quantity"),
+    provision_scale = next(
+        (current_scale for current_scale in question.scales if current_scale.key == "provision"),
         None,
     )
-    if quantity_scale is None:
+    if provision_scale is None:
         return 0.0
-    return max((float(option.addition_value) for option in quantity_scale.options), default=0.0)
+    return max((float(option.addition_value) for option in provision_scale.options), default=0.0)
 
 
 def _read_multiplier_scale_score(
@@ -760,8 +760,8 @@ def _add_score_totals(left: ScoreTotals, right: ScoreTotals) -> ScoreTotals:
     """Sum two immutable Playspace score-total buckets."""
 
     return ScoreTotals(
-        quantity_total=left.quantity_total + right.quantity_total,
-        quantity_total_max=left.quantity_total_max + right.quantity_total_max,
+        provision_total=left.provision_total + right.provision_total,
+        provision_total_max=left.provision_total_max + right.provision_total_max,
         diversity_total=left.diversity_total + right.diversity_total,
         diversity_total_max=left.diversity_total_max + right.diversity_total_max,
         challenge_total=left.challenge_total + right.challenge_total,
@@ -783,7 +783,7 @@ def _serialize_score_totals(
     """Convert one score-total bucket into a JSON-safe response payload."""
 
     payload = {
-        "quantity_total": round(score_totals.quantity_total, 2),
+        "provision_total": round(score_totals.provision_total, 2),
         "diversity_total": round(score_totals.diversity_total, 2),
         "challenge_total": round(score_totals.challenge_total, 2),
         "sociability_total": round(score_totals.sociability_total, 2),
@@ -795,7 +795,7 @@ def _serialize_score_totals(
 
     return {
         **payload,
-        "quantity_total_max": round(score_totals.quantity_total_max, 2),
+        "provision_total_max": round(score_totals.provision_total_max, 2),
         "diversity_total_max": round(score_totals.diversity_total_max, 2),
         "challenge_total_max": round(score_totals.challenge_total_max, 2),
         "sociability_total_max": round(score_totals.sociability_total_max, 2),

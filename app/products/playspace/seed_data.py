@@ -1790,20 +1790,20 @@ def _build_question_answers(
 ) -> dict[str, str]:
     """Build one valid per-question response object using the scoring metadata itself."""
 
-    quantity_scale = next(scale for scale in question.scales if scale.key == "quantity")
-    quantity_target = _bounded_bias((quality_bias * 0.7) + (usage_bias * 0.3))
-    quantity_option = _pick_option_for_scale(
-        scale=quantity_scale,
-        target_bias=quantity_target,
+    provision_scale = next(scale for scale in question.scales if scale.key == "provision")
+    provision_target = _bounded_bias((quality_bias * 0.7) + (usage_bias * 0.3))
+    provision_option = _pick_option_for_scale(
+        scale=provision_scale,
+        target_bias=provision_target,
         randomizer=randomizer,
         not_applicable_weight=0.0,
     )
-    answers = {"quantity": quantity_option.key}
-    if not quantity_option.allows_follow_up_scales:
+    answers = {"provision": provision_option.key}
+    if not provision_option.allows_follow_up_scales:
         return answers
 
     for scale in question.scales:
-        if scale.key == "quantity":
+        if scale.key == "provision":
             continue
         follow_up_target = _bounded_bias(quality_bias + randomizer.uniform(-0.15, 0.12))
         follow_up_option = _pick_option_for_scale(
@@ -2206,7 +2206,7 @@ def _current_user_counts_for_place(
     usage_bias: float,
     randomizer: Random,
 ) -> SeedJson:
-    """Build age-group quantity values for the onsite setup matrix."""
+    """Build age-group provision values for the onsite setup matrix."""
 
     place_type = place_context.place.place_type
     counts_by_group: SeedJson = {

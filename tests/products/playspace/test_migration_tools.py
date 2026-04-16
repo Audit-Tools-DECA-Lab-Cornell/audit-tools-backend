@@ -54,7 +54,7 @@ def _build_audit(status: AuditStatus) -> Audit:
     )
     question = PlayspaceQuestionResponse(question_key="q_1_1")
     question.scale_answers = [
-        PlayspaceScaleAnswer(scale_key="quantity", option_key="a_lot"),
+        PlayspaceScaleAnswer(scale_key="provision", option_key="a_lot"),
         PlayspaceScaleAnswer(scale_key="diversity", option_key="some_diversity"),
     ]
     section.question_responses = [question]

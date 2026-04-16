@@ -30,7 +30,7 @@ def _build_custom_section() -> ScoringSection:
                 options=[],
                 scales=[
                     ScoringScale(
-                        key="quantity",
+                        key="provision",
                         options=[
                             ScoringScaleOption(
                                 key="no",
@@ -57,7 +57,7 @@ def _build_custom_section() -> ScoringSection:
                 required=False,
                 display_if=ScoringDisplayCondition(
                     question_key="q_parent",
-                    response_key="quantity",
+                    response_key="provision",
                     any_of_option_keys=["some"],
                 ),
                 options=["cups", "buckets"],
@@ -84,7 +84,7 @@ def _build_construct_scoring_section() -> ScoringSection:
                 options=[],
                 scales=[
                     ScoringScale(
-                        key="quantity",
+                        key="provision",
                         options=[
                             ScoringScaleOption(
                                 key="no",
@@ -210,7 +210,7 @@ def test_build_audit_progress_ignores_optional_checklist_follow_up_questions(
                 "section_demo": {
                     "responses": {
                         "q_parent": {
-                            "quantity": "some",
+                            "provision": "some",
                         }
                     }
                 }
@@ -255,7 +255,7 @@ def test_score_audit_ignores_non_scored_checklist_questions(monkeypatch) -> None
                 "section_demo": {
                     "responses": {
                         "q_parent": {
-                            "quantity": "some",
+                            "provision": "some",
                         },
                         "q_child_checklist": {
                             "selected_option_keys": ["cups"],
@@ -267,7 +267,7 @@ def test_score_audit_ignores_non_scored_checklist_questions(monkeypatch) -> None
         include_maximums=True,
     )
 
-    assert scores["overall"]["quantity_total"] == 1.0
+    assert scores["overall"]["provision_total"] == 1.0
     assert scores["overall"]["usability_total"] == 1.0
 
 
@@ -298,7 +298,7 @@ def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(monkeypatch
                 "section_constructs": {
                     "responses": {
                         "q_construct": {
-                            "quantity": "some",
+                            "provision": "some",
                             "diversity": "some_diversity",
                             "challenge": "a_lot_of_challenge",
                             "sociability": "pairs",
@@ -312,8 +312,8 @@ def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(monkeypatch
 
     overall = scores["overall"]
 
-    assert overall["quantity_total"] == 1.0
-    assert overall["quantity_total_max"] == 2.0
+    assert overall["provision_total"] == 1.0
+    assert overall["provision_total_max"] == 2.0
     assert overall["diversity_total"] == 1.0
     assert overall["diversity_total_max"] == 2.0
     assert overall["challenge_total"] == 2.0

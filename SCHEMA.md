@@ -344,7 +344,7 @@ Scoring is computed from normalized audit rows, then serialized into typed paylo
 
 | Bucket              | Type            |
 | ------------------- | --------------- |
-| `quantity_total`    | Column total    |
+| `provision_total`    | Column total    |
 | `diversity_total`   | Column total    |
 | `challenge_total`   | Column total    |
 | `sociability_total` | Construct total |

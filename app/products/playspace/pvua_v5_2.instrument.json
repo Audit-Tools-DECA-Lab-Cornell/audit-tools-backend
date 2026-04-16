@@ -417,7 +417,7 @@
   ],
   "scale_guidance": [
     {
-      "key": "quantity",
+      "key": "provision",
       "title": "Provision",
       "prompt": "To what degree is this feature/environmental characteristic present or considered?",
       "description": "Provision refers to how present or considered the feature or environmental characteristic is.",
@@ -598,7 +598,7 @@
           "prompt": "was developed or designed with the involvement of children and/or youth",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -643,7 +643,7 @@
           "prompt": "was developed or designed with the involvement of other stakeholders (e.g. parents; community organizations; staff)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -689,7 +689,7 @@
           "prompt": "is staffed by adults who are actively facilitating children's play (e.g. providing new opportunities in the environment for new/changing forms of play)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -734,7 +734,7 @@
           "prompt": "involves users of the playground (children and/or adults) in maintenance activities (e.g. landscaping; painting; adults living nearby keep an eye on the playspace)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -780,7 +780,7 @@
           "prompt": "hosts community events",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -825,7 +825,7 @@
           "prompt": "reflects cultural and historical aspects of the community (e.g. local art/stories/heritage is represented; locally sourced materials are used)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -870,7 +870,7 @@
           "prompt": "has unique or novel aspects/opportunities that distinguish it from other playspaces (e.g. highly naturalized playground; spaces or features that can be shaped and manipulated by children; sculptural play features)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -963,7 +963,7 @@
           "prompt": "has walking or biking paths leading to the playspace entrance(s)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1008,7 +1008,7 @@
           "prompt": "has parking for cars and bicycles close to the playspace",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1045,7 +1045,7 @@
           "prompt": "is accessible through public transport (e.g. there is a public transit stop at or near at least one entrance)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1090,7 +1090,7 @@
           "prompt": "is located near to a residential area (within 10 min walk)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1127,7 +1127,7 @@
           "prompt": "is located near to schools and/or childcare facilities (within 10 min walk)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1164,7 +1164,7 @@
           "prompt": "is located near to or co-located with other public opportunities that might be interesting/important to children and families (e.g. park space; community centre; library; amenities; community gathering places; museums; community garden; nature areas; coffee shop)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1209,7 +1209,7 @@
           "prompt": "is embedded in or connected to a larger naturalized space (e.g. forest; woodland; large garden; conservation area)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1254,7 +1254,7 @@
           "prompt": "is located directly adjacent to roads with heavy or fast traffic without fencing and clear/safe crossing options",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1300,7 +1300,7 @@
           "prompt": "**restricts certain age groups** from the playspace (e.g., older children, teens)  [This item need to be reversed scored]",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1337,7 +1337,7 @@
           "prompt": "**restricts certain kinds of play or behaviour** (e.g., being loud, ball play; using wheeled play equipment or sleds)  [This item need to be reversed scored]",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1374,7 +1374,7 @@
           "prompt": "**restricts children\u2019s access by requiring adult supervision** (i.e., caregiver supervision is not mandatory, except perhaps for very young children; children can independently use the playspace)  [This item need to be reversed scored]",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1420,7 +1420,7 @@
           "prompt": "has **online information** related to playspace use and features (e.g., opening hours, accessibility, transit options, parking)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1504,7 +1504,7 @@
           "prompt": "has a **layout that is easy to navigate** (e.g. clear logical primary route from entry to exit; clearly defined play zones)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1588,7 +1588,7 @@
           "prompt": "has **accessible maps and/or signage ****at entrances** to the playspace that provide navigation and usage guidance\u00a0 (e.g. positioned at an accessible height for wheelchair users; uses Braille text, pictographs and/or high colour contrast; info available via QR code ) a",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1664,7 +1664,7 @@
           "prompt": "has **child-friendly, easy to read/understand maps and/or signage ****at entrances** (e.g. positioned at a\u00a0 height suitable for young children; uses simple language, symbols, and/or images)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1740,7 +1740,7 @@
           "prompt": "has **accessible maps and/or signage ****distributed around the playspace** that provide navigation\u00a0 and usage guidance\u00a0 (e.g. positioned at an accessible height for wheelchair users; uses Braille text, pictographs and/or high colour contrast; info available via QR code ) a",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1816,7 +1816,7 @@
           "prompt": "has **child-friendly, easy to read/understand maps and/or signage ****distributed around the playspace** (e.g. positioned at a\u00a0 height suitable for young children; uses simple language, symbols, and/or images)a",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1901,7 +1901,7 @@
           "prompt": "has an **up-to-date safety certificate **for play equipment and/or surfaces",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1938,7 +1938,7 @@
           "prompt": "is **generally in good repair**, with few to no visible hazards such as broken or damaged equipment/surfacing, remnants from removed equipment, rotten or rough wood, peeling paint",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -1983,7 +1983,7 @@
           "prompt": "is **mostly clean** and well-kept (e.g. little/no graffiti, cigarette butts, litter or other dangerous debris such as such as broken glass, syringes, animal feces, overgrown plants)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2028,7 +2028,7 @@
           "prompt": "has** sufficient litter bins** in relation to the size of the playspace and in relevant areas (e.g., at/near entry points; by table/seating areas)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2065,7 +2065,7 @@
           "prompt": "has **pervasive unpleasant smells**, including in enclosed spaces (e.g. from animal feces, smoke, and/or garbage)  [This item need to be reversed scored]",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2110,7 +2110,7 @@
           "prompt": "has **a storage area** for loose parts and/or ride-on equipment",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2147,7 +2147,7 @@
           "prompt": "is **landscaped and maintained in a way that provides novel opportunities for play **(e.g., tunnels are cut into vegetation; low branches and boulders are left to climb on; has no-mow areas; fallen leaves/flowers/small branches are intentionally left for play; vegetation is not overly pruned)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2240,7 +2240,7 @@
           "prompt": "provides **shade or shelter** **to most seating areas** at some point during the day",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2285,7 +2285,7 @@
           "prompt": "provides **shade or shelter from sun/inclement weather in most primary play areas **at some point during the day (e.g. through trees/vegetation; buildings; shade structures or canopies; positioning of equipment).",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2330,7 +2330,7 @@
           "prompt": "is designed and/or maintained to provide protection from inclement weather/sun/wind through **placement of features and/or landscaping** (e.g. wind screen provided by evergreen planting)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2375,7 +2375,7 @@
           "prompt": "has **appropriate lighting for the geographic location and local conditions** to ensure feelings of safety and to extend play times (e.g., lighting suitable for winter months ,evenings or changing weather conditions, and/or lit paths into the playspace)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2420,7 +2420,7 @@
           "prompt": "has **appropriate drainage** that prevents flooding or large amounts of standing/stagnant water",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2474,7 +2474,7 @@
           "prompt": "has fences/boundaries **to separate play areas from significant hazards** such as road traffic or deep water",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2519,7 +2519,7 @@
           "prompt": "has fences/boundaries **that are** **visually permeable**, allowing for easy observation/supervision into adjacent spaces",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2564,7 +2564,7 @@
           "prompt": "any **gates can be easily opened by adults** (including those with limited grip strength or from a wheelchair/mobility device)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2617,7 +2617,7 @@
           "prompt": "any **areas enclosed by full heigh**t boundaries/fencing have more than one entrance/exit",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2672,7 +2672,7 @@
           "prompt": "has primary paths within the playspace that lead directly into each play area / feature that are solid and level surfaced, affording use by all users (including mobility devices)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2748,7 +2748,7 @@
           "prompt": "has paths within the playspace that provide novel/playful ride/run/walk experiences (e.g. straight and winding paths or loops; paths with waves or bumps; paths that go through tunnels or gardens/wooded areas)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2851,7 +2851,7 @@
           ],
           "display_if": {
             "question_key": "q_8_1",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -2871,7 +2871,7 @@
           "prompt": "has secondary paths that provide novel play routes (e.g. lined up stumps; stepping stones through a garden or creek; play route through a willow tunnel or a play structure; a path mown in tall grass; a tunnel under a hill or berm; sensory-surface path)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -2995,7 +2995,7 @@
           "prompt": "has** open, mostly flat spaces** (with little to no incline) that afford diverse play such as ball or sports play, group games or gathering",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3080,7 +3080,7 @@
           "prompt": "a portion of flat, open spaces have** accessible surfaces**, allowing wheeled devices such as wheelchairs or scooters to be used",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3173,7 +3173,7 @@
           "prompt": "has enclosed or bounded spaces that afford **a sense of enclosure** (e.g., house-like, room-like) or **that are fully enclosed** (e.g., playhouses; huts or dens; tree houses; enclosed small spaces formed by or under trees/shrubs, enclosed and bounded sapces which are elevated and on ground level)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3296,7 +3296,7 @@
           "prompt": "has\u00a0 enclosed or bounded spaces that also **afford the opportunity to look out from and observe** without being overly visible from the outside (e.g. playhouse with small windows; boat feature with portholes; grass hut with small door opening)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3419,7 +3419,7 @@
           "prompt": "has **low raised boundaries / edges that define smaller spaces** (e.g., small niches; nooks; corners; sub-divided sand pits)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3551,7 +3551,7 @@
           "prompt": "has **spaces that can support sports or games** (e.g. soccer fields, basketball  or tennis courts; table tennis; pavement games)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3674,7 +3674,7 @@
           "prompt": "has sport/game spaces with **surfaces**** ****that are suitable for intended activities** (e.g. flat, open grass or pavement areas for soccer or basketball)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3758,7 +3758,7 @@
           "prompt": "has sport/game spaces that have **suitable equipment or markings** for the activity (e.g.  goal posts; basketball hoops & nets; surface markings for four square or hopscotch)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -3890,7 +3890,7 @@
           "prompt": "has **un-prescribed or loosely shaped play structures/features that afford children opportunities to unfold their own play ideas** (e.g., just a frame; ambiguous structures; sculptural elements; themed play structures or features)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -4052,7 +4052,7 @@
           "prompt": "has manufactured play features which afford **sliding** opportunities (e.g. open slide, enclosed slide,\u00a0 pipe slide, fire pole, zip wire, roller slide,...)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -4214,7 +4214,7 @@
           "prompt": "has manufactured play features which afford **climbing, dangling, and/or pulling one's self up**\u00a0 (e.g. gymnastic rings; pull up bar; rock wall; climbing frame; ladder)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -4376,7 +4376,7 @@
           "prompt": "has manufactured play features which afford **turning/spinning** (e.g.spinners; merry-go-round; twisty slide; swings that can spin)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -4538,7 +4538,7 @@
           "prompt": "has manufactured play features which afford **balancing\u00a0 **on or across (e.g. balance beam or logs; wobble board; shaky bridges; balancing ropes; narrow platforms)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -4700,7 +4700,7 @@
           "prompt": "has manufactured play features which afford **rocking** (e.g. a teetertotter/see saw; spring rocker)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -4862,7 +4862,7 @@
           "prompt": "has manufactured play features which afford **crawling **in, on or through\u00a0 (e.g. crawling net; tunnel)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5024,7 +5024,7 @@
           "prompt": "has manufactured play features which afford **bouncing or jumping on/of**f (e.g. trampoline; podium; parkour elements)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5186,7 +5186,7 @@
           "prompt": "has manufactured play features which afford\u00a0** manipulation by pushing, sliding, turning, opening and/or closing things** (e.g steering wheel; operable windows or doors; play panel; pump; pulley; musical/sound equipment)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5348,7 +5348,7 @@
           "prompt": "has manufactured play features **oriented and/or connected in ways that afford play routes** across one or more features (e.g. an embedded obstacle course; features placed close enough together to facilitate play across multiple features)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5508,7 +5508,7 @@
           "prompt": "has **multiple ways on/off any large play structures** (e.g., ramps; steps; climbing net/wall; embankment access)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5679,7 +5679,7 @@
           "prompt": "has **large-scale vegetation** appropriate and accessible for play (e.g. trees; large shrubs / hedges, not to much cut of branches on trees)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5800,7 +5800,7 @@
           "prompt": "has** small-scale vegetation** appropriate and accessible for play (e.g. smaller shrubs / hedges; long grasses; flower beds with pathways; no-mow area)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -5923,7 +5923,7 @@
           "prompt": "has **denser or taller vegetation** that afford playful hiding in/under, or finding a \"secret place\" or  the sense of exploring or getting \"lost\" (e.g. long grass maze; low hanging canopies; dense hedges; leafy climbing tree)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -6085,7 +6085,7 @@
           "prompt": "has **fixed natural features **that afford climbing, sitting on,  jumping from etc (e.g. medium to large boulders, fallen trees/logs)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -6256,7 +6256,7 @@
           "prompt": "has **small manufactured loose parts** available that are **light and easy to move/handle**, including those that can be used to manipulate malleable materials and other loose parts (e.g. cups; buckets; shovels; small tools; funnels; balls; light ropes; fabrics; balls; frisbees' hula hoops; rackets; toy cars/boats; puppets)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -6340,7 +6340,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_14_1",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -6433,7 +6433,7 @@
           "prompt": "has **medium-sized manufactured loose parts** that are a **bit heavier but still relatively easy to move/handle** (e.g. boxes; crates; construction cones; pots and pans; plastic tubes/PVC pipes; larger building blocks; tools; larger shovels/rakes; heavy ropes)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -6517,7 +6517,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_14_2",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -6590,7 +6590,7 @@
           "prompt": "has **large manufactured loose parts** that are **heavier and may require help to move/handle** (e.g., tires; tree stumps; large blocks or planks; tables or chairs; movable climbers)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -6713,7 +6713,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_14_3",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -6766,7 +6766,7 @@
           "prompt": "has **(wheeled) ride-on equipment** available that children can use to move around the space / paths (e.g. scooters, bicycles or tricycles, buggies, skateboards, sled/toboggan)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -6920,7 +6920,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_14_4",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -6987,7 +6987,7 @@
           "prompt": "has natural malleable materials available (e.g. sand; gravel/pebbles; mulch; earth; mud; water; snow; might be ground surfaces)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7071,7 +7071,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_15_1",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -7134,7 +7134,7 @@
           "prompt": "in spaces where malleable materials are availiable there are **natural or manufactured loose parts present** (e.g. buckets/shovels or sticks in sand areas; pots, bowls and spoons in mud area/kitchen)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7218,7 +7218,7 @@
           "prompt": "has **small natural loose parts availiable** (or provided in some season) that are light and easy to move/handle (e.g. leaves; bark/mulch pinecones; seeds; sticks or small branches; fruits; shells; flowers, snowballs)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7302,7 +7302,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_15_3",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -7380,7 +7380,7 @@
           "prompt": "has  **medium-sized natural loose parts that are a bit heavier** but still relatively easy to move/handle  (e.g. tree cookies; palm-sized rocks; small stumps; larger banches; ice chunks)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7464,7 +7464,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_15_4",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -7517,7 +7517,7 @@
           "prompt": "has **larger natural loose parts  that are heavier** and may require help to move/handle (e.g.  wood logs; large branches; heavier rocks; large tree stumps)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7640,7 +7640,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_15_5",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -7698,7 +7698,7 @@
           "prompt": "has opportunities to sit through formal seating (e.g. chairs; benches; stools; picnic tables)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7782,7 +7782,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_16_1",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -7836,7 +7836,7 @@
           "prompt": "has opportunities to sit through informal seating (e.g. platforms/ledges; tree stumps; tree logs; boulders; low raised walls; places to sit or lie down integrated in larger play structures such as hammocks, comfortable nets or tower platforms)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -7920,7 +7920,7 @@
           "required": false,
           "display_if": {
             "question_key": "q_16_2",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -7979,7 +7979,7 @@
           "prompt": "has seating available within or on the edges of primary play areas for easy observation (by caregivers or other children)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8025,7 +8025,7 @@
           "prompt": "seating is well dispersed throughout the playspace (e.g. in small spaces; in natural areas; within play structures or features)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8071,7 +8071,7 @@
           "prompt": "there is seating that provides opportunities to sit and gather in small and larger groups (e.g. 2-3 person bench; amphitheater; pavilion; picnic tables)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8117,7 +8117,7 @@
           "prompt": "there is seating designed to increase social interactions (e.g. circular arrangement; arranged facing each other in close proximity; picnic table; amphitheater)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8162,7 +8162,7 @@
           "prompt": "has accessible tables and/or seating (e.g. seats with backrests and armrests; space under tables for wheelchairs; affords transfer from mobility device to seating; solid surfacing adjacent to other seating for mobility devices/stroller)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8216,7 +8216,7 @@
           "prompt": "has **clean, regularly-maintained restrooms** that are free and open to the public during playspace hours",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8269,7 +8269,7 @@
           "prompt": "has a least** one restroom** (in each gender block, if separated) that is **accessible** and suitable for all users (e.g. for those using mobility devices; big enough to fit two people; has changing table for babies and/or adults with transfer system)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8322,7 +8322,7 @@
           "prompt": "has** drinking water fountains** or filling stations that are intuitive to operate, provided at accessible height or/at variety of heights, on an accessible surface",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8384,7 +8384,7 @@
           "prompt": "has** topography** that provides **differences in slope, incline, and/or height** (e.g. hills; berms; dips; valleys; ridges)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8507,7 +8507,7 @@
           "prompt": "has** ground surfaces** that afford **different types of play opportuntites** (e.g. grass, asphalt/concrete, rubber, pea gravel, mulch)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8591,7 +8591,7 @@
           "prompt": "has **inclines or slopes with softer surfaces** (e.g. grass, sand, turf) that afford comfortably sliding/rolling your body down",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8714,7 +8714,7 @@
           "prompt": "has** inclines or slopes with harder / compact surfaces** (e.g. rubber, asphalt) that afford riding down on wheeled equipment (e.g. bicycle, scooter, skateboard) or sliding down on (e.g. using sled, saucer, tube)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8837,7 +8837,7 @@
           "prompt": "has **topography that provides uneven surfaces / terrain** to climb or balance across (e.g. large boulders; stone creek; stump or stone staircase; moguls, wood ledges as boundaries, raised boardes indicating playspace zones)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -8960,7 +8960,7 @@
           "prompt": "has features that provide** depressions** that could potentially collect water / snow / leaves for play (e.g. rain channels, creeks, dips, or concave depressions)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9092,7 +9092,7 @@
           "prompt": "has features that provide** evolving play opportunities due to** **weather-responsive elements **(e.g., chimes or drums activated by wind or rain; dips that create temporary puddles after rainfall; dry creek beds that change during/after precipitation; hills and slopes suitable for sliding/sledding after snowfall)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9254,7 +9254,7 @@
           "prompt": "has features that provide** evolving play opportunities due to local seasonal changes** (e.g., leafy trees that change colors; trees that lose their leaves/seeds (e.g. acorns); fruit-bearing trees such as chestnuts/apples; flowering plants; ponds that freeze in winter; gardens with seasonal fruits and herbs)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9416,7 +9416,7 @@
           "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**&mdash;creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9539,7 +9539,7 @@
           "prompt": "has** interactive and/or sensor-based features** that children can activate to change or shape the play environment (e.g., material-mixing elements like water pumps; motion or timer activated sound/light/water features)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9662,7 +9662,7 @@
           "prompt": "has features that allow children to **experience different heights**, including great heights (e.g. 'large' hill; tower or lookout; tall slide; climbing wall; climbable trees)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9824,7 +9824,7 @@
           "prompt": "has internal or external** boundaries/edges** around play areas **with embedded play opportuntites** (e.g. playable hedge; stumps/rocks wrapping around a play area affording jumping/running along; interactive features or peek-a-boo openings in fences/space dividers)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -9986,7 +9986,7 @@
           "prompt": "has features that **attract appropriate wildlife** (e.g. flowering plants that attract insects; bird feeders, butterfly houses, or bug hotels; depressions in rocks that can become temporary bird baths; liftable stones to find bugs and worms)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10070,7 +10070,7 @@
           "prompt": "has features that **trigger or invite exploration** (e.g. spaces/openings to look into or behind; tunnels or paths with hidden endings; peek-a-boo elements; sound/music that encourages discovery)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10241,7 +10241,7 @@
           "prompt": "has integrated **color in ways that creates visual interest** (e.g. colored play features or accents; art; flowering plants)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10325,7 +10325,7 @@
           "prompt": "provides **other forms of visual interest through varied patterns, textures, light, or movement **(e.g. ground markings; mirrors/reflective surfaces; sculptures/artistic elements; diverse vegetation)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10409,7 +10409,7 @@
           "prompt": "has vegetation that provides** pleasant smells** (e.g. flowers; herbs; fruiting plants or trees; lavender bushes; eucalyptus trees)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10493,7 +10493,7 @@
           "prompt": "provides opportunities to **experience or create sounds** (e.g. musical instruments; motion/weight-activated sound devices; wind chimes; talking tubes; flowing water; wildlife sounds; rustling grasses)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10616,7 +10616,7 @@
           "prompt": "provides** tactile experiences through different textures, materials and/or vibration **(e.g. sand or mud play; soft-textured vegetation; musical elements that vibrate)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10701,7 +10701,7 @@
           "prompt": "has** places for retreat or withdrawa**l from sensory stimulation (e.g., small or enclosed spaces; nature-rich areas; isolated quiet spaces; quiet/passive zones separated from loud/active zones)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10824,7 +10824,7 @@
           "prompt": "has **consistent noise pollution** (e.g. from heavy traffic, trains, or loud music; pervasive winds; unpredictable noises) [this item need to be riversed coded]",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10917,7 +10917,7 @@
           "prompt": "has designated **accessible parking** (for motor vehicles and/or bicycles)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -10962,7 +10962,7 @@
           "prompt": "has** digital or analog communication boards*** available that help children to communicate their needs and wishes (the communication board should reflect the play opportunities and amenities available in the play space)* Not to JL/TM: might need rewording, does everyone understand communication board",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11007,7 +11007,7 @@
           "prompt": "has manufactured play features with accessible access (e.g. features designed to accommodate users with mobility aids)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11052,7 +11052,7 @@
           "prompt": "has accessible edges or points of access (flush or ramped) from the primary path to accessible play surfaces or directly onto play features",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11085,7 +11085,7 @@
           ],
           "display_if": {
             "question_key": "q_21_3",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -11105,7 +11105,7 @@
           "prompt": "has accessible manufactured play features that are isolated from other play areas, such as behind fencing or visual barriers (e.g. fenced-in wheelchair swings)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11138,7 +11138,7 @@
           ],
           "display_if": {
             "question_key": "q_21_3",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -11158,7 +11158,7 @@
           "prompt": "play features support transitions in and out (e.g. entry/exit ramps; ample space and/or platforms to transfer from a mobility device; slides with extended run-outs at the base for easy transfer)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11203,7 +11203,7 @@
           "prompt": "play features have handrails and grips to assist with transitions and stability that are easy to use for children with different abilities (e.g. located at various heights; in sizes and shapes suitable for different-sized hands)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11248,7 +11248,7 @@
           "prompt": "play features allow for use from diverse body positions, providing appropriate support for children with different needs (e.g. options for sitting, standing, or lying down; seats or swings with full-body support, wide bases, and/or secure straps; footrests so feet do not have to dangle)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11293,7 +11293,7 @@
           "prompt": "highest points and/or the \"coolest\" / most unique play features are accessible via ramps or use of topography",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11326,7 +11326,7 @@
           ],
           "display_if": {
             "question_key": "q_21_3",
-            "response_key": "quantity",
+            "response_key": "provision",
             "any_of_option_keys": [
               "some",
               "a_lot"
@@ -11346,7 +11346,7 @@
           "prompt": "has clear tactile and/or visual indicators (e.g. color contrasts; material changes; textured or dimpled surfaces; low raised boundaries) to define edges of paths, signal significant changes in height, or indicate transitions into new spaces",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11400,7 +11400,7 @@
           "prompt": "serves the needs of **children aged 0-5 years**",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11562,7 +11562,7 @@
           "prompt": "serves the needs of **children aged 6-12 years**",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11724,7 +11724,7 @@
           "prompt": "serves the needs of **children aged  13 years or above **",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -11886,7 +11886,7 @@
           "prompt": "serves the needs of **children with physical disabilities** (e.g. children use mobility aids  such as walkers and wheelchairs, children with limited muscle strength,...)",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -12048,7 +12048,7 @@
           "prompt": "serves the needs of **children with visual impairments, including blindness and low vision**.",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -12210,7 +12210,7 @@
           "prompt": "serves the needs of **children who are deaf or hard of hearing** (e.g. children who use hearing devices or implants, children with hearing loss).",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [
@@ -12372,7 +12372,7 @@
           "prompt": "serves the needs of **children with intellectual and developmental disabilities** (e.g. learning or cognitive support needs).",
           "scales": [
             {
-              "key": "quantity",
+              "key": "provision",
               "title": "Provision",
               "prompt": "To what degree is this feature/environmental characteristic present or considered?",
               "options": [

@@ -236,6 +236,83 @@ class PlayspaceDashboardService:
             )
         return project, place
 
+
+    async def list_auditors(
+        self,
+        actor: CurrentUserContext,
+        account_id: uuid.UUID) -> list[AuditorSummaryResponse]:
+        """Return all auditors in the system that the manager has not assigned to any projects."""
+
+        self._ensure_manager_scope(actor, account_id)
+        result = await self._session.execute(
+            select(AuditorProfile)
+        )
+        auditor_profiles = result.scalars().all()
+        auditor_profile_ids = [profile.id for profile in auditor_profiles]
+        assignment_counts_subquery = (
+            select(
+                AuditorProfile.id.label("id"),
+                AuditorProfile.account_id.label("account_id"),
+                AuditorProfile.auditor_code.label("auditor_code"),
+                AuditorProfile.full_name.label("full_name"),
+                AuditorProfile.email.label("email"),
+                AuditorProfile.age_range.label("age_range"),
+                AuditorProfile.gender.label("gender"),
+                AuditorProfile.country.label("country"),
+                AuditorProfile.role.label("role"),
+                func.count(AuditorAssignment.id).label("assignments_count"),
+                func.max(func.coalesce(Audit.submitted_at, Audit.started_at)).label("last_active_at"),
+                func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("completed_audits")
+            )
+            .select_from(AuditorProfile)
+            .outerjoin(AuditorAssignment, AuditorAssignment.auditor_profile_id.in_(auditor_profile_ids))
+            .outerjoin(Audit, AuditorAssignment.id == Audit.id)
+            .group_by(AuditorProfile.id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                AuditorProfile.id.label("id"),
+                AuditorProfile.account_id.label("account_id"),
+                AuditorProfile.auditor_code.label("auditor_code"),
+                AuditorProfile.full_name.label("full_name"),
+                AuditorProfile.email.label("email"),
+                AuditorProfile.age_range.label("age_range"),
+                AuditorProfile.gender.label("gender"),
+                AuditorProfile.country.label("country"),
+                AuditorProfile.role.label("role"),
+                assignment_counts_subquery.c.assignments_count.label("assignments_count"),
+                assignment_counts_subquery.c.last_active_at.label("last_active_at"),
+                assignment_counts_subquery.c.completed_audits.label("completed_audits"),
+            )
+            .join(
+                assignment_counts_subquery,
+                assignment_counts_subquery.c.id == AuditorProfile.id,
+            )
+            .order_by(func.lower(AuditorProfile.auditor_code).asc())
+        )
+
+        result = await self._session.execute(stmt)
+        rows = result.all()
+
+        return [
+            AuditorSummaryResponse(
+                id=row.id,
+                account_id=row.account_id,
+                auditor_code=row.auditor_code,
+                full_name=row.full_name,
+                email=row.email,
+                age_range=row.age_range,
+                gender=row.gender,
+                country=row.country,
+                role=row.role,
+                assignments_count=int(row.assignments_count or 0),
+                completed_audits=int(row.completed_audits or 0),
+                last_active_at=row.last_active_at,
+            )
+            for row in rows
+        ]
+
     async def _get_account_auditor_summaries_db(
         self,
         account_id: uuid.UUID,

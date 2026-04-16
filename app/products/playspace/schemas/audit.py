@@ -119,8 +119,8 @@ class AuditSectionStateResponse(ApiModel):
 class AuditScoreTotalsResponse(ApiModel):
     """One raw Playspace score bucket for overall, section, or domain totals."""
 
-    quantity_total: float
-    quantity_total_max: float
+    provision_total: float
+    provision_total_max: float
     diversity_total: float
     diversity_total_max: float
     challenge_total: float

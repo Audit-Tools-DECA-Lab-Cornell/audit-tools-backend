@@ -29,7 +29,7 @@ class ConstructKey(str, Enum):
 class ScaleKey(str, Enum):
     """Supported scoring columns in the PVUA workbook."""
 
-    QUANTITY = "quantity"
+    PROVISION = "provision"
     DIVERSITY = "diversity"
     SOCIABILITY = "sociability"
     CHALLENGE = "challenge"
@@ -99,7 +99,7 @@ class InstrumentQuestionDisplayConditionResponse(ApiModel):
     """Simple parent-answer condition controlling question visibility."""
 
     question_key: str
-    response_key: str = "quantity"
+    response_key: str = "provision"
     any_of_option_keys: list[str] = Field(default_factory=list)
 
 

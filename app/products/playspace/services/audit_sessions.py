@@ -43,6 +43,7 @@ from app.products.playspace.instrument import (
     INSTRUMENT_KEY,
     INSTRUMENT_VERSION,
     get_canonical_instrument_response,
+    normalize_legacy_instrument_payload,
 )
 from app.products.playspace.schemas import (
     AuditAggregateResponse,
@@ -1113,7 +1114,7 @@ class PlayspaceAuditSessionsMixin:
 
         db_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
         if db_instrument is not None:
-            en_content = db_instrument.content.get("en")
+            en_content = normalize_legacy_instrument_payload(db_instrument.content.get("en"))
             if isinstance(en_content, dict):
                 instrument = PlayspaceInstrumentResponse.model_validate(en_content)
             else:
@@ -1392,8 +1393,12 @@ class PlayspaceAuditSessionsMixin:
         """Parse one cached score payload into the typed Playspace total shape."""
 
         score_payload = self._read_json_dict(raw_score_payload)
-        quantity_total = score_payload.get("quantity_total")
-        quantity_total_max = score_payload.get("quantity_total_max")
+        provision_total = score_payload.get("provision_total")
+        if provision_total is None:
+            provision_total = score_payload.get("quantity_total")
+        provision_total_max = score_payload.get("provision_total_max")
+        if provision_total_max is None:
+            provision_total_max = score_payload.get("quantity_total_max")
         diversity_total = score_payload.get("diversity_total")
         diversity_total_max = score_payload.get("diversity_total_max")
         challenge_total = score_payload.get("challenge_total")
@@ -1405,8 +1410,8 @@ class PlayspaceAuditSessionsMixin:
         usability_total = score_payload.get("usability_total")
         usability_total_max = score_payload.get("usability_total_max")
         numeric_values = [
-            quantity_total,
-            quantity_total_max,
+            provision_total,
+            provision_total_max,
             diversity_total,
             diversity_total_max,
             challenge_total,
@@ -1421,8 +1426,8 @@ class PlayspaceAuditSessionsMixin:
         if not all(isinstance(value, int | float) for value in numeric_values):
             return None
         return AuditScoreTotalsResponse(
-            quantity_total=float(quantity_total),
-            quantity_total_max=float(quantity_total_max),
+            provision_total=float(provision_total),
+            provision_total_max=float(provision_total_max),
             diversity_total=float(diversity_total),
             diversity_total_max=float(diversity_total_max),
             challenge_total=float(challenge_total),

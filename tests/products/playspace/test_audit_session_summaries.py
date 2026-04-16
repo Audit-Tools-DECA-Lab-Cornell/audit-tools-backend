@@ -29,7 +29,7 @@ def test_resolve_compact_audit_summary_prefers_cached_overall_totals() -> None:
     score_totals, summary_score = service._resolve_compact_audit_summary(
         raw_scores={
             "overall": {
-                "quantity_total": 1.0,
+                "provision_total": 1.0,
                 "diversity_total": 2.0,
                 "challenge_total": 3.0,
                 "sociability_total": 4.0,
@@ -54,7 +54,7 @@ def test_resolve_compact_audit_summary_falls_back_to_stored_summary_score() -> N
     score_totals, summary_score = service._resolve_compact_audit_summary(
         raw_scores={
             "overall": {
-                "quantity_total": 1.0,
+                "provision_total": 1.0,
                 "diversity_total": 2.0,
                 "challenge_total": 3.0,
                 "sociability_total": 4.0,

@@ -25,6 +25,7 @@ from app.models import (
 from app.products.playspace.audit_state import (
     _replace_sections_from_cache,
     apply_draft_patch_to_relations,
+    build_responses_json_from_relations,
     get_aggregate_revision,
     get_execution_mode_value,
     replace_audit_aggregate,
@@ -304,7 +305,7 @@ def test_apply_draft_patch_merges_section_answers_into_canonical_aggregate() -> 
                 "note": "Before",
                 "responses": {
                     "question_a": {
-                        "quantity": "some",
+                        "provision": "some",
                     }
                 },
             }
@@ -316,7 +317,7 @@ def test_apply_draft_patch_merges_section_answers_into_canonical_aggregate() -> 
             "section_a": SectionDraftPatchRequest(
                 responses={
                     "question_a": {
-                        "quantity": "a_lot",
+                        "provision": "a_lot",
                         "diversity": "some_diversity",
                     }
                 },
@@ -332,7 +333,7 @@ def test_apply_draft_patch_merges_section_answers_into_canonical_aggregate() -> 
             "note": "Updated note",
             "responses": {
                 "question_a": {
-                    "quantity": "a_lot",
+                    "provision": "a_lot",
                     "diversity": "some_diversity",
                 }
             },
@@ -355,7 +356,7 @@ def test_apply_draft_patch_preserves_omitted_fields_and_allows_clearing_note() -
                 "note": "Keep me?",
                 "responses": {
                     "question_a": {
-                        "quantity": "some",
+                        "provision": "some",
                     }
                 },
             }
@@ -393,7 +394,7 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
         "sections": {
             "section_a": {
                 "note": "Before",
-                "responses": {"question_a": {"quantity": "some"}},
+                "responses": {"question_a": {"provision": "some"}},
             }
         },
     }
@@ -407,7 +408,7 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
             sections={
                 "section_b": SectionDraftPatchRequest(
                     note="After",
-                    responses={"question_b": {"quantity": "a_lot"}},
+                    responses={"question_b": {"provision": "a_lot"}},
                 )
             },
         ),
@@ -431,10 +432,32 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
         "sections": {
             "section_b": {
                 "note": "After",
-                "responses": {"question_b": {"quantity": "a_lot"}},
+                "responses": {"question_b": {"provision": "a_lot"}},
             }
         },
     }
+
+
+def test_build_responses_json_normalizes_legacy_quantity_keys() -> None:
+    """Legacy cached aggregates should normalize quantity keys before scoring."""
+
+    audit = _build_audit()
+    audit.responses_json = {
+        "schema_version": 1,
+        "revision": 4,
+        "meta": {"execution_mode": "audit"},
+        "pre_audit": {"season": "spring"},
+        "sections": {
+            "section_a": {
+                "note": "Before",
+                "responses": {"question_a": {"quantity": "some"}},
+            }
+        },
+    }
+
+    normalized = build_responses_json_from_relations(audit)
+
+    assert normalized["sections"]["section_a"]["responses"]["question_a"] == {"provision": "some"}
 
 
 def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
@@ -443,8 +466,8 @@ def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
     audit = _build_audit()
     section = PlayspaceAuditSection(section_key="section_a", note="Before")
     question = PlayspaceQuestionResponse(question_key="question_a")
-    quantity = PlayspaceScaleAnswer(scale_key="quantity", option_key="some")
-    question.scale_answers = [quantity]
+    provision = PlayspaceScaleAnswer(scale_key="provision", option_key="some")
+    question.scale_answers = [provision]
     section.question_responses = [question]
     audit.playspace_sections = [section]
     audit.responses_json = {
@@ -455,7 +478,7 @@ def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
                 "note": "After",
                 "responses": {
                     "question_a": {
-                        "quantity": "some",
+                        "provision": "some",
                         "diversity": "no_diversity",
                     }
                 },
@@ -472,8 +495,8 @@ def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
     assert updated_section is section
     assert updated_section.note == "After"
     assert updated_question is question
-    assert answers_by_scale["quantity"] is quantity
-    assert sorted(answers_by_scale) == ["diversity", "quantity"]
+    assert answers_by_scale["provision"] is provision
+    assert sorted(answers_by_scale) == ["diversity", "provision"]
 
 
 def test_apply_draft_patch_merges_checklist_question_payload_into_canonical_aggregate() -> None:
