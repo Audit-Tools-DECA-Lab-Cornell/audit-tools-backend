@@ -19,10 +19,6 @@ env:
   AUTH_EMAIL_VERIFY_TTL_HOURS: ${{ secrets.AUTH_EMAIL_VERIFY_TTL_HOURS }}
   RATELIMIT_ENABLED: true
 
-defaults:
-  run:
-    shell: zsh
-
 jobs:
   ruff-lint:
     name: "🔍 Ruff Lint"
