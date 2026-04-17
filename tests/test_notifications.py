@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.auth_security import hash_password
+from app.auth_security import generate_access_token, hash_password
 from app.limiter import limiter
 from app.models import AccountType, Notification, NotificationType, User
 from app.notification_service import NotificationService
@@ -365,16 +365,9 @@ class TestNotificationAPI:
                     place_name="API Place",
                 )
                 await session.commit()
-                return user.email
+                return generate_access_token(str(user.id))[0]
 
-        email = asyncio.run(_seed())
-
-        login = playspace_client.post(
-            "/playspace/auth/login",
-            json={"email": email, "password": "TestPass123!"},
-        )
-        assert login.status_code == 200
-        token = str(login.json()["access_token"])
+        token = asyncio.run(_seed())
         response = playspace_client.get(
             "/playspace/api/notifications",
             headers=_bearer_headers(token),
@@ -402,15 +395,9 @@ class TestNotificationAPI:
                     place_name="Count Place",
                 )
                 await session.commit()
-                return user.email
+                return generate_access_token(str(user.id))[0]
 
-        email = asyncio.run(_seed())
-        login = playspace_client.post(
-            "/playspace/auth/login",
-            json={"email": email, "password": "TestPass123!"},
-        )
-        assert login.status_code == 200
-        token = str(login.json()["access_token"])
+        token = asyncio.run(_seed())
 
         response = playspace_client.get(
             "/playspace/api/notifications/unread/count",
@@ -440,16 +427,9 @@ class TestNotificationAPI:
                 )
                 await session.commit()
                 await session.refresh(notification)
-                return user.email, notification.id
+                return generate_access_token(str(user.id))[0], notification.id
 
-        email, notification_id = asyncio.run(_seed())
-
-        login = playspace_client.post(
-            "/playspace/auth/login",
-            json={"email": email, "password": "TestPass123!"},
-        )
-        assert login.status_code == 200
-        token = str(login.json()["access_token"])
+        token, notification_id = asyncio.run(_seed())
 
         response = playspace_client.post(
             f"/playspace/api/notifications/{notification_id}/read",
@@ -511,16 +491,9 @@ class TestNotificationAPI:
                         place_name="Bulk Place",
                     )
                 await session.commit()
-                return user.email
+                return generate_access_token(str(user.id))[0]
 
-        email = asyncio.run(_seed())
-
-        login = playspace_client.post(
-            "/playspace/auth/login",
-            json={"email": email, "password": "TestPass123!"},
-        )
-        assert login.status_code == 200
-        token = str(login.json()["access_token"])
+        token = asyncio.run(_seed())
 
         response = playspace_client.post(
             "/playspace/api/notifications/read-all",

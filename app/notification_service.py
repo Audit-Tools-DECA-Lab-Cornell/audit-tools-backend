@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Notification, NotificationType
@@ -165,12 +166,14 @@ class NotificationService:
             )
             result = await db.execute(stmt)
             await db.commit()
-            count = result.rowcount if result.rowcount is not None else 0
+            rowcount = 0
+            if isinstance(result, CursorResult):
+                rowcount = result.rowcount if result.rowcount is not None else 0
             logger.info(
                 "Marked all notifications as read",
-                extra={"user_id": str(user_id), "count": count},
+                extra={"user_id": str(user_id), "count": rowcount},
             )
-            return int(count)
+            return int(rowcount)
         except Exception as exc:
             await db.rollback()
             logger.error(
@@ -215,12 +218,14 @@ class NotificationService:
             stmt = delete(Notification).where(Notification.created_at < cutoff)
             result = await db.execute(stmt)
             await db.commit()
-            count = result.rowcount if result.rowcount is not None else 0
+            rowcount = 0
+            if isinstance(result, CursorResult):
+                rowcount = result.rowcount if result.rowcount is not None else 0
             logger.info(
                 "Deleted old notifications",
-                extra={"days": days, "count": count},
+                extra={"days": days, "count": rowcount},
             )
-            return int(count)
+            return int(rowcount)
         except Exception as exc:
             await db.rollback()
             logger.error(

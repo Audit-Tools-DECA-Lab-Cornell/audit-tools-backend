@@ -198,7 +198,7 @@ class PlayspaceManagementService:
             .where(ProjectPlace.place_id == place_id)
             .order_by(Project.name.asc(), Project.id.asc())
         )
-        return project_result.scalars().all()
+        return list(project_result.scalars().all())
 
     async def _validate_project_ids(self, project_ids: list[uuid.UUID]) -> list[Project]:
         """Load requested projects, requiring at least one and a shared owning account."""

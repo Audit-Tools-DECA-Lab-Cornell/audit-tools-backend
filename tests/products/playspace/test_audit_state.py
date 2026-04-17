@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime, timezone
+from typing import cast
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
 from app.models import (
@@ -15,6 +17,7 @@ from app.models import (
     AuditorAssignment,
     AuditorProfile,
     AuditStatus,
+    JSONDict,
     Place,
     PlayspaceAuditSection,
     PlayspacePreAuditAnswer,
@@ -184,7 +187,7 @@ class _DummyAuditService(PlayspaceAuditService):
         place: Place | None = None,
         auditor_profile: AuditorProfile | None = None,
     ) -> None:
-        self._session = _DummySession()
+        self._session = cast(AsyncSession, _DummySession())
         self._audit = audit
         if audit is not None:
             self._project = audit.project
@@ -388,7 +391,12 @@ def test_apply_draft_patch_preserves_omitted_fields_and_allows_clearing_note() -
         "season": "summer",
         "weather_conditions": ["windy"],
     }
-    assert audit.responses_json["sections"]["section_a"]["note"] is None
+    responses_json = cast(JSONDict, audit.responses_json)
+    sections = responses_json.get("sections")
+    assert isinstance(sections, dict)
+    section_a = sections.get("section_a")
+    assert isinstance(section_a, dict)
+    assert section_a["note"] is None
 
 
 def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> None:
@@ -412,8 +420,8 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
         audit=audit,
         aggregate=AuditAggregateWriteRequest(
             schema_version=1,
-            meta={"execution_mode": "survey"},
-            pre_audit={"season": "winter", "weather_conditions": ["windy"]},
+            meta=AuditMetaPatchRequest(execution_mode=ExecutionMode.SURVEY),
+            pre_audit=PreAuditPatchRequest(season="winter", weather_conditions=["windy"]),
             sections={
                 "section_b": SectionDraftPatchRequest(
                     note="After",
@@ -466,7 +474,15 @@ def test_build_responses_json_normalizes_legacy_quantity_keys() -> None:
 
     normalized = build_responses_json_from_relations(audit)
 
-    assert normalized["sections"]["section_a"]["responses"]["question_a"] == {"provision": "some"}
+    sections = normalized.get("sections")
+    assert isinstance(sections, dict)
+    section_a = sections.get("section_a")
+    assert isinstance(section_a, dict)
+    responses = section_a.get("responses")
+    assert isinstance(responses, dict)
+    question_a = responses.get("question_a")
+    assert isinstance(question_a, dict)
+    assert question_a == {"provision": "some"}
 
 
 def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:

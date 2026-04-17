@@ -82,6 +82,7 @@ PlayspaceEntity = (
     | ProjectPlace
     | AuditorAssignment
     | Audit
+    | Instrument
 )
 SeedJson = dict[str, object]
 ProjectStatusLabel = Literal["completed", "active", "planned"]
@@ -1306,9 +1307,9 @@ def _hydrate_estimated_counts(
         )
         project_context.project.place_types = sorted(
             {
-                place_context_by_id[place_id].place.place_type
+                place_type
                 for place_id in project_place_ids
-                if place_context_by_id[place_id].place.place_type is not None
+                if (place_type := place_context_by_id[place_id].place.place_type) is not None
             }
         )
 

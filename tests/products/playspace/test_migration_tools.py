@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import cast
 
 from app.models import (
     Audit,
     AuditStatus,
+    JSONDict,
     PlayspaceAuditContext,
     PlayspaceAuditSection,
     PlayspacePreAuditAnswer,
@@ -73,10 +75,12 @@ def test_migrate_draft_audit_to_canonical_aggregate_preserves_parity() -> None:
     assert audit.responses_json["schema_version"] == 1
     assert audit.responses_json["revision"] == 0
     assert audit.responses_json["meta"] == {"execution_mode": "survey"}
-    assert (
-        audit.responses_json["sections"]["section_1_playspace_character_community"]["note"]
-        == "Legacy note"
-    )
+    responses_json = cast(JSONDict, audit.responses_json)
+    sections = responses_json.get("sections")
+    assert isinstance(sections, dict)
+    section_payload = sections.get("section_1_playspace_character_community")
+    assert isinstance(section_payload, dict)
+    assert section_payload["note"] == "Legacy note"
     assert audit.scores_json["draft_progress_percent"] is not None
 
 

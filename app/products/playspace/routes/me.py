@@ -4,6 +4,8 @@ Self-service current-user endpoints for Playspace.
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.actors import CurrentUserContext
@@ -20,7 +22,7 @@ from app.products.playspace.services.me import PlayspaceMeService
 router: APIRouter = APIRouter(tags=["playspace-me"])
 
 
-def _require_account_id(current_user: CurrentUserContext) -> str:
+def _require_account_id(current_user: CurrentUserContext) -> uuid.UUID:
     """Extract account_id from the current user context or raise 403."""
 
     if current_user.account_id is None:
@@ -28,7 +30,7 @@ def _require_account_id(current_user: CurrentUserContext) -> str:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account identity is required for self-service operations.",
         )
-    return str(current_user.account_id)
+    return current_user.account_id
 
 
 @router.get("/me")

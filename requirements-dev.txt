@@ -3,6 +3,7 @@
 # Keep runtime dependencies in `requirements.txt`.
 
 pytest
+pytest-cov
 httpx
 ruff
 pre-commit

@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import build_audit_progress, score_audit
 from app.products.playspace.scoring_metadata import (
+    ScoringChoiceOption,
     ScoringDisplayCondition,
     ScoringQuestion,
     ScoringScale,
@@ -60,7 +61,10 @@ def _build_custom_section() -> ScoringSection:
                     response_key="provision",
                     any_of_option_keys=["some"],
                 ),
-                options=["cups", "buckets"],
+                options=[
+                    ScoringChoiceOption(key="cups", label="Cups"),
+                    ScoringChoiceOption(key="buckets", label="Buckets"),
+                ],
                 scales=[],
             ),
         ],
@@ -267,8 +271,10 @@ def test_score_audit_ignores_non_scored_checklist_questions(monkeypatch) -> None
         include_maximums=True,
     )
 
-    assert scores["overall"]["provision_total"] == 1.0
-    assert scores["overall"]["usability_total"] == 1.0
+    overall = scores.get("overall")
+    assert isinstance(overall, dict)
+    assert overall["provision_total"] == 1.0
+    assert overall["usability_total"] == 1.0
 
 
 def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(
@@ -312,7 +318,8 @@ def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(
         include_maximums=True,
     )
 
-    overall = scores["overall"]
+    overall = scores.get("overall")
+    assert isinstance(overall, dict)
 
     assert overall["provision_total"] == 1.0
     assert overall["provision_total_max"] == 2.0

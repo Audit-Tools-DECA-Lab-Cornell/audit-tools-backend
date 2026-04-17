@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import argparse
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
 from collections.abc import Iterator
 
 import pytest
@@ -85,7 +85,7 @@ def _upgrade_playspace_test_database() -> None:
     """Run Alembic migrations against the patched Playspace test database."""
 
     alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
-    alembic_config.cmd_opts = SimpleNamespace(x=["product=playspace"])
+    alembic_config.cmd_opts = argparse.Namespace(x=["product=playspace"])
     command.upgrade(alembic_config, "head")
 
 

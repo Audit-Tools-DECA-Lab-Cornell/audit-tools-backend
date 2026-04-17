@@ -61,24 +61,28 @@ def build_responses_json_from_relations(audit: Audit) -> JSONDict:
     if has_cached_structure:
         return _normalize_responses_payload(cached_payload)
 
-    return normalize_legacy_provision_payload(
-        {
-            "meta": _build_meta_payload(audit=audit),
-            "pre_audit": _build_pre_audit_payload(audit=audit),
-            "sections": _build_sections_payload(audit=audit),
-        }
+    return _read_json_dict(
+        normalize_legacy_provision_payload(
+            {
+                "meta": _build_meta_payload(audit=audit),
+                "pre_audit": _build_pre_audit_payload(audit=audit),
+                "sections": _build_sections_payload(audit=audit),
+            }
+        )
     )
 
 
 def build_legacy_responses_json_from_relations(audit: Audit) -> JSONDict:
     """Rebuild the pre-migration Playspace payload directly from legacy relations."""
 
-    return normalize_legacy_provision_payload(
-        {
-            "meta": _build_meta_payload(audit=audit),
-            "pre_audit": _build_pre_audit_payload(audit=audit),
-            "sections": _build_sections_payload(audit=audit),
-        }
+    return _read_json_dict(
+        normalize_legacy_provision_payload(
+            {
+                "meta": _build_meta_payload(audit=audit),
+                "pre_audit": _build_pre_audit_payload(audit=audit),
+                "sections": _build_sections_payload(audit=audit),
+            }
+        )
     )
 
 
@@ -194,21 +198,23 @@ def _normalize_responses_payload(value: object) -> JSONDict:
     """Normalize a cached aggregate payload into the stable responses_json shape."""
 
     payload = _read_json_dict(value)
-    return normalize_legacy_provision_payload(
-        {
-            "schema_version": _read_positive_int(
-                payload.get("schema_version"),
-                default=CURRENT_AUDIT_SCHEMA_VERSION,
-            ),
-            "revision": _read_non_negative_int(payload.get("revision"), default=0),
-            "meta": _read_json_dict(payload.get("meta")),
-            "pre_audit": _read_json_dict(payload.get("pre_audit")),
-            "sections": _read_json_dict(payload.get("sections")),
-        }
+    return _read_json_dict(
+        normalize_legacy_provision_payload(
+            {
+                "schema_version": _read_positive_int(
+                    payload.get("schema_version"),
+                    default=CURRENT_AUDIT_SCHEMA_VERSION,
+                ),
+                "revision": _read_non_negative_int(payload.get("revision"), default=0),
+                "meta": _read_json_dict(payload.get("meta")),
+                "pre_audit": _read_json_dict(payload.get("pre_audit")),
+                "sections": _read_json_dict(payload.get("sections")),
+            }
+        )
     )
 
 
-def normalize_legacy_provision_payload(value: object) -> JSONDict:
+def normalize_legacy_provision_payload(value: object) -> object:
     """Recursively normalize legacy quantity keys in Playspace payloads."""
 
     if isinstance(value, dict):
@@ -384,7 +390,7 @@ def _apply_section_patch(
         )
         _replace_scale_answers(
             question_response=question_response,
-            scale_answers=scale_answers,
+            scale_answers=_read_string_dict(scale_answers),
         )
 
 
@@ -591,9 +597,8 @@ def _replace_sections_from_cache(audit: Audit) -> None:
             if existing_section is not None
             else PlayspaceAuditSection(section_key=section_key)
         )
-        section.note = (
-            section_payload.get("note") if isinstance(section_payload.get("note"), str) else None
-        )
+        note_value = section_payload.get("note")
+        section.note = note_value if isinstance(note_value, str) else None
 
         responses_payload = _read_json_dict(section_payload.get("responses"))
         _replace_question_responses(section=section, responses_payload=responses_payload)

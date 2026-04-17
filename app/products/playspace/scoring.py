@@ -116,28 +116,35 @@ def merge_draft_patch(
 ) -> JsonDict:
     """Merge a typed draft patch into the stored JSON structure."""
 
-    next_payload = {
+    next_payload: JsonDict = {
         "meta": _read_json_dict(current_responses_json.get("meta")),
         "pre_audit": _read_json_dict(current_responses_json.get("pre_audit")),
         "sections": _read_json_dict(current_responses_json.get("sections")),
     }
+    meta_payload = _read_json_dict(next_payload.get("meta"))
+    pre_audit_payload = _read_json_dict(next_payload.get("pre_audit"))
+    sections_payload = _read_json_dict(next_payload.get("sections"))
 
     if patch.meta is not None:
-        next_payload["meta"].update(patch.meta.model_dump(exclude_none=True))
+        meta_payload.update(patch.meta.model_dump(exclude_none=True))
 
     if patch.pre_audit is not None:
-        next_payload["pre_audit"].update(_serialize_pre_audit_patch(patch.pre_audit))
+        pre_audit_payload.update(_serialize_pre_audit_patch(patch.pre_audit))
 
     if patch.sections:
         for section_key, section_patch in patch.sections.items():
-            existing_section = _read_json_dict(next_payload["sections"].get(section_key))
+            existing_section = _read_json_dict(sections_payload.get(section_key))
             existing_responses = _read_json_dict(existing_section.get("responses"))
             for question_key, scale_answers in section_patch.responses.items():
                 existing_responses[question_key] = dict(scale_answers.items())
             existing_section["responses"] = existing_responses
             if section_patch.note is not None:
                 existing_section["note"] = section_patch.note
-            next_payload["sections"][section_key] = existing_section
+            sections_payload[section_key] = existing_section
+
+    next_payload["meta"] = meta_payload
+    next_payload["pre_audit"] = pre_audit_payload
+    next_payload["sections"] = sections_payload
 
     return next_payload
 
@@ -785,7 +792,7 @@ def _serialize_score_totals(
 ) -> JsonDict:
     """Convert one score-total bucket into a JSON-safe response payload."""
 
-    payload = {
+    payload: JsonDict = {
         "provision_total": round(score_totals.provision_total, 2),
         "diversity_total": round(score_totals.diversity_total, 2),
         "challenge_total": round(score_totals.challenge_total, 2),

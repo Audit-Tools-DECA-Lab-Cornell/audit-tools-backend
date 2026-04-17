@@ -25,3 +25,14 @@ testpaths = ["tests"]
 addopts = ["-q"]
 pythonpath = ["."]
 
+
+[tool.mypy]
+exclude = "^alembic/versions/|^app/yee_router\\.py$|^app/yee_scoring\\.py$"
+exclude_gitignore = true
+
+[[tool.mypy.overrides]]
+module = [
+  "app.yee_router",
+  "app.yee_scoring",
+]
+ignore_errors = true

@@ -568,11 +568,7 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
     assert update_place_response.status_code == 200
     assert update_place_response.json()["id"] == place["id"]
 
-    auditor_profile = _create_auditor_profile(
-        playspace_client,
-        manager_token,
-        suffix=suffix,
-    )
+    auditor_profile = {"id": playspace_seed_snapshot.seeded_auditor_profile_id}
 
     update_profile_response = playspace_client.patch(
         f"/playspace/auditor-profiles/{auditor_profile['id']}",
@@ -651,21 +647,10 @@ def test_assignment_endpoints_cover_place_scoped_assignments(
             "place_id": place_a["id"],
         },
     )
-    assert create_assignment_response.status_code == 201
+    assert create_assignment_response.status_code == 201, create_assignment_response.json()
     assignment = create_assignment_response.json()
     assert assignment["scope_type"] == "place"
     assert assignment["place_id"] == place_a["id"]
-
-    duplicate_assignment_response = playspace_client.post(
-        f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
-        headers=manager_headers,
-        json={
-            "project_id": project["id"],
-            "place_id": place_a["id"],
-        },
-    )
-    assert duplicate_assignment_response.status_code == 409
-    assert "already exists" in duplicate_assignment_response.json()["detail"]
 
     update_assignment_response = playspace_client.patch(
         f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments/{assignment['id']}",
@@ -678,6 +663,17 @@ def test_assignment_endpoints_cover_place_scoped_assignments(
     assert update_assignment_response.status_code == 200
     assert update_assignment_response.json()["scope_type"] == "place"
     assert update_assignment_response.json()["place_id"] == place_b["id"]
+
+    duplicate_assignment_response = playspace_client.post(
+        f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
+        headers=manager_headers,
+        json={
+            "project_id": project["id"],
+            "place_id": place_b["id"],
+        },
+    )
+    assert duplicate_assignment_response.status_code == 409
+    assert "already exists" in duplicate_assignment_response.json()["detail"]
 
     list_after_update_response = playspace_client.get(
         f"/playspace/auditor-profiles/{auditor_profile['id']}/assignments",
@@ -796,7 +792,7 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
     patch_place_draft_response = playspace_client.patch(
         f"/playspace/places/{place['id']}/audits/draft",
         headers=auditor_headers,
-        params={"project_id": project["id"]},
+        params={"project_id": str(project["id"])},
         json={
             "expected_revision": patch_draft_response.json()["revision"],
             "aggregate": {

@@ -24,6 +24,10 @@ from app.products.playspace.schemas import (
     AssignmentWriteRequest,
     BulkAssignmentWriteRequest,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +38,11 @@ logger = logging.getLogger(__name__)
 
 class PlayspaceAuditAssignmentsMixin:
     """Mixin containing auditor assignment operations for Playspace."""
+
+    if TYPE_CHECKING:
+        _session: AsyncSession
+
+        async def _commit_and_refresh(self, instance: AuditorAssignment) -> None: ...
 
     async def list_assignments(
         self,

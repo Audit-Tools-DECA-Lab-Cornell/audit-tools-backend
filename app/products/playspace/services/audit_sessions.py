@@ -73,6 +73,10 @@ from app.products.playspace.scoring import (
     score_audit_for_audit,
 )
 from app.products.playspace.services.instrument import get_active_instrument
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 ######################################################################################
 ############################## Audit Session Service Mixin ###########################
@@ -139,6 +143,25 @@ class _CompactAuditSnapshot:
 
 class PlayspaceAuditSessionsMixin:
     """Mixin containing audit-session operations. Inherits from PlayspaceAuditService."""
+
+    if TYPE_CHECKING:
+        _session: AsyncSession
+
+        async def _commit_and_refresh(self, instance: Audit) -> None: ...
+        def _ensure_mode_allowed(
+            self,
+            *,
+            requested_mode: ExecutionMode | None,
+            allowed_modes: list[ExecutionMode],
+            detail: str,
+        ) -> None: ...
+        def _ensure_not_submitted(self, *, audit: Audit, detail: str) -> None: ...
+        def _resolve_initial_execution_mode_value(
+            self,
+            *,
+            requested_mode: ExecutionMode | None,
+            allowed_modes: list[ExecutionMode],
+        ) -> str | None: ...
 
     async def _list_assigned_place_summaries(
         self,
@@ -1272,47 +1295,19 @@ class PlayspaceAuditSessionsMixin:
 
         pre_audit_payload = self._read_json_dict(responses_json.get("pre_audit"))
         return PreAuditResponse(
-            place_size=(
-                pre_audit_payload.get("place_size")
-                if isinstance(pre_audit_payload.get("place_size"), str)
-                else None
+            place_size=self._read_optional_string(pre_audit_payload, "place_size"),
+            current_users_0_5=self._read_optional_string(pre_audit_payload, "current_users_0_5"),
+            current_users_6_12=self._read_optional_string(pre_audit_payload, "current_users_6_12"),
+            current_users_13_17=self._read_optional_string(
+                pre_audit_payload, "current_users_13_17"
             ),
-            current_users_0_5=(
-                pre_audit_payload.get("current_users_0_5")
-                if isinstance(pre_audit_payload.get("current_users_0_5"), str)
-                else None
+            current_users_18_plus=self._read_optional_string(
+                pre_audit_payload, "current_users_18_plus"
             ),
-            current_users_6_12=(
-                pre_audit_payload.get("current_users_6_12")
-                if isinstance(pre_audit_payload.get("current_users_6_12"), str)
-                else None
-            ),
-            current_users_13_17=(
-                pre_audit_payload.get("current_users_13_17")
-                if isinstance(pre_audit_payload.get("current_users_13_17"), str)
-                else None
-            ),
-            current_users_18_plus=(
-                pre_audit_payload.get("current_users_18_plus")
-                if isinstance(pre_audit_payload.get("current_users_18_plus"), str)
-                else None
-            ),
-            playspace_busyness=(
-                pre_audit_payload.get("playspace_busyness")
-                if isinstance(pre_audit_payload.get("playspace_busyness"), str)
-                else None
-            ),
-            season=(
-                pre_audit_payload.get("season")
-                if isinstance(pre_audit_payload.get("season"), str)
-                else None
-            ),
+            playspace_busyness=self._read_optional_string(pre_audit_payload, "playspace_busyness"),
+            season=self._read_optional_string(pre_audit_payload, "season"),
             weather_conditions=self._to_string_list(pre_audit_payload.get("weather_conditions")),
-            wind_conditions=(
-                pre_audit_payload.get("wind_conditions")
-                if isinstance(pre_audit_payload.get("wind_conditions"), str)
-                else None
-            ),
+            wind_conditions=self._read_optional_string(pre_audit_payload, "wind_conditions"),
         )
 
     def _build_section_state_response_map(
@@ -1383,12 +1378,21 @@ class PlayspaceAuditSessionsMixin:
                 legacy_overall.get("usability_total"),
             ]
             if all(isinstance(value, int | float) for value in construct_totals):
-                provision_total = float(legacy_overall["provision_total"])
-                diversity_total = float(legacy_overall["diversity_total"])
-                challenge_total = float(legacy_overall["challenge_total"])
-                sociability_total = float(legacy_overall["sociability_total"])
-                play_value_total = float(legacy_overall["play_value_total"])
-                usability_total = float(legacy_overall["usability_total"])
+                provision_total = self._coerce_float(legacy_overall["provision_total"])
+                diversity_total = self._coerce_float(legacy_overall["diversity_total"])
+                challenge_total = self._coerce_float(legacy_overall["challenge_total"])
+                sociability_total = self._coerce_float(legacy_overall["sociability_total"])
+                play_value_total = self._coerce_float(legacy_overall["play_value_total"])
+                usability_total = self._coerce_float(legacy_overall["usability_total"])
+                if (
+                    provision_total is None
+                    or diversity_total is None
+                    or challenge_total is None
+                    or sociability_total is None
+                    or play_value_total is None
+                    or usability_total is None
+                ):
+                    return score_totals, fallback_summary_score
                 score_totals = AuditScoreTotalsResponse(
                     provision_total=provision_total,
                     provision_total_max=provision_total,
@@ -1473,19 +1477,24 @@ class PlayspaceAuditSessionsMixin:
         ]
         if not all(isinstance(value, int | float) for value in numeric_values):
             return None
+
+        float_values = [float(value) for value in numeric_values if isinstance(value, int | float)]
+        if any(value is None for value in float_values) or len(float_values) != 12:
+            return None
+
         return AuditScoreTotalsResponse(
-            provision_total=float(provision_total),
-            provision_total_max=float(provision_total_max),
-            diversity_total=float(diversity_total),
-            diversity_total_max=float(diversity_total_max),
-            challenge_total=float(challenge_total),
-            challenge_total_max=float(challenge_total_max),
-            sociability_total=float(sociability_total),
-            sociability_total_max=float(sociability_total_max),
-            play_value_total=float(play_value_total),
-            play_value_total_max=float(play_value_total_max),
-            usability_total=float(usability_total),
-            usability_total_max=float(usability_total_max),
+            provision_total=float_values[0],
+            provision_total_max=float_values[1],
+            diversity_total=float_values[2],
+            diversity_total_max=float_values[3],
+            challenge_total=float_values[4],
+            challenge_total_max=float_values[5],
+            sociability_total=float_values[6],
+            sociability_total_max=float_values[7],
+            play_value_total=float_values[8],
+            play_value_total_max=float_values[9],
+            usability_total=float_values[10],
+            usability_total_max=float_values[11],
         )
 
     def _build_live_score_totals_response(
@@ -1603,3 +1612,18 @@ class PlayspaceAuditSessionsMixin:
         if not isinstance(value, list):
             return []
         return [entry for entry in value if isinstance(entry, str)]
+
+    @staticmethod
+    def _read_optional_string(payload: dict[str, object], key: str) -> str | None:
+        """Read one optional string key from a JSON-like mapping."""
+
+        value = payload.get(key)
+        return value if isinstance(value, str) else None
+
+    @staticmethod
+    def _coerce_float(value: object) -> float | None:
+        """Convert ints/floats to float while rejecting other runtime types."""
+
+        if isinstance(value, int | float):
+            return float(value)
+        return None

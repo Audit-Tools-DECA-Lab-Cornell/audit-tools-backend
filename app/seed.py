@@ -14,7 +14,6 @@ import asyncio
 import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 from alembic import command
 from alembic.config import Config
@@ -126,7 +125,7 @@ def _run_product_upgrade(product: ProductKey) -> None:
     """Run Alembic for one product in a synchronous context."""
 
     alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
-    alembic_config.cmd_opts = SimpleNamespace(x=[f"product={product.value}"])
+    alembic_config.cmd_opts = argparse.Namespace(x=[f"product={product.value}"])
     command.upgrade(alembic_config, "head")
 
 

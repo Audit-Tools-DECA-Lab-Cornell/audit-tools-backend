@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.auth import (
     _build_invite_url,
@@ -391,7 +392,8 @@ async def _fetch_reporting_rows(
     )
     if account_id is not None:
         stmt = stmt.where(Project.account_id == account_id)
-    return (await session.execute(stmt)).all()
+    rows = (await session.execute(stmt)).all()
+    return [tuple(row) for row in rows]
 
 
 async def _fetch_place_comparison_groups(
@@ -457,6 +459,10 @@ async def _fetch_raw_data_rows(
             submission.section_scores_json,
             participant_info,
         )
+        raw_total_minutes = participant_info.get("total_minutes")
+        total_minutes = (
+            int(raw_total_minutes) if isinstance(raw_total_minutes, int | float | str) else 0
+        )
         export_rows.append(
             RawDataExportRow(
                 audit_id=str(submission.id),
@@ -471,7 +477,7 @@ async def _fetch_raw_data_rows(
                 submitted_at=submission.submitted_at.isoformat(),
                 start_time=str(participant_info.get("start_time") or ""),
                 finish_time=str(participant_info.get("finish_time") or ""),
-                total_minutes=int(participant_info.get("total_minutes") or 0),
+                total_minutes=total_minutes,
                 visit_frequency=str(participant_info.get("visit_frequency") or ""),
                 season=str(participant_info.get("season") or ""),
                 weather=str(participant_info.get("weather") or ""),
@@ -497,7 +503,9 @@ async def _fetch_raw_data_rows(
 
 
 async def _count_rows(
-    session: AsyncSession, model: type[object], where_clause: object | None = None
+    session: AsyncSession,
+    model: type[object],
+    where_clause: ColumnElement[bool] | None = None,
 ) -> int:
     stmt = select(func.count()).select_from(model)
     if where_clause is not None:
@@ -608,7 +616,8 @@ async def _get_scoped_project(
     row = (await session.execute(stmt)).one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Project not found.")
-    return row
+    project, account_name = row
+    return project, account_name
 
 
 async def _get_scoped_place(
@@ -627,7 +636,8 @@ async def _get_scoped_place(
     row = (await session.execute(stmt)).one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Place not found.")
-    return row
+    place, project = row
+    return place, project
 
 
 async def _fetch_project_detail(

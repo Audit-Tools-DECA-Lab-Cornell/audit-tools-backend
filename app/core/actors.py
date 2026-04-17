@@ -83,10 +83,9 @@ def resolve_current_user(request: Request, product: str = "playspace") -> Curren
 
     header_account_id = _parse_uuid(request.headers.get("x-demo-account-id"))
     cookie_account_id = _parse_uuid(request.cookies.get(f"{product}_account_id"))
+    resolved_account_id: uuid.UUID | None
     if resolved_role == CurrentUserRole.MANAGER:
         resolved_account_id = header_account_id or cookie_account_id or DEMO_ACCOUNT_ID
-    elif resolved_role == CurrentUserRole.ADMIN:
-        resolved_account_id = header_account_id or cookie_account_id
     else:
         resolved_account_id = header_account_id or cookie_account_id
 
