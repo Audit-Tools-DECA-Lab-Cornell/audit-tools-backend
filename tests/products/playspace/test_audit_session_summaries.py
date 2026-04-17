@@ -81,6 +81,7 @@ def test_get_visible_questions_returns_all_questions_for_both_mode() -> None:
     visible_questions = _get_visible_questions(
         section=section,
         execution_mode=ExecutionMode.BOTH,
+        section_answers={},
     )
 
     assert len(visible_questions) == len(section.questions)

@@ -163,6 +163,15 @@ class _DummySession:
 
         self.added_audits.append(instance)
 
+    async def execute(self, statement: object) -> object:
+        """Return an empty result for helper paths that query optional tables."""
+
+        class _Result:
+            def scalar_one_or_none(self) -> None:
+                return None
+
+        return _Result()
+
 
 class _DummyAuditService(PlayspaceAuditService):
     """Env-free service host for create/resume, draft-save, and submit tests."""

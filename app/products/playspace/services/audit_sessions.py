@@ -1372,6 +1372,37 @@ class PlayspaceAuditSessionsMixin:
         score_totals = self._build_score_totals_response(
             self._read_json_dict(raw_scores).get("overall")
         )
+        if score_totals is None:
+            legacy_overall = self._read_json_dict(self._read_json_dict(raw_scores).get("overall"))
+            construct_totals = [
+                legacy_overall.get("provision_total"),
+                legacy_overall.get("diversity_total"),
+                legacy_overall.get("challenge_total"),
+                legacy_overall.get("sociability_total"),
+                legacy_overall.get("play_value_total"),
+                legacy_overall.get("usability_total"),
+            ]
+            if all(isinstance(value, int | float) for value in construct_totals):
+                provision_total = float(legacy_overall["provision_total"])
+                diversity_total = float(legacy_overall["diversity_total"])
+                challenge_total = float(legacy_overall["challenge_total"])
+                sociability_total = float(legacy_overall["sociability_total"])
+                play_value_total = float(legacy_overall["play_value_total"])
+                usability_total = float(legacy_overall["usability_total"])
+                score_totals = AuditScoreTotalsResponse(
+                    provision_total=provision_total,
+                    provision_total_max=provision_total,
+                    diversity_total=diversity_total,
+                    diversity_total_max=diversity_total,
+                    challenge_total=challenge_total,
+                    challenge_total_max=challenge_total,
+                    sociability_total=sociability_total,
+                    sociability_total_max=sociability_total,
+                    play_value_total=play_value_total,
+                    play_value_total_max=play_value_total,
+                    usability_total=usability_total,
+                    usability_total_max=usability_total,
+                )
         compact_summary_score = self._combined_construct_total(score_totals)
         if compact_summary_score is not None:
             return score_totals, compact_summary_score

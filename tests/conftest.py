@@ -1,3 +1,9 @@
-"""Root test configuration: Playspace DB fixtures for modules under ``tests/``."""
+"""Root test configuration for shared test fixtures."""
 
-# pytest_plugins = ["tests.products.playspace.conftest"]
+# Re-export Playspace integration fixtures so top-level tests can request them.
+from tests.products.playspace.conftest import (  # noqa: F401
+    PlayspaceSeedSnapshot,
+    playspace_client,
+    playspace_seed_snapshot,
+    playspace_test_session_factory,
+)

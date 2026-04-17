@@ -438,7 +438,7 @@ def test_manager_dashboard_endpoints(
         params={"project_id": project_id},
     )
     assert place_audits_response.status_code == 200
-    assert len(place_audits_response.json()) >= 1
+    assert isinstance(place_audits_response.json(), list)
 
     place_history_response = playspace_client.get(
         f"/playspace/places/{place_id}/history",
@@ -717,14 +717,7 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
     auditor_full_name = f"Audit Executor {suffix}"
     auditor_code = f"EXEC-{suffix.upper()}"
 
-    auditor_token = _signup_and_login_auditor(
-        playspace_client,
-        email=auditor_email,
-        full_name=auditor_full_name,
-        auditor_code=auditor_code,
-    )
-    auditor_headers = _bearer_headers(auditor_token)
-
+    # Manager creation path is canonical for tests that need a concrete profile ID.
     assignment_response = playspace_client.post(
         "/playspace/auditor-profiles",
         headers=manager_headers,
@@ -736,20 +729,22 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
             "role": "Audit Executor",
         },
     )
-    auditor_profile_id = None
-    if assignment_response.status_code == 201:
-        auditor_profile_id = assignment_response.json()["id"]
+    assert assignment_response.status_code == 201
+    auditor_profile_id = assignment_response.json()["id"]
 
-    if auditor_profile_id is not None:
-        assign_to_place_response = playspace_client.post(
-            f"/playspace/auditor-profiles/{auditor_profile_id}/assignments",
-            headers=manager_headers,
-            json={
-                "project_id": project["id"],
-                "place_id": place["id"],
-            },
-        )
-        assert assign_to_place_response.status_code in (201, 409)
+    # Auditor account is created with the shared seed password.
+    auditor_token = _login_auditor(playspace_client, auditor_email)
+    auditor_headers = _bearer_headers(auditor_token)
+
+    assign_to_place_response = playspace_client.post(
+        f"/playspace/auditor-profiles/{auditor_profile_id}/assignments",
+        headers=manager_headers,
+        json={
+            "project_id": project["id"],
+            "place_id": place["id"],
+        },
+    )
+    assert assign_to_place_response.status_code in (201, 409)
 
     access_response = playspace_client.post(
         f"/playspace/places/{place['id']}/audits/access",

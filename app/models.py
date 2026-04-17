@@ -499,7 +499,10 @@ class AuditorProfile(Base):
         back_populates="auditor_profile",
         cascade=CASCADE_DELETE_ORPHAN,
     )
-    invites: Mapped[list[AuditorInvite]] = relationship(back_populates="auditor")
+    invites: Mapped[list[AuditorInvite]] = relationship(
+        back_populates="auditor",
+        passive_deletes=True,
+    )
 
 
 class AuditorInvite(Base):
