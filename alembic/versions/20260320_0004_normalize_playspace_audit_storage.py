@@ -355,7 +355,7 @@ def _backfill_existing_playspace_audits() -> None:
             context_rows.append(
                 {
                     "audit_id": audit_id,
-                    "execution_mode": execution_mode if isinstance(execution_mode, str) else None,
+                    "execution_mode": (execution_mode if isinstance(execution_mode, str) else None),
                     "draft_progress_percent": (
                         float(raw_draft_progress_percent)
                         if isinstance(raw_draft_progress_percent, int | float)

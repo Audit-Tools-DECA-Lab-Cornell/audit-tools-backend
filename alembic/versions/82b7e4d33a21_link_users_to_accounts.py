@@ -71,12 +71,14 @@ def upgrade() -> None:
     for row in rows:
         account_id = uuid.uuid4()
         display_name = (row.name or "").strip()
-        account_name = f"{display_name}'s Workspace" if display_name else f"{row.email.split('@', 1)[0]}'s Workspace"
+        account_name = (
+            f"{display_name}'s Workspace"
+            if display_name
+            else f"{row.email.split('@', 1)[0]}'s Workspace"
+        )
         bind.execute(accounts_table.insert().values(id=account_id, name=account_name))
         bind.execute(
-            users_table.update()
-            .where(users_table.c.id == row.id)
-            .values(account_id=account_id)
+            users_table.update().where(users_table.c.id == row.id).values(account_id=account_id)
         )
 
 

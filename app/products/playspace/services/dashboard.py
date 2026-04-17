@@ -236,17 +236,13 @@ class PlayspaceDashboardService:
             )
         return project, place
 
-
     async def list_auditors(
-        self,
-        actor: CurrentUserContext,
-        account_id: uuid.UUID) -> list[AuditorSummaryResponse]:
+        self, actor: CurrentUserContext, account_id: uuid.UUID
+    ) -> list[AuditorSummaryResponse]:
         """Return all auditors in the system that the manager has not assigned to any projects."""
 
         self._ensure_manager_scope(actor, account_id)
-        result = await self._session.execute(
-            select(AuditorProfile)
-        )
+        result = await self._session.execute(select(AuditorProfile))
         auditor_profiles = result.scalars().all()
         auditor_profile_ids = [profile.id for profile in auditor_profiles]
         assignment_counts_subquery = (
@@ -261,11 +257,18 @@ class PlayspaceDashboardService:
                 AuditorProfile.country.label("country"),
                 AuditorProfile.role.label("role"),
                 func.count(AuditorAssignment.id).label("assignments_count"),
-                func.max(func.coalesce(Audit.submitted_at, Audit.started_at)).label("last_active_at"),
-                func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("completed_audits")
+                func.max(func.coalesce(Audit.submitted_at, Audit.started_at)).label(
+                    "last_active_at"
+                ),
+                func.count(Audit.id)
+                .filter(Audit.status == AuditStatus.SUBMITTED)
+                .label("completed_audits"),
             )
             .select_from(AuditorProfile)
-            .outerjoin(AuditorAssignment, AuditorAssignment.auditor_profile_id.in_(auditor_profile_ids))
+            .outerjoin(
+                AuditorAssignment,
+                AuditorAssignment.auditor_profile_id.in_(auditor_profile_ids),
+            )
             .outerjoin(Audit, AuditorAssignment.id == Audit.id)
             .group_by(AuditorProfile.id)
             .subquery()
@@ -968,7 +971,9 @@ class PlayspaceDashboardService:
                 ManagerAuditRowResponse(
                     audit_id=row.audit_id,
                     audit_code=row.audit_code,
-                    status=row.status.value if isinstance(row.status, AuditStatus) else row.status,
+                    status=(
+                        row.status.value if isinstance(row.status, AuditStatus) else row.status
+                    ),
                     auditor_code=row.auditor_code,
                     project_id=row.project_id,
                     project_name=row.project_name,

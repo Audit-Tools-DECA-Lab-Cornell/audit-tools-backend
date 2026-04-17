@@ -4,6 +4,7 @@ Assignment-focused methods for the Playspace audit service.
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import HTTPException, status
@@ -11,13 +12,20 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.actors import CurrentUserContext, CurrentUserRole, require_manager_or_admin_user
+from app.core.actors import (
+    CurrentUserContext,
+    CurrentUserRole,
+    require_manager_or_admin_user,
+)
 from app.models import AuditorAssignment, AuditorProfile, Place, Project, ProjectPlace
+from app.notification_service import NotificationService
 from app.products.playspace.schemas import (
     AssignmentResponse,
     AssignmentWriteRequest,
     BulkAssignmentWriteRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 ######################################################################################
 ############################# Assignment Service Mixin ###############################
@@ -71,7 +79,7 @@ class PlayspaceAuditAssignmentsMixin:
         """Create a project- or project-place-scoped assignment."""
 
         require_manager_or_admin_user(actor)
-        await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
+        profile = await self._get_auditor_profile(auditor_profile_id=auditor_profile_id)
         await self._validate_assignment_scope(payload=payload)
         await self._ensure_actor_can_manage_scope(
             actor=actor,
@@ -90,6 +98,41 @@ class PlayspaceAuditAssignmentsMixin:
             place_id=payload.place_id,
         )
         self._session.add(assignment)
+        # Persist PK before notifications: ``assignment.id`` is not guaranteed until flush.
+        await self._session.flush()
+
+        place_name_result = await self._session.execute(
+            select(Place.name).where(Place.id == payload.place_id)
+        )
+        place_name = place_name_result.scalar_one()
+
+        if profile.user_id is not None:
+            try:
+                await NotificationService.create_assignment_notification(
+                    db=self._session,
+                    user_id=profile.user_id,
+                    assignment_id=assignment.id,
+                    place_name=place_name,
+                )
+                logger.info(
+                    "Created assignment notification",
+                    extra={
+                        "assignment_id": str(assignment.id),
+                        "auditor_profile_id": str(auditor_profile_id),
+                        "user_id": str(profile.user_id),
+                    },
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to create assignment notification",
+                    extra={
+                        "assignment_id": str(assignment.id),
+                        "auditor_profile_id": str(auditor_profile_id),
+                        "error": str(exc),
+                    },
+                )
+                raise
+
         try:
             await self._commit_and_refresh(assignment)
         except IntegrityError as error:
@@ -133,17 +176,28 @@ class PlayspaceAuditAssignmentsMixin:
             )
 
         profile_result = await self._session.execute(
-            select(AuditorProfile.id).where(
+            select(AuditorProfile.id, AuditorProfile.user_id).where(
                 AuditorProfile.id.in_(payload.auditor_profile_ids)
             )
         )
-        found_profile_ids = set(profile_result.scalars().all())
+        profile_rows = profile_result.all()
+        found_profile_ids = {row[0] for row in profile_rows}
+        user_id_by_profile_id: dict[uuid.UUID, uuid.UUID | None] = {
+            row[0]: row[1] for row in profile_rows
+        }
         missing_profiles = set(payload.auditor_profile_ids) - found_profile_ids
         if missing_profiles:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="One or more auditor profiles not found.",
             )
+
+        place_names_result = await self._session.execute(
+            select(Place.id, Place.name).where(Place.id.in_(payload.place_ids))
+        )
+        place_name_by_place_id: dict[uuid.UUID, str] = {
+            row[0]: row[1] for row in place_names_result.all()
+        }
 
         linked_pair_result = await self._session.execute(
             select(ProjectPlace.place_id).where(
@@ -185,7 +239,37 @@ class PlayspaceAuditAssignmentsMixin:
                     place_id=place_id,
                 )
                 self._session.add(assignment)
+                await self._session.flush()
                 created_count += 1
+
+                notify_user_id = user_id_by_profile_id.get(auditor_id)
+                place_name = place_name_by_place_id.get(place_id)
+                if notify_user_id is not None and place_name is not None:
+                    try:
+                        await NotificationService.create_assignment_notification(
+                            db=self._session,
+                            user_id=notify_user_id,
+                            assignment_id=assignment.id,
+                            place_name=place_name,
+                        )
+                        logger.info(
+                            "Created assignment notification",
+                            extra={
+                                "assignment_id": str(assignment.id),
+                                "auditor_profile_id": str(auditor_id),
+                                "user_id": str(notify_user_id),
+                            },
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "Failed to create assignment notification",
+                            extra={
+                                "assignment_id": str(assignment.id),
+                                "auditor_profile_id": str(auditor_id),
+                                "error": str(exc),
+                            },
+                        )
+                        raise
 
         if created_count > 0:
             try:
@@ -461,7 +545,10 @@ class PlayspaceAuditAssignmentsMixin:
 
         raw_error_message = str(getattr(error, "orig", error))
         sqlstate = getattr(getattr(error, "orig", None), "sqlstate", None)
-        if sqlstate == "23505" and "uq_auditor_assignments_auditor_project_place" in raw_error_message:
+        if (
+            sqlstate == "23505"
+            and "uq_auditor_assignments_auditor_project_place" in raw_error_message
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="An assignment already exists for this auditor and scope.",

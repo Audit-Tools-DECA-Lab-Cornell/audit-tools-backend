@@ -16,7 +16,15 @@ from app.core.actors import (
     CurrentUserRole,
     require_manager_or_admin_user,
 )
-from app.models import Account, AccountType, AuditorProfile, Place, Project, ProjectPlace, User
+from app.models import (
+    Account,
+    AccountType,
+    AuditorProfile,
+    Place,
+    Project,
+    ProjectPlace,
+    User,
+)
 from app.products.playspace.schemas import (
     AccountManagementResponse,
     AccountUpdateRequest,
@@ -226,7 +234,9 @@ class PlayspaceManagementService:
         return ordered_projects
 
     @staticmethod
-    def _serialize_auditor_profile(profile: AuditorProfile) -> AuditorProfileDetailResponse:
+    def _serialize_auditor_profile(
+        profile: AuditorProfile,
+    ) -> AuditorProfileDetailResponse:
         """Serialize a privacy-safe auditor profile payload."""
 
         return AuditorProfileDetailResponse(

@@ -26,7 +26,9 @@ def _is_target_product(product_key: str) -> bool:
     return x_args.get("product", "yee").strip().lower() == product_key
 
 
-def _rename_payload(value: object, key_map: dict[str, str], *, rename_string_values: bool) -> object:
+def _rename_payload(
+    value: object, key_map: dict[str, str], *, rename_string_values: bool
+) -> object:
     if isinstance(value, dict):
         next_value: dict[str, object] = {}
         for key, item in value.items():
@@ -38,7 +40,10 @@ def _rename_payload(value: object, key_map: dict[str, str], *, rename_string_val
         return next_value
 
     if isinstance(value, list):
-        return [_rename_payload(item, key_map, rename_string_values=rename_string_values) for item in value]
+        return [
+            _rename_payload(item, key_map, rename_string_values=rename_string_values)
+            for item in value
+        ]
 
     if rename_string_values and isinstance(value, str):
         return key_map.get(value, value)
@@ -46,7 +51,9 @@ def _rename_payload(value: object, key_map: dict[str, str], *, rename_string_val
     return value
 
 
-def _write_jsonb(bind: sa.Connection, *, table: str, column: str, row_id: object, payload: object) -> None:
+def _write_jsonb(
+    bind: sa.Connection, *, table: str, column: str, row_id: object, payload: object
+) -> None:
     bind.execute(
         sa.text(
             f"""
@@ -62,16 +69,20 @@ def _write_jsonb(bind: sa.Connection, *, table: str, column: str, row_id: object
 
 def _backfill_audit_documents() -> None:
     bind = op.get_bind()
-    rows = bind.execute(
-        sa.text(
-            """
+    rows = (
+        bind.execute(
+            sa.text(
+                """
             SELECT id, responses_json, scores_json
             FROM audits
             WHERE instrument_key = :instrument_key
             """
-        ),
-        {"instrument_key": PLAYSPACE_INSTRUMENT_KEY},
-    ).mappings().all()
+            ),
+            {"instrument_key": PLAYSPACE_INSTRUMENT_KEY},
+        )
+        .mappings()
+        .all()
+    )
 
     response_key_map = {"quantity": "provision"}
     score_key_map = {
@@ -97,9 +108,21 @@ def _backfill_audit_documents() -> None:
         )
 
         if next_responses != responses_json:
-            _write_jsonb(bind, table="audits", column="responses_json", row_id=row["id"], payload=next_responses)
+            _write_jsonb(
+                bind,
+                table="audits",
+                column="responses_json",
+                row_id=row["id"],
+                payload=next_responses,
+            )
         if next_scores != scores_json:
-            _write_jsonb(bind, table="audits", column="scores_json", row_id=row["id"], payload=next_scores)
+            _write_jsonb(
+                bind,
+                table="audits",
+                column="scores_json",
+                row_id=row["id"],
+                payload=next_scores,
+            )
 
 
 def _backfill_scale_answer_rows() -> None:
@@ -135,16 +158,20 @@ def downgrade() -> None:
         return
 
     bind = op.get_bind()
-    rows = bind.execute(
-        sa.text(
-            """
+    rows = (
+        bind.execute(
+            sa.text(
+                """
             SELECT id, responses_json, scores_json
             FROM audits
             WHERE instrument_key = :instrument_key
             """
-        ),
-        {"instrument_key": PLAYSPACE_INSTRUMENT_KEY},
-    ).mappings().all()
+            ),
+            {"instrument_key": PLAYSPACE_INSTRUMENT_KEY},
+        )
+        .mappings()
+        .all()
+    )
 
     response_key_map = {"provision": "quantity"}
     score_key_map = {
@@ -170,9 +197,21 @@ def downgrade() -> None:
         )
 
         if next_responses != responses_json:
-            _write_jsonb(bind, table="audits", column="responses_json", row_id=row["id"], payload=next_responses)
+            _write_jsonb(
+                bind,
+                table="audits",
+                column="responses_json",
+                row_id=row["id"],
+                payload=next_responses,
+            )
         if next_scores != scores_json:
-            _write_jsonb(bind, table="audits", column="scores_json", row_id=row["id"], payload=next_scores)
+            _write_jsonb(
+                bind,
+                table="audits",
+                column="scores_json",
+                row_id=row["id"],
+                payload=next_scores,
+            )
 
     bind.execute(
         sa.text(

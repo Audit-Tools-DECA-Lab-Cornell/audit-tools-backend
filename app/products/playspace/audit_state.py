@@ -50,7 +50,13 @@ def build_responses_json_from_relations(audit: Audit) -> JSONDict:
     cached_payload = _read_json_dict(audit.responses_json)
     has_cached_structure = any(
         aggregate_key in cached_payload
-        for aggregate_key in ("schema_version", "revision", "meta", "pre_audit", "sections")
+        for aggregate_key in (
+            "schema_version",
+            "revision",
+            "meta",
+            "pre_audit",
+            "sections",
+        )
     )
     if has_cached_structure:
         return _normalize_responses_payload(cached_payload)

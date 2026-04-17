@@ -19,13 +19,22 @@ down_revision = "20260408_0009"
 branch_labels = None
 depends_on = None
 
+# Matches PostgreSQL enum ``shared_account_type`` (see shared core migrations).
+_SHARED_ACCOUNT_TYPE = postgresql.ENUM(
+    "ADMIN",
+    "MANAGER",
+    "AUDITOR",
+    name="shared_account_type",
+    create_type=False,
+)
+
 users_table = sa.table(
     "users",
     sa.column("id", postgresql.UUID(as_uuid=True)),
     sa.column("email", sa.String(length=320)),
     sa.column("password_hash", sa.String(length=255)),
     sa.column("account_id", postgresql.UUID(as_uuid=True)),
-    sa.column("account_type", sa.String(length=32)),
+    sa.column("account_type", _SHARED_ACCOUNT_TYPE),
     sa.column("name", sa.String(length=255)),
     sa.column("email_verified", sa.Boolean()),
     sa.column("email_verified_at", sa.DateTime(timezone=True)),
@@ -44,7 +53,7 @@ accounts_table = sa.table(
     sa.column("name", sa.String(length=255)),
     sa.column("email", sa.String(length=320)),
     sa.column("password_hash", sa.String(length=255)),
-    sa.column("account_type", sa.String(length=32)),
+    sa.column("account_type", _SHARED_ACCOUNT_TYPE),
     sa.column("created_at", sa.DateTime(timezone=True)),
 )
 
@@ -90,7 +99,10 @@ def _ensure_users_auth_columns() -> None:
         return
 
     if not _has_column("users", "account_id"):
-        op.add_column("users", sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True))
+        op.add_column(
+            "users",
+            sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True),
+        )
         op.create_foreign_key(
             "fk_users_account_id_accounts",
             "users",
@@ -102,16 +114,66 @@ def _ensure_users_auth_columns() -> None:
         op.create_index("ix_users_account_id", "users", ["account_id"], unique=False)
 
     for column_name, column in [
-        ("email_verified", sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false"))),
-        ("email_verification_token_hash", sa.Column("email_verification_token_hash", sa.String(length=255), nullable=True)),
-        ("email_verification_sent_at", sa.Column("email_verification_sent_at", sa.DateTime(timezone=True), nullable=True)),
-        ("email_verified_at", sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True)),
-        ("failed_login_attempts", sa.Column("failed_login_attempts", sa.Integer(), nullable=False, server_default=sa.text("0"))),
-        ("approved", sa.Column("approved", sa.Boolean(), nullable=False, server_default=sa.text("false"))),
-        ("approved_at", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True)),
-        ("profile_completed", sa.Column("profile_completed", sa.Boolean(), nullable=False, server_default=sa.text("false"))),
-        ("profile_completed_at", sa.Column("profile_completed_at", sa.DateTime(timezone=True), nullable=True)),
-        ("last_login_at", sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True)),
+        (
+            "email_verified",
+            sa.Column(
+                "email_verified",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("false"),
+            ),
+        ),
+        (
+            "email_verification_token_hash",
+            sa.Column("email_verification_token_hash", sa.String(length=255), nullable=True),
+        ),
+        (
+            "email_verification_sent_at",
+            sa.Column("email_verification_sent_at", sa.DateTime(timezone=True), nullable=True),
+        ),
+        (
+            "email_verified_at",
+            sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
+        ),
+        (
+            "failed_login_attempts",
+            sa.Column(
+                "failed_login_attempts",
+                sa.Integer(),
+                nullable=False,
+                server_default=sa.text("0"),
+            ),
+        ),
+        (
+            "approved",
+            sa.Column(
+                "approved",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("false"),
+            ),
+        ),
+        (
+            "approved_at",
+            sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
+        ),
+        (
+            "profile_completed",
+            sa.Column(
+                "profile_completed",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("false"),
+            ),
+        ),
+        (
+            "profile_completed_at",
+            sa.Column("profile_completed_at", sa.DateTime(timezone=True), nullable=True),
+        ),
+        (
+            "last_login_at",
+            sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
+        ),
     ]:
         if not _has_column("users", column_name):
             op.add_column("users", column)
@@ -122,7 +184,10 @@ def _ensure_auditor_profile_user_link() -> None:
         return
 
     if not _has_column("auditor_profiles", "user_id"):
-        op.add_column("auditor_profiles", sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True))
+        op.add_column(
+            "auditor_profiles",
+            sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        )
         op.create_foreign_key(
             "fk_auditor_profiles_user_id_users",
             "auditor_profiles",
@@ -150,18 +215,21 @@ def _backfill_users_from_accounts() -> None:
 
     for row in account_rows:
         display_name = row["name"] or row["email"].split("@", 1)[0]
-        existing_user = bind.execute(
-            sa.select(
-                users_table.c.id,
-                users_table.c.account_id,
-                users_table.c.name,
+        existing_user = (
+            bind.execute(
+                sa.select(
+                    users_table.c.id,
+                    users_table.c.account_id,
+                    users_table.c.name,
+                )
+                .where(
+                    (users_table.c.account_id == row["id"]) | (users_table.c.email == row["email"])
+                )
+                .limit(1)
             )
-            .where(
-                (users_table.c.account_id == row["id"])
-                | (users_table.c.email == row["email"])
-            )
-            .limit(1)
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
 
         if existing_user is None:
             bind.execute(
@@ -178,7 +246,7 @@ def _backfill_users_from_accounts() -> None:
                     approved=True,
                     approved_at=row["created_at"],
                     profile_completed=bool(display_name.strip()),
-                    profile_completed_at=row["created_at"] if display_name.strip() else None,
+                    profile_completed_at=(row["created_at"] if display_name.strip() else None),
                     last_login_at=None,
                     created_at=row["created_at"],
                 )
@@ -249,12 +317,16 @@ def _link_auditor_profiles_to_users() -> None:
         if row["user_id"] is not None or row["account_id"] in claimed_account_ids:
             continue
 
-        user_row = bind.execute(
-            sa.select(users_table.c.id)
-            .where(users_table.c.account_id == row["account_id"])
-            .order_by(users_table.c.created_at.asc(), users_table.c.id.asc())
-            .limit(1)
-        ).mappings().first()
+        user_row = (
+            bind.execute(
+                sa.select(users_table.c.id)
+                .where(users_table.c.account_id == row["account_id"])
+                .order_by(users_table.c.created_at.asc(), users_table.c.id.asc())
+                .limit(1)
+            )
+            .mappings()
+            .first()
+        )
         if user_row is None:
             continue
 

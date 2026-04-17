@@ -70,7 +70,11 @@ def _normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, obj
     url_query.pop("channel_binding", None)
 
     connect_args: dict[str, object] = {}
-    if isinstance(sslmode, str) and sslmode.lower() in {"require", "verify-ca", "verify-full"}:
+    if isinstance(sslmode, str) and sslmode.lower() in {
+        "require",
+        "verify-ca",
+        "verify-full",
+    }:
         connect_args["ssl"] = True
 
     return sqlalchemy_url.set(query=url_query), connect_args
@@ -124,7 +128,9 @@ for product_key in ProductKey:
     ASYNC_SESSION_FACTORY_BY_PRODUCT[product_key] = session_factory
 
 
-async def get_async_session(product: ProductKey = ProductKey.YEE) -> AsyncIterator[AsyncSession]:
+async def get_async_session(
+    product: ProductKey = ProductKey.YEE,
+) -> AsyncIterator[AsyncSession]:
     """Yield one async session for a specific product."""
 
     async with ASYNC_SESSION_FACTORY_BY_PRODUCT[product]() as session:

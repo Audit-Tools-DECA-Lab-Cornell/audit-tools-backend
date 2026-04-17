@@ -34,7 +34,12 @@ def upgrade() -> None:
     op.add_column("users", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column(
         "users",
-        sa.Column("profile_completed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "profile_completed",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
     )
     op.add_column(
         "users",

@@ -13,6 +13,7 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "app/main.py" = ["B008"]
+"app/notifications_router.py" = ["B008"]
 "alembic/versions/*.py" = ["E501"]
 
 [tool.ruff.format]

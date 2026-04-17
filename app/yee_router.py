@@ -12,7 +12,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_auth_session, get_current_user
-from app.models import AccountType, Assignment, Audit, AuditStatus, Auditor, Place, YeeAuditSubmission, User
+from app.models import (
+    AccountType,
+    Assignment,
+    Audit,
+    AuditStatus,
+    Auditor,
+    Place,
+    YeeAuditSubmission,
+    User,
+)
 from app.yee_scoring import get_yee_instrument_data, score_yee_responses
 
 router: APIRouter = APIRouter(prefix="/yee", tags=["yee"])
@@ -140,7 +149,10 @@ async def submit_yee_audit(
     )
     existing_submission = (await session.execute(existing_submission_stmt)).scalar_one_or_none()
     if existing_submission is not None:
-        raise HTTPException(status_code=409, detail="You have already submitted an audit for this place.")
+        raise HTTPException(
+            status_code=409,
+            detail="You have already submitted an audit for this place.",
+        )
 
     score = score_yee_responses(payload.responses)
     audit = Audit(
@@ -204,7 +216,9 @@ async def get_yee_submission(
         auditor_result = await session.execute(select(Auditor).where(Auditor.user_id == user.id))
         auditor = auditor_result.scalar_one_or_none()
         if auditor is None or submission.auditor_id != auditor.id:
-            raise HTTPException(status_code=403, detail="You do not have access to this submission.")
+            raise HTTPException(
+                status_code=403, detail="You do not have access to this submission."
+            )
 
     # Recompute score from stored responses so this endpoint always returns
     # the same full scoring shape as /yee/audits and /yee/audits/score.

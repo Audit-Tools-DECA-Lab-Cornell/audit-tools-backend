@@ -38,7 +38,11 @@ from app.database import (
 )
 from app.main import app
 from app.models import AuditorProfile
-from app.seed import _build_playspace_entities, _clear_shared_tables, _insert_seed_entities
+from app.seed import (
+    _build_playspace_entities,
+    _clear_shared_tables,
+    _insert_seed_entities,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

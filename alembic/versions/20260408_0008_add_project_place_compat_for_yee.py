@@ -67,7 +67,12 @@ def upgrade() -> None:
             "project_places",
             sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=False),
-            sa.Column("linked_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column(
+                "linked_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
             sa.ForeignKeyConstraint(
                 ["project_id"],
                 ["projects.id"],
@@ -96,7 +101,10 @@ def upgrade() -> None:
         op.execute("ALTER TABLE places ALTER COLUMN project_id DROP NOT NULL")
 
     if not _has_column("audits", "project_id"):
-        op.add_column("audits", sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True))
+        op.add_column(
+            "audits",
+            sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),
+        )
 
     if _has_column("audits", "project_id") and _has_column("places", "project_id"):
         op.execute(
@@ -132,10 +140,18 @@ def upgrade() -> None:
             ondelete="CASCADE",
         )
 
-    op.execute("ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS ck_auditor_assignments_single_scope")
-    op.execute("ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS ck_auditor_assignments_ck_auditor_assignments_single_scope")
-    op.execute("ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS uq_auditor_assignments_auditor_project")
-    op.execute("ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS uq_auditor_assignments_auditor_place")
+    op.execute(
+        "ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS ck_auditor_assignments_single_scope"
+    )
+    op.execute(
+        "ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS ck_auditor_assignments_ck_auditor_assignments_single_scope"
+    )
+    op.execute(
+        "ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS uq_auditor_assignments_auditor_project"
+    )
+    op.execute(
+        "ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS uq_auditor_assignments_auditor_place"
+    )
     op.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_auditor_assignments_auditor_project_scope
@@ -169,7 +185,11 @@ def downgrade() -> None:
         return
 
     if _has_constraint("auditor_assignments", "fk_auditor_assignments_project_place_pair"):
-        op.drop_constraint("fk_auditor_assignments_project_place_pair", "auditor_assignments", type_="foreignkey")
+        op.drop_constraint(
+            "fk_auditor_assignments_project_place_pair",
+            "auditor_assignments",
+            type_="foreignkey",
+        )
     if _has_constraint("audits", "fk_audits_project_place_pair"):
         op.drop_constraint("fk_audits_project_place_pair", "audits", type_="foreignkey")
     if _has_constraint("audits", "fk_audits_project_id_projects"):

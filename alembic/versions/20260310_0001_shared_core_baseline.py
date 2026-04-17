@@ -145,7 +145,10 @@ def upgrade() -> None:
         sa.UniqueConstraint("email", name="uq_manager_profiles_email"),
     )
     op.create_index(
-        "ix_manager_profiles_account_id", "manager_profiles", ["account_id"], unique=False
+        "ix_manager_profiles_account_id",
+        "manager_profiles",
+        ["account_id"],
+        unique=False,
     )
     op.create_index("ix_manager_profiles_email", "manager_profiles", ["email"], unique=False)
 
@@ -242,10 +245,16 @@ def upgrade() -> None:
         sa.UniqueConstraint("email", name="uq_auditor_profiles_email"),
     )
     op.create_index(
-        "ix_auditor_profiles_account_id", "auditor_profiles", ["account_id"], unique=False
+        "ix_auditor_profiles_account_id",
+        "auditor_profiles",
+        ["account_id"],
+        unique=False,
     )
     op.create_index(
-        "ix_auditor_profiles_auditor_code", "auditor_profiles", ["auditor_code"], unique=False
+        "ix_auditor_profiles_auditor_code",
+        "auditor_profiles",
+        ["auditor_code"],
+        unique=False,
     )
     op.create_index("ix_auditor_profiles_email", "auditor_profiles", ["email"], unique=False)
 
@@ -302,10 +311,16 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        "ix_auditor_assignments_project_id", "auditor_assignments", ["project_id"], unique=False
+        "ix_auditor_assignments_project_id",
+        "auditor_assignments",
+        ["project_id"],
+        unique=False,
     )
     op.create_index(
-        "ix_auditor_assignments_place_id", "auditor_assignments", ["place_id"], unique=False
+        "ix_auditor_assignments_place_id",
+        "auditor_assignments",
+        ["place_id"],
+        unique=False,
     )
 
     op.create_table(

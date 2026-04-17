@@ -10,7 +10,9 @@ from email.message import EmailMessage
 logger = logging.getLogger(__name__)
 
 
-def _send_email(*, to_email: str, subject: str, body: str, log_label: str, fallback_url: str) -> bool:
+def _send_email(
+    *, to_email: str, subject: str, body: str, log_label: str, fallback_url: str
+) -> bool:
     smtp_host = os.getenv("SMTP_HOST", "").strip()
     smtp_port_raw = os.getenv("SMTP_PORT", "587").strip()
     smtp_username = os.getenv("SMTP_USERNAME", "").strip()

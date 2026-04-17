@@ -72,7 +72,9 @@ def test_instrument_loader_normalizes_legacy_quantity_keys() -> None:
     }
     payload["scale_guidance"][0]["key"] = "quantity"
 
-    parsed = PlayspaceInstrumentResponse.model_validate(normalize_legacy_instrument_payload(payload))
+    parsed = PlayspaceInstrumentResponse.model_validate(
+        normalize_legacy_instrument_payload(payload)
+    )
 
     assert parsed.scale_guidance[0].key.value == "provision"
     assert parsed.sections[0].questions[0].scales[0].key.value == "provision"

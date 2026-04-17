@@ -58,7 +58,9 @@ def _restore_json_value(value: object) -> object:
     return value
 
 
-def _write_instrument_content(bind: sa.Connection, *, instrument_id: object, content: dict[str, object]) -> None:
+def _write_instrument_content(
+    bind: sa.Connection, *, instrument_id: object, content: dict[str, object]
+) -> None:
     bind.execute(
         sa.text(
             """
@@ -74,16 +76,20 @@ def _write_instrument_content(bind: sa.Connection, *, instrument_id: object, con
 
 def _backfill_instrument_content() -> None:
     bind = op.get_bind()
-    rows = bind.execute(
-        sa.text(
-            """
+    rows = (
+        bind.execute(
+            sa.text(
+                """
             SELECT id, content
             FROM instruments
             WHERE instrument_key = :instrument_key
             """
-        ),
-        {"instrument_key": "pvua_v5_2"},
-    ).mappings().all()
+            ),
+            {"instrument_key": "pvua_v5_2"},
+        )
+        .mappings()
+        .all()
+    )
 
     for row in rows:
         content = row["content"]
@@ -113,16 +119,20 @@ def downgrade() -> None:
         return
 
     bind = op.get_bind()
-    rows = bind.execute(
-        sa.text(
-            """
+    rows = (
+        bind.execute(
+            sa.text(
+                """
             SELECT id, content
             FROM instruments
             WHERE instrument_key = :instrument_key
             """
-        ),
-        {"instrument_key": "pvua_v5_2"},
-    ).mappings().all()
+            ),
+            {"instrument_key": "pvua_v5_2"},
+        )
+        .mappings()
+        .all()
+    )
 
     for row in rows:
         content = row["content"]

@@ -29,10 +29,23 @@ def upgrade() -> None:
     op.create_table(
         "yee_audit_submissions",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("submitted_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("participant_info_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "submitted_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "participant_info_json",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+        ),
         sa.Column("responses_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("section_scores_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "section_scores_json",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+        ),
         sa.Column("total_score", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_yee_audit_submissions")),
     )

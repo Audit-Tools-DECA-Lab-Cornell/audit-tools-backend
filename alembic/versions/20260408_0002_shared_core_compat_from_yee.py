@@ -257,7 +257,10 @@ def _upgrade_places_table() -> None:
         ("start_date", sa.Column("start_date", sa.Date(), nullable=True)),
         ("end_date", sa.Column("end_date", sa.Date(), nullable=True)),
         ("est_auditors", sa.Column("est_auditors", sa.Integer(), nullable=True)),
-        ("auditor_description", sa.Column("auditor_description", sa.Text(), nullable=True)),
+        (
+            "auditor_description",
+            sa.Column("auditor_description", sa.Text(), nullable=True),
+        ),
     ]:
         if not _has_column("places", column_name):
             op.add_column("places", column)
@@ -305,12 +308,27 @@ def _create_manager_profiles_table() -> None:
         sa.Column("position", sa.String(length=200), nullable=True),
         sa.Column("organization", sa.String(length=200), nullable=True),
         sa.Column("is_primary", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], name="fk_manager_profiles_account_id_accounts", ondelete="CASCADE"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["account_id"],
+            ["accounts.id"],
+            name="fk_manager_profiles_account_id_accounts",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_manager_profiles"),
         sa.UniqueConstraint("email", name="uq_manager_profiles_email"),
     )
-    op.create_index("ix_manager_profiles_account_id", "manager_profiles", ["account_id"], unique=False)
+    op.create_index(
+        "ix_manager_profiles_account_id",
+        "manager_profiles",
+        ["account_id"],
+        unique=False,
+    )
     op.create_index("ix_manager_profiles_email", "manager_profiles", ["email"], unique=False)
 
 
@@ -388,15 +406,40 @@ def _create_auditor_profiles_table() -> None:
         sa.Column("gender", sa.String(length=80), nullable=True),
         sa.Column("country", sa.String(length=120), nullable=True),
         sa.Column("role", sa.String(length=120), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], name="fk_auditor_profiles_account_id_accounts", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_auditor_profiles_user_id_users", ondelete="SET NULL"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["account_id"],
+            ["accounts.id"],
+            name="fk_auditor_profiles_account_id_accounts",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            name="fk_auditor_profiles_user_id_users",
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_auditor_profiles"),
         sa.UniqueConstraint("auditor_code", name="uq_auditor_profiles_auditor_code"),
         sa.UniqueConstraint("user_id", name="uq_auditor_profiles_user_id"),
     )
-    op.create_index("ix_auditor_profiles_account_id", "auditor_profiles", ["account_id"], unique=False)
-    op.create_index("ix_auditor_profiles_auditor_code", "auditor_profiles", ["auditor_code"], unique=False)
+    op.create_index(
+        "ix_auditor_profiles_account_id",
+        "auditor_profiles",
+        ["account_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_auditor_profiles_auditor_code",
+        "auditor_profiles",
+        ["auditor_code"],
+        unique=False,
+    )
     op.create_index("ix_auditor_profiles_email", "auditor_profiles", ["email"], unique=False)
 
 
@@ -473,18 +516,64 @@ def _create_auditor_assignments_table() -> None:
         sa.Column("auditor_profile_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("assigned_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.CheckConstraint("(project_id IS NOT NULL) <> (place_id IS NOT NULL)", name="ck_auditor_assignments_single_scope"),
-        sa.ForeignKeyConstraint(["auditor_profile_id"], ["auditor_profiles.id"], name="fk_auditor_assignments_auditor_profile_id_auditor_profiles", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], name="fk_auditor_assignments_project_id_projects", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["place_id"], ["places.id"], name="fk_auditor_assignments_place_id_places", ondelete="CASCADE"),
+        sa.Column(
+            "assigned_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "(project_id IS NOT NULL) <> (place_id IS NOT NULL)",
+            name="ck_auditor_assignments_single_scope",
+        ),
+        sa.ForeignKeyConstraint(
+            ["auditor_profile_id"],
+            ["auditor_profiles.id"],
+            name="fk_auditor_assignments_auditor_profile_id_auditor_profiles",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name="fk_auditor_assignments_project_id_projects",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["place_id"],
+            ["places.id"],
+            name="fk_auditor_assignments_place_id_places",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_auditor_assignments"),
-        sa.UniqueConstraint("auditor_profile_id", "project_id", name="uq_auditor_assignments_auditor_project"),
-        sa.UniqueConstraint("auditor_profile_id", "place_id", name="uq_auditor_assignments_auditor_place"),
+        sa.UniqueConstraint(
+            "auditor_profile_id",
+            "project_id",
+            name="uq_auditor_assignments_auditor_project",
+        ),
+        sa.UniqueConstraint(
+            "auditor_profile_id",
+            "place_id",
+            name="uq_auditor_assignments_auditor_place",
+        ),
     )
-    op.create_index("ix_auditor_assignments_auditor_profile_id", "auditor_assignments", ["auditor_profile_id"], unique=False)
-    op.create_index("ix_auditor_assignments_project_id", "auditor_assignments", ["project_id"], unique=False)
-    op.create_index("ix_auditor_assignments_place_id", "auditor_assignments", ["place_id"], unique=False)
+    op.create_index(
+        "ix_auditor_assignments_auditor_profile_id",
+        "auditor_assignments",
+        ["auditor_profile_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_auditor_assignments_project_id",
+        "auditor_assignments",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_auditor_assignments_place_id",
+        "auditor_assignments",
+        ["place_id"],
+        unique=False,
+    )
 
 
 def _backfill_auditor_assignments() -> None:
@@ -561,14 +650,39 @@ def _upgrade_audits_table() -> None:
     )
 
     for column_name, column in [
-        ("auditor_profile_id", sa.Column("auditor_profile_id", postgresql.UUID(as_uuid=True), nullable=True)),
+        (
+            "auditor_profile_id",
+            sa.Column("auditor_profile_id", postgresql.UUID(as_uuid=True), nullable=True),
+        ),
         ("audit_code", sa.Column("audit_code", sa.String(length=120), nullable=True)),
-        ("instrument_key", sa.Column("instrument_key", sa.String(length=80), nullable=True)),
-        ("instrument_version", sa.Column("instrument_version", sa.String(length=40), nullable=True)),
+        (
+            "instrument_key",
+            sa.Column("instrument_key", sa.String(length=80), nullable=True),
+        ),
+        (
+            "instrument_version",
+            sa.Column("instrument_version", sa.String(length=40), nullable=True),
+        ),
         ("total_minutes", sa.Column("total_minutes", sa.Integer(), nullable=True)),
         ("summary_score", sa.Column("summary_score", sa.Float(), nullable=True)),
-        ("created_at", sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False)),
-        ("updated_at", sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False)),
+        (
+            "created_at",
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+        ),
+        (
+            "updated_at",
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=False,
+            ),
+        ),
     ]:
         if not _has_column("audits", column_name):
             op.add_column("audits", column)
@@ -632,11 +746,21 @@ def _upgrade_audits_table() -> None:
         """
     )
 
-    op.alter_column("audits", "auditor_profile_id", existing_type=postgresql.UUID(as_uuid=True), nullable=False)
+    op.alter_column(
+        "audits",
+        "auditor_profile_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=False,
+    )
     op.alter_column("audits", "audit_code", existing_type=sa.String(length=120), nullable=False)
 
     if not _has_index("audits", "ix_audits_auditor_profile_id"):
-        op.create_index("ix_audits_auditor_profile_id", "audits", ["auditor_profile_id"], unique=False)
+        op.create_index(
+            "ix_audits_auditor_profile_id",
+            "audits",
+            ["auditor_profile_id"],
+            unique=False,
+        )
     if not _has_index("audits", "ix_audits_audit_code"):
         op.create_index("ix_audits_audit_code", "audits", ["audit_code"], unique=True)
 

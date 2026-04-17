@@ -124,7 +124,9 @@ def require_admin_user(current_user: CurrentUserContext) -> CurrentUserContext:
     return current_user
 
 
-def require_manager_or_admin_user(current_user: CurrentUserContext) -> CurrentUserContext:
+def require_manager_or_admin_user(
+    current_user: CurrentUserContext,
+) -> CurrentUserContext:
     """Allow only manager or admin users."""
 
     if current_user.role not in {CurrentUserRole.MANAGER, CurrentUserRole.ADMIN}:

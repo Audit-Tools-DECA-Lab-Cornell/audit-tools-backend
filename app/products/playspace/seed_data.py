@@ -318,7 +318,12 @@ AUDITOR_BLUEPRINTS: tuple[AuditorBlueprint, ...] = (
     ),
     AuditorBlueprint("CHC-02", "Talia Cooper", "Christchurch", "18-24", "Woman", "student"),
     AuditorBlueprint(
-        "CHC-03", "James Mason", "Christchurch", "35-44", "Man", "occupational therapist"
+        "CHC-03",
+        "James Mason",
+        "Christchurch",
+        "35-44",
+        "Man",
+        "occupational therapist",
     ),
     AuditorBlueprint("CHC-04", "Ava Reed", "Christchurch", "25-34", "Woman", "playworker"),
     AuditorBlueprint("WLG-01", "Hana Robinson", "Wellington", "18-24", "Woman", "student"),
@@ -352,7 +357,12 @@ PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = (
         metro=METRO_CHRISTCHURCH,
         status="active",
         place_types=(PUBLIC_PLAYSPACE, PRESCHOOL_PLAYSPACE, NEIGHBORHOOD_PLAYSPACE),
-        focus_terms=("community usability", "loose parts", "restorative edges", "challenge"),
+        focus_terms=(
+            "community usability",
+            "loose parts",
+            "restorative edges",
+            "challenge",
+        ),
         extra_place_count=6,
     ),
     ProjectBlueprint(
@@ -362,7 +372,12 @@ PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = (
         metro=METRO_AUCKLAND,
         status="active",
         place_types=(PUBLIC_PLAYSPACE, DESTINATION_PLAYSPACE, NATURE_PLAYSPACE),
-        focus_terms=("maintenance", "activity diversity", "inclusive circulation", "comfort"),
+        focus_terms=(
+            "maintenance",
+            "activity diversity",
+            "inclusive circulation",
+            "comfort",
+        ),
         extra_place_count=7,
     ),
     ProjectBlueprint(
@@ -372,7 +387,12 @@ PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = (
         metro=METRO_WELLINGTON,
         status="active",
         place_types=(WATERFRONT_PLAYSPACE, PUBLIC_PLAYSPACE, SCHOOL_PLAYSPACE),
-        focus_terms=("wind protection", "connectivity", "spectator seating", "group play"),
+        focus_terms=(
+            "wind protection",
+            "connectivity",
+            "spectator seating",
+            "group play",
+        ),
         extra_place_count=7,
     ),
     ProjectBlueprint(
@@ -412,7 +432,12 @@ PROJECT_BLUEPRINTS: tuple[ProjectBlueprint, ...] = (
         metro=METRO_CHRISTCHURCH,
         status="planned",
         place_types=(PUBLIC_PLAYSPACE, PRESCHOOL_PLAYSPACE, NATURE_PLAYSPACE),
-        focus_terms=("planning", "access routes", "community readiness", "future audit sequencing"),
+        focus_terms=(
+            "planning",
+            "access routes",
+            "community readiness",
+            "future audit sequencing",
+        ),
         extra_place_count=6,
     ),
 )
@@ -458,7 +483,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
         account_type=AccountType.ADMIN,
         created_at=BASE_ADMIN_CREATED_AT,
     )
-    
+
     canonical_instrument = Instrument(
         instrument_key=INSTRUMENT_KEY,
         instrument_version=INSTRUMENT_VERSION,
@@ -646,14 +671,9 @@ def _build_user_entities(
     """Create one auth user per seeded Playspace account."""
 
     primary_manager_name_by_account_id = {
-        profile.account_id: profile.full_name
-        for profile in manager_profiles
-        if profile.is_primary
+        profile.account_id: profile.full_name for profile in manager_profiles if profile.is_primary
     }
-    auditor_profile_by_account_id = {
-        profile.account_id: profile
-        for profile in auditor_profiles
-    }
+    auditor_profile_by_account_id = {profile.account_id: profile for profile in auditor_profiles}
     users: list[User] = []
 
     for account in accounts:
@@ -662,9 +682,7 @@ def _build_user_entities(
         elif account.account_type == AccountType.AUDITOR:
             auditor_profile = auditor_profile_by_account_id.get(account.id)
             display_name = (
-                auditor_profile.full_name
-                if auditor_profile is not None
-                else account.name
+                auditor_profile.full_name if auditor_profile is not None else account.name
             )
         else:
             display_name = account.name
@@ -682,7 +700,7 @@ def _build_user_entities(
             approved=True,
             approved_at=account.created_at,
             profile_completed=display_name is not None,
-            profile_completed_at=account.created_at if display_name is not None else None,
+            profile_completed_at=(account.created_at if display_name is not None else None),
             created_at=account.created_at,
         )
         users.append(user)
@@ -1036,7 +1054,6 @@ def _build_assignments(
 ) -> tuple[list[AuditorAssignment], dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]]]:
     """Create project and place assignments plus a resolved execution-mode map."""
 
-
     # making sure the auditor_profile_id, place_id, project_id are unique for each assignment.
     # no project-wide assignments. so, we don't have the project_auditors_by_project dictionary.
 
@@ -1082,14 +1099,21 @@ def _build_assignments(
             project_auditors = project_auditors_by_project[project_context.project.id]
             if not project_auditors:
                 continue
-            
+
             lead_context = project_auditors[place_index % len(project_auditors)]
-            
-            print(f"project_context.project.id: {project_place_auditor_unique_assignments}")
-            if (str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id)) in project_place_auditor_unique_assignments:
+
+            if (
+                str(project_context.project.id),
+                str(place_context.place.id),
+                str(lead_context.profile.id),
+            ) in project_place_auditor_unique_assignments:
                 continue
             project_place_auditor_unique_assignments.add(
-                (str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id))
+                (
+                    str(project_context.project.id),
+                    str(place_context.place.id),
+                    str(lead_context.profile.id),
+                )
             )
             try:
                 lead_assignment = AuditorAssignment(
@@ -1119,16 +1143,28 @@ def _build_assignments(
                 print(f"place_context.place.id: {place_context.place.id}")
                 print(f"lead_context.profile.id: {lead_context.profile.id}")
                 print("--------------------------------")
-                print(f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id)}")
-                print(f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, lead_context.profile.id in project_place_auditor_unique_assignments}")
+                print(
+                    f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(lead_context.profile.id)}"
+                )
+                print(
+                    f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, lead_context.profile.id in project_place_auditor_unique_assignments}"
+                )
 
             if randomizer.random() < 0.55 and len(project_auditors) > 1:
                 support_context = project_auditors[(place_index + 1) % len(project_auditors)]
-                
-                if (str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id)) in project_place_auditor_unique_assignments:
+
+                if (
+                    str(project_context.project.id),
+                    str(place_context.place.id),
+                    str(support_context.profile.id),
+                ) in project_place_auditor_unique_assignments:
                     continue
                 project_place_auditor_unique_assignments.add(
-                    (str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id))
+                    (
+                        str(project_context.project.id),
+                        str(place_context.place.id),
+                        str(support_context.profile.id),
+                    )
                 )
                 try:
                     support_assignment = AuditorAssignment(
@@ -1158,8 +1194,12 @@ def _build_assignments(
                     print(f"place_context.place.id: {place_context.place.id}")
                     print(f"support_context.profile.id: {support_context.profile.id}")
                     print("--------------------------------")
-                    print(f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id)}")
-                    print(f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, support_context.profile.id in project_place_auditor_unique_assignments}")
+                    print(
+                        f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(support_context.profile.id)}"
+                    )
+                    print(
+                        f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, support_context.profile.id in project_place_auditor_unique_assignments}"
+                    )
 
             off_project_candidates = [
                 auditor_context
@@ -1172,10 +1212,18 @@ def _build_assignments(
                 specialist_context = off_project_candidates[
                     place_index % len(off_project_candidates)
                 ]
-                if (str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id)) in project_place_auditor_unique_assignments:
+                if (
+                    str(project_context.project.id),
+                    str(place_context.place.id),
+                    str(specialist_context.profile.id),
+                ) in project_place_auditor_unique_assignments:
                     continue
                 project_place_auditor_unique_assignments.add(
-                    (str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id))
+                    (
+                        str(project_context.project.id),
+                        str(place_context.place.id),
+                        str(specialist_context.profile.id),
+                    )
                 )
                 try:
                     specialist_assignment = AuditorAssignment(
@@ -1205,8 +1253,12 @@ def _build_assignments(
                     print(f"place_context.place.id: {place_context.place.id}")
                     print(f"specialist_context.profile.id: {specialist_context.profile.id}")
                     print("--------------------------------")
-                    print(f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id)}")
-                    print(f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, specialist_context.profile.id in project_place_auditor_unique_assignments}")
+                    print(
+                        f"project_place_auditor_unique_assignments: {str(project_context.project.id), str(place_context.place.id), str(specialist_context.profile.id)}"
+                    )
+                    print(
+                        f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, specialist_context.profile.id in project_place_auditor_unique_assignments}"
+                    )
 
     return assignments, execution_modes_by_place_and_auditor
 
@@ -1228,7 +1280,10 @@ def _hydrate_estimated_counts(
 
     auditors_by_project_id: dict[uuid.UUID, set[uuid.UUID]] = {}
     auditors_by_place_id: dict[uuid.UUID, set[uuid.UUID]] = {}
-    for (place_id, auditor_profile_id), _modes in execution_modes_by_place_and_auditor.items():
+    for (
+        place_id,
+        auditor_profile_id,
+    ), _modes in execution_modes_by_place_and_auditor.items():
         auditors_by_place_id.setdefault(place_id, set()).add(auditor_profile_id)
 
     place_context_by_id = {
@@ -1445,7 +1500,10 @@ def _build_generated_audits_for_place(
 
     assigned_auditor_ids = [
         auditor_profile_id
-        for (place_id, auditor_profile_id), _modes in execution_modes_by_place_and_auditor.items()
+        for (
+            place_id,
+            auditor_profile_id,
+        ), _modes in execution_modes_by_place_and_auditor.items()
         if place_id == place_context.place.id
     ]
     assigned_auditor_ids = sorted(set(assigned_auditor_ids))
@@ -1509,7 +1567,14 @@ def _build_generated_audits_for_place(
     if not should_add_draft:
         return audits
 
-    draft_author_id = author_ids[-1]
+    # One audit per (project, place, auditor) — do not assign a second draft row to an
+    # auditor who already has a submitted audit for this place.
+    submitted_auditor_ids = set(historical_author_ids)
+    draft_candidates = [aid for aid in author_ids if aid not in submitted_auditor_ids]
+    if not draft_candidates:
+        return audits
+
+    draft_author_id = draft_candidates[-1]
     draft_author = auditor_context_by_id[draft_author_id]
     draft_allowed_modes = execution_modes_by_place_and_auditor[
         (place_context.place.id, draft_author_id)
@@ -2038,7 +2103,8 @@ def _historical_started_at(
 
     place_start = place_context.place.start_date or reference_date
     latest_allowed_date = min(
-        reference_date - timedelta(days=3), place_context.place.end_date or reference_date
+        reference_date - timedelta(days=3),
+        place_context.place.end_date or reference_date,
     )
     window_days = max((latest_allowed_date - place_start).days, 2)
     chosen_day = min(window_days, 4 + (slot_index * 9) + randomizer.randint(0, 12))
@@ -2056,7 +2122,10 @@ def _draft_started_at(*, reference_date: date, randomizer: Random) -> datetime:
     audit_day = reference_date - timedelta(days=randomizer.randint(0, 8))
     return datetime.combine(
         audit_day,
-        time(hour=8 + randomizer.randint(0, 6), minute=randomizer.choice([0, 10, 20, 30, 40, 50])),
+        time(
+            hour=8 + randomizer.randint(0, 6),
+            minute=randomizer.choice([0, 10, 20, 30, 40, 50]),
+        ),
         tzinfo=UTC,
     )
 
@@ -2261,7 +2330,9 @@ def _wind_conditions_for_season(
     """Pick one wind condition that aligns with the seeded season and weather."""
 
     if season == "winter":
-        return "heavy_wind" if usage_bias < 0.45 and randomizer.random() < 0.35 else "occasional_gusts"
+        return (
+            "heavy_wind" if usage_bias < 0.45 and randomizer.random() < 0.35 else "occasional_gusts"
+        )
     if season == "autumn":
         return "occasional_gusts" if randomizer.random() < 0.55 else "light_wind"
     if season == "summer":
@@ -2280,11 +2351,7 @@ def _weather_for_season(
     if season == "summer":
         if usage_bias >= 0.7:
             return ["full_sun"]
-        return (
-            ["full_sun", "light_rain"]
-            if randomizer.random() < 0.18
-            else ["partial_sun_cloud"]
-        )
+        return ["full_sun", "light_rain"] if randomizer.random() < 0.18 else ["partial_sun_cloud"]
     if season == "autumn":
         return ["cloudy_overcast", "light_rain"] if randomizer.random() < 0.45 else ["foggy_misty"]
     if season == "winter":

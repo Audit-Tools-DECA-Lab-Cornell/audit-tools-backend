@@ -34,18 +34,53 @@ def upgrade() -> None:
         sa.Column("auditor_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("email", sa.String(length=320), nullable=False),
         sa.Column("token_hash", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["account_id"], ["accounts.id"], name=op.f("fk_auditor_invites_account_id_accounts"), ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["invited_by_user_id"], ["users.id"], name=op.f("fk_auditor_invites_invited_by_user_id_users"), ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["auditor_id"], ["auditors.id"], name=op.f("fk_auditor_invites_auditor_id_auditors"), ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["account_id"],
+            ["accounts.id"],
+            name=op.f("fk_auditor_invites_account_id_accounts"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["invited_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_auditor_invites_invited_by_user_id_users"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["auditor_id"],
+            ["auditors.id"],
+            name=op.f("fk_auditor_invites_auditor_id_auditors"),
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_auditor_invites")),
         sa.UniqueConstraint("token_hash", name=op.f("uq_auditor_invites_token_hash")),
     )
-    op.create_index(op.f("ix_auditor_invites_account_id"), "auditor_invites", ["account_id"], unique=False)
-    op.create_index(op.f("ix_auditor_invites_invited_by_user_id"), "auditor_invites", ["invited_by_user_id"], unique=False)
-    op.create_index(op.f("ix_auditor_invites_auditor_id"), "auditor_invites", ["auditor_id"], unique=False)
+    op.create_index(
+        op.f("ix_auditor_invites_account_id"),
+        "auditor_invites",
+        ["account_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_auditor_invites_invited_by_user_id"),
+        "auditor_invites",
+        ["invited_by_user_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_auditor_invites_auditor_id"),
+        "auditor_invites",
+        ["auditor_id"],
+        unique=False,
+    )
     op.create_index(op.f("ix_auditor_invites_email"), "auditor_invites", ["email"], unique=False)
 
 

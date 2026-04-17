@@ -162,7 +162,9 @@ def _serialize_auth_user(user: User) -> AuthUser:
         email=user.email,
         name=user.name,
         account_id=user.account_id,
-        organization=user.account.name if "account" in user.__dict__ and user.account is not None else None,
+        organization=(
+            user.account.name if "account" in user.__dict__ and user.account is not None else None
+        ),
         account_type=user.account_type,
         email_verified=user.email_verified,
         approved=user.approved,
@@ -215,9 +217,7 @@ async def _get_auditor_profile_for_account(
 ) -> Auditor | None:
     """Return the auditor profile tied to one account when it exists."""
 
-    result = await session.execute(
-        select(Auditor).where(Auditor.account_id == account_id).limit(1)
-    )
+    result = await session.execute(select(Auditor).where(Auditor.account_id == account_id).limit(1))
     return result.scalar_one_or_none()
 
 
@@ -274,7 +274,10 @@ async def _playspace_signup(
 
     account_type = payload.account_type or AccountType.MANAGER
     if account_type == AccountType.ADMIN:
-        raise HTTPException(status_code=403, detail="Admin accounts cannot be created through public signup.")
+        raise HTTPException(
+            status_code=403,
+            detail="Admin accounts cannot be created through public signup.",
+        )
 
     clean_name = _clean_name(payload.name)
     password_hash = hash_password(payload.password)
@@ -284,7 +287,9 @@ async def _playspace_signup(
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
 
     existing_account = await _find_account_by_email(session=session, email=email)
-    resolved_account_type = existing_account.account_type if existing_account is not None else account_type
+    resolved_account_type = (
+        existing_account.account_type if existing_account is not None else account_type
+    )
     if existing_account is not None and resolved_account_type != account_type:
         raise HTTPException(
             status_code=409,
@@ -442,7 +447,9 @@ def _build_invite_url(*, request: FastAPIRequest, token: str) -> str:
 
 async def _get_valid_invite(session: AsyncSession, token: str) -> AuditorInvite:
     token_hash = hash_verification_token(token.strip())
-    result = await session.execute(select(AuditorInvite).where(AuditorInvite.token_hash == token_hash))
+    result = await session.execute(
+        select(AuditorInvite).where(AuditorInvite.token_hash == token_hash)
+    )
     invite = result.scalar_one_or_none()
     if invite is None:
         raise HTTPException(status_code=404, detail="Invite not found.")
@@ -510,7 +517,11 @@ async def _send_or_log_verification_email(
     await session.commit()
 
 
-@router.post("/signup", response_model=AuthResponse | SignupResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup",
+    response_model=AuthResponse | SignupResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def signup(
     payload: SignupRequest,
     request: FastAPIRequest,
@@ -524,7 +535,10 @@ async def signup(
     if _is_playspace_request(request):
         return await _playspace_signup(payload=payload, session=session)
 
-    _verify_turnstile_if_enabled(captcha_token=payload.captcha_token, remote_ip=request.client.host if request.client else None)
+    _verify_turnstile_if_enabled(
+        captcha_token=payload.captcha_token,
+        remote_ip=request.client.host if request.client else None,
+    )
 
     email = _normalize_email(payload.email)
     if not email:
@@ -535,12 +549,19 @@ async def signup(
 
     account_type = payload.account_type or AccountType.MANAGER
     if account_type == AccountType.ADMIN:
-        raise HTTPException(status_code=403, detail="Admin accounts cannot be created through public signup.")
+        raise HTTPException(
+            status_code=403,
+            detail="Admin accounts cannot be created through public signup.",
+        )
 
     password_hash = hash_password(payload.password)
     now = datetime.now(timezone.utc)
     approved = account_type == AccountType.MANAGER
-    account_name = _manager_account_name(_clean_name(payload.name), email) if account_type == AccountType.MANAGER else None
+    account_name = (
+        _manager_account_name(_clean_name(payload.name), email)
+        if account_type == AccountType.MANAGER
+        else None
+    )
 
     existing_result = await session.execute(select(User).where(User.email == email))
     existing_user = existing_result.scalar_one_or_none()
@@ -633,7 +654,9 @@ async def verify_email(
     ttl_hours = get_verification_ttl_hours()
     expires_at = user.email_verification_sent_at + timedelta(hours=ttl_hours)
     if datetime.now(timezone.utc) > expires_at:
-        raise HTTPException(status_code=400, detail="Verification token has expired. Request a new one.")
+        raise HTTPException(
+            status_code=400, detail="Verification token has expired. Request a new one."
+        )
 
     user.email_verified = True
     user.email_verified_at = datetime.now(timezone.utc)
@@ -659,10 +682,15 @@ async def resend_verification(
     if _is_playspace_request(request):
         _raise_playspace_auth_not_supported(feature_name="Verification resend")
 
-    _verify_turnstile_if_enabled(captcha_token=payload.captcha_token, remote_ip=request.client.host if request.client else None)
+    _verify_turnstile_if_enabled(
+        captcha_token=payload.captcha_token,
+        remote_ip=request.client.host if request.client else None,
+    )
 
     email = _normalize_email(payload.email)
-    result = await session.execute(select(User).options(selectinload(User.account)).where(User.email == email))
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.email == email)
+    )
     user = result.scalar_one_or_none()
 
     if user is None or user.email_verified:
@@ -703,7 +731,9 @@ async def login(
     user.failed_login_attempts = 0
     user.last_login_at = datetime.now(timezone.utc)
     await session.commit()
-    result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.id == user.id)
+    )
     user = result.scalar_one()
 
     return AuthResponse(
@@ -757,15 +787,22 @@ async def complete_profile(
 
     user = await _get_current_yee_user(credentials=credentials, session=session)
     if not user.email_verified:
-        raise HTTPException(status_code=403, detail="Email must be verified before completing profile.")
+        raise HTTPException(
+            status_code=403, detail="Email must be verified before completing profile."
+        )
     if not user.approved:
-        raise HTTPException(status_code=403, detail="Account approval is required before completing profile.")
+        raise HTTPException(
+            status_code=403,
+            detail="Account approval is required before completing profile.",
+        )
 
     user.name = clean_name
     user.profile_completed = True
     user.profile_completed_at = datetime.now(timezone.utc)
     await session.commit()
-    result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.id == user.id)
+    )
     user = result.scalar_one()
 
     return SessionResponse(user=_serialize_auth_user(user))
@@ -810,10 +847,14 @@ async def accept_invite(
     if clean_name is None:
         raise HTTPException(status_code=400, detail="Name is required.")
 
-    user_result = await session.execute(select(User).options(selectinload(User.account)).where(User.email == email))
+    user_result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.email == email)
+    )
     user = user_result.scalar_one_or_none()
     if user is not None and user.account_type == AccountType.MANAGER:
-        raise HTTPException(status_code=409, detail="This email is already used by a manager account.")
+        raise HTTPException(
+            status_code=409, detail="This email is already used by a manager account."
+        )
 
     now = datetime.now(timezone.utc)
     if user is None:
@@ -844,7 +885,9 @@ async def accept_invite(
         user.profile_completed = False
         user.profile_completed_at = None
 
-    auditor = await session.get(Auditor, invite.auditor_id) if invite.auditor_id is not None else None
+    auditor = (
+        await session.get(Auditor, invite.auditor_id) if invite.auditor_id is not None else None
+    )
     if auditor is None:
         auditor = Auditor(
             account_id=invite.account_id,
@@ -861,7 +904,9 @@ async def accept_invite(
     token_value, expires_at = generate_access_token(str(user.id))
     user.last_login_at = now
     await session.commit()
-    result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
+    result = await session.execute(
+        select(User).options(selectinload(User.account)).where(User.id == user.id)
+    )
     user = result.scalar_one()
 
     return AuthResponse(

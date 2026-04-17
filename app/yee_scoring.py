@@ -31,7 +31,9 @@ def _get_element(qsf: dict[str, object], element: str) -> dict[str, object]:
     raise ValueError(f"Missing '{element}' element in YEE QSF.")
 
 
-def _parse_scoring_categories(qsf: dict[str, object]) -> tuple[dict[str, str], dict[str, str]]:
+def _parse_scoring_categories(
+    qsf: dict[str, object],
+) -> tuple[dict[str, str], dict[str, str]]:
     sco = _get_element(qsf, "SCO")
     payload = sco.get("Payload", {})
     categories = payload.get("ScoringCategories", [])
@@ -183,7 +185,8 @@ def get_yee_instrument_data() -> dict[str, object]:
 
     return {
         "survey_id": _as_str(survey_entry.get("SurveyID")) or "unknown",
-        "survey_name": _as_str(survey_entry.get("SurveyName")) or "Youth Enabling Environments Audit Tool",
+        "survey_name": _as_str(survey_entry.get("SurveyName"))
+        or "Youth Enabling Environments Audit Tool",
         "version": _as_str(survey_entry.get("LastModified")) or "unknown",
         "scoring_categories": scoring_names_by_id,
         "scoring_items": scoring_items,
@@ -242,7 +245,9 @@ def score_yee_responses(responses: dict[str, object]) -> dict[str, object]:
                     if category_name is None:
                         continue
                     score_value = int(value)
-                    category_totals[category_name] = category_totals.get(category_name, 0) + score_value
+                    category_totals[category_name] = (
+                        category_totals.get(category_name, 0) + score_value
+                    )
                     row_total += score_value if category_name == TOTAL_CATEGORY_NAME else 0
                 section_totals[section_name] += row_total
                 break
@@ -259,10 +264,7 @@ def score_yee_responses(responses: dict[str, object]) -> dict[str, object]:
                 )
 
     total_score = category_totals.get(TOTAL_CATEGORY_NAME, 0)
-    section_scores = {
-        section_name: score
-        for section_name, score in section_totals.items()
-    }
+    section_scores = {section_name: score for section_name, score in section_totals.items()}
 
     return {
         "total_score": total_score,

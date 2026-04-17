@@ -23,6 +23,7 @@ python-multipart==0.0.22
 PyYAML==6.0.3
 six==1.17.0
 SQLAlchemy==2.0.48
+slowapi==0.1.9
 starlette==0.52.1
 tomli==2.4.0
 typing-inspection==0.4.2

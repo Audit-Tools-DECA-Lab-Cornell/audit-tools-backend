@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.10.19, pytest-9.0.3, pluggy-1.6.0 -- /Users/praty/Desktop/StudentJob/playspace/audit-tools-backend/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/praty/Desktop/StudentJob/playspace/audit-tools-backend
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.12.1
+collecting ... collected 59 items
+
+tests/products/playspace/test_api_endpoints.py::test_playspace_route_inventory_matches_expected_surface PASSED [  1%]
+tests/products/playspace/test_api_endpoints.py::test_auth_self_service_and_instrument_endpoints PASSED [  3%]
+tests/products/playspace/test_api_endpoints.py::test_manager_dashboard_endpoints FAILED [  5%]
+tests/products/playspace/test_api_endpoints.py::test_admin_dashboard_endpoints PASSED [  6%]
+tests/products/playspace/test_api_endpoints.py::test_auditor_dashboard_endpoints PASSED [  8%]
+tests/products/playspace/test_api_endpoints.py::test_management_endpoints_cover_account_project_place_and_auditor_crud 

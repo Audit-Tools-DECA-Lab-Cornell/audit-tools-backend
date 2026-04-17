@@ -662,7 +662,10 @@ def _read_provision_scale_maximum(*, question: ScoringQuestion) -> float:
     )
     if provision_scale is None:
         return 0.0
-    return max((float(option.addition_value) for option in provision_scale.options), default=0.0)
+    return max(
+        (float(option.addition_value) for option in provision_scale.options),
+        default=0.0,
+    )
 
 
 def _read_multiplier_scale_score(

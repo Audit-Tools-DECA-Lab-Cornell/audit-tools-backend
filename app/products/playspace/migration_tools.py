@@ -67,7 +67,7 @@ def migrate_audit_to_canonical_aggregate(audit: Audit) -> AuditAggregateParityRe
     )
     set_execution_mode_value(
         audit=audit,
-        execution_mode=execution_mode_value if isinstance(execution_mode_value, str) else None,
+        execution_mode=(execution_mode_value if isinstance(execution_mode_value, str) else None),
     )
 
     canonical_payload = build_responses_json_from_relations(audit)
@@ -107,7 +107,9 @@ def verify_audit_aggregate_parity(audit: Audit) -> AuditAggregateParityResult:
         responses_match=_strip_canonical_envelope(canonical_payload) == legacy_payload,
         progress_match=canonical_progress == legacy_progress,
         scores_match=canonical_scores == legacy_scores,
-        schema_version=_read_int(canonical_payload.get("schema_version"), CURRENT_AUDIT_SCHEMA_VERSION),
+        schema_version=_read_int(
+            canonical_payload.get("schema_version"), CURRENT_AUDIT_SCHEMA_VERSION
+        ),
         revision=_read_int(canonical_payload.get("revision"), 0),
     )
 
@@ -141,7 +143,9 @@ async def backfill_canonical_aggregates(
     return results
 
 
-def _strip_canonical_envelope(canonical_payload: dict[str, object]) -> dict[str, object]:
+def _strip_canonical_envelope(
+    canonical_payload: dict[str, object],
+) -> dict[str, object]:
     """Drop server-managed envelope fields before legacy-vs-canonical comparison."""
 
     return {
@@ -151,7 +155,9 @@ def _strip_canonical_envelope(canonical_payload: dict[str, object]) -> dict[str,
     }
 
 
-def _safe_score_payload(responses_payload: dict[str, object]) -> dict[str, object] | None:
+def _safe_score_payload(
+    responses_payload: dict[str, object],
+) -> dict[str, object] | None:
     """Score one payload when possible, returning `None` when incomplete."""
 
     try:

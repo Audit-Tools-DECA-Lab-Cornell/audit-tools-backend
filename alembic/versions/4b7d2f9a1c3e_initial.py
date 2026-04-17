@@ -83,7 +83,12 @@ def upgrade() -> None:
         sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("auditor_code", sa.String(length=50), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(
             ["account_id"],
             ["accounts.id"],
@@ -149,7 +154,12 @@ def upgrade() -> None:
         sa.Column("instrument_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("auditor_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "started_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "status",

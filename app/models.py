@@ -64,6 +64,14 @@ class AuditStatus(str, Enum):
     SUBMITTED = "SUBMITTED"
 
 
+class NotificationType(str, Enum):
+    """Kinds of in-app notifications surfaced to platform users."""
+
+    ASSIGNMENT_CREATED = "ASSIGNMENT_CREATED"
+    ASSIGNMENT_UPDATED = "ASSIGNMENT_UPDATED"
+    AUDIT_COMPLETED = "AUDIT_COMPLETED"
+
+
 JSONDict = dict[str, object]
 
 
@@ -109,6 +117,7 @@ class PostgresEnumWithCast(TypeDecorator[str]):
 
 ACCOUNT_TYPE_ENUM = PostgresEnumWithCast(AccountType, name="shared_account_type")
 AUDIT_STATUS_ENUM = PostgresEnumWithCast(AuditStatus, name="shared_audit_status")
+NOTIFICATION_TYPE_ENUM = PostgresEnumWithCast(NotificationType, name="notification_type_enum")
 
 # Shared cascade configuration for parent -> child relationships.
 CASCADE_DELETE_ORPHAN: str = "all, delete-orphan"
@@ -137,15 +146,29 @@ class User(Base):
         nullable=False,
     )
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     email_verification_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    email_verification_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    email_verification_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    approved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    profile_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    profile_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    profile_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    profile_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -154,7 +177,59 @@ class User(Base):
     )
 
     account: Mapped[Account | None] = relationship(back_populates="users")
-    auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False)
+    auditor_profile: Mapped[AuditorProfile | None] = relationship(
+        back_populates="user", uselist=False
+    )
+    notifications: Mapped[list[Notification]] = relationship(
+        back_populates="user",
+        cascade=CASCADE_DELETE_ORPHAN,
+    )
+
+
+class Notification(Base):
+    """In-app notification row owned by a platform user (CASCADE with user)."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user_unread", "user_id", "is_read"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    notification_type: Mapped[NotificationType] = mapped_column(
+        NOTIFICATION_TYPE_ENUM, nullable=False
+    )
+    is_read: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        index=True,
+    )
+    related_entity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    related_entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+
+    user: Mapped[User] = relationship(back_populates="notifications")
+
+    def __repr__(self) -> str:
+        return (
+            f"<Notification(id={self.id}, user_id={self.user_id}, "
+            f"type={self.notification_type}, is_read={self.is_read})>"
+        )
 
 
 class Account(Base):
@@ -329,7 +404,10 @@ class Place(Base):
 
     @property
     def address(self) -> str:
-        return ", ".join(part for part in [self.city, self.province, self.country] if part) or "Address not set"
+        return (
+            ", ".join(part for part in [self.city, self.province, self.country] if part)
+            or "Address not set"
+        )
 
     @address.setter
     def address(self, value: str) -> None:
@@ -448,7 +526,9 @@ class AuditorInvite(Base):
     )
     email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
     token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -836,7 +916,9 @@ class YeeAuditSubmission(Base):
         index=True,
         nullable=False,
     )
-    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     participant_info_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
     responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
     section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
@@ -850,10 +932,11 @@ class YeeAuditSubmission(Base):
 Auditor = AuditorProfile
 Assignment = AuditorAssignment
 
+
 class Instrument(Base):
     """
     Source of Truth for an audit instrument (e.g. PVUA).
-    
+
     Stored as a full versioned JSON object in the database to support
     dynamic UI rendering and validation across web and mobile.
     """
@@ -879,7 +962,9 @@ class Instrument(Base):
         onupdate=func.now(),
         nullable=False,
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
     content: Mapped[JSONDict] = mapped_column(JSONB, nullable=False)
 
     def __repr__(self) -> str:

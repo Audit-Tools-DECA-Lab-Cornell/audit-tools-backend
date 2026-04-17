@@ -48,10 +48,7 @@ async def _resolve_authenticated_playspace_user(
     if user.account_type == AccountType.AUDITOR:
         result = await session.execute(
             select(Auditor.auditor_code)
-            .where(
-                (Auditor.user_id == user.id)
-                | (Auditor.account_id == user.account_id)
-            )
+            .where((Auditor.user_id == user.id) | (Auditor.account_id == user.account_id))
             .limit(1)
         )
         auditor_code = result.scalar_one_or_none()

@@ -26,10 +26,26 @@ def _is_target_product(product_key: str) -> bool:
 def upgrade() -> None:
     if not _is_target_product("yee"):
         return
-    op.add_column("yee_audit_submissions", sa.Column("auditor_id", postgresql.UUID(as_uuid=True), nullable=True))
-    op.add_column("yee_audit_submissions", sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=True))
-    op.create_index(op.f("ix_yee_audit_submissions_auditor_id"), "yee_audit_submissions", ["auditor_id"], unique=False)
-    op.create_index(op.f("ix_yee_audit_submissions_place_id"), "yee_audit_submissions", ["place_id"], unique=False)
+    op.add_column(
+        "yee_audit_submissions",
+        sa.Column("auditor_id", postgresql.UUID(as_uuid=True), nullable=True),
+    )
+    op.add_column(
+        "yee_audit_submissions",
+        sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=True),
+    )
+    op.create_index(
+        op.f("ix_yee_audit_submissions_auditor_id"),
+        "yee_audit_submissions",
+        ["auditor_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_yee_audit_submissions_place_id"),
+        "yee_audit_submissions",
+        ["place_id"],
+        unique=False,
+    )
     op.create_foreign_key(
         op.f("fk_yee_audit_submissions_auditor_id_auditors"),
         "yee_audit_submissions",
@@ -51,8 +67,16 @@ def upgrade() -> None:
 def downgrade() -> None:
     if not _is_target_product("yee"):
         return
-    op.drop_constraint(op.f("fk_yee_audit_submissions_place_id_places"), "yee_audit_submissions", type_="foreignkey")
-    op.drop_constraint(op.f("fk_yee_audit_submissions_auditor_id_auditors"), "yee_audit_submissions", type_="foreignkey")
+    op.drop_constraint(
+        op.f("fk_yee_audit_submissions_place_id_places"),
+        "yee_audit_submissions",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        op.f("fk_yee_audit_submissions_auditor_id_auditors"),
+        "yee_audit_submissions",
+        type_="foreignkey",
+    )
     op.drop_index(op.f("ix_yee_audit_submissions_place_id"), table_name="yee_audit_submissions")
     op.drop_index(op.f("ix_yee_audit_submissions_auditor_id"), table_name="yee_audit_submissions")
     op.drop_column("yee_audit_submissions", "place_id")

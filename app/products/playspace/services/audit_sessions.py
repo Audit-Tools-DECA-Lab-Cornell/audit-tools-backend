@@ -228,7 +228,11 @@ class PlayspaceAuditSessionsMixin:
 
         latest_audit_rank = func.row_number().over(
             partition_by=(Audit.project_id, Audit.place_id),
-            order_by=(Audit.started_at.desc(), Audit.created_at.desc(), Audit.id.desc()),
+            order_by=(
+                Audit.started_at.desc(),
+                Audit.created_at.desc(),
+                Audit.id.desc(),
+            ),
         )
         latest_audits_subquery = (
             select(
@@ -386,25 +390,29 @@ class PlayspaceAuditSessionsMixin:
                     country=assigned_place.country,
                     lat=assigned_place.lat,
                     lng=assigned_place.lng,
-                    audit_status=latest_audit.status if latest_audit is not None else None,
-                    audit_id=latest_audit.audit_id if latest_audit is not None else None,
-                    started_at=latest_audit.started_at if latest_audit is not None else None,
-                    submitted_at=latest_audit.submitted_at if latest_audit is not None else None,
-                    due_date=datetime.combine(
-                        assigned_place.end_date,
-                        time.min,
-                        tzinfo=timezone.utc,
-                    )
-                    if assigned_place.end_date is not None
-                    else None,
-                    summary_score=latest_audit.summary_score if latest_audit is not None else None,
-                    score_totals=latest_audit.score_totals if latest_audit is not None else None,
-                    progress_percent=latest_audit.progress_percent
-                    if latest_audit is not None
-                    else None,
-                    selected_execution_mode=latest_audit.selected_execution_mode
-                    if latest_audit is not None
-                    else None,
+                    audit_status=(latest_audit.status if latest_audit is not None else None),
+                    audit_id=(latest_audit.audit_id if latest_audit is not None else None),
+                    started_at=(latest_audit.started_at if latest_audit is not None else None),
+                    submitted_at=(latest_audit.submitted_at if latest_audit is not None else None),
+                    due_date=(
+                        datetime.combine(
+                            assigned_place.end_date,
+                            time.min,
+                            tzinfo=timezone.utc,
+                        )
+                        if assigned_place.end_date is not None
+                        else None
+                    ),
+                    summary_score=(
+                        latest_audit.summary_score if latest_audit is not None else None
+                    ),
+                    score_totals=(latest_audit.score_totals if latest_audit is not None else None),
+                    progress_percent=(
+                        latest_audit.progress_percent if latest_audit is not None else None
+                    ),
+                    selected_execution_mode=(
+                        latest_audit.selected_execution_mode if latest_audit is not None else None
+                    ),
                 )
             )
 
@@ -442,7 +450,9 @@ class PlayspaceAuditSessionsMixin:
         is_descending = raw_sort.startswith("-")
         sort_key = raw_sort[1:] if is_descending else raw_sort
 
-        def build_sort_value(response: AuditorPlaceResponse) -> str | float | datetime | None:
+        def build_sort_value(
+            response: AuditorPlaceResponse,
+        ) -> str | float | datetime | None:
             """Return the sortable value for the requested auditor place column."""
 
             if sort_key == "project_name":
@@ -465,7 +475,10 @@ class PlayspaceAuditSessionsMixin:
         ]
         non_null_rows = sorted(
             non_null_rows,
-            key=lambda response: (build_sort_value(response), response.place_name.lower()),
+            key=lambda response: (
+                build_sort_value(response),
+                response.place_name.lower(),
+            ),
             reverse=is_descending,
         )
         filtered_responses = [*non_null_rows, *null_rows]
@@ -781,10 +794,7 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditDraftSaveResponse:
         """Merge a draft patch into an in-progress audit and return a light acknowledgement."""
 
-        audit = await self._load_accessible_audit(
-            actor=actor,
-            audit_id=audit_id
-        )
+        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
 
         self._ensure_not_submitted(
             audit=audit,
@@ -795,9 +805,7 @@ class PlayspaceAuditSessionsMixin:
             expected_revision=payload.expected_revision,
         )
         if payload.aggregate is not None:
-            self._ensure_supported_schema_version(
-                schema_version=payload.aggregate.schema_version
-            )
+            self._ensure_supported_schema_version(schema_version=payload.aggregate.schema_version)
 
         requested_mode = payload.meta.execution_mode if payload.meta is not None else None
         allowed_modes = get_allowed_execution_modes()
@@ -821,7 +829,7 @@ class PlayspaceAuditSessionsMixin:
             replace_audit_aggregate(audit=audit, aggregate=payload.aggregate)
             set_execution_mode_value(
                 audit=audit,
-                execution_mode=aggregate_mode.value if aggregate_mode is not None else None,
+                execution_mode=(aggregate_mode.value if aggregate_mode is not None else None),
             )
         else:
             apply_draft_patch_to_relations(audit=audit, patch=payload)
@@ -863,7 +871,7 @@ class PlayspaceAuditSessionsMixin:
             place_id=place_id,
             payload=PlaceAuditAccessRequest(
                 project_id=project_id,
-                execution_mode=payload.meta.execution_mode if payload.meta is not None else None,
+                execution_mode=(payload.meta.execution_mode if payload.meta is not None else None),
             ),
         )
         return await self.patch_audit_draft(
@@ -881,17 +889,14 @@ class PlayspaceAuditSessionsMixin:
     ) -> AuditSessionResponse:
         """Validate completion, calculate scores, and submit an in-progress audit."""
 
-        audit = await self._load_accessible_audit(
-            actor=actor,
-            audit_id=audit_id
-        )
+        audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
         self._ensure_not_submitted(
             audit=audit,
             detail="This audit has already been submitted.",
         )
         self._ensure_expected_revision_matches(
             audit=audit,
-            expected_revision=payload.expected_revision if payload is not None else None,
+            expected_revision=(payload.expected_revision if payload is not None else None),
         )
 
         responses_json = build_responses_json_from_relations(audit)
@@ -1220,9 +1225,7 @@ class PlayspaceAuditSessionsMixin:
         if schema_version != CURRENT_AUDIT_SCHEMA_VERSION:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "The submitted audit aggregate schema is not supported by this server."
-                ),
+                detail=("The submitted audit aggregate schema is not supported by this server."),
             )
 
     def _build_audit_aggregate_response(
@@ -1237,9 +1240,7 @@ class PlayspaceAuditSessionsMixin:
             schema_version=get_aggregate_schema_version(audit),
             revision=get_aggregate_revision(audit),
             meta=AuditMetaResponse(
-                execution_mode=self._parse_execution_mode(
-                    get_execution_mode_value(audit)
-                )
+                execution_mode=self._parse_execution_mode(get_execution_mode_value(audit))
             ),
             pre_audit=self._build_pre_audit_response(responses_json=responses_json),
             sections=self._build_section_state_response_map(responses_json=responses_json),
@@ -1271,31 +1272,47 @@ class PlayspaceAuditSessionsMixin:
 
         pre_audit_payload = self._read_json_dict(responses_json.get("pre_audit"))
         return PreAuditResponse(
-            place_size=pre_audit_payload.get("place_size")
-            if isinstance(pre_audit_payload.get("place_size"), str)
-            else None,
-            current_users_0_5=pre_audit_payload.get("current_users_0_5")
-            if isinstance(pre_audit_payload.get("current_users_0_5"), str)
-            else None,
-            current_users_6_12=pre_audit_payload.get("current_users_6_12")
-            if isinstance(pre_audit_payload.get("current_users_6_12"), str)
-            else None,
-            current_users_13_17=pre_audit_payload.get("current_users_13_17")
-            if isinstance(pre_audit_payload.get("current_users_13_17"), str)
-            else None,
-            current_users_18_plus=pre_audit_payload.get("current_users_18_plus")
-            if isinstance(pre_audit_payload.get("current_users_18_plus"), str)
-            else None,
-            playspace_busyness=pre_audit_payload.get("playspace_busyness")
-            if isinstance(pre_audit_payload.get("playspace_busyness"), str)
-            else None,
-            season=pre_audit_payload.get("season")
-            if isinstance(pre_audit_payload.get("season"), str)
-            else None,
+            place_size=(
+                pre_audit_payload.get("place_size")
+                if isinstance(pre_audit_payload.get("place_size"), str)
+                else None
+            ),
+            current_users_0_5=(
+                pre_audit_payload.get("current_users_0_5")
+                if isinstance(pre_audit_payload.get("current_users_0_5"), str)
+                else None
+            ),
+            current_users_6_12=(
+                pre_audit_payload.get("current_users_6_12")
+                if isinstance(pre_audit_payload.get("current_users_6_12"), str)
+                else None
+            ),
+            current_users_13_17=(
+                pre_audit_payload.get("current_users_13_17")
+                if isinstance(pre_audit_payload.get("current_users_13_17"), str)
+                else None
+            ),
+            current_users_18_plus=(
+                pre_audit_payload.get("current_users_18_plus")
+                if isinstance(pre_audit_payload.get("current_users_18_plus"), str)
+                else None
+            ),
+            playspace_busyness=(
+                pre_audit_payload.get("playspace_busyness")
+                if isinstance(pre_audit_payload.get("playspace_busyness"), str)
+                else None
+            ),
+            season=(
+                pre_audit_payload.get("season")
+                if isinstance(pre_audit_payload.get("season"), str)
+                else None
+            ),
             weather_conditions=self._to_string_list(pre_audit_payload.get("weather_conditions")),
-            wind_conditions=pre_audit_payload.get("wind_conditions")
-            if isinstance(pre_audit_payload.get("wind_conditions"), str)
-            else None,
+            wind_conditions=(
+                pre_audit_payload.get("wind_conditions")
+                if isinstance(pre_audit_payload.get("wind_conditions"), str)
+                else None
+            ),
         )
 
     def _build_section_state_response_map(
@@ -1462,7 +1479,9 @@ class PlayspaceAuditSessionsMixin:
         return self._build_score_totals_response(live_scores.get("overall"))
 
     @staticmethod
-    def _combined_construct_total(score_totals: AuditScoreTotalsResponse | None) -> float | None:
+    def _combined_construct_total(
+        score_totals: AuditScoreTotalsResponse | None,
+    ) -> float | None:
         """Return the combined play-value plus usability total for compact summaries."""
 
         if score_totals is None:

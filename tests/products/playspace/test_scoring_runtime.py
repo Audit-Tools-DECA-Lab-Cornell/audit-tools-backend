@@ -271,7 +271,9 @@ def test_score_audit_ignores_non_scored_checklist_questions(monkeypatch) -> None
     assert scores["overall"]["usability_total"] == 1.0
 
 
-def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(monkeypatch) -> None:
+def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(
+    monkeypatch,
+) -> None:
     """Scoring should expose raw totals and max-possible totals for the same question."""
 
     custom_sections = [_build_construct_scoring_section()]

@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Audit, AuditorAssignment, AuditStatus
 from app.products.playspace.schemas import ExecutionMode
-from app.products.playspace.services.audit_assignments import PlayspaceAuditAssignmentsMixin
+from app.products.playspace.services.audit_assignments import (
+    PlayspaceAuditAssignmentsMixin,
+)
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
 
 ######################################################################################

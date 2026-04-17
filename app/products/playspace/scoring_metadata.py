@@ -129,7 +129,7 @@ def _build_scoring_question(question: InstrumentQuestionResponse) -> ScoringQues
         options=[_build_choice_option(option) for option in question.options],
         scales=[
             ScoringScale(
-                key=scale.key.value if isinstance(scale.key, ScaleKey) else str(scale.key),
+                key=(scale.key.value if isinstance(scale.key, ScaleKey) else str(scale.key)),
                 options=[_build_scale_option(option) for option in scale.options],
             )
             for scale in question.scales

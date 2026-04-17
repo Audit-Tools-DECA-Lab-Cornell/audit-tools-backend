@@ -27,14 +27,33 @@ def upgrade() -> None:
         return
     op.add_column(
         "users",
-        sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "email_verified",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
     )
-    op.add_column("users", sa.Column("email_verification_token_hash", sa.String(length=255), nullable=True))
-    op.add_column("users", sa.Column("email_verification_sent_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("users", sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column(
         "users",
-        sa.Column("failed_login_attempts", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("email_verification_token_hash", sa.String(length=255), nullable=True),
+    )
+    op.add_column(
+        "users",
+        sa.Column("email_verification_sent_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "users",
+        sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "users",
+        sa.Column(
+            "failed_login_attempts",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("0"),
+        ),
     )
     op.add_column("users", sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True))
 

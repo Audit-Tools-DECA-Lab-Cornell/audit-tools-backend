@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from app.models import Account, AccountType, Audit, AuditorAssignment, Project, ProjectPlace
+from app.models import (
+    Account,
+    AccountType,
+    Audit,
+    AuditorAssignment,
+    Project,
+    ProjectPlace,
+)
 from app.products.playspace.seed_data import build_playspace_seed_entities
 
 

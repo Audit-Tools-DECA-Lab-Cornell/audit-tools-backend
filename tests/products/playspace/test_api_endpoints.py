@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import uuid
 
-from conftest import PlayspaceSeedSnapshot
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.main import app
-
+from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
 MANAGER_EMAIL = "manager@example.org"
 ADMIN_EMAIL = "playspace.admin@example.org"
@@ -89,6 +88,7 @@ def _route_inventory() -> set[tuple[str, str]]:
     """Collect the concrete Playspace route methods and paths from the app."""
 
     inventory: set[tuple[str, str]] = set()
+    print(app.routes)
     for route in app.routes:
         if not isinstance(route, APIRoute):
             continue
@@ -207,8 +207,14 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
         ("GET", "/playspace/places/{place_id}/history"),
         ("GET", "/playspace/auditor-profiles/{auditor_profile_id}/assignments"),
         ("POST", "/playspace/auditor-profiles/{auditor_profile_id}/assignments"),
-        ("PATCH", "/playspace/auditor-profiles/{auditor_profile_id}/assignments/{assignment_id}"),
-        ("DELETE", "/playspace/auditor-profiles/{auditor_profile_id}/assignments/{assignment_id}"),
+        (
+            "PATCH",
+            "/playspace/auditor-profiles/{auditor_profile_id}/assignments/{assignment_id}",
+        ),
+        (
+            "DELETE",
+            "/playspace/auditor-profiles/{auditor_profile_id}/assignments/{assignment_id}",
+        ),
         ("POST", "/playspace/places/{place_id}/audits/access"),
         ("GET", "/playspace/audits/{audit_id}"),
         ("PATCH", "/playspace/audits/{audit_id}/draft"),
@@ -224,6 +230,11 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
         ("GET", "/playspace/admin/auditors"),
         ("GET", "/playspace/admin/audits"),
         ("GET", "/playspace/admin/system"),
+        ("GET", "/playspace/admin/instruments"),
+        ("POST", "/playspace/bulk-assignments"),
+        ("POST", "/playspace/admin/instruments"),
+        ("GET", "/playspace/instruments/active/{instrument_key}"),
+        ("PATCH", "/playspace/admin/instruments/{instrument_id}"),
         ("GET", "/playspace/me"),
         ("GET", "/playspace/me/auditor-profile"),
         ("GET", "/playspace/instrument"),
@@ -237,6 +248,10 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
         ("POST", "/playspace/auditor-profiles"),
         ("PATCH", "/playspace/auditor-profiles/{auditor_profile_id}"),
         ("DELETE", "/playspace/auditor-profiles/{auditor_profile_id}"),
+        ("GET", "/playspace/api/notifications"),
+        ("GET", "/playspace/api/notifications/unread/count"),
+        ("POST", "/playspace/api/notifications/read-all"),
+        ("POST", "/playspace/api/notifications/{notification_id}/read"),
     }
 
     assert _route_inventory() == expected_routes
@@ -711,7 +726,7 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
     auditor_headers = _bearer_headers(auditor_token)
 
     assignment_response = playspace_client.post(
-        f"/playspace/auditor-profiles",
+        "/playspace/auditor-profiles",
         headers=manager_headers,
         json={
             "email": auditor_email,
@@ -793,15 +808,15 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
                 "schema_version": 1,
                 "meta": {"execution_mode": "both"},
                 "pre_audit": {
-                        "place_size": "medium",
-                        "current_users_0_5": "none",
-                        "current_users_6_12": "a_few",
-                        "current_users_13_17": "a_few",
-                        "current_users_18_plus": "a_few",
-                        "playspace_busyness": "somewhat_busy",
+                    "place_size": "medium",
+                    "current_users_0_5": "none",
+                    "current_users_6_12": "a_few",
+                    "current_users_13_17": "a_few",
+                    "current_users_18_plus": "a_few",
+                    "playspace_busyness": "somewhat_busy",
                     "season": "summer",
                     "weather_conditions": [],
-                        "wind_conditions": "light_wind",
+                    "wind_conditions": "light_wind",
                 },
                 "sections": {},
             },

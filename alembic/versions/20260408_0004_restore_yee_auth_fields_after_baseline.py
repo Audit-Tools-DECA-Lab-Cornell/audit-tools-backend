@@ -52,7 +52,10 @@ def upgrade() -> None:
         return
     if _has_table("users"):
         if not _has_column("users", "account_id"):
-            op.add_column("users", sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True))
+            op.add_column(
+                "users",
+                sa.Column("account_id", postgresql.UUID(as_uuid=True), nullable=True),
+            )
             op.create_foreign_key(
                 "fk_users_account_id_accounts",
                 "users",
@@ -64,16 +67,74 @@ def upgrade() -> None:
             op.create_index("ix_users_account_id", "users", ["account_id"], unique=False)
 
         for column_name, column in [
-            ("email_verified", sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false"))),
-            ("email_verification_token_hash", sa.Column("email_verification_token_hash", sa.String(length=255), nullable=True)),
-            ("email_verification_sent_at", sa.Column("email_verification_sent_at", sa.DateTime(timezone=True), nullable=True)),
-            ("email_verified_at", sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True)),
-            ("failed_login_attempts", sa.Column("failed_login_attempts", sa.Integer(), nullable=False, server_default=sa.text("0"))),
-            ("approved", sa.Column("approved", sa.Boolean(), nullable=False, server_default=sa.text("false"))),
-            ("approved_at", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True)),
-            ("profile_completed", sa.Column("profile_completed", sa.Boolean(), nullable=False, server_default=sa.text("false"))),
-            ("profile_completed_at", sa.Column("profile_completed_at", sa.DateTime(timezone=True), nullable=True)),
-            ("last_login_at", sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True)),
+            (
+                "email_verified",
+                sa.Column(
+                    "email_verified",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.text("false"),
+                ),
+            ),
+            (
+                "email_verification_token_hash",
+                sa.Column(
+                    "email_verification_token_hash",
+                    sa.String(length=255),
+                    nullable=True,
+                ),
+            ),
+            (
+                "email_verification_sent_at",
+                sa.Column(
+                    "email_verification_sent_at",
+                    sa.DateTime(timezone=True),
+                    nullable=True,
+                ),
+            ),
+            (
+                "email_verified_at",
+                sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
+            ),
+            (
+                "failed_login_attempts",
+                sa.Column(
+                    "failed_login_attempts",
+                    sa.Integer(),
+                    nullable=False,
+                    server_default=sa.text("0"),
+                ),
+            ),
+            (
+                "approved",
+                sa.Column(
+                    "approved",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.text("false"),
+                ),
+            ),
+            (
+                "approved_at",
+                sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
+            ),
+            (
+                "profile_completed",
+                sa.Column(
+                    "profile_completed",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.text("false"),
+                ),
+            ),
+            (
+                "profile_completed_at",
+                sa.Column("profile_completed_at", sa.DateTime(timezone=True), nullable=True),
+            ),
+            (
+                "last_login_at",
+                sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
+            ),
         ]:
             if not _has_column("users", column_name):
                 op.add_column("users", column)
@@ -90,7 +151,10 @@ def upgrade() -> None:
         )
 
     if _has_table("auditor_profiles") and not _has_column("auditor_profiles", "user_id"):
-        op.add_column("auditor_profiles", sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True))
+        op.add_column(
+            "auditor_profiles",
+            sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        )
         op.create_foreign_key(
             "fk_auditor_profiles_user_id_users",
             "auditor_profiles",
@@ -100,7 +164,12 @@ def upgrade() -> None:
             ondelete="SET NULL",
         )
         if not _has_index("auditor_profiles", "ix_auditor_profiles_user_id"):
-            op.create_index("ix_auditor_profiles_user_id", "auditor_profiles", ["user_id"], unique=True)
+            op.create_index(
+                "ix_auditor_profiles_user_id",
+                "auditor_profiles",
+                ["user_id"],
+                unique=True,
+            )
 
 
 def downgrade() -> None:

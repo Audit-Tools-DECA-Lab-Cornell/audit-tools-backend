@@ -73,7 +73,10 @@ def test_migrate_draft_audit_to_canonical_aggregate_preserves_parity() -> None:
     assert audit.responses_json["schema_version"] == 1
     assert audit.responses_json["revision"] == 0
     assert audit.responses_json["meta"] == {"execution_mode": "survey"}
-    assert audit.responses_json["sections"]["section_1_playspace_character_community"]["note"] == "Legacy note"
+    assert (
+        audit.responses_json["sections"]["section_1_playspace_character_community"]["note"]
+        == "Legacy note"
+    )
     assert audit.scores_json["draft_progress_percent"] is not None
 
 
