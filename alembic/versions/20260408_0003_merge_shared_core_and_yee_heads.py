@@ -15,8 +15,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Merge migration branches without applying additional schema changes."""
+	"""Merge migration branches without applying additional schema changes."""
 
 
 def downgrade() -> None:
-    """Split the merged migration history without reverting schema changes."""
+	"""Split the merged migration history without reverting schema changes."""

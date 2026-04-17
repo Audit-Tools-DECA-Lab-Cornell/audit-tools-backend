@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import context, op
 
 revision: str = "20260415_0013"
@@ -31,26 +32,26 @@ depends_on: Sequence[str] | None = None
 
 
 def _inspector() -> sa.Inspector:
-    if context.is_offline_mode():
-        raise RuntimeError("Schema inspection is unavailable in offline migration mode.")
-    return sa.inspect(op.get_bind())
+	if context.is_offline_mode():
+		raise RuntimeError("Schema inspection is unavailable in offline migration mode.")
+	return sa.inspect(op.get_bind())
 
 
 def _has_table(table_name: str) -> bool:
-    return _inspector().has_table(table_name)
+	return _inspector().has_table(table_name)
 
 
 def upgrade() -> None:
-    if context.is_offline_mode():
-        return
+	if context.is_offline_mode():
+		return
 
-    if not _has_table("auditor_assignments"):
-        return
+	if not _has_table("auditor_assignments"):
+		return
 
-    # 1) Drop duplicates for place-scoped rows (place_id IS NOT NULL).
-    op.execute(
-        sa.text(
-            """
+	# 1) Drop duplicates for place-scoped rows (place_id IS NOT NULL).
+	op.execute(
+		sa.text(
+			"""
             DELETE FROM auditor_assignments AS a
             WHERE a.place_id IS NOT NULL
               AND EXISTS (
@@ -62,13 +63,13 @@ def upgrade() -> None:
                     AND b.id < a.id
               )
             """
-        )
-    )
+		)
+	)
 
-    # 2) Drop duplicates for project-scoped rows (place_id IS NULL).
-    op.execute(
-        sa.text(
-            """
+	# 2) Drop duplicates for project-scoped rows (place_id IS NULL).
+	op.execute(
+		sa.text(
+			"""
             DELETE FROM auditor_assignments AS a
             WHERE a.place_id IS NULL
               AND EXISTS (
@@ -80,43 +81,39 @@ def upgrade() -> None:
                     AND b.id < a.id
               )
             """
-        )
-    )
+		)
+	)
 
-    # 3) Remove legacy unique constraints from the XOR project/place model if
-    # they are still attached (skipped migrations may have left them behind).
-    op.execute(
-        sa.text(
-            'ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS "uq_auditor_assignments_auditor_project"'
-        )
-    )
-    op.execute(
-        sa.text(
-            'ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS "uq_auditor_assignments_auditor_place"'
-        )
-    )
+	# 3) Remove legacy unique constraints from the XOR project/place model if
+	# they are still attached (skipped migrations may have left them behind).
+	op.execute(
+		sa.text('ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS "uq_auditor_assignments_auditor_project"')
+	)
+	op.execute(
+		sa.text('ALTER TABLE auditor_assignments DROP CONSTRAINT IF EXISTS "uq_auditor_assignments_auditor_place"')
+	)
 
-    # 4) Partial unique indexes (must match app.models.AuditorAssignment).
-    op.execute(
-        sa.text(
-            """
+	# 4) Partial unique indexes (must match app.models.AuditorAssignment).
+	op.execute(
+		sa.text(
+			"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_auditor_assignments_auditor_project_scope
             ON auditor_assignments (auditor_profile_id, project_id)
             WHERE place_id IS NULL
             """
-        )
-    )
-    op.execute(
-        sa.text(
-            """
+		)
+	)
+	op.execute(
+		sa.text(
+			"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_auditor_assignments_auditor_project_place
             ON auditor_assignments (auditor_profile_id, project_id, place_id)
             WHERE place_id IS NOT NULL
             """
-        )
-    )
+		)
+	)
 
 
 def downgrade() -> None:
-    """One-way data repair; reversing could reintroduce duplicates."""
-    raise NotImplementedError("This corrective migration is intentionally one-way.")
+	"""One-way data repair; reversing could reintroduce duplicates."""
+	raise NotImplementedError("This corrective migration is intentionally one-way.")

@@ -21,40 +21,40 @@ depends_on: Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "instruments",
-        sa.Column(
-            "id",
-            postgresql.UUID(as_uuid=True),
-            server_default=sa.text("gen_random_uuid()"),
-            nullable=False,
-        ),
-        sa.Column("instrument_key", sa.String(255), nullable=False),
-        sa.Column("instrument_version", sa.String(50), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column("content", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_instruments")),
-    )
-    op.create_index(
-        op.f("ix_instruments_instrument_key"),
-        "instruments",
-        ["instrument_key"],
-        unique=False,
-    )
+	op.create_table(
+		"instruments",
+		sa.Column(
+			"id",
+			postgresql.UUID(as_uuid=True),
+			server_default=sa.text("gen_random_uuid()"),
+			nullable=False,
+		),
+		sa.Column("instrument_key", sa.String(255), nullable=False),
+		sa.Column("instrument_version", sa.String(50), nullable=False),
+		sa.Column(
+			"created_at",
+			sa.DateTime(timezone=True),
+			server_default=sa.text("now()"),
+			nullable=False,
+		),
+		sa.Column(
+			"updated_at",
+			sa.DateTime(timezone=True),
+			server_default=sa.text("now()"),
+			nullable=False,
+		),
+		sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
+		sa.Column("content", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+		sa.PrimaryKeyConstraint("id", name=op.f("pk_instruments")),
+	)
+	op.create_index(
+		op.f("ix_instruments_instrument_key"),
+		"instruments",
+		["instrument_key"],
+		unique=False,
+	)
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_instruments_instrument_key"), table_name="instruments")
-    op.drop_table("instruments")
+	op.drop_index(op.f("ix_instruments_instrument_key"), table_name="instruments")
+	op.drop_table("instruments")

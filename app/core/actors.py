@@ -18,119 +18,119 @@ from app.core.demo_data import DEMO_ACCOUNT_ID
 
 
 class CurrentUserRole(str, Enum):
-    """Roles understood by backend route services."""
+	"""Roles understood by backend route services."""
 
-    ADMIN = "admin"
-    MANAGER = "manager"
-    AUDITOR = "auditor"
+	ADMIN = "admin"
+	MANAGER = "manager"
+	AUDITOR = "auditor"
 
 
 @dataclass(slots=True)
 class CurrentUserContext:
-    """Resolved caller identity used by backend services."""
+	"""Resolved caller identity used by backend services."""
 
-    role: CurrentUserRole
-    account_id: uuid.UUID | None
-    auditor_code: str | None
+	role: CurrentUserRole
+	account_id: uuid.UUID | None
+	auditor_code: str | None
 
 
 def _parse_role(raw_value: str | None) -> CurrentUserRole | None:
-    """Normalize a header/cookie role string into a current-user role."""
+	"""Normalize a header/cookie role string into a current-user role."""
 
-    if raw_value is None:
-        return None
+	if raw_value is None:
+		return None
 
-    normalized_value = raw_value.strip().lower()
-    if normalized_value == CurrentUserRole.ADMIN.value:
-        return CurrentUserRole.ADMIN
-    if normalized_value == CurrentUserRole.MANAGER.value:
-        return CurrentUserRole.MANAGER
-    if normalized_value == CurrentUserRole.AUDITOR.value:
-        return CurrentUserRole.AUDITOR
-    return None
+	normalized_value = raw_value.strip().lower()
+	if normalized_value == CurrentUserRole.ADMIN.value:
+		return CurrentUserRole.ADMIN
+	if normalized_value == CurrentUserRole.MANAGER.value:
+		return CurrentUserRole.MANAGER
+	if normalized_value == CurrentUserRole.AUDITOR.value:
+		return CurrentUserRole.AUDITOR
+	return None
 
 
 def _parse_uuid(raw_value: str | None) -> uuid.UUID | None:
-    """Safely parse a UUID-like string and ignore invalid values."""
+	"""Safely parse a UUID-like string and ignore invalid values."""
 
-    if raw_value is None:
-        return None
+	if raw_value is None:
+		return None
 
-    candidate = raw_value.strip()
-    if not candidate:
-        return None
+	candidate = raw_value.strip()
+	if not candidate:
+		return None
 
-    try:
-        return uuid.UUID(candidate)
-    except ValueError:
-        return None
+	try:
+		return uuid.UUID(candidate)
+	except ValueError:
+		return None
 
 
 def resolve_current_user(request: Request, product: str = "playspace") -> CurrentUserContext:
-    """
-    Resolve a dummy current user from headers/cookies.
+	"""
+	Resolve a dummy current user from headers/cookies.
 
-    Header overrides are useful for manual API testing while cookie fallbacks let
-    the current web scaffold work without extra plumbing.
+	Header overrides are useful for manual API testing while cookie fallbacks let
+	the current web scaffold work without extra plumbing.
 
-    ``product`` selects which cookie names are read (e.g. ``{product}_role``),
-    so multiple products can coexist without cookie collisions.
-    """
+	``product`` selects which cookie names are read (e.g. ``{product}_role``),
+	so multiple products can coexist without cookie collisions.
+	"""
 
-    header_role = _parse_role(request.headers.get("x-demo-role"))
-    cookie_role = _parse_role(request.cookies.get(f"{product}_role"))
-    resolved_role = header_role or cookie_role or CurrentUserRole.MANAGER
+	header_role = _parse_role(request.headers.get("x-demo-role"))
+	cookie_role = _parse_role(request.cookies.get(f"{product}_role"))
+	resolved_role = header_role or cookie_role or CurrentUserRole.MANAGER
 
-    header_account_id = _parse_uuid(request.headers.get("x-demo-account-id"))
-    cookie_account_id = _parse_uuid(request.cookies.get(f"{product}_account_id"))
-    resolved_account_id: uuid.UUID | None
-    if resolved_role == CurrentUserRole.MANAGER:
-        resolved_account_id = header_account_id or cookie_account_id or DEMO_ACCOUNT_ID
-    else:
-        resolved_account_id = header_account_id or cookie_account_id
+	header_account_id = _parse_uuid(request.headers.get("x-demo-account-id"))
+	cookie_account_id = _parse_uuid(request.cookies.get(f"{product}_account_id"))
+	resolved_account_id: uuid.UUID | None
+	if resolved_role == CurrentUserRole.MANAGER:
+		resolved_account_id = header_account_id or cookie_account_id or DEMO_ACCOUNT_ID
+	else:
+		resolved_account_id = header_account_id or cookie_account_id
 
-    auditor_code = request.headers.get("x-demo-auditor-code") or request.cookies.get(
-        f"{product}_auditor_code",
-    )
+	auditor_code = request.headers.get("x-demo-auditor-code") or request.cookies.get(
+		f"{product}_auditor_code",
+	)
 
-    return CurrentUserContext(
-        role=resolved_role,
-        account_id=resolved_account_id,
-        auditor_code=auditor_code,
-    )
+	return CurrentUserContext(
+		role=resolved_role,
+		account_id=resolved_account_id,
+		auditor_code=auditor_code,
+	)
 
 
 def require_manager_user(current_user: CurrentUserContext) -> CurrentUserContext:
-    """Reject non-manager users from manager-only endpoints."""
+	"""Reject non-manager users from manager-only endpoints."""
 
-    if current_user.role != CurrentUserRole.MANAGER:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Manager access is required for this endpoint.",
-        )
+	if current_user.role != CurrentUserRole.MANAGER:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Manager access is required for this endpoint.",
+		)
 
-    return current_user
+	return current_user
 
 
 def require_admin_user(current_user: CurrentUserContext) -> CurrentUserContext:
-    """Reject non-admin users from admin-only endpoints."""
+	"""Reject non-admin users from admin-only endpoints."""
 
-    if current_user.role != CurrentUserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Administrator access is required for this endpoint.",
-        )
-    return current_user
+	if current_user.role != CurrentUserRole.ADMIN:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Administrator access is required for this endpoint.",
+		)
+	return current_user
 
 
 def require_manager_or_admin_user(
-    current_user: CurrentUserContext,
+	current_user: CurrentUserContext,
 ) -> CurrentUserContext:
-    """Allow only manager or admin users."""
+	"""Allow only manager or admin users."""
 
-    if current_user.role not in {CurrentUserRole.MANAGER, CurrentUserRole.ADMIN}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Manager or administrator access is required for this endpoint.",
-        )
-    return current_user
+	if current_user.role not in {CurrentUserRole.MANAGER, CurrentUserRole.ADMIN}:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Manager or administrator access is required for this endpoint.",
+		)
+	return current_user

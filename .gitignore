@@ -41,3 +41,5 @@ neon-postgres/
 # OS/filesystem noise
 .DS_Store
 Thumbs.db
+
+docs/superpowers/

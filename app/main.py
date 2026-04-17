@@ -22,25 +22,25 @@ from app.yee_router import router as yee_router
 
 # cors
 origins = [
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "http://localhost:8081",
-    "https://audit-tools-backend.onrender.com",
-    "https://audit-tools-playsafe-frontend.vercel.app",
-    "https://audit-tools-playspace-frontend.vercel.app",
+	"http://localhost:3000",
+	"http://localhost:8000",
+	"http://localhost:8081",
+	"https://audit-tools-backend.onrender.com",
+	"https://audit-tools-playsafe-frontend.vercel.app",
+	"https://audit-tools-playspace-frontend.vercel.app",
 ]
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """
-    Application lifecycle handler.
+	"""
+	Application lifecycle handler.
 
-    Disposes the DB engine on shutdown so connections are closed cleanly.
-    """
+	Disposes the DB engine on shutdown so connections are closed cleanly.
+	"""
 
-    yield
-    await dispose_engines()
+	yield
+	await dispose_engines()
 
 
 app: FastAPI = FastAPI(title="Audit Tools Backend", version="0.1.0", lifespan=lifespan)
@@ -62,22 +62,22 @@ app.include_router(yee_router)
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """Simple health check endpoint."""
+	"""Simple health check endpoint."""
 
-    return {"status": "ok"}
+	return {"status": "ok"}
 
 
 @app.get("/")
 def root() -> dict[str, str]:
-    """Root endpoint."""
+	"""Root endpoint."""
 
-    return {"status": "ok"}
+	return {"status": "ok"}
 
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+	CORSMiddleware,
+	allow_origins=origins,
+	allow_credentials=True,
+	allow_methods=["*"],
+	allow_headers=["*"],
 )

@@ -8,6 +8,7 @@ Create Date: 2026-03-26 11:30:00
 from __future__ import annotations
 
 import sqlalchemy as sa
+
 from alembic import context, op
 
 # revision identifiers, used by Alembic.
@@ -18,50 +19,50 @@ depends_on = None
 
 
 def _is_target_product(product_key: str) -> bool:
-    x_args = context.get_x_argument(as_dictionary=True)
-    return x_args.get("product", "yee").strip().lower() == product_key
+	x_args = context.get_x_argument(as_dictionary=True)
+	return x_args.get("product", "yee").strip().lower() == product_key
 
 
 def upgrade() -> None:
-    if not _is_target_product("yee"):
-        return
-    op.execute("ALTER TYPE account_type ADD VALUE IF NOT EXISTS 'ADMIN'")
+	if not _is_target_product("yee"):
+		return
+	op.execute("ALTER TYPE account_type ADD VALUE IF NOT EXISTS 'ADMIN'")
 
-    op.add_column(
-        "users",
-        sa.Column("approved", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-    )
-    op.add_column("users", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column(
-        "users",
-        sa.Column(
-            "profile_completed",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text("false"),
-        ),
-    )
-    op.add_column(
-        "users",
-        sa.Column("profile_completed_at", sa.DateTime(timezone=True), nullable=True),
-    )
+	op.add_column(
+		"users",
+		sa.Column("approved", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+	)
+	op.add_column("users", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True))
+	op.add_column(
+		"users",
+		sa.Column(
+			"profile_completed",
+			sa.Boolean(),
+			nullable=False,
+			server_default=sa.text("false"),
+		),
+	)
+	op.add_column(
+		"users",
+		sa.Column("profile_completed_at", sa.DateTime(timezone=True), nullable=True),
+	)
 
-    op.execute(
-        """
+	op.execute(
+		"""
         UPDATE users
         SET approved = true,
             approved_at = COALESCE(approved_at, NOW())
         WHERE account_type = 'MANAGER'
         """
-    )
+	)
 
 
 def downgrade() -> None:
-    if not _is_target_product("yee"):
-        return
-    op.drop_column("users", "profile_completed_at")
-    op.drop_column("users", "profile_completed")
-    op.drop_column("users", "approved_at")
-    op.drop_column("users", "approved")
+	if not _is_target_product("yee"):
+		return
+	op.drop_column("users", "profile_completed_at")
+	op.drop_column("users", "profile_completed")
+	op.drop_column("users", "approved_at")
+	op.drop_column("users", "approved")
 
-    # PostgreSQL enum values cannot be safely removed in place.
+	# PostgreSQL enum values cannot be safely removed in place.
