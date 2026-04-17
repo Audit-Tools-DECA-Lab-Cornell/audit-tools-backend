@@ -90,7 +90,7 @@ jobs:
         run: |
           pytest . \
             --tb=short \
-            --cov=. \
+            --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --junitxml=test-results.xml \
