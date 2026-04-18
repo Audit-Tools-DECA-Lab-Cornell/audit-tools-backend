@@ -11,6 +11,26 @@ from typing import Any
 
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
+
+def normalize_legacy_instrument_payload(value: object) -> object:
+	"""Recursively rename legacy ``quantity`` keys to ``provision`` in instrument JSON."""
+
+	if isinstance(value, dict):
+		next_payload: dict[str, Any] = {}
+		for key, item in value.items():
+			next_key = "provision" if key == "quantity" else key
+			next_payload[next_key] = normalize_legacy_instrument_payload(item)
+		return next_payload
+
+	if isinstance(value, list):
+		return [normalize_legacy_instrument_payload(item) for item in value]
+
+	if value == "quantity":
+		return "provision"
+
+	return value
+
+
 INSTRUMENT_KEY = "pvua_v5_2"
 INSTRUMENT_VERSION = "5.2"
 INSTRUMENT_NAME = "Playspace Play Value and Usability Audit Tool"
@@ -38,29 +58,8 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 	return payload
 
 
-def normalize_legacy_instrument_payload(payload: Any) -> Any:
-	"""Normalize legacy Playspace instrument payload keys to the provision contract."""
-
-	if isinstance(payload, dict):
-		next_payload: dict[str, Any] = {}
-		for key, value in payload.items():
-			next_key = "provision" if key == "quantity" else key
-			next_payload[next_key] = normalize_legacy_instrument_payload(value)
-		return next_payload
-
-	if isinstance(payload, list):
-		return [normalize_legacy_instrument_payload(value) for value in payload]
-
-	if payload == "quantity":
-		return "provision"
-
-	return payload
-
-
 @lru_cache(maxsize=1)
 def get_canonical_instrument_response() -> PlayspaceInstrumentResponse:
 	"""Return the validated typed Playspace instrument response model."""
 
-	return PlayspaceInstrumentResponse.model_validate(
-		normalize_legacy_instrument_payload(get_canonical_instrument_payload())
-	)
+	return PlayspaceInstrumentResponse.model_validate(get_canonical_instrument_payload())

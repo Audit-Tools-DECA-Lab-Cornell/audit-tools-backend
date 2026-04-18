@@ -88,7 +88,6 @@ def _route_inventory() -> set[tuple[str, str]]:
 	"""Collect the concrete Playspace route methods and paths from the app."""
 
 	inventory: set[tuple[str, str]] = set()
-	print(app.routes)
 	for route in app.routes:
 		if not isinstance(route, APIRoute):
 			continue

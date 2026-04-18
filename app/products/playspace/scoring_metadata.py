@@ -18,6 +18,7 @@ from app.products.playspace.schemas.instrument import (
 	InstrumentQuestionResponse,
 	InstrumentScaleOptionResponse,
 	InstrumentSectionResponse,
+	PlayspaceInstrumentResponse,
 	ScaleKey,
 )
 
@@ -146,12 +147,19 @@ def _build_scoring_section(section: InstrumentSectionResponse) -> ScoringSection
 	)
 
 
+def build_scoring_sections_from_instrument(
+	instrument: PlayspaceInstrumentResponse,
+) -> list[ScoringSection]:
+	"""Project one validated Playspace instrument into runtime scoring sections."""
+
+	return [_build_scoring_section(section) for section in instrument.sections]
+
+
 @lru_cache(maxsize=1)
 def get_scoring_sections() -> list[ScoringSection]:
-	"""Build and cache runtime scoring metadata from the canonical instrument."""
+	"""Build and cache runtime scoring metadata from the on-disk canonical instrument."""
 
-	instrument = get_canonical_instrument_response()
-	return [_build_scoring_section(section) for section in instrument.sections]
+	return build_scoring_sections_from_instrument(get_canonical_instrument_response())
 
 
 # Backward-compatible constant for older call sites that still import the list directly.

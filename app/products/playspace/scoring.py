@@ -22,11 +22,12 @@ from app.products.playspace.schemas import (
 	JsonDict,
 	PreAuditPatchRequest,
 )
-from app.products.playspace.schemas.instrument import PreAuditInputType
+from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse, PreAuditInputType
 from app.products.playspace.scoring_metadata import (
 	ScoringQuestion,
 	ScoringScaleOption,
 	ScoringSection,
+	build_scoring_sections_from_instrument,
 	get_scoring_sections,
 )
 
@@ -152,26 +153,50 @@ def merge_draft_patch(
 def build_audit_progress(
 	*,
 	responses_json: JsonDict,
+	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> AuditProgressResponse:
 	"""Build user-facing progress for the current draft state."""
 
 	snapshot = _build_snapshot_from_json(responses_json)
-	return _build_audit_progress_from_snapshot(snapshot=snapshot)
+	if instrument is None:
+		scoring_sections = get_scoring_sections()
+		pre_audit_instrument = get_canonical_instrument_response()
+	else:
+		scoring_sections = build_scoring_sections_from_instrument(instrument)
+		pre_audit_instrument = instrument
+	return _build_audit_progress_from_snapshot(
+		snapshot=snapshot,
+		scoring_sections=scoring_sections,
+		pre_audit_instrument=pre_audit_instrument,
+	)
 
 
 def build_audit_progress_for_audit(
 	*,
 	audit: Audit,
+	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> AuditProgressResponse:
 	"""Build user-facing progress directly from normalized audit relations."""
 
 	snapshot = _build_snapshot_from_audit(audit)
-	return _build_audit_progress_from_snapshot(snapshot=snapshot)
+	if instrument is None:
+		scoring_sections = get_scoring_sections()
+		pre_audit_instrument = get_canonical_instrument_response()
+	else:
+		scoring_sections = build_scoring_sections_from_instrument(instrument)
+		pre_audit_instrument = instrument
+	return _build_audit_progress_from_snapshot(
+		snapshot=snapshot,
+		scoring_sections=scoring_sections,
+		pre_audit_instrument=pre_audit_instrument,
+	)
 
 
 def _build_audit_progress_from_snapshot(
 	*,
 	snapshot: AuditStateSnapshot,
+	scoring_sections: list[ScoringSection],
+	pre_audit_instrument: PlayspaceInstrumentResponse,
 ) -> AuditProgressResponse:
 	"""Build user-facing progress from one storage-agnostic audit snapshot."""
 
@@ -179,14 +204,18 @@ def _build_audit_progress_from_snapshot(
 	pre_audit_payload = snapshot.pre_audit_payload
 	sections_payload = snapshot.sections_payload
 
-	required_pre_audit_complete = _is_pre_audit_complete(pre_audit_payload, execution_mode)
+	required_pre_audit_complete = _is_pre_audit_complete(
+		pre_audit_payload,
+		execution_mode,
+		pre_audit_instrument,
+	)
 	section_progress: list[AuditSectionProgressResponse] = []
 	visible_section_count = 0
 	completed_section_count = 0
 	total_visible_questions = 0
 	answered_visible_questions = 0
 
-	for section in get_scoring_sections():
+	for section in scoring_sections:
 		section_answers = _read_json_dict(sections_payload.get(section.section_key))
 		visible_questions = _get_visible_questions(
 			section=section,
@@ -247,28 +276,45 @@ def score_audit(
 	*,
 	responses_json: JsonDict,
 	include_maximums: bool = False,
+	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> JsonDict:
 	"""Calculate Playspace total buckets for a completed audit draft."""
 
 	snapshot = _build_snapshot_from_json(responses_json)
-	return _score_audit_from_snapshot(snapshot=snapshot, include_maximums=include_maximums)
+	scoring_sections = (
+		get_scoring_sections() if instrument is None else build_scoring_sections_from_instrument(instrument)
+	)
+	return _score_audit_from_snapshot(
+		snapshot=snapshot,
+		include_maximums=include_maximums,
+		scoring_sections=scoring_sections,
+	)
 
 
 def score_audit_for_audit(
 	*,
 	audit: Audit,
 	include_maximums: bool = False,
+	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> JsonDict:
 	"""Calculate Playspace total buckets directly from normalized audit relations."""
 
 	snapshot = _build_snapshot_from_audit(audit)
-	return _score_audit_from_snapshot(snapshot=snapshot, include_maximums=include_maximums)
+	scoring_sections = (
+		get_scoring_sections() if instrument is None else build_scoring_sections_from_instrument(instrument)
+	)
+	return _score_audit_from_snapshot(
+		snapshot=snapshot,
+		include_maximums=include_maximums,
+		scoring_sections=scoring_sections,
+	)
 
 
 def _score_audit_from_snapshot(
 	*,
 	snapshot: AuditStateSnapshot,
 	include_maximums: bool,
+	scoring_sections: list[ScoringSection],
 ) -> JsonDict:
 	"""Calculate scores from one storage-agnostic audit snapshot."""
 
@@ -280,7 +326,7 @@ def _score_audit_from_snapshot(
 	domain_scores: dict[str, ScoreTotals] = {}
 	sections_payload = snapshot.sections_payload
 
-	for section in get_scoring_sections():
+	for section in scoring_sections:
 		section_answers = _read_json_dict(sections_payload.get(section.section_key))
 		visible_questions = _get_visible_questions(
 			section=section,
@@ -535,13 +581,13 @@ def _build_sections_payload_from_audit(audit: Audit) -> dict[str, JsonDict]:
 def _is_pre_audit_complete(
 	pre_audit_payload: JsonDict,
 	execution_mode: ExecutionMode | None,
+	instrument: PlayspaceInstrumentResponse,
 ) -> bool:
 	"""Validate that all manual pre-audit prompts are filled."""
 
 	if execution_mode is None:
 		return False
 
-	instrument = get_canonical_instrument_response()
 	for question in instrument.pre_audit_questions:
 		if not question.required or execution_mode not in question.visible_modes:
 			continue

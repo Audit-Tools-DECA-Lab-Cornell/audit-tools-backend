@@ -73,10 +73,8 @@ async def list_account_auditors(
 	"""Return manager-facing auditor summaries for a Playspace account."""
 
 	auditors = await service.list_account_auditors(actor=current_user, account_id=account_id)
-	print(f"auditors: {auditors}")
 	if len(auditors) == 0:
 		auditors = await service.list_auditors(actor=current_user, account_id=account_id)
-		print(f"auditors: {auditors}")
 	return auditors
 
 

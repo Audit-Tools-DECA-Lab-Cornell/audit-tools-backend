@@ -697,6 +697,7 @@ class PlayspaceAuditSessionsMixin:
 		"""Create or return the current auditor's audit for one project-place pair."""
 
 		auditor_profile = await self._require_auditor_profile(actor=actor)
+
 		project, place = await self._get_project_place_pair(
 			project_id=payload.project_id,
 			place_id=place_id,
@@ -726,16 +727,18 @@ class PlayspaceAuditSessionsMixin:
 				allowed_modes=allowed_modes,
 			)
 
+			audit_code = self._build_audit_code(
+				project_name=project.name,
+				place_name=place.name,
+				auditor_code=auditor_profile.auditor_code,
+				created_at=now,
+			)
+
 			audit = Audit(
 				project_id=project.id,
 				place_id=place.id,
 				auditor_profile_id=auditor_profile.id,
-				audit_code=self._build_audit_code(
-					project_name=project.name,
-					place_name=place.name,
-					auditor_code=auditor_profile.auditor_code,
-					created_at=now,
-				),
+				audit_code=audit_code,
 				instrument_key=INSTRUMENT_KEY,
 				instrument_version=INSTRUMENT_VERSION,
 				status=AuditStatus.IN_PROGRESS,
@@ -749,7 +752,7 @@ class PlayspaceAuditSessionsMixin:
 			)
 			if initial_execution_mode is not None:
 				set_execution_mode_value(audit=audit, execution_mode=initial_execution_mode)
-			self._refresh_draft_cache_fields(audit=audit)
+			await self._refresh_draft_cache_fields(audit=audit)
 			set_aggregate_revision(audit, 1)
 			self._session.add(audit)
 			await self._commit_and_refresh(audit)
@@ -823,7 +826,8 @@ class PlayspaceAuditSessionsMixin:
 		set_aggregate_revision(audit, get_aggregate_revision(audit) + 1)
 		responses_json = build_responses_json_from_relations(audit)
 		audit.responses_json = responses_json
-		progress = build_audit_progress_for_audit(audit=audit)
+		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
+		progress = build_audit_progress_for_audit(audit=audit, instrument=instrument)
 		draft_progress_percent = self._progress_percent(progress)
 		set_draft_progress_percent(audit=audit, draft_progress_percent=draft_progress_percent)
 		audit.scores_json = {
@@ -887,14 +891,15 @@ class PlayspaceAuditSessionsMixin:
 
 		responses_json = build_responses_json_from_relations(audit)
 		audit.responses_json = responses_json
-		progress = build_audit_progress_for_audit(audit=audit)
+		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
+		progress = build_audit_progress_for_audit(audit=audit, instrument=instrument)
 		if not progress.ready_to_submit:
 			raise HTTPException(
 				status_code=status.HTTP_400_BAD_REQUEST,
 				detail="Complete the pre-audit fields and all visible sections before submitting.",
 			)
 
-		calculated_scores = score_audit_for_audit(audit=audit)
+		calculated_scores = score_audit_for_audit(audit=audit, instrument=instrument)
 		submitted_at = datetime.now(timezone.utc)
 		elapsed_minutes = int((submitted_at - audit.started_at).total_seconds() // 60)
 
@@ -1086,6 +1091,20 @@ class PlayspaceAuditSessionsMixin:
 			detail="You do not have permission to access this audit.",
 		)
 
+	async def _resolve_playspace_instrument_for_audit(self, audit: Audit) -> PlayspaceInstrumentResponse:
+		"""Return the active database instrument when present; otherwise the canonical on-disk JSON."""
+
+		instrument_key = audit.instrument_key or INSTRUMENT_KEY
+		db_instrument = await get_active_instrument(self._session, instrument_key)
+		if db_instrument is not None:
+			en_content = db_instrument.content.get("en")
+			if isinstance(en_content, dict):
+				normalized = normalize_legacy_instrument_payload(en_content)
+				if isinstance(normalized, dict):
+					return PlayspaceInstrumentResponse.model_validate(normalized)
+		return get_canonical_instrument_response()
+
+	# make it verbose
 	async def _build_audit_session_response(
 		self,
 		*,
@@ -1098,19 +1117,11 @@ class PlayspaceAuditSessionsMixin:
 		responses_json = build_responses_json_from_relations(audit)
 		allowed_modes = get_allowed_execution_modes()
 		selected_mode = resolve_execution_mode_for_audit(audit=audit)
-		progress = build_audit_progress_for_audit(audit=audit)
 
-		db_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
-		if db_instrument is not None:
-			en_content = normalize_legacy_instrument_payload(db_instrument.content.get("en"))
-			if isinstance(en_content, dict):
-				instrument = PlayspaceInstrumentResponse.model_validate(en_content)
-			else:
-				instrument = get_canonical_instrument_response()
-		else:
-			instrument = get_canonical_instrument_response()
-
+		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
+		progress = build_audit_progress_for_audit(audit=audit, instrument=instrument)
 		meta = AuditMetaResponse(execution_mode=self._parse_execution_mode(get_execution_mode_value(audit)))
+
 		pre_audit = self._build_pre_audit_response(responses_json=responses_json)
 		sections = self._build_section_state_response_map(responses_json=responses_json)
 		aggregate = self._build_audit_aggregate_response(
@@ -1140,7 +1151,11 @@ class PlayspaceAuditSessionsMixin:
 			meta=meta,
 			pre_audit=pre_audit,
 			sections=sections,
-			scores=self._build_audit_scores_response(audit=audit, fallback_mode=selected_mode),
+			scores=self._build_audit_scores_response(
+				audit=audit,
+				fallback_mode=selected_mode,
+				instrument=instrument,
+			),
 			progress=progress,
 		)
 
@@ -1219,13 +1234,14 @@ class PlayspaceAuditSessionsMixin:
 			sections=self._build_section_state_response_map(responses_json=responses_json),
 		)
 
-	def _refresh_draft_cache_fields(self, *, audit: Audit) -> None:
+	async def _refresh_draft_cache_fields(self, *, audit: Audit) -> None:
 		"""Rebuild cached draft JSON and progress projections after in-memory edits."""
 
 		responses_json = build_responses_json_from_relations(audit)
 		audit.responses_json = responses_json
 
-		progress = build_audit_progress_for_audit(audit=audit)
+		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
+		progress = build_audit_progress_for_audit(audit=audit, instrument=instrument)
 		draft_progress_percent = self._progress_percent(progress)
 		set_draft_progress_percent(audit=audit, draft_progress_percent=draft_progress_percent)
 
@@ -1280,10 +1296,11 @@ class PlayspaceAuditSessionsMixin:
 		*,
 		audit: Audit,
 		fallback_mode: ExecutionMode | None,
+		instrument: PlayspaceInstrumentResponse | None = None,
 	) -> AuditScoresResponse:
 		"""Build the typed Playspace score payload from cached or live audit totals."""
 
-		raw_scores = self._resolve_score_payload(audit=audit)
+		raw_scores = self._resolve_score_payload(audit=audit, instrument=instrument)
 		execution_mode = self._parse_execution_mode(raw_scores.get("execution_mode")) or fallback_mode
 		return AuditScoresResponse(
 			draft_progress_percent=get_draft_progress_percent(audit),
@@ -1354,7 +1371,12 @@ class PlayspaceAuditSessionsMixin:
 			return score_totals, compact_summary_score
 		return score_totals, fallback_summary_score
 
-	def _resolve_score_payload(self, *, audit: Audit) -> dict[str, object]:
+	def _resolve_score_payload(
+		self,
+		*,
+		audit: Audit,
+		instrument: PlayspaceInstrumentResponse | None = None,
+	) -> dict[str, object]:
 		"""Return the current score payload, recalculating submitted audits when needed."""
 
 		raw_scores = dict(audit.scores_json) if isinstance(audit.scores_json, dict) else {}
@@ -1362,7 +1384,11 @@ class PlayspaceAuditSessionsMixin:
 			return raw_scores
 
 		try:
-			return score_audit_for_audit(audit=audit, include_maximums=True)
+			return score_audit_for_audit(
+				audit=audit,
+				include_maximums=True,
+				instrument=instrument,
+			)
 		except ValueError:
 			return raw_scores
 
