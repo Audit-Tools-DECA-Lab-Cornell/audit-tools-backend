@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
@@ -454,11 +455,13 @@ async def _get_valid_invite(session: AsyncSession, token: str) -> AuditorInvite:
 
 
 async def _generate_unique_auditor_code(session: AsyncSession) -> str:
-    while True:
-        code = f"AUD-{uuid.uuid4().hex[:6].upper()}"
-        existing = await session.execute(select(Auditor.id).where(Auditor.auditor_code == code))
-        if existing.scalar_one_or_none() is None:
-            return code
+    existing_codes = (await session.execute(select(Auditor.auditor_code))).scalars().all()
+    max_suffix = 0
+    for existing_code in existing_codes:
+        match = re.search(r"(\d+)$", existing_code or "")
+        if match is not None:
+            max_suffix = max(max_suffix, int(match.group(1)))
+    return f"AUD{max_suffix + 1:03d}"
 
 
 def _verify_turnstile_if_enabled(*, captcha_token: str | None, remote_ip: str | None) -> None:

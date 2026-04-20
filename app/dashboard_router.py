@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -9,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -30,9 +31,14 @@ class DashboardMetricResponse(BaseModel):
 
 class AuditListItem(BaseModel):
     id: str
+    submission_id: str | None = None
+    project_id: str
+    project_name: str
+    place_id: str
     place: str
     auditor: str
     date: str
+    submitted_at: str | None = None
     score: int
     status: str
 
@@ -41,12 +47,14 @@ class DashboardOverviewResponse(BaseModel):
     metrics: list[DashboardMetricResponse]
     recent_activity: list[str]
     latest_audits: list[AuditListItem]
+    organization_summaries: list["OrganizationSummaryItem"] = Field(default_factory=list)
 
 
 class ProjectListItem(BaseModel):
     id: str
     name: str
-    lead: str
+    summary: str
+    organization: str | None = None
     places: int
     audits: int
     status: str
@@ -55,7 +63,12 @@ class ProjectListItem(BaseModel):
 class PlaceListItem(BaseModel):
     id: str
     name: str
+    project_id: str
     project: str
+    organization: str | None = None
+    address: str
+    postal_code: str | None = None
+    assigned_auditors: list[str] = Field(default_factory=list)
     audits: int
     last_audit: str
     status: str
@@ -73,7 +86,9 @@ class ProjectPlaceItem(BaseModel):
 class AuditorListItem(BaseModel):
     id: str
     name: str
-    assigned_places: int
+    auditor_id: str
+    email: str
+    assigned_places: list[str] = Field(default_factory=list)
     completed_audits: int
     status: str
 
@@ -113,6 +128,8 @@ class UserListItem(BaseModel):
     approved: bool
     email_verified: bool
     profile_completed: bool
+    contact_info: str
+    project_assignments: str
 
 
 class ApproveUserRequest(BaseModel):
@@ -129,6 +146,7 @@ class CreatePlaceRequest(BaseModel):
     project_id: uuid.UUID
     name: str = Field(..., min_length=1, max_length=200)
     address: str = Field(..., min_length=1, max_length=500)
+    postal_code: str = Field(..., min_length=1, max_length=32)
     notes: str | None = Field(default=None, max_length=2000)
 
 
@@ -145,14 +163,22 @@ class AuditorInviteResponse(BaseModel):
 
 
 class CreateAssignmentRequest(BaseModel):
-    auditor_id: uuid.UUID
-    place_id: uuid.UUID
+    project_id: uuid.UUID
+    auditor_ids: list[uuid.UUID] = Field(..., min_length=1)
+    place_ids: list[uuid.UUID] = Field(..., min_length=1)
 
 
-class AssignmentResponse(BaseModel):
+class AssignmentResultItem(BaseModel):
     id: str
     auditor_id: str
     place_id: str
+    project_id: str
+
+
+class AssignmentResponse(BaseModel):
+    created_count: int
+    existing_count: int
+    assignments: list[AssignmentResultItem]
 
 
 class AuditorAssignedPlaceItem(BaseModel):
@@ -198,6 +224,7 @@ class PlaceDetailResponse(BaseModel):
     id: str
     name: str
     address: str
+    postal_code: str | None = None
     notes: str
     status: str
     project_id: str
@@ -243,6 +270,14 @@ class RawDataExportRow(BaseModel):
     responses: dict[str, str]
 
 
+class OrganizationSummaryItem(BaseModel):
+    organization: str
+    users: int
+    projects: int
+    places: int
+    audits: int
+
+
 def _require_manager_or_admin(user: User) -> None:
     if user.account_type not in {AccountType.MANAGER, AccountType.ADMIN}:
         raise HTTPException(status_code=403, detail="Manager or admin access is required.")
@@ -275,6 +310,42 @@ def _format_timestamp(value: datetime | None) -> str:
     if value is None:
         return "Not yet"
     return value.strftime("%b %d, %Y")
+
+
+def _display_auditor_code(code: str | None) -> str:
+    if not code:
+        return "AUD000"
+    normalized = code.strip().upper()
+    if normalized.startswith(("AUD", "ADT", "A")) and re.search(r"\d+$", normalized):
+        digits_match = re.search(r"(\d+)$", normalized)
+        if digits_match is not None:
+            return f"AUD{int(digits_match.group(1)):03d}"
+        return normalized
+    digits_match = re.search(r"(\d+)$", normalized)
+    if digits_match is not None:
+        return f"AUD{int(digits_match.group(1)):03d}"
+    return normalized
+
+
+def _project_scope_filter(user: User) -> object | None:
+    if user.account_type == AccountType.ADMIN:
+        return None
+    return Project.created_by_user_id == user.id
+
+
+def _manager_project_ids_subquery(user: User):
+    return select(Project.id).where(Project.created_by_user_id == user.id)
+
+
+def _manager_invited_auditor_ids_subquery(user: User):
+    return (
+        select(AuditorInvite.auditor_id)
+        .where(
+            AuditorInvite.invited_by_user_id == user.id,
+            AuditorInvite.auditor_id.is_not(None),
+        )
+        .distinct()
+    )
 
 
 def _extract_score(scores_json: dict[str, object]) -> int:
@@ -365,7 +436,7 @@ def _flatten_responses(responses: dict[str, Any]) -> dict[str, str]:
 
 async def _fetch_reporting_rows(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
 ) -> list[tuple[YeeAuditSubmission, Place, Project, str]]:
     stmt = (
         select(YeeAuditSubmission, Place, Project, Auditor.auditor_code)
@@ -375,16 +446,17 @@ async def _fetch_reporting_rows(
         .join(Auditor, YeeAuditSubmission.auditor_id == Auditor.id)
         .order_by(Project.name.asc(), Place.name.asc(), YeeAuditSubmission.submitted_at.desc())
     )
-    if account_id is not None:
-        stmt = stmt.where(Project.account_id == account_id)
+    project_scope = _project_scope_filter(user)
+    if project_scope is not None:
+        stmt = stmt.where(project_scope)
     return (await session.execute(stmt)).all()
 
 
 async def _fetch_place_comparison_groups(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
 ) -> list[PlaceComparisonGroup]:
-    rows = await _fetch_reporting_rows(session, account_id)
+    rows = await _fetch_reporting_rows(session, user)
     grouped: dict[str, dict[str, Any]] = defaultdict(dict)
 
     for submission, place, project, auditor_code in rows:
@@ -405,7 +477,7 @@ async def _fetch_place_comparison_groups(
         group["audits"].append(
             PlaceComparisonAuditItem(
                 audit_id=str(submission.id),
-                auditor_id=auditor_code,
+                auditor_id=_display_auditor_code(auditor_code),
                 place_id=str(place.id),
                 place_name=place.name,
                 project_id=str(project.id),
@@ -433,9 +505,9 @@ async def _fetch_place_comparison_groups(
 
 async def _fetch_raw_data_rows(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
 ) -> list[RawDataExportRow]:
-    rows = await _fetch_reporting_rows(session, account_id)
+    rows = await _fetch_reporting_rows(session, user)
     export_rows: list[RawDataExportRow] = []
     for submission, place, project, auditor_code in rows:
         participant_info = submission.participant_info_json
@@ -446,7 +518,7 @@ async def _fetch_raw_data_rows(
         export_rows.append(
             RawDataExportRow(
                 audit_id=str(submission.id),
-                auditor_generated_id=auditor_code,
+                auditor_generated_id=_display_auditor_code(auditor_code),
                 place_id=str(place.id),
                 place_name=place.name,
                 project_id=str(project.id),
@@ -487,88 +559,138 @@ async def _count_rows(session: AsyncSession, model: type[object], where_clause: 
     return int((await session.execute(stmt)).scalar_one())
 
 
-async def _fetch_latest_audits(session: AsyncSession, account_id: uuid.UUID | None = None) -> list[AuditListItem]:
+async def _fetch_audits(
+    session: AsyncSession,
+    user: User,
+    *,
+    limit: int | None = None,
+) -> list[AuditListItem]:
+    submission_alias = aliased(YeeAuditSubmission)
     stmt = (
-        select(Audit, Place.name, Auditor.auditor_code)
-        .join(Place, Audit.place_id == Place.id)
+        select(Audit, Project, Place, Auditor.auditor_code, submission_alias.id, submission_alias.submitted_at)
         .join(Project, Audit.project_id == Project.id)
+        .join(Place, Audit.place_id == Place.id)
         .join(Auditor, Audit.auditor_profile_id == Auditor.id)
+        .outerjoin(
+            submission_alias,
+            and_(
+                submission_alias.auditor_id == Audit.auditor_profile_id,
+                submission_alias.place_id == Audit.place_id,
+            ),
+        )
         .order_by(Audit.submitted_at.desc().nullslast(), Audit.started_at.desc())
-        .limit(6)
     )
-    if account_id is not None:
-        stmt = stmt.where(Project.account_id == account_id)
+    project_scope = _project_scope_filter(user)
+    if project_scope is not None:
+        stmt = stmt.where(project_scope)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     rows = (await session.execute(stmt)).all()
     return [
         AuditListItem(
             id=str(audit.id),
-            place=place_name,
-            auditor=auditor_code,
+            submission_id=str(submission_id) if submission_id is not None else None,
+            project_id=str(project.id),
+            project_name=project.name,
+            place_id=str(place.id),
+            place=place.name,
+            auditor=_display_auditor_code(auditor_code),
             date=_format_timestamp(audit.submitted_at or audit.started_at),
+            submitted_at=submitted_at.isoformat() if submitted_at is not None else None,
             score=_extract_score(audit.scores_json),
             status="Submitted" if audit.status == AuditStatus.SUBMITTED else "Draft",
         )
-        for audit, place_name, auditor_code in rows
+        for audit, project, place, auditor_code, submission_id, submitted_at in rows
     ]
 
 
-async def _fetch_projects(session: AsyncSession, account_id: uuid.UUID | None = None) -> list[ProjectListItem]:
+async def _fetch_projects(session: AsyncSession, user: User) -> list[ProjectListItem]:
     audit_count = func.count(Audit.id)
     place_count = func.count(func.distinct(Place.id))
     stmt: Select[tuple[Project, int, int]] = (
-        select(Project, place_count, audit_count)
+        select(Project, Account.name, place_count, audit_count)
+        .join(Account, Project.account_id == Account.id)
         .outerjoin(ProjectPlace, ProjectPlace.project_id == Project.id)
         .outerjoin(Place, Place.id == ProjectPlace.place_id)
         .outerjoin(Audit, and_(Audit.project_id == Project.id, Audit.place_id == ProjectPlace.place_id))
-        .group_by(Project.id)
+        .group_by(Project.id, Account.name)
         .order_by(Project.name.asc())
     )
-    if account_id is not None:
-        stmt = stmt.where(Project.account_id == account_id)
+    project_scope = _project_scope_filter(user)
+    if project_scope is not None:
+        stmt = stmt.where(project_scope)
     rows = (await session.execute(stmt)).all()
     return [
         ProjectListItem(
             id=str(project.id),
             name=project.name,
-            lead=project.description or "Project lead pending",
+            summary=project.description or "Project summary pending",
+            organization=organization_name,
             places=int(places),
             audits=int(audits),
             status="Planning" if project.start_date is None else "Active",
         )
-        for project, places, audits in rows
+        for project, organization_name, places, audits in rows
     ]
 
 
-async def _fetch_places(session: AsyncSession, account_id: uuid.UUID | None = None) -> list[PlaceListItem]:
+async def _fetch_places(session: AsyncSession, user: User) -> list[PlaceListItem]:
     last_audit = func.max(Audit.submitted_at)
     audit_count = func.count(Audit.id)
     stmt = (
-        select(Place, Project.name, audit_count, last_audit)
+        select(Place, Project.id, Project.name, Account.name, audit_count, last_audit)
         .join(ProjectPlace, ProjectPlace.place_id == Place.id)
         .join(Project, ProjectPlace.project_id == Project.id)
+        .join(Account, Project.account_id == Account.id)
         .outerjoin(Audit, and_(Audit.project_id == Project.id, Audit.place_id == Place.id))
-        .group_by(Place.id, Project.name)
-        .order_by(Project.name.asc(), Place.name.asc())
+        .group_by(Place.id, Project.id, Project.name, Account.name)
+        .order_by(Account.name.asc(), Project.name.asc(), Place.name.asc())
     )
-    if account_id is not None:
-        stmt = stmt.where(Project.account_id == account_id)
+    project_scope = _project_scope_filter(user)
+    if project_scope is not None:
+        stmt = stmt.where(project_scope)
     rows = (await session.execute(stmt)).all()
+    place_ids = [place.id for place, *_ in rows]
+    assigned_auditors_by_place: dict[uuid.UUID, list[str]] = defaultdict(list)
+    if place_ids:
+        assignment_stmt = (
+            select(ProjectPlace.place_id, Auditor.auditor_code)
+            .join(Assignment, Assignment.project_id == ProjectPlace.project_id)
+            .join(Auditor, Auditor.id == Assignment.auditor_profile_id)
+            .where(
+                ProjectPlace.place_id.in_(place_ids),
+                or_(Assignment.place_id.is_(None), Assignment.place_id == ProjectPlace.place_id),
+            )
+            .order_by(Auditor.auditor_code.asc())
+        )
+        if user.account_type != AccountType.ADMIN:
+            assignment_stmt = assignment_stmt.where(Auditor.id.in_(_manager_invited_auditor_ids_subquery(user)))
+        assignment_rows = (await session.execute(assignment_stmt)).all()
+        for place_id, auditor_code in assignment_rows:
+            display_code = _display_auditor_code(auditor_code)
+            if display_code not in assigned_auditors_by_place[place_id]:
+                assigned_auditors_by_place[place_id].append(display_code)
     return [
         PlaceListItem(
             id=str(place.id),
             name=place.name,
+            project_id=str(project_id),
             project=project_name,
+            organization=organization_name,
+            address=place.address,
+            postal_code=place.postal_code,
+            assigned_auditors=assigned_auditors_by_place.get(place.id, []),
             audits=int(audits),
             last_audit=_format_timestamp(last_submitted_at),
             status="Needs review" if int(audits) == 0 else "Up to date",
         )
-        for place, project_name, audits, last_submitted_at in rows
+        for place, project_id, project_name, organization_name, audits, last_submitted_at in rows
     ]
 
 
 async def _get_scoped_project(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
     project_id: uuid.UUID,
 ) -> tuple[Project, str]:
     stmt = (
@@ -576,8 +698,9 @@ async def _get_scoped_project(
         .join(Account, Project.account_id == Account.id)
         .where(Project.id == project_id)
     )
-    if account_id is not None:
-        stmt = stmt.where(Project.account_id == account_id)
+    project_scope = _project_scope_filter(user)
+    if project_scope is not None:
+        stmt = stmt.where(project_scope)
     row = (await session.execute(stmt)).one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Project not found.")
@@ -586,7 +709,7 @@ async def _get_scoped_project(
 
 async def _get_scoped_place(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
     place_id: uuid.UUID,
 ) -> tuple[Place, Project]:
     stmt = (
@@ -595,8 +718,9 @@ async def _get_scoped_place(
         .join(Project, ProjectPlace.project_id == Project.id)
         .where(Place.id == place_id)
     )
-    if account_id is not None:
-        stmt = stmt.where(Project.account_id == account_id)
+    project_scope = _project_scope_filter(user)
+    if project_scope is not None:
+        stmt = stmt.where(project_scope)
     row = (await session.execute(stmt)).one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Place not found.")
@@ -605,10 +729,10 @@ async def _get_scoped_place(
 
 async def _fetch_project_detail(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
     project_id: uuid.UUID,
 ) -> ProjectDetailResponse:
-    project, organization_name = await _get_scoped_project(session, account_id, project_id)
+    project, organization_name = await _get_scoped_project(session, user, project_id)
 
     last_audit = func.max(Audit.submitted_at)
     audit_count = func.count(Audit.id)
@@ -640,7 +764,7 @@ async def _fetch_project_detail(
     )
 
     latest_stmt = (
-        select(Audit, Place.name, Auditor.auditor_code)
+        select(Audit, Place, Auditor.auditor_code)
         .join(Place, Audit.place_id == Place.id)
         .join(Auditor, Audit.auditor_profile_id == Auditor.id)
         .where(Audit.project_id == project.id)
@@ -651,21 +775,24 @@ async def _fetch_project_detail(
     latest_audits = [
         AuditListItem(
             id=str(audit.id),
-            place=place_name,
-            auditor=auditor_code,
+            project_id=str(project.id),
+            project_name=project.name,
+            place_id=str(place.id),
+            place=place.name,
+            auditor=_display_auditor_code(auditor_code),
             date=_format_timestamp(audit.submitted_at or audit.started_at),
             score=_extract_score(audit.scores_json),
             status="Submitted" if audit.status == AuditStatus.SUBMITTED else "Draft",
         )
-        for audit, place_name, auditor_code in latest_rows
+        for audit, place, auditor_code in latest_rows
     ]
 
-    assigned_places = func.count(func.distinct(Assignment.place_id))
+    assigned_places = func.count(func.distinct(ProjectPlace.place_id))
     completed_audits = func.count(func.distinct(Audit.id))
     auditor_stmt = (
         select(Auditor, User.name, assigned_places, completed_audits)
         .join(Assignment, Assignment.auditor_profile_id == Auditor.id)
-        .join(Place, Assignment.place_id == Place.id)
+        .join(ProjectPlace, ProjectPlace.project_id == Assignment.project_id)
         .outerjoin(User, Auditor.user_id == User.id)
         .outerjoin(
             Audit,
@@ -673,16 +800,21 @@ async def _fetch_project_detail(
             & (Audit.status == AuditStatus.SUBMITTED)
             & (Audit.project_id == project.id),
         )
-        .where(Assignment.project_id == project.id)
+        .where(
+            Assignment.project_id == project.id,
+            or_(Assignment.place_id.is_(None), Assignment.place_id == ProjectPlace.place_id),
+        )
         .group_by(Auditor.id, User.name)
         .order_by(User.name.asc().nullslast(), Auditor.auditor_code.asc())
     )
+    if user.account_type != AccountType.ADMIN:
+        auditor_stmt = auditor_stmt.where(Auditor.id.in_(_manager_invited_auditor_ids_subquery(user)))
     auditor_rows = (await session.execute(auditor_stmt)).all()
     auditors = [
         ProjectAuditorItem(
             id=str(auditor.id),
-            name=user_name or auditor.auditor_code,
-            auditor_id=auditor.auditor_code,
+            name=user_name or _display_auditor_code(auditor.auditor_code),
+            auditor_id=_display_auditor_code(auditor.auditor_code),
             assigned_places=int(place_total),
             completed_audits=int(audit_total),
             status="Active" if auditor.user_id else "Invite pending",
@@ -708,12 +840,12 @@ async def _fetch_project_detail(
 
 async def _fetch_place_detail(
     session: AsyncSession,
-    account_id: uuid.UUID | None,
+    user: User,
     place_id: uuid.UUID,
 ) -> PlaceDetailResponse:
-    place, project = await _get_scoped_place(session, account_id, place_id)
+    place, project = await _get_scoped_place(session, user, place_id)
 
-    comparisons = await _fetch_place_comparison_groups(session, account_id)
+    comparisons = await _fetch_place_comparison_groups(session, user)
     comparison_group = next((group for group in comparisons if group.place_id == str(place.id)), None)
     if comparison_group is None:
         comparison_group = PlaceComparisonGroup(
@@ -734,16 +866,21 @@ async def _fetch_place_detail(
             Audit,
             (Audit.auditor_profile_id == Auditor.id) & (Audit.place_id == place.id) & (Audit.status == AuditStatus.SUBMITTED),
         )
-        .where(Assignment.place_id == place.id)
+        .where(
+            Assignment.project_id == project.id,
+            or_(Assignment.place_id == place.id, Assignment.place_id.is_(None)),
+        )
         .group_by(Auditor.id, User.name)
         .order_by(User.name.asc().nullslast(), Auditor.auditor_code.asc())
     )
+    if user.account_type != AccountType.ADMIN:
+        auditor_stmt = auditor_stmt.where(Auditor.id.in_(_manager_invited_auditor_ids_subquery(user)))
     auditor_rows = (await session.execute(auditor_stmt)).all()
     auditors = [
         PlaceAuditorItem(
             id=str(auditor.id),
-            name=user_name or auditor.auditor_code,
-            auditor_id=auditor.auditor_code,
+            name=user_name or _display_auditor_code(auditor.auditor_code),
+            auditor_id=_display_auditor_code(auditor.auditor_code),
             status="Active" if auditor.user_id else "Invite pending",
             audit_count=int(audit_total),
             last_audit=_format_timestamp(last_submitted_at),
@@ -761,6 +898,7 @@ async def _fetch_place_detail(
         id=str(place.id),
         name=place.name,
         address=place.address,
+        postal_code=place.postal_code,
         notes=place.notes or "No additional place notes have been added yet.",
         status="Needs review" if submitted_count == 0 else "Up to date",
         project_id=str(project.id),
@@ -774,29 +912,55 @@ async def _fetch_place_detail(
     )
 
 
-async def _fetch_auditors(session: AsyncSession, account_id: uuid.UUID | None = None) -> list[AuditorListItem]:
-    assigned_places = func.count(func.distinct(Assignment.place_id))
+async def _fetch_auditors(session: AsyncSession, user: User) -> list[AuditorListItem]:
     completed_audits = func.count(Audit.id)
+    audit_join_condition = (Audit.auditor_profile_id == Auditor.id) & (Audit.status == AuditStatus.SUBMITTED)
+    if user.account_type != AccountType.ADMIN:
+        audit_join_condition = audit_join_condition & Audit.project_id.in_(_manager_project_ids_subquery(user))
     stmt = (
-        select(Auditor, User.name, assigned_places, completed_audits)
+        select(Auditor, User.name, User.email, completed_audits)
         .outerjoin(User, Auditor.user_id == User.id)
-        .outerjoin(Assignment, Assignment.auditor_profile_id == Auditor.id)
-        .outerjoin(Audit, (Audit.auditor_profile_id == Auditor.id) & (Audit.status == AuditStatus.SUBMITTED))
-        .group_by(Auditor.id, User.name)
+        .outerjoin(Audit, audit_join_condition)
+        .group_by(Auditor.id, User.name, User.email)
         .order_by(User.name.asc().nullslast(), Auditor.auditor_code.asc())
     )
-    if account_id is not None:
-        stmt = stmt.where(Auditor.account_id == account_id)
+    if user.account_type != AccountType.ADMIN:
+        stmt = stmt.where(Auditor.id.in_(_manager_invited_auditor_ids_subquery(user)))
     rows = (await session.execute(stmt)).all()
+    auditor_ids = [auditor.id for auditor, *_ in rows]
+    assigned_places_by_auditor: dict[uuid.UUID, list[str]] = defaultdict(list)
+    if auditor_ids:
+        place_stmt = (
+            select(Assignment.auditor_profile_id, Place.name)
+            .join(ProjectPlace, ProjectPlace.project_id == Assignment.project_id)
+            .join(
+                Place,
+                and_(
+                    Place.id == ProjectPlace.place_id,
+                    or_(Assignment.place_id.is_(None), Assignment.place_id == ProjectPlace.place_id),
+                ),
+            )
+            .join(Project, Project.id == Assignment.project_id)
+            .where(Assignment.auditor_profile_id.in_(auditor_ids))
+            .order_by(Place.name.asc())
+        )
+        if user.account_type != AccountType.ADMIN:
+            place_stmt = place_stmt.where(Project.created_by_user_id == user.id)
+        place_rows = (await session.execute(place_stmt)).all()
+        for auditor_id, place_name in place_rows:
+            if place_name not in assigned_places_by_auditor[auditor_id]:
+                assigned_places_by_auditor[auditor_id].append(place_name)
     return [
         AuditorListItem(
             id=str(auditor.id),
-            name=user_name or auditor.auditor_code,
-            assigned_places=int(place_total),
+            name=user_name or _display_auditor_code(auditor.auditor_code),
+            auditor_id=_display_auditor_code(auditor.auditor_code),
+            email=user_email or auditor.email or "",
+            assigned_places=assigned_places_by_auditor.get(auditor.id, []),
             completed_audits=int(audit_total),
             status="Active" if auditor.user_id else "Invite pending",
         )
-        for auditor, user_name, place_total, audit_total in rows
+        for auditor, user_name, user_email, audit_total in rows
     ]
 
 
@@ -808,6 +972,31 @@ async def _fetch_users(session: AsyncSession) -> list[UserListItem]:
         .order_by(User.email.asc())
     )
     rows = (await session.execute(stmt)).all()
+
+    manager_projects_rows = (
+        await session.execute(
+            select(User.id, Project.name)
+            .join(Project, Project.account_id == User.account_id)
+            .where(User.account_type == AccountType.MANAGER)
+            .order_by(Project.name.asc())
+        )
+    ).all()
+    auditor_projects_rows = (
+        await session.execute(
+            select(User.id, Project.name)
+            .join(Auditor, Auditor.user_id == User.id)
+            .join(Assignment, Assignment.auditor_profile_id == Auditor.id)
+            .join(Project, Project.id == Assignment.project_id)
+            .where(User.account_type == AccountType.AUDITOR)
+            .distinct()
+            .order_by(Project.name.asc())
+        )
+    ).all()
+    project_names_by_user: dict[uuid.UUID, list[str]] = defaultdict(list)
+    for user_id, project_name in [*manager_projects_rows, *auditor_projects_rows]:
+        if project_name not in project_names_by_user[user_id]:
+            project_names_by_user[user_id].append(project_name)
+
     return [
         UserListItem(
             id=str(user.id),
@@ -820,8 +1009,52 @@ async def _fetch_users(session: AsyncSession) -> list[UserListItem]:
             approved=user.approved,
             email_verified=user.email_verified,
             profile_completed=user.profile_completed,
+            contact_info=user.email if user.account_type == AccountType.MANAGER else "",
+            project_assignments=", ".join(project_names_by_user.get(user.id, [])) or "None",
         )
         for user, account_name in rows
+    ]
+
+
+async def _fetch_organization_summaries(session: AsyncSession) -> list[OrganizationSummaryItem]:
+    account_rows = (await session.execute(select(Account).order_by(Account.name.asc()))).scalars().all()
+    project_counts = dict(
+        (await session.execute(select(Project.account_id, func.count(Project.id)).group_by(Project.account_id))).all()
+    )
+    auditor_counts = dict(
+        (await session.execute(select(Auditor.account_id, func.count(Auditor.id)).group_by(Auditor.account_id))).all()
+    )
+    place_counts = dict(
+        (
+            await session.execute(
+                select(Project.account_id, func.count(func.distinct(ProjectPlace.place_id)))
+                .join(ProjectPlace, ProjectPlace.project_id == Project.id)
+                .group_by(Project.account_id)
+            )
+        ).all()
+    )
+    audit_counts = dict(
+        (
+            await session.execute(
+                select(Project.account_id, func.count(Audit.id))
+                .join(Audit, Audit.project_id == Project.id)
+                .where(Audit.status == AuditStatus.SUBMITTED)
+                .group_by(Project.account_id)
+            )
+        ).all()
+    )
+    user_counts = dict(
+        (await session.execute(select(User.account_id, func.count(User.id)).where(User.account_id.is_not(None)).group_by(User.account_id))).all()
+    )
+    return [
+        OrganizationSummaryItem(
+            organization=account.name,
+            users=int(user_counts.get(account.id, 0)),
+            projects=int(project_counts.get(account.id, 0)),
+            places=int(place_counts.get(account.id, 0)),
+            audits=int(audit_counts.get(account.id, 0)),
+        )
+        for account in account_rows
     ]
 
 
@@ -830,11 +1063,13 @@ def _normalize_email(email: str) -> str:
 
 
 async def _generate_unique_auditor_code(session: AsyncSession) -> str:
-    while True:
-        code = f"AUD-{uuid.uuid4().hex[:6].upper()}"
-        existing = await session.execute(select(Auditor.id).where(Auditor.auditor_code == code))
-        if existing.scalar_one_or_none() is None:
-            return code
+    existing_codes = (await session.execute(select(Auditor.auditor_code))).scalars().all()
+    max_suffix = 0
+    for existing_code in existing_codes:
+        match = re.search(r"(\d+)$", existing_code or "")
+        if match is not None:
+            max_suffix = max(max_suffix, int(match.group(1)))
+    return f"AUD{max_suffix + 1:03d}"
 
 
 async def _get_current_auditor(session: AsyncSession, user: User) -> Auditor:
@@ -853,35 +1088,38 @@ async def get_dashboard_overview(
     """Return overview metrics and recent audit activity for dashboard landing pages."""
 
     _require_manager_or_admin(user)
-    account_id = _manager_account_id(user)
-
-    projects_count = await _count_rows(session, Project, Project.account_id == account_id) if account_id else await _count_rows(session, Project)
-    places_count = (
-        int(
+    if user.account_type == AccountType.ADMIN:
+        projects_count = await _count_rows(session, Project)
+        places_count = await _count_rows(session, Place)
+        auditors_count = await _count_rows(session, Auditor)
+        completed_audits = await _count_rows(session, Audit, Audit.status == AuditStatus.SUBMITTED)
+    else:
+        owned_project_ids = _manager_project_ids_subquery(user)
+        invited_auditor_ids = _manager_invited_auditor_ids_subquery(user)
+        projects_count = await _count_rows(session, Project, Project.created_by_user_id == user.id)
+        places_count = int(
             (
                 await session.execute(
                     select(func.count(func.distinct(ProjectPlace.place_id)))
                     .join(Project, ProjectPlace.project_id == Project.id)
-                    .where(Project.account_id == account_id)
+                    .where(Project.created_by_user_id == user.id)
                 )
             ).scalar_one()
         )
-        if account_id
-        else await _count_rows(session, Place)
-    )
-    auditors_count = await _count_rows(session, Auditor, Auditor.account_id == account_id) if account_id else await _count_rows(session, Auditor)
-    completed_audits = (
-        await _count_rows(
+        auditors_count = int(
+            (
+                await session.execute(
+                    select(func.count(func.distinct(Auditor.id))).where(Auditor.id.in_(invited_auditor_ids))
+                )
+            ).scalar_one()
+        )
+        completed_audits = await _count_rows(
             session,
             Audit,
-            (Audit.project_id.in_(select(Project.id).where(Project.account_id == account_id)))
-            & (Audit.status == AuditStatus.SUBMITTED),
+            (Audit.project_id.in_(owned_project_ids)) & (Audit.status == AuditStatus.SUBMITTED),
         )
-        if account_id
-        else await _count_rows(session, Audit, Audit.status == AuditStatus.SUBMITTED)
-    )
 
-    latest_audits = await _fetch_latest_audits(session, account_id)
+    latest_audits = await _fetch_audits(session, user, limit=6)
     recent_activity = [
         f"{audit.place} was submitted by {audit.auditor} on {audit.date}."
         for audit in latest_audits[:3]
@@ -921,6 +1159,7 @@ async def get_dashboard_overview(
         ],
         recent_activity=recent_activity,
         latest_audits=latest_audits,
+        organization_summaries=[] if user.account_type != AccountType.ADMIN else await _fetch_organization_summaries(session),
     )
 
 
@@ -930,7 +1169,7 @@ async def list_projects(
     session: AsyncSession = Depends(get_auth_session),
 ) -> list[ProjectListItem]:
     _require_manager_or_admin(user)
-    return await _fetch_projects(session, _manager_account_id(user))
+    return await _fetch_projects(session, user)
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetailResponse)
@@ -940,7 +1179,7 @@ async def get_project_detail(
     session: AsyncSession = Depends(get_auth_session),
 ) -> ProjectDetailResponse:
     _require_manager_or_admin(user)
-    return await _fetch_project_detail(session, _manager_account_id(user), project_id)
+    return await _fetch_project_detail(session, user, project_id)
 
 
 @router.get("/places", response_model=list[PlaceListItem])
@@ -949,7 +1188,7 @@ async def list_places(
     session: AsyncSession = Depends(get_auth_session),
 ) -> list[PlaceListItem]:
     _require_manager_or_admin(user)
-    return await _fetch_places(session, _manager_account_id(user))
+    return await _fetch_places(session, user)
 
 
 @router.get("/places/{place_id}", response_model=PlaceDetailResponse)
@@ -959,7 +1198,7 @@ async def get_place_detail(
     session: AsyncSession = Depends(get_auth_session),
 ) -> PlaceDetailResponse:
     _require_manager_or_admin(user)
-    return await _fetch_place_detail(session, _manager_account_id(user), place_id)
+    return await _fetch_place_detail(session, user, place_id)
 
 
 @router.get("/auditors", response_model=list[AuditorListItem])
@@ -968,7 +1207,7 @@ async def list_auditors(
     session: AsyncSession = Depends(get_auth_session),
 ) -> list[AuditorListItem]:
     _require_manager_or_admin(user)
-    return await _fetch_auditors(session, _manager_account_id(user))
+    return await _fetch_auditors(session, user)
 
 
 @router.get("/audits", response_model=list[AuditListItem])
@@ -977,7 +1216,7 @@ async def list_audits(
     session: AsyncSession = Depends(get_auth_session),
 ) -> list[AuditListItem]:
     _require_manager_or_admin(user)
-    return await _fetch_latest_audits(session, _manager_account_id(user))
+    return await _fetch_audits(session, user)
 
 
 @router.get("/users", response_model=list[UserListItem])
@@ -1054,6 +1293,8 @@ async def approve_user(
         approved=target_user.approved,
         email_verified=target_user.email_verified,
         profile_completed=target_user.profile_completed,
+        contact_info=target_user.email if target_user.account_type == AccountType.MANAGER else "",
+        project_assignments="None",
     )
 
 
@@ -1063,7 +1304,7 @@ async def list_place_comparisons(
     session: AsyncSession = Depends(get_auth_session),
 ) -> list[PlaceComparisonGroup]:
     _require_manager_or_admin(user)
-    return await _fetch_place_comparison_groups(session, _manager_account_id(user))
+    return await _fetch_place_comparison_groups(session, user)
 
 
 @router.get("/raw-data", response_model=list[RawDataExportRow])
@@ -1072,7 +1313,7 @@ async def list_raw_data(
     session: AsyncSession = Depends(get_auth_session),
 ) -> list[RawDataExportRow]:
     _require_manager_or_admin(user)
-    return await _fetch_raw_data_rows(session, _manager_account_id(user))
+    return await _fetch_raw_data_rows(session, user)
 
 
 @router.post("/projects", response_model=ProjectListItem)
@@ -1088,6 +1329,7 @@ async def create_project(
 
     project = Project(
         account_id=account_id,
+        created_by_user_id=user.id,
         name=payload.name.strip(),
         overview=payload.description.strip() if payload.description and payload.description.strip() else None,
         place_types=[],
@@ -1098,7 +1340,8 @@ async def create_project(
     return ProjectListItem(
         id=str(project.id),
         name=project.name,
-        lead="Project lead pending",
+        summary=project.description or "Project summary pending",
+        organization=None,
         places=0,
         audits=0,
         status="Planning",
@@ -1119,12 +1362,13 @@ async def create_place(
     project = await session.get(Project, payload.project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found.")
-    if project.account_id != account_id:
-        raise HTTPException(status_code=403, detail="Project is outside your account scope.")
+    if project.account_id != account_id or project.created_by_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Project is outside your manager scope.")
 
     place = Place(
         name=payload.name.strip(),
         city=payload.address.strip(),
+        postal_code=payload.postal_code.strip(),
         auditor_description=payload.notes.strip() if payload.notes and payload.notes.strip() else None,
     )
     session.add(place)
@@ -1135,7 +1379,11 @@ async def create_place(
     return PlaceListItem(
         id=str(place.id),
         name=place.name,
+        project_id=str(project.id),
         project=project.name,
+        organization=None,
+        address=place.address,
+        postal_code=place.postal_code,
         audits=0,
         last_audit="Not yet",
         status="Needs review",
@@ -1193,43 +1441,75 @@ async def create_assignment(
     if account_id is None:
         raise HTTPException(status_code=403, detail="Admin assignments are not supported from this route.")
 
-    auditor = await session.get(Auditor, payload.auditor_id)
-    if auditor is None or auditor.account_id != account_id:
-        raise HTTPException(status_code=404, detail="Auditor not found in your account.")
+    project = await session.get(Project, payload.project_id)
+    if project is None or project.account_id != account_id or project.created_by_user_id != user.id:
+        raise HTTPException(status_code=404, detail="Project not found in your manager scope.")
 
-    place_stmt = (
-        select(Place, Project)
-        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
-        .join(Project, ProjectPlace.project_id == Project.id)
-        .where(Place.id == payload.place_id, Project.account_id == account_id)
-    )
-    place_row = (await session.execute(place_stmt)).first()
-    if place_row is None:
-        raise HTTPException(status_code=404, detail="Place not found in your account.")
-    place, project = place_row
-
-    existing_stmt = select(Assignment).where(
-        Assignment.auditor_profile_id == auditor.id,
-        Assignment.project_id == project.id,
-        Assignment.place_id == place.id,
-    )
-    existing = (await session.execute(existing_stmt)).scalar_one_or_none()
-    if existing is not None:
-        return AssignmentResponse(
-            id=str(existing.id),
-            auditor_id=str(existing.auditor_id),
-            place_id=str(existing.place_id),
+    auditors = (
+        await session.execute(
+            select(Auditor)
+            .join(AuditorInvite, AuditorInvite.auditor_id == Auditor.id)
+            .where(
+                Auditor.id.in_(payload.auditor_ids),
+                Auditor.account_id == account_id,
+                AuditorInvite.invited_by_user_id == user.id,
+            )
+            .distinct()
         )
+    ).scalars().all()
+    if len(auditors) != len(set(payload.auditor_ids)):
+        raise HTTPException(status_code=404, detail="One or more auditors were not found in your invited auditor scope.")
 
-    assignment = Assignment(auditor_profile_id=auditor.id, project_id=project.id, place_id=place.id)
-    session.add(assignment)
+    places = (
+        await session.execute(
+            select(Place)
+            .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+            .where(ProjectPlace.project_id == project.id, Place.id.in_(payload.place_ids))
+        )
+    ).scalars().all()
+    if len(places) != len(set(payload.place_ids)):
+        raise HTTPException(status_code=404, detail="One or more places were not found in the selected project.")
+
+    place_ids = {place.id for place in places}
+    existing_assignments = (
+        await session.execute(
+            select(Assignment).where(
+                Assignment.project_id == project.id,
+                Assignment.place_id.in_(place_ids),
+                Assignment.auditor_profile_id.in_([auditor.id for auditor in auditors]),
+            )
+        )
+    ).scalars().all()
+    existing_keys = {(assignment.auditor_profile_id, assignment.place_id) for assignment in existing_assignments}
+
+    created_assignments: list[Assignment] = []
+    existing_count = 0
+    for auditor in auditors:
+        for place in places:
+            key = (auditor.id, place.id)
+            if key in existing_keys:
+                existing_count += 1
+                continue
+            assignment = Assignment(auditor_profile_id=auditor.id, project_id=project.id, place_id=place.id)
+            session.add(assignment)
+            created_assignments.append(assignment)
+
     await session.commit()
-    await session.refresh(assignment)
+    for assignment in created_assignments:
+        await session.refresh(assignment)
 
     return AssignmentResponse(
-        id=str(assignment.id),
-        auditor_id=str(assignment.auditor_id),
-        place_id=str(assignment.place_id),
+        created_count=len(created_assignments),
+        existing_count=existing_count,
+        assignments=[
+            AssignmentResultItem(
+                id=str(assignment.id),
+                auditor_id=str(assignment.auditor_id),
+                place_id=str(assignment.place_id),
+                project_id=str(assignment.project_id),
+            )
+            for assignment in [*existing_assignments, *created_assignments]
+        ],
     )
 
 
@@ -1245,13 +1525,20 @@ async def list_my_places(
     audit_count = func.count(Audit.id)
     stmt = (
         select(Place, Project.name, audit_count)
-        .join(Assignment, Assignment.place_id == Place.id)
-        .join(Project, Assignment.project_id == Project.id)
+        .join(ProjectPlace, ProjectPlace.place_id == Place.id)
+        .join(Project, Project.id == ProjectPlace.project_id)
+        .join(
+            Assignment,
+            and_(
+                Assignment.project_id == Project.id,
+                Assignment.auditor_profile_id == auditor.id,
+                or_(Assignment.place_id.is_(None), Assignment.place_id == Place.id),
+            ),
+        )
         .outerjoin(
             Audit,
             (Audit.project_id == Project.id) & (Audit.place_id == Place.id) & (Audit.auditor_profile_id == auditor.id),
         )
-        .where(Assignment.auditor_profile_id == auditor.id)
         .group_by(Place.id, Project.name)
         .order_by(Project.name.asc(), Place.name.asc())
     )

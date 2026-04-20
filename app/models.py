@@ -155,6 +155,10 @@ class User(Base):
 
     account: Mapped[Account | None] = relationship(back_populates="users")
     auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False)
+    created_projects: Mapped[list[Project]] = relationship(
+        back_populates="created_by_user",
+        foreign_keys="Project.created_by_user_id",
+    )
 
 
 class Account(Base):
@@ -242,6 +246,12 @@ class Project(Base):
         index=True,
         nullable=False,
     )
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     overview: Mapped[str | None] = mapped_column(Text, nullable=True)
     place_types: Mapped[list[str]] = mapped_column(ARRAY(String(100)), default=list, nullable=False)
@@ -257,6 +267,10 @@ class Project(Base):
     )
 
     account: Mapped[Account] = relationship(back_populates="projects")
+    created_by_user: Mapped[User] = relationship(
+        back_populates="created_projects",
+        foreign_keys=[created_by_user_id],
+    )
     project_place_links: Mapped[list[ProjectPlace]] = relationship(
         back_populates="project",
         cascade=CASCADE_DELETE_ORPHAN,
@@ -296,6 +310,7 @@ class Place(Base):
     city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     province: Mapped[str | None] = mapped_column(String(120), nullable=True)
     country: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     place_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lng: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -329,7 +344,7 @@ class Place(Base):
 
     @property
     def address(self) -> str:
-        return ", ".join(part for part in [self.city, self.province, self.country] if part) or "Address not set"
+        return ", ".join(part for part in [self.city, self.province, self.postal_code, self.country] if part) or "Address not set"
 
     @address.setter
     def address(self, value: str) -> None:
