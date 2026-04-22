@@ -38,6 +38,8 @@ Implemented today:
 - YEE real auth with email verification, approvals, invite acceptance, and session state
 - Playspace normalized audit storage and scoring-backed draft/submit flows
 - manager/admin Playspace dashboards and management APIs
+- YEE instrument metadata enrichment for section intros, comment prompts, and grouped question rendering
+- manager-scoped YEE edit APIs for projects and places
 - seeded test data and product-scoped migration support
 
 Still evolving:
@@ -129,8 +131,31 @@ Useful local URLs:
 
 - `http://127.0.0.1:8000/health`
 - `http://127.0.0.1:8000/yee/auth/login`
+- `http://127.0.0.1:8000/yee/instrument`
 - `http://127.0.0.1:8000/playspace/auth/login`
 - `http://127.0.0.1:8000/playspace/instrument`
+
+## Recent YEE API Additions
+
+The latest YEE website iteration depends on a few backend behaviors that are
+important for future engineers to preserve:
+
+- `GET /yee/instrument` now returns section metadata used by the frontend to
+  render:
+  - section intro text
+  - per-section optional comment prompts
+  - block titles
+  - item-kind hints used for grouped presence/condition question display
+- `PATCH /yee/dashboard/projects/{project_id}` allows manager-scoped project edits
+- `PATCH /yee/dashboard/places/{place_id}` allows manager-scoped place edits,
+  including postal code updates
+
+Those contracts are consumed directly by the Next.js frontend for:
+
+- spreadsheet-aligned YEE wording and domain instructions
+- conditional domain question rendering
+- manager project/place edit flows with persistence
+- review/report pages that depend on richer score and instrument context
 
 ## Seeded Demo Credentials
 
