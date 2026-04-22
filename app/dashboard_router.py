@@ -156,7 +156,20 @@ class CreateProjectRequest(BaseModel):
 	description: str | None = Field(default=None, max_length=2000)
 
 
+class UpdateProjectRequest(BaseModel):
+	name: str = Field(..., min_length=1, max_length=200)
+	description: str | None = Field(default=None, max_length=2000)
+
+
 class CreatePlaceRequest(BaseModel):
+	project_id: uuid.UUID
+	name: str = Field(..., min_length=1, max_length=200)
+	address: str = Field(..., min_length=1, max_length=500)
+	postal_code: str = Field(..., min_length=1, max_length=32)
+	notes: str | None = Field(default=None, max_length=2000)
+
+
+class UpdatePlaceRequest(BaseModel):
 	project_id: uuid.UUID
 	name: str = Field(..., min_length=1, max_length=200)
 	address: str = Field(..., min_length=1, max_length=500)
@@ -1381,6 +1394,48 @@ async def create_project(
 	)
 
 
+@router.patch("/projects/{project_id}", response_model=ProjectListItem)
+async def update_project(
+	project_id: uuid.UUID,
+	payload: UpdateProjectRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ProjectListItem:
+	_require_manager_or_admin(user)
+	account_id = _manager_account_id(user)
+	if account_id is None:
+		raise HTTPException(status_code=403, detail="Admin project editing is not supported from this route.")
+
+	project = await session.get(Project, project_id)
+	if project is None:
+		raise HTTPException(status_code=404, detail="Project not found.")
+	if project.account_id != account_id or project.created_by_user_id != user.id:
+		raise HTTPException(status_code=403, detail="Project is outside your manager scope.")
+
+	project.name = payload.name.strip()
+	project.description = payload.description.strip() if payload.description and payload.description.strip() else None
+	await session.commit()
+
+	place_total = int(
+		(
+			await session.execute(
+				select(func.count(func.distinct(ProjectPlace.place_id))).where(ProjectPlace.project_id == project.id)
+			)
+		).scalar_one()
+	)
+	audit_total = await _count_rows(session, Audit, Audit.project_id == project.id)
+
+	return ProjectListItem(
+		id=str(project.id),
+		name=project.name,
+		summary=project.description or "Project summary pending",
+		organization=_manager_account_name(user),
+		places=place_total,
+		audits=audit_total,
+		status="Planning" if project.start_date is None else "Active",
+	)
+
+
 @router.post("/places", response_model=PlaceListItem)
 async def create_place(
 	payload: CreatePlaceRequest,
@@ -1420,6 +1475,77 @@ async def create_place(
 		audits=0,
 		last_audit="Not yet",
 		status="Needs review",
+	)
+
+
+@router.patch("/places/{place_id}", response_model=PlaceListItem)
+async def update_place(
+	place_id: uuid.UUID,
+	payload: UpdatePlaceRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> PlaceListItem:
+	_require_manager_or_admin(user)
+	account_id = _manager_account_id(user)
+	if account_id is None:
+		raise HTTPException(status_code=403, detail="Admin place editing is not supported from this route.")
+
+	place = await session.get(Place, place_id)
+	if place is None:
+		raise HTTPException(status_code=404, detail="Place not found.")
+
+	current_link = (
+		await session.execute(select(ProjectPlace).where(ProjectPlace.place_id == place.id))
+	).scalar_one_or_none()
+	if current_link is None:
+		raise HTTPException(status_code=404, detail="Place project link not found.")
+
+	current_project = await session.get(Project, current_link.project_id)
+	target_project = await session.get(Project, payload.project_id)
+	if current_project is None or target_project is None:
+		raise HTTPException(status_code=404, detail="Project not found.")
+	if current_project.account_id != account_id or current_project.created_by_user_id != user.id:
+		raise HTTPException(status_code=403, detail="Place is outside your manager scope.")
+	if target_project.account_id != account_id or target_project.created_by_user_id != user.id:
+		raise HTTPException(status_code=403, detail="Target project is outside your manager scope.")
+
+	place.name = payload.name.strip()
+	place.address = payload.address.strip()
+	place.postal_code = payload.postal_code.strip()
+	place.notes = payload.notes.strip() if payload.notes and payload.notes.strip() else None
+	if current_link.project_id != target_project.id:
+		current_link.project_id = target_project.id
+	await session.commit()
+
+	audit_total = await _count_rows(session, Audit, Audit.place_id == place.id)
+	last_submitted_at = (
+		await session.execute(select(func.max(Audit.submitted_at)).where(Audit.place_id == place.id))
+	).scalar_one()
+	assigned_auditors_stmt = (
+		select(Auditor.auditor_code)
+		.join(Assignment, Assignment.auditor_profile_id == Auditor.id)
+		.where(
+			Assignment.project_id == target_project.id,
+			or_(Assignment.place_id.is_(None), Assignment.place_id == place.id),
+		)
+		.order_by(Auditor.auditor_code.asc())
+	)
+	if user.account_type != AccountType.ADMIN:
+		assigned_auditors_stmt = assigned_auditors_stmt.where(Auditor.id.in_(_manager_invited_auditor_ids_subquery(user)))
+	assigned_auditor_codes = (await session.execute(assigned_auditors_stmt)).scalars().all()
+
+	return PlaceListItem(
+		id=str(place.id),
+		name=place.name,
+		project_id=str(target_project.id),
+		project=target_project.name,
+		organization=_manager_account_name(user),
+		address=place.address,
+		postal_code=place.postal_code,
+		assigned_auditors=[_display_auditor_code(code) for code in assigned_auditor_codes],
+		audits=audit_total,
+		last_audit=_format_timestamp(last_submitted_at),
+		status="Needs review" if audit_total == 0 else "Up to date",
 	)
 
 
