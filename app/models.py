@@ -403,7 +403,8 @@ class Place(Base):
 
 	@property
 	def address(self) -> str:
-		return ", ".join(part for part in [self.city, self.province, self.postal_code, self.country] if part) or "Address not set"
+		parts = [self.city, self.province, self.postal_code, self.country]
+		return ", ".join(part for part in parts if part) or "Address not set"
 
 	@address.setter
 	def address(self, value: str) -> None:

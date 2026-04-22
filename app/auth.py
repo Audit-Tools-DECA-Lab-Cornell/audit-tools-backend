@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone

@@ -48,6 +48,11 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 	if not isinstance(payload, dict):
 		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
 
+	if "instrument_key" not in payload and isinstance(payload.get("en"), dict):
+		payload = normalize_legacy_instrument_payload(payload["en"])
+		if not isinstance(payload, dict):
+			raise ValueError("Expected the localized Playspace instrument payload to be a JSON object.")
+
 	instrument_key = payload.get("instrument_key")
 	instrument_version = payload.get("instrument_version")
 	if instrument_key != INSTRUMENT_KEY or instrument_version != INSTRUMENT_VERSION:

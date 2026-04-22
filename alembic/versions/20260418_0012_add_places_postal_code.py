@@ -18,8 +18,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("places", sa.Column("postal_code", sa.String(length=32), nullable=True))
+	op.add_column("places", sa.Column("postal_code", sa.String(length=32), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("places", "postal_code")
+	op.drop_column("places", "postal_code")

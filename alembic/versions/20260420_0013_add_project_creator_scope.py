@@ -20,27 +20,27 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "projects",
-        sa.Column("created_by_user_id", postgresql.UUID(as_uuid=True), nullable=True),
-    )
-    op.create_index(
-        op.f("ix_projects_created_by_user_id"),
-        "projects",
-        ["created_by_user_id"],
-        unique=False,
-    )
-    op.create_foreign_key(
-        op.f("fk_projects_created_by_user_id_users"),
-        "projects",
-        "users",
-        ["created_by_user_id"],
-        ["id"],
-        ondelete="RESTRICT",
-    )
+	op.add_column(
+		"projects",
+		sa.Column("created_by_user_id", postgresql.UUID(as_uuid=True), nullable=True),
+	)
+	op.create_index(
+		op.f("ix_projects_created_by_user_id"),
+		"projects",
+		["created_by_user_id"],
+		unique=False,
+	)
+	op.create_foreign_key(
+		op.f("fk_projects_created_by_user_id_users"),
+		"projects",
+		"users",
+		["created_by_user_id"],
+		["id"],
+		ondelete="RESTRICT",
+	)
 
-    op.execute(
-        """
+	op.execute(
+		"""
         UPDATE projects
         SET created_by_user_id = (
             SELECT users.id
@@ -52,12 +52,12 @@ def upgrade() -> None:
         )
         WHERE projects.created_by_user_id IS NULL
         """
-    )
+	)
 
-    op.alter_column("projects", "created_by_user_id", nullable=False)
+	op.alter_column("projects", "created_by_user_id", nullable=False)
 
 
 def downgrade() -> None:
-    op.drop_constraint(op.f("fk_projects_created_by_user_id_users"), "projects", type_="foreignkey")
-    op.drop_index(op.f("ix_projects_created_by_user_id"), table_name="projects")
-    op.drop_column("projects", "created_by_user_id")
+	op.drop_constraint(op.f("fk_projects_created_by_user_id_users"), "projects", type_="foreignkey")
+	op.drop_index(op.f("ix_projects_created_by_user_id"), table_name="projects")
+	op.drop_column("projects", "created_by_user_id")

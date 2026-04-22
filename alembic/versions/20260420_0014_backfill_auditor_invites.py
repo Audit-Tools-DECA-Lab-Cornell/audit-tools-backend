@@ -17,8 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
+	op.execute(
+		"""
         INSERT INTO auditor_invites (
             id,
             account_id,
@@ -57,13 +57,13 @@ def upgrade() -> None:
               WHERE auditor_invites.auditor_id = auditors.id
           )
         """
-    )
+	)
 
 
 def downgrade() -> None:
-    op.execute(
-        """
+	op.execute(
+		"""
         DELETE FROM auditor_invites
         WHERE token_hash LIKE 'backfill-invite-%'
         """
-    )
+	)

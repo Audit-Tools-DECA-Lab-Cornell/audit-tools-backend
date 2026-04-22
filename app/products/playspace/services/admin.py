@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+from typing import cast
 
 from sqlalchemy import and_, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -755,7 +756,10 @@ class PlayspaceAdminService:
 		db_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
 
 		if db_instrument is not None:
-			instrument_content = normalize_legacy_instrument_payload(db_instrument.content)
+			instrument_content = cast(
+				dict[str, object],
+				normalize_legacy_instrument_payload(db_instrument.content),
+			)
 			instrument_version = db_instrument.instrument_version
 		else:
 			instrument_content = {"en": get_canonical_instrument_payload()}
