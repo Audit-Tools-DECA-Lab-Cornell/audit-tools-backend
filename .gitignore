@@ -9,6 +9,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+coverage.xml
+test-results.xml
 
 # Virtual environments
 .venv/
@@ -25,12 +27,9 @@ venv/
 .vscode/
 .idea/
 
-# OS/filesystem noise
-.DS_Store
-Thumbs.db
-
 # Logs
 *.log
+*.out
 
 # Cursor/local tooling (project-specific)
 skills-lock.json
@@ -39,4 +38,8 @@ neon-postgres/
 .worktrees/
 .cline/
 
+# OS/filesystem noise
 .DS_Store
+Thumbs.db
+
+docs/superpowers/

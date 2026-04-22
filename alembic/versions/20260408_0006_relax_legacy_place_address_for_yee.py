@@ -21,29 +21,29 @@ depends_on: Sequence[str] | None = None
 
 
 def _is_target_product(product_key: str) -> bool:
-    x_args = context.get_x_argument(as_dictionary=True)
-    return x_args.get("product", "yee").strip().lower() == product_key
+	x_args = context.get_x_argument(as_dictionary=True)
+	return x_args.get("product", "yee").strip().lower() == product_key
 
 
 def _has_column(table_name: str, column_name: str) -> bool:
-    if context.is_offline_mode():
-        return False
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    return any(column["name"] == column_name for column in inspector.get_columns(table_name))
+	if context.is_offline_mode():
+		return False
+	bind = op.get_bind()
+	inspector = sa.inspect(bind)
+	return any(column["name"] == column_name for column in inspector.get_columns(table_name))
 
 
 def upgrade() -> None:
-    if not _is_target_product("yee"):
-        return
-    if not _has_column("places", "address"):
-        return
-    op.execute("ALTER TABLE places ALTER COLUMN address DROP NOT NULL")
+	if not _is_target_product("yee"):
+		return
+	if not _has_column("places", "address"):
+		return
+	op.execute("ALTER TABLE places ALTER COLUMN address DROP NOT NULL")
 
 
 def downgrade() -> None:
-    if not _is_target_product("yee"):
-        return
-    if not _has_column("places", "address"):
-        return
-    op.execute("ALTER TABLE places ALTER COLUMN address SET NOT NULL")
+	if not _is_target_product("yee"):
+		return
+	if not _has_column("places", "address"):
+		return
+	op.execute("ALTER TABLE places ALTER COLUMN address SET NOT NULL")

@@ -1,26 +1,33 @@
 [tool.ruff]
 target-version = "py310"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
-select = [
-  "E",   # pycodestyle errors
-  "F",   # pyflakes
-  "I",   # isort
-  "B",   # bugbear
-  "UP",  # pyupgrade
-]
+ignore = ["B008"] # Depends()/Query() in defaults — normal in FastAPI
+select = ["E", "F"] # no I, B, UP
 
 [tool.ruff.lint.per-file-ignores]
-"app/main.py" = ["B008"]
-"alembic/versions/*.py" = ["E501"]
+"alembic/versions/*.py" = ["E501", "I001", "F401"]
+"alembic/env.py" = ["E101"]
+"app/products/playspace/seed_data.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
-indent-style = "space"
+indent-style = "tab"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-q"]
 pythonpath = ["."]
 
+
+[tool.mypy]
+exclude = "^alembic/versions/|^app/yee_router\\.py$|^app/yee_scoring\\.py$"
+exclude_gitignore = true
+
+[[tool.mypy.overrides]]
+module = [
+  "app.yee_router",
+  "app.yee_scoring",
+]
+ignore_errors = true

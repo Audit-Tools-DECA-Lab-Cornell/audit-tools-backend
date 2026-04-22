@@ -7,9 +7,9 @@ from app.products.playspace.services.management import PlayspaceManagementServic
 from app.products.playspace.services.me import PlayspaceMeService
 
 __all__ = [
-    "PlayspaceAdminService",
-    "PlayspaceAuditService",
-    "PlayspaceDashboardService",
-    "PlayspaceManagementService",
-    "PlayspaceMeService",
+	"PlayspaceAdminService",
+	"PlayspaceAuditService",
+	"PlayspaceDashboardService",
+	"PlayspaceManagementService",
+	"PlayspaceMeService",
 ]

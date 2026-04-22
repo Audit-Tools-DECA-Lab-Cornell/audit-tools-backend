@@ -14,10 +14,10 @@ router = APIRouter(tags=["yee"])
 
 @router.get("/status")
 async def get_yee_status() -> dict[str, str]:
-    """Simple product status endpoint for the YEE namespace."""
+	"""Simple product status endpoint for the YEE namespace."""
 
-    return {
-        "status": "ok",
-        "product": "yee",
-        "message": "YEE routes are isolated. Implement YEE-specific APIs in app/products/yee/.",
-    }
+	return {
+		"status": "ok",
+		"product": "yee",
+		"message": "YEE routes are isolated. Implement YEE-specific APIs in app/products/yee/.",
+	}

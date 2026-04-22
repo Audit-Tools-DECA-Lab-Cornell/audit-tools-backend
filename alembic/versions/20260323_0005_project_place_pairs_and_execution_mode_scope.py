@@ -24,214 +24,214 @@ NOW_SQL = sa.text("now()")
 
 
 def _inspector() -> sa.Inspector:
-    if context.is_offline_mode():
-        raise RuntimeError("Schema inspection is unavailable in offline migration mode.")
-    return sa.inspect(op.get_bind())
+	if context.is_offline_mode():
+		raise RuntimeError("Schema inspection is unavailable in offline migration mode.")
+	return sa.inspect(op.get_bind())
 
 
 def _table_exists(table_name: str) -> bool:
-    return _inspector().has_table(table_name)
+	return _inspector().has_table(table_name)
 
 
 def _index_exists(index_name: str) -> bool:
-    inspector = _inspector()
-    for table_name in inspector.get_table_names():
-        for idx in inspector.get_indexes(table_name):
-            if idx["name"] == index_name:
-                return True
-    return False
+	inspector = _inspector()
+	for table_name in inspector.get_table_names():
+		for idx in inspector.get_indexes(table_name):
+			if idx["name"] == index_name:
+				return True
+	return False
 
 
 def _is_target_product(product_key: str) -> bool:
-    x_args = context.get_x_argument(as_dictionary=True)
-    return x_args.get("product", "yee").strip().lower() == product_key
+	x_args = context.get_x_argument(as_dictionary=True)
+	return x_args.get("product", "yee").strip().lower() == product_key
 
 
 def upgrade() -> None:
-    """Move places/projects to many-to-many and audits/assignments to project-place pairs."""
+	"""Move places/projects to many-to-many and audits/assignments to project-place pairs."""
 
-    if not _is_target_product("playspace"):
-        return
+	if not _is_target_product("playspace"):
+		return
 
-    # All operations in this migration are idempotent once project_places exists.
-    if _table_exists("project_places"):
-        return
+	# All operations in this migration are idempotent once project_places exists.
+	if _table_exists("project_places"):
+		return
 
-    op.create_table(
-        "project_places",
-        sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column(
-            "linked_at",
-            sa.DateTime(timezone=True),
-            server_default=NOW_SQL,
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
-            name="fk_project_places_project_id_projects",
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["place_id"],
-            ["places.id"],
-            name="fk_project_places_place_id_places",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("project_id", "place_id", name="pk_project_places"),
-    )
-    op.create_index(
-        "ix_project_places_place_id",
-        "project_places",
-        ["place_id"],
-        unique=False,
-    )
+	op.create_table(
+		"project_places",
+		sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
+		sa.Column("place_id", postgresql.UUID(as_uuid=True), nullable=False),
+		sa.Column(
+			"linked_at",
+			sa.DateTime(timezone=True),
+			server_default=NOW_SQL,
+			nullable=False,
+		),
+		sa.ForeignKeyConstraint(
+			["project_id"],
+			["projects.id"],
+			name="fk_project_places_project_id_projects",
+			ondelete="CASCADE",
+		),
+		sa.ForeignKeyConstraint(
+			["place_id"],
+			["places.id"],
+			name="fk_project_places_place_id_places",
+			ondelete="CASCADE",
+		),
+		sa.PrimaryKeyConstraint("project_id", "place_id", name="pk_project_places"),
+	)
+	op.create_index(
+		"ix_project_places_place_id",
+		"project_places",
+		["place_id"],
+		unique=False,
+	)
 
-    op.execute(
-        sa.text(
-            """
+	op.execute(
+		sa.text(
+			"""
             INSERT INTO project_places (project_id, place_id, linked_at)
             SELECT project_id, id, COALESCE(created_at, now())
             FROM places
             WHERE project_id IS NOT NULL
             ON CONFLICT (project_id, place_id) DO NOTHING
             """
-        )
-    )
+		)
+	)
 
-    op.add_column(
-        "audits",
-        sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),
-    )
-    op.create_index("ix_audits_project_id", "audits", ["project_id"], unique=False)
-    op.create_foreign_key(
-        "fk_audits_project_id_projects",
-        "audits",
-        "projects",
-        ["project_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
-    op.execute(
-        sa.text(
-            """
+	op.add_column(
+		"audits",
+		sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),
+	)
+	op.create_index("ix_audits_project_id", "audits", ["project_id"], unique=False)
+	op.create_foreign_key(
+		"fk_audits_project_id_projects",
+		"audits",
+		"projects",
+		["project_id"],
+		["id"],
+		ondelete="CASCADE",
+	)
+	op.execute(
+		sa.text(
+			"""
             UPDATE audits
             SET project_id = places.project_id
             FROM places
             WHERE audits.place_id = places.id
               AND audits.project_id IS NULL
             """
-        )
-    )
-    _delete_duplicate_audits()
-    op.alter_column(
-        "audits",
-        "project_id",
-        existing_type=postgresql.UUID(as_uuid=True),
-        nullable=False,
-    )
-    op.create_foreign_key(
-        "fk_audits_project_place_pair",
-        "audits",
-        "project_places",
-        ["project_id", "place_id"],
-        ["project_id", "place_id"],
-        ondelete="CASCADE",
-    )
-    op.create_unique_constraint(
-        "uq_audits_project_place_auditor",
-        "audits",
-        ["project_id", "place_id", "auditor_profile_id"],
-    )
+		)
+	)
+	_delete_duplicate_audits()
+	op.alter_column(
+		"audits",
+		"project_id",
+		existing_type=postgresql.UUID(as_uuid=True),
+		nullable=False,
+	)
+	op.create_foreign_key(
+		"fk_audits_project_place_pair",
+		"audits",
+		"project_places",
+		["project_id", "place_id"],
+		["project_id", "place_id"],
+		ondelete="CASCADE",
+	)
+	op.create_unique_constraint(
+		"uq_audits_project_place_auditor",
+		"audits",
+		["project_id", "place_id", "auditor_profile_id"],
+	)
 
-    op.drop_constraint(
-        "ck_auditor_assignments_single_scope",
-        "auditor_assignments",
-        type_="check",
-    )
-    op.drop_constraint(
-        "uq_auditor_assignments_auditor_project",
-        "auditor_assignments",
-        type_="unique",
-    )
-    op.drop_constraint(
-        "uq_auditor_assignments_auditor_place",
-        "auditor_assignments",
-        type_="unique",
-    )
-    # Remove legacy single-scope constraints before backfilling project ids for place rows.
-    op.execute(
-        sa.text(
-            """
+	op.drop_constraint(
+		"ck_auditor_assignments_single_scope",
+		"auditor_assignments",
+		type_="check",
+	)
+	op.drop_constraint(
+		"uq_auditor_assignments_auditor_project",
+		"auditor_assignments",
+		type_="unique",
+	)
+	op.drop_constraint(
+		"uq_auditor_assignments_auditor_place",
+		"auditor_assignments",
+		type_="unique",
+	)
+	# Remove legacy single-scope constraints before backfilling project ids for place rows.
+	op.execute(
+		sa.text(
+			"""
             UPDATE auditor_assignments
             SET project_id = places.project_id
             FROM places
             WHERE auditor_assignments.place_id = places.id
               AND auditor_assignments.project_id IS NULL
             """
-        )
-    )
-    op.alter_column(
-        "auditor_assignments",
-        "project_id",
-        existing_type=postgresql.UUID(as_uuid=True),
-        nullable=False,
-    )
-    op.create_foreign_key(
-        "fk_auditor_assignments_project_place_pair",
-        "auditor_assignments",
-        "project_places",
-        ["project_id", "place_id"],
-        ["project_id", "place_id"],
-        ondelete="CASCADE",
-    )
-    op.create_index(
-        "uq_auditor_assignments_auditor_project_scope",
-        "auditor_assignments",
-        ["auditor_profile_id", "project_id"],
-        unique=True,
-        postgresql_where=sa.text("place_id IS NULL"),
-    )
-    op.create_index(
-        "uq_auditor_assignments_auditor_project_place",
-        "auditor_assignments",
-        ["auditor_profile_id", "project_id", "place_id"],
-        unique=True,
-        postgresql_where=sa.text("place_id IS NOT NULL"),
-    )
-    op.drop_column("auditor_assignments", "audit_roles")
+		)
+	)
+	op.alter_column(
+		"auditor_assignments",
+		"project_id",
+		existing_type=postgresql.UUID(as_uuid=True),
+		nullable=False,
+	)
+	op.create_foreign_key(
+		"fk_auditor_assignments_project_place_pair",
+		"auditor_assignments",
+		"project_places",
+		["project_id", "place_id"],
+		["project_id", "place_id"],
+		ondelete="CASCADE",
+	)
+	op.create_index(
+		"uq_auditor_assignments_auditor_project_scope",
+		"auditor_assignments",
+		["auditor_profile_id", "project_id"],
+		unique=True,
+		postgresql_where=sa.text("place_id IS NULL"),
+	)
+	op.create_index(
+		"uq_auditor_assignments_auditor_project_place",
+		"auditor_assignments",
+		["auditor_profile_id", "project_id", "place_id"],
+		unique=True,
+		postgresql_where=sa.text("place_id IS NOT NULL"),
+	)
+	op.drop_column("auditor_assignments", "audit_roles")
 
-    op.drop_constraint(
-        "fk_places_project_id_projects",
-        "places",
-        type_="foreignkey",
-    )
-    op.drop_index("ix_places_project_id", table_name="places")
-    op.drop_column("places", "project_id")
+	op.drop_constraint(
+		"fk_places_project_id_projects",
+		"places",
+		type_="foreignkey",
+	)
+	op.drop_index("ix_places_project_id", table_name="places")
+	op.drop_column("places", "project_id")
 
 
 def downgrade() -> None:
-    """Collapse project/place pairs back into one project per place."""
+	"""Collapse project/place pairs back into one project per place."""
 
-    if not _is_target_product("playspace"):
-        return
-    op.add_column(
-        "places",
-        sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),
-    )
-    op.create_index("ix_places_project_id", "places", ["project_id"], unique=False)
-    op.create_foreign_key(
-        "fk_places_project_id_projects",
-        "places",
-        "projects",
-        ["project_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
-    op.execute(
-        sa.text(
-            """
+	if not _is_target_product("playspace"):
+		return
+	op.add_column(
+		"places",
+		sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=True),
+	)
+	op.create_index("ix_places_project_id", "places", ["project_id"], unique=False)
+	op.create_foreign_key(
+		"fk_places_project_id_projects",
+		"places",
+		"projects",
+		["project_id"],
+		["id"],
+		ondelete="CASCADE",
+	)
+	op.execute(
+		sa.text(
+			"""
             WITH ranked_project_links AS (
                 SELECT
                     place_id,
@@ -248,98 +248,98 @@ def downgrade() -> None:
             WHERE places.id = ranked_project_links.place_id
               AND ranked_project_links.row_number = 1
             """
-        )
-    )
-    op.alter_column(
-        "places",
-        "project_id",
-        existing_type=postgresql.UUID(as_uuid=True),
-        nullable=False,
-    )
+		)
+	)
+	op.alter_column(
+		"places",
+		"project_id",
+		existing_type=postgresql.UUID(as_uuid=True),
+		nullable=False,
+	)
 
-    op.add_column(
-        "auditor_assignments",
-        sa.Column(
-            "audit_roles",
-            postgresql.ARRAY(sa.String(length=40)),
-            nullable=False,
-            server_default=sa.text("ARRAY['auditor']::varchar[]"),
-        ),
-    )
-    op.drop_index(
-        "uq_auditor_assignments_auditor_project_place",
-        table_name="auditor_assignments",
-    )
-    op.drop_index(
-        "uq_auditor_assignments_auditor_project_scope",
-        table_name="auditor_assignments",
-    )
-    op.drop_constraint(
-        "fk_auditor_assignments_project_place_pair",
-        "auditor_assignments",
-        type_="foreignkey",
-    )
-    op.alter_column(
-        "auditor_assignments",
-        "project_id",
-        existing_type=postgresql.UUID(as_uuid=True),
-        nullable=True,
-    )
-    op.execute(
-        sa.text(
-            """
+	op.add_column(
+		"auditor_assignments",
+		sa.Column(
+			"audit_roles",
+			postgresql.ARRAY(sa.String(length=40)),
+			nullable=False,
+			server_default=sa.text("ARRAY['auditor']::varchar[]"),
+		),
+	)
+	op.drop_index(
+		"uq_auditor_assignments_auditor_project_place",
+		table_name="auditor_assignments",
+	)
+	op.drop_index(
+		"uq_auditor_assignments_auditor_project_scope",
+		table_name="auditor_assignments",
+	)
+	op.drop_constraint(
+		"fk_auditor_assignments_project_place_pair",
+		"auditor_assignments",
+		type_="foreignkey",
+	)
+	op.alter_column(
+		"auditor_assignments",
+		"project_id",
+		existing_type=postgresql.UUID(as_uuid=True),
+		nullable=True,
+	)
+	op.execute(
+		sa.text(
+			"""
             UPDATE auditor_assignments
             SET project_id = NULL
             WHERE place_id IS NOT NULL
             """
-        )
-    )
-    _delete_duplicate_place_assignments_for_downgrade()
-    op.create_unique_constraint(
-        "uq_auditor_assignments_auditor_project",
-        "auditor_assignments",
-        ["auditor_profile_id", "project_id"],
-    )
-    op.create_unique_constraint(
-        "uq_auditor_assignments_auditor_place",
-        "auditor_assignments",
-        ["auditor_profile_id", "place_id"],
-    )
-    op.create_check_constraint(
-        "ck_auditor_assignments_single_scope",
-        "auditor_assignments",
-        "(project_id IS NOT NULL) <> (place_id IS NOT NULL)",
-    )
-    op.alter_column("auditor_assignments", "audit_roles", server_default=None)
+		)
+	)
+	_delete_duplicate_place_assignments_for_downgrade()
+	op.create_unique_constraint(
+		"uq_auditor_assignments_auditor_project",
+		"auditor_assignments",
+		["auditor_profile_id", "project_id"],
+	)
+	op.create_unique_constraint(
+		"uq_auditor_assignments_auditor_place",
+		"auditor_assignments",
+		["auditor_profile_id", "place_id"],
+	)
+	op.create_check_constraint(
+		"ck_auditor_assignments_single_scope",
+		"auditor_assignments",
+		"(project_id IS NOT NULL) <> (place_id IS NOT NULL)",
+	)
+	op.alter_column("auditor_assignments", "audit_roles", server_default=None)
 
-    op.drop_constraint(
-        "uq_audits_project_place_auditor",
-        "audits",
-        type_="unique",
-    )
-    op.drop_constraint(
-        "fk_audits_project_place_pair",
-        "audits",
-        type_="foreignkey",
-    )
-    op.drop_constraint(
-        "fk_audits_project_id_projects",
-        "audits",
-        type_="foreignkey",
-    )
-    op.drop_index("ix_audits_project_id", table_name="audits")
-    op.drop_column("audits", "project_id")
+	op.drop_constraint(
+		"uq_audits_project_place_auditor",
+		"audits",
+		type_="unique",
+	)
+	op.drop_constraint(
+		"fk_audits_project_place_pair",
+		"audits",
+		type_="foreignkey",
+	)
+	op.drop_constraint(
+		"fk_audits_project_id_projects",
+		"audits",
+		type_="foreignkey",
+	)
+	op.drop_index("ix_audits_project_id", table_name="audits")
+	op.drop_column("audits", "project_id")
 
-    op.drop_index("ix_project_places_place_id", table_name="project_places")
-    op.drop_table("project_places")
+	op.drop_index("ix_project_places_place_id", table_name="project_places")
+	op.drop_table("project_places")
 
 
 def _delete_duplicate_audits() -> None:
-    """Keep only the latest audit per project/place/auditor triple before adding uniqueness."""
+	"""Keep only the latest audit per project/place/auditor triple before adding uniqueness."""
 
-    op.execute(
-        sa.text(
-            """
+	op.execute(
+		sa.text(
+			"""
             WITH ranked_audits AS (
                 SELECT
                     id,
@@ -357,16 +357,16 @@ def _delete_duplicate_audits() -> None:
                 WHERE row_number > 1
             )
             """
-        )
-    )
+		)
+	)
 
 
 def _delete_duplicate_place_assignments_for_downgrade() -> None:
-    """Collapse multiple project-place rows back to one place-scoped row per auditor/place pair."""
+	"""Collapse multiple project-place rows back to one place-scoped row per auditor/place pair."""
 
-    op.execute(
-        sa.text(
-            """
+	op.execute(
+		sa.text(
+			"""
             WITH ranked_assignments AS (
                 SELECT
                     id,
@@ -384,5 +384,5 @@ def _delete_duplicate_place_assignments_for_downgrade() -> None:
                 WHERE row_number > 1
             )
             """
-        )
-    )
+		)
+	)

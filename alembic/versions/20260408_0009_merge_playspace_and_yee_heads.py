@@ -17,8 +17,8 @@ depends_on: Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    pass
+	pass
 
 
 def downgrade() -> None:
-    pass
+	pass

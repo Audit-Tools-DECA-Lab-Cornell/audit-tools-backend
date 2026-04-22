@@ -18,25 +18,25 @@ PlaceActivityStatus = Literal["not_started", "in_progress", "submitted"]
 
 
 class ApiModel(BaseModel):
-    """Immutable product-specific response model."""
+	"""Immutable product-specific response model."""
 
-    model_config = ConfigDict(from_attributes=True, frozen=True)
+	model_config = ConfigDict(from_attributes=True, frozen=True)
 
 
 class RequestModel(BaseModel):
-    """Strict request model used by playspace-specific endpoints."""
+	"""Strict request model used by playspace-specific endpoints."""
 
-    model_config = ConfigDict(extra="forbid")
+	model_config = ConfigDict(extra="forbid")
 
 
 TItem = TypeVar("TItem")
 
 
 class PaginatedResponse(ApiModel, Generic[TItem]):
-    """Shared paginated list envelope for large Playspace collections."""
+	"""Shared paginated list envelope for large Playspace collections."""
 
-    items: list[TItem]
-    total_count: int
-    page: int
-    page_size: int
-    total_pages: int
+	items: list[TItem]
+	total_count: int
+	page: int
+	page_size: int
+	total_pages: int
