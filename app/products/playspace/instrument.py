@@ -12,7 +12,6 @@ from typing import Any
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
 
-
 INSTRUMENT_KEY = "pvua_v5_2"
 INSTRUMENT_VERSION = "5.2"
 INSTRUMENT_NAME = "Playspace Play Value and Usability Audit Tool"

@@ -73,6 +73,7 @@ class NotificationType(str, Enum):
 	ASSIGNMENT_UPDATED = "ASSIGNMENT_UPDATED"
 	AUDIT_COMPLETED = "AUDIT_COMPLETED"
 
+
 class PlayspaceType(str, Enum):
 	"""Type of playspace that can be audited."""
 
@@ -83,6 +84,7 @@ class PlayspaceType(str, Enum):
 	NEIGHBORHOOD = "Neighborhood Playspace"
 	WATERFRONT = "Waterfront Playspace"
 	SCHOOL = "School Playspace"
+
 
 JSONDict = dict[str, object]
 

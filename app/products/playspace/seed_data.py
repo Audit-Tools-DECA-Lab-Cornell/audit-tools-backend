@@ -553,12 +553,8 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		auditor_profiles=auditor_profiles,
 	)
 
-	primary_manager_user = next(
-		user for user in users if user.account_id == primary_manager_account.id
-	)
-	secondary_manager_user = next(
-		user for user in users if user.account_id == secondary_manager_account.id
-	)
+	primary_manager_user = next(user for user in users if user.account_id == primary_manager_account.id)
+	secondary_manager_user = next(user for user in users if user.account_id == secondary_manager_account.id)
 
 	primary_project_contexts = _build_project_contexts(
 		account_id=primary_manager_account.id,

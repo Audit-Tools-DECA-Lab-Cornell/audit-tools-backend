@@ -72,7 +72,6 @@ async def patch_audit_draft(
 	)
 
 
-
 @router.post("/audits/{audit_id}/submit")
 async def submit_audit(
 	audit_id: uuid.UUID,

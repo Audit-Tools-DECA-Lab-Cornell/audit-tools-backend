@@ -23,7 +23,6 @@ from app.models import (
 )
 from app.products.playspace.audit_state import (
 	apply_draft_patch_to_relations,
-	build_responses_json_from_relations,
 	get_aggregate_revision,
 	get_execution_mode_value,
 	replace_audit_aggregate,

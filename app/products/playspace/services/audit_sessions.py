@@ -845,7 +845,6 @@ class PlayspaceAuditSessionsMixin:
 			saved_at=audit.updated_at,
 		)
 
-
 	async def submit_audit(
 		self,
 		*,

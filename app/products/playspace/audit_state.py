@@ -236,7 +236,6 @@ def _serialize_sections_request(
 	return serialized_sections
 
 
-
 def set_execution_mode_value(audit: Audit, execution_mode: str | None) -> None:
 	"""Write the selected execution mode into the aggregate and summary projection."""
 
@@ -305,5 +304,3 @@ def _read_non_negative_int(value: object, *, default: int) -> int:
 	if isinstance(value, int) and value >= 0:
 		return value
 	return default
-
-
