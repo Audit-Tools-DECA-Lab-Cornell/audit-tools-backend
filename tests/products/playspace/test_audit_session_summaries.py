@@ -29,11 +29,17 @@ def test_resolve_compact_audit_summary_prefers_cached_overall_totals() -> None:
 		raw_scores={
 			"overall": {
 				"provision_total": 1.0,
+				"provision_total_max": 10.0,
 				"diversity_total": 2.0,
+				"diversity_total_max": 10.0,
 				"challenge_total": 3.0,
+				"challenge_total_max": 10.0,
 				"sociability_total": 4.0,
+				"sociability_total_max": 10.0,
 				"play_value_total": 5.25,
+				"play_value_total_max": 10.0,
 				"usability_total": 1.75,
+				"usability_total_max": 10.0,
 			}
 		},
 		fallback_summary_score=11.0,
@@ -54,11 +60,17 @@ def test_resolve_compact_audit_summary_falls_back_to_stored_summary_score() -> N
 		raw_scores={
 			"overall": {
 				"provision_total": 1.0,
+				"provision_total_max": 10.0,
 				"diversity_total": 2.0,
+				"diversity_total_max": 10.0,
 				"challenge_total": 3.0,
+				"challenge_total_max": 10.0,
 				"sociability_total": 4.0,
+				"sociability_total_max": 10.0,
 				"play_value_total": "invalid",
+				"play_value_total_max": 10.0,
 				"usability_total": 1.75,
+				"usability_total_max": 10.0,
 			}
 		},
 		fallback_summary_score=8.4,

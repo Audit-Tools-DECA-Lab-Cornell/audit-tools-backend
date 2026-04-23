@@ -49,7 +49,8 @@ from app.models import (
 )
 from app.products.playspace.audit_state import (
 	CURRENT_AUDIT_SCHEMA_VERSION,
-	hydrate_relations_from_cached_json,
+	set_draft_progress_percent,
+	set_execution_mode_value,
 )
 from app.products.playspace.instrument import (
 	INSTRUMENT_KEY,
@@ -1620,8 +1621,11 @@ def _build_audit_record(
 			created_at=started_at,
 			updated_at=submitted_at,
 		)
-		hydrate_relations_from_cached_json(submitted_audit)
-		calculated_scores = score_audit_for_audit(audit=submitted_audit)
+		set_execution_mode_value(
+			audit=submitted_audit,
+			execution_mode=execution_mode.value,
+		)
+		calculated_scores = score_audit_for_audit(audit=submitted_audit, include_maximums=True)
 		submitted_audit.scores_json = calculated_scores
 		overall_payload = calculated_scores.get("overall")
 		submitted_audit.summary_score = (
@@ -1672,12 +1676,17 @@ def _build_audit_record(
 		created_at=started_at,
 		updated_at=updated_at,
 	)
-	hydrate_relations_from_cached_json(draft_audit)
+	set_execution_mode_value(
+		audit=draft_audit,
+		execution_mode=execution_mode.value,
+	)
 	progress = build_audit_progress_for_audit(audit=draft_audit)
+	draft_progress_percent = _progress_percent(progress=progress)
 	draft_audit.scores_json = {
-		"draft_progress_percent": _progress_percent(progress=progress),
+		"draft_progress_percent": draft_progress_percent,
 		"progress": progress.model_dump(),
 	}
+	set_draft_progress_percent(audit=draft_audit, draft_progress_percent=draft_progress_percent)
 	return draft_audit
 
 

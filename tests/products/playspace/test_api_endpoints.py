@@ -217,7 +217,6 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/places/{place_id}/audits/access"),
 		("GET", "/playspace/audits/{audit_id}"),
 		("PATCH", "/playspace/audits/{audit_id}/draft"),
-		("PATCH", "/playspace/places/{place_id}/audits/draft"),
 		("POST", "/playspace/audits/{audit_id}/submit"),
 		("GET", "/playspace/auditor/me/places"),
 		("GET", "/playspace/auditor/me/audits"),
@@ -786,10 +785,9 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 	)
 	assert stale_patch_response.status_code == 409
 
-	patch_place_draft_response = playspace_client.patch(
-		f"/playspace/places/{place['id']}/audits/draft",
+	patch_aggregate_response = playspace_client.patch(
+		f"/playspace/audits/{audit_id}/draft",
 		headers=auditor_headers,
-		params={"project_id": str(project["id"])},
 		json={
 			"expected_revision": patch_draft_response.json()["revision"],
 			"aggregate": {
@@ -810,9 +808,9 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 			},
 		},
 	)
-	assert patch_place_draft_response.status_code == 200
-	assert patch_place_draft_response.json()["audit_id"] == audit_id
-	assert patch_place_draft_response.json()["revision"] == 3
+	assert patch_aggregate_response.status_code == 200
+	assert patch_aggregate_response.json()["audit_id"] == audit_id
+	assert patch_aggregate_response.json()["revision"] == 3
 
 	refreshed_audit_response = playspace_client.get(
 		f"/playspace/audits/{audit_id}",

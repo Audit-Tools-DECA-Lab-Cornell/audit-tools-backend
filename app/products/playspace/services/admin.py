@@ -25,7 +25,6 @@ from app.products.playspace.instrument import (
 	INSTRUMENT_NAME,
 	INSTRUMENT_VERSION,
 	get_canonical_instrument_payload,
-	normalize_legacy_instrument_payload,
 )
 from app.products.playspace.schemas import PaginatedResponse
 from app.products.playspace.schemas.admin import (
@@ -755,7 +754,7 @@ class PlayspaceAdminService:
 		db_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
 
 		if db_instrument is not None:
-			instrument_content = normalize_legacy_instrument_payload(db_instrument.content)
+			instrument_content = db_instrument.content
 			instrument_version = db_instrument.instrument_version
 		else:
 			instrument_content = {"en": get_canonical_instrument_payload()}

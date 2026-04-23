@@ -12,24 +12,6 @@ from typing import Any
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
 
-def normalize_legacy_instrument_payload(value: object) -> object:
-	"""Recursively rename legacy ``quantity`` keys to ``provision`` in instrument JSON."""
-
-	if isinstance(value, dict):
-		next_payload: dict[str, Any] = {}
-		for key, item in value.items():
-			next_key = "provision" if key == "quantity" else key
-			next_payload[next_key] = normalize_legacy_instrument_payload(item)
-		return next_payload
-
-	if isinstance(value, list):
-		return [normalize_legacy_instrument_payload(item) for item in value]
-
-	if value == "quantity":
-		return "provision"
-
-	return value
-
 
 INSTRUMENT_KEY = "pvua_v5_2"
 INSTRUMENT_VERSION = "5.2"
@@ -48,14 +30,18 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 	if not isinstance(payload, dict):
 		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
 
-	instrument_key = payload.get("instrument_key")
-	instrument_version = payload.get("instrument_version")
+	language_payload = payload.get("en")
+	if not isinstance(language_payload, dict):
+		raise ValueError("Expected the Playspace instrument payload to contain an 'en' object.")
+
+	instrument_key = language_payload.get("instrument_key")
+	instrument_version = language_payload.get("instrument_version")
 	if instrument_key != INSTRUMENT_KEY or instrument_version != INSTRUMENT_VERSION:
 		raise ValueError(
 			f"Canonical Playspace instrument payload metadata does not match {INSTRUMENT_KEY} v{INSTRUMENT_VERSION}."
 		)
 
-	return payload
+	return dict(language_payload)
 
 
 @lru_cache(maxsize=1)

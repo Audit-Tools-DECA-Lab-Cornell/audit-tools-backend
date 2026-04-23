@@ -44,7 +44,6 @@ from app.products.playspace.instrument import (
 	INSTRUMENT_KEY,
 	INSTRUMENT_VERSION,
 	get_canonical_instrument_response,
-	normalize_legacy_instrument_payload,
 )
 from app.products.playspace.schemas import (
 	AuditAggregateResponse,
@@ -846,29 +845,6 @@ class PlayspaceAuditSessionsMixin:
 			saved_at=audit.updated_at,
 		)
 
-	async def patch_place_draft(
-		self,
-		*,
-		actor: CurrentUserContext,
-		place_id: uuid.UUID,
-		project_id: uuid.UUID,
-		payload: AuditDraftPatchRequest,
-	) -> AuditDraftSaveResponse:
-		"""Compatibility helper for place-scoped draft saves used by the web scaffold."""
-
-		session = await self.create_or_resume_audit(
-			actor=actor,
-			place_id=place_id,
-			payload=PlaceAuditAccessRequest(
-				project_id=project_id,
-				execution_mode=(payload.meta.execution_mode if payload.meta is not None else None),
-			),
-		)
-		return await self.patch_audit_draft(
-			actor=actor,
-			audit_id=session.audit_id,
-			payload=payload,
-		)
 
 	async def submit_audit(
 		self,
@@ -899,7 +875,11 @@ class PlayspaceAuditSessionsMixin:
 				detail="Complete the pre-audit fields and all visible sections before submitting.",
 			)
 
-		calculated_scores = score_audit_for_audit(audit=audit, instrument=instrument)
+		calculated_scores = score_audit_for_audit(
+			audit=audit,
+			instrument=instrument,
+			include_maximums=True,
+		)
 		submitted_at = datetime.now(timezone.utc)
 		elapsed_minutes = int((submitted_at - audit.started_at).total_seconds() // 60)
 
@@ -1099,9 +1079,7 @@ class PlayspaceAuditSessionsMixin:
 		if db_instrument is not None:
 			en_content = db_instrument.content.get("en")
 			if isinstance(en_content, dict):
-				normalized = normalize_legacy_instrument_payload(en_content)
-				if isinstance(normalized, dict):
-					return PlayspaceInstrumentResponse.model_validate(normalized)
+				return PlayspaceInstrumentResponse.model_validate(en_content)
 		return get_canonical_instrument_response()
 
 	# make it verbose
@@ -1326,46 +1304,6 @@ class PlayspaceAuditSessionsMixin:
 				return live_score_totals, live_summary_score
 
 		score_totals = self._build_score_totals_response(self._read_json_dict(raw_scores).get("overall"))
-		if score_totals is None:
-			legacy_overall = self._read_json_dict(self._read_json_dict(raw_scores).get("overall"))
-			construct_totals = [
-				legacy_overall.get("provision_total"),
-				legacy_overall.get("diversity_total"),
-				legacy_overall.get("challenge_total"),
-				legacy_overall.get("sociability_total"),
-				legacy_overall.get("play_value_total"),
-				legacy_overall.get("usability_total"),
-			]
-			if all(isinstance(value, int | float) for value in construct_totals):
-				provision_total = self._coerce_float(legacy_overall["provision_total"])
-				diversity_total = self._coerce_float(legacy_overall["diversity_total"])
-				challenge_total = self._coerce_float(legacy_overall["challenge_total"])
-				sociability_total = self._coerce_float(legacy_overall["sociability_total"])
-				play_value_total = self._coerce_float(legacy_overall["play_value_total"])
-				usability_total = self._coerce_float(legacy_overall["usability_total"])
-				if (
-					provision_total is None
-					or diversity_total is None
-					or challenge_total is None
-					or sociability_total is None
-					or play_value_total is None
-					or usability_total is None
-				):
-					return score_totals, fallback_summary_score
-				score_totals = AuditScoreTotalsResponse(
-					provision_total=provision_total,
-					provision_total_max=provision_total,
-					diversity_total=diversity_total,
-					diversity_total_max=diversity_total,
-					challenge_total=challenge_total,
-					challenge_total_max=challenge_total,
-					sociability_total=sociability_total,
-					sociability_total_max=sociability_total,
-					play_value_total=play_value_total,
-					play_value_total_max=play_value_total,
-					usability_total=usability_total,
-					usability_total_max=usability_total,
-				)
 		compact_summary_score = self._combined_construct_total(score_totals)
 		if compact_summary_score is not None:
 			return score_totals, compact_summary_score

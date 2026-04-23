@@ -1,4 +1,4 @@
-"""Regression tests for normalized Playspace audit state synchronization."""
+"""Regression tests for Playspace canonical audit state synchronization."""
 
 from __future__ import annotations
 
@@ -19,13 +19,9 @@ from app.models import (
 	AuditStatus,
 	JSONDict,
 	Place,
-	PlayspaceAuditSection,
-	PlayspaceQuestionResponse,
-	PlayspaceScaleAnswer,
 	Project,
 )
 from app.products.playspace.audit_state import (
-	_replace_sections_from_cache,
 	apply_draft_patch_to_relations,
 	build_responses_json_from_relations,
 	get_aggregate_revision,
@@ -452,75 +448,6 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
 			}
 		},
 	}
-
-
-def test_build_responses_json_normalizes_legacy_quantity_keys() -> None:
-	"""Legacy cached aggregates should normalize quantity keys before scoring."""
-
-	audit = _build_audit()
-	audit.responses_json = {
-		"schema_version": 1,
-		"revision": 4,
-		"meta": {"execution_mode": "audit"},
-		"pre_audit": {"season": "spring"},
-		"sections": {
-			"section_a": {
-				"note": "Before",
-				"responses": {"question_a": {"quantity": "some"}},
-			}
-		},
-	}
-
-	normalized = build_responses_json_from_relations(audit)
-
-	sections = normalized.get("sections")
-	assert isinstance(sections, dict)
-	section_a = sections.get("section_a")
-	assert isinstance(section_a, dict)
-	responses = section_a.get("responses")
-	assert isinstance(responses, dict)
-	question_a = responses.get("question_a")
-	assert isinstance(question_a, dict)
-	assert question_a == {"provision": "some"}
-
-
-def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
-	"""Cache hydration should reuse matching section, question, and scale ORM rows."""
-
-	audit = _build_audit()
-	section = PlayspaceAuditSection(section_key="section_a", note="Before")
-	question = PlayspaceQuestionResponse(question_key="question_a")
-	provision = PlayspaceScaleAnswer(scale_key="provision", option_key="some")
-	question.scale_answers = [provision]
-	section.question_responses = [question]
-	audit.playspace_sections = [section]
-	audit.responses_json = {
-		"meta": {},
-		"pre_audit": {},
-		"sections": {
-			"section_a": {
-				"note": "After",
-				"responses": {
-					"question_a": {
-						"provision": "some",
-						"diversity": "no_diversity",
-					}
-				},
-			}
-		},
-	}
-
-	_replace_sections_from_cache(audit)
-
-	updated_section = audit.playspace_sections[0]
-	updated_question = updated_section.question_responses[0]
-	answers_by_scale = {answer.scale_key: answer for answer in updated_question.scale_answers}
-
-	assert updated_section is section
-	assert updated_section.note == "After"
-	assert updated_question is question
-	assert answers_by_scale["provision"] is provision
-	assert sorted(answers_by_scale) == ["diversity", "provision"]
 
 
 def test_apply_draft_patch_merges_checklist_question_payload_into_canonical_aggregate() -> None:

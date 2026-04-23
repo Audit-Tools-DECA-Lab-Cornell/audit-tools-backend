@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import (
 	AsyncEngine,
 	AsyncSession,
@@ -81,9 +81,18 @@ async def _reseed_playspace_database(
 		await session.commit()
 
 
-def _upgrade_playspace_test_database() -> None:
-	"""Run Alembic migrations against the patched Playspace test database."""
+async def _reset_playspace_test_database(engine: AsyncEngine) -> None:
+	"""Drop and recreate the public schema so squashed Alembic history can apply cleanly."""
 
+	async with engine.begin() as conn:
+		await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+		await conn.execute(text("CREATE SCHEMA public"))
+
+
+def _upgrade_playspace_test_database(engine: AsyncEngine) -> None:
+	"""Run Alembic migrations against a freshly reset Playspace test database."""
+
+	asyncio.run(_reset_playspace_test_database(engine))
 	alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
 	alembic_config.cmd_opts = argparse.Namespace(x=["product=playspace"])
 	command.upgrade(alembic_config, "head")
@@ -115,6 +124,24 @@ def playspace_test_session_factory() -> Iterator[async_sessionmaker[AsyncSession
 
 	test_database_url = _require_test_database_url()
 	normalized_url, connect_args = normalize_postgres_sqlalchemy_url(test_database_url)
+	connect_args = {**connect_args, "statement_cache_size": 0}
+
+	original_url = RAW_DATABASE_URL_BY_PRODUCT[ProductKey.PLAYSPACE]
+	original_engine = ASYNC_ENGINE_BY_PRODUCT[ProductKey.PLAYSPACE]
+	original_session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.PLAYSPACE]
+
+	RAW_DATABASE_URL_BY_PRODUCT[ProductKey.PLAYSPACE] = test_database_url
+
+	migration_engine: AsyncEngine = create_async_engine(
+		normalized_url,
+		echo=False,
+		pool_pre_ping=True,
+		poolclass=NullPool,
+		connect_args=connect_args,
+	)
+	_upgrade_playspace_test_database(migration_engine)
+	asyncio.run(migration_engine.dispose())
+
 	test_engine: AsyncEngine = create_async_engine(
 		normalized_url,
 		echo=False,
@@ -128,15 +155,9 @@ def playspace_test_session_factory() -> Iterator[async_sessionmaker[AsyncSession
 		expire_on_commit=False,
 	)
 
-	original_url = RAW_DATABASE_URL_BY_PRODUCT[ProductKey.PLAYSPACE]
-	original_engine = ASYNC_ENGINE_BY_PRODUCT[ProductKey.PLAYSPACE]
-	original_session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.PLAYSPACE]
-
-	RAW_DATABASE_URL_BY_PRODUCT[ProductKey.PLAYSPACE] = test_database_url
 	ASYNC_ENGINE_BY_PRODUCT[ProductKey.PLAYSPACE] = test_engine
 	ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.PLAYSPACE] = test_session_factory
 
-	_upgrade_playspace_test_database()
 	asyncio.run(_reseed_playspace_database(test_session_factory))
 
 	try:
