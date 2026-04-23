@@ -1351,11 +1351,7 @@ class PlayspaceAuditSessionsMixin:
 
 		score_payload = self._read_json_dict(raw_score_payload)
 		provision_total = score_payload.get("provision_total")
-		if provision_total is None:
-			provision_total = score_payload.get("quantity_total")
 		provision_total_max = score_payload.get("provision_total_max")
-		if provision_total_max is None:
-			provision_total_max = score_payload.get("quantity_total_max")
 		diversity_total = score_payload.get("diversity_total")
 		diversity_total_max = score_payload.get("diversity_total_max")
 		challenge_total = score_payload.get("challenge_total")
