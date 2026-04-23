@@ -17,6 +17,13 @@ def _as_str(value: object) -> str | None:
 	return text if text else None
 
 
+def _normalize_block_title(block_name: str) -> str:
+	cleaned = " ".join(block_name.replace("\xa0", " ").split())
+	if ":" in cleaned:
+		cleaned = cleaned.split(":", 1)[0]
+	return cleaned.strip()
+
+
 def _load_qsf() -> dict[str, object]:
 	with YEE_QSF_PATH.open("r", encoding="utf-8") as f:
 		return json.load(f)
@@ -114,6 +121,7 @@ def get_yee_instrument_data() -> dict[str, object]:
 	scoring_names_by_id, _ = _parse_scoring_categories(qsf)
 	block_by_question_id = _parse_block_map(qsf)
 	all_sq = [el for el in qsf.get("SurveyElements", []) if isinstance(el, dict) and el.get("Element") == "SQ"]
+	section_metadata_by_block: dict[str, dict[str, str]] = {}
 
 	scoring_items: list[dict[str, object]] = []
 	for sq in all_sq:
@@ -127,6 +135,25 @@ def get_yee_instrument_data() -> dict[str, object]:
 		block_name = block_by_question_id.get(base_qid)
 		if block_name is None:
 			continue
+		normalized_block_title = _normalize_block_title(block_name)
+
+		if not payload.get("GradingData"):
+			question_type = _as_str(payload.get("QuestionType")) or ""
+			question_text = _as_str(payload.get("QuestionText")) or _as_str(payload.get("QuestionDescription")) or ""
+			meta = section_metadata_by_block.setdefault(
+				block_name,
+				{
+					"block": block_name,
+					"title": normalized_block_title,
+					"intro_text": "",
+					"comment_prompt": "",
+				},
+			)
+			if question_type == "DB" and question_text:
+				meta["intro_text"] = question_text
+			elif question_type == "TE" and question_text:
+				if not meta["comment_prompt"] or "other thoughts" not in meta["comment_prompt"].lower():
+					meta["comment_prompt"] = question_text
 
 		additional_questions = payload.get("AdditionalQuestions", {})
 		if isinstance(additional_questions, dict) and additional_questions:
@@ -147,9 +174,15 @@ def get_yee_instrument_data() -> dict[str, object]:
 						"item_id": item_id,
 						"base_question_id": base_qid,
 						"block": block_name,
+						"block_title": normalized_block_title,
 						"question_text": _as_str(question_data.get("QuestionDescription"))
 						or _as_str(payload.get("QuestionDescription"))
 						or "",
+						"item_kind": (
+							"condition"
+							if "if yes" in ((_as_str(question_data.get("QuestionDescription")) or "").lower())
+							else "presence"
+						),
 						"choices": question_data.get("Choices", {}),
 						"answers": question_data.get("Answers", {}),
 						"score_entries": score_entries,
@@ -169,9 +202,11 @@ def get_yee_instrument_data() -> dict[str, object]:
 				"item_id": base_qid,
 				"base_question_id": base_qid,
 				"block": block_name,
+				"block_title": normalized_block_title,
 				"question_text": _as_str(payload.get("QuestionDescription"))
 				or _as_str(payload.get("QuestionText"))
 				or "",
+				"item_kind": "presence",
 				"choices": payload.get("Choices", {}),
 				"answers": payload.get("Answers", {}),
 				"score_entries": score_entries,
@@ -183,6 +218,7 @@ def get_yee_instrument_data() -> dict[str, object]:
 		"survey_name": _as_str(survey_entry.get("SurveyName")) or "Youth Enabling Environments Audit Tool",
 		"version": _as_str(survey_entry.get("LastModified")) or "unknown",
 		"scoring_categories": scoring_names_by_id,
+		"sections": list(section_metadata_by_block.values()),
 		"scoring_items": scoring_items,
 	}
 

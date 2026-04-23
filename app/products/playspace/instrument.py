@@ -30,18 +30,19 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 	if not isinstance(payload, dict):
 		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
 
-	language_payload = payload.get("en")
-	if not isinstance(language_payload, dict):
-		raise ValueError("Expected the Playspace instrument payload to contain an 'en' object.")
+	if "instrument_key" not in payload and isinstance(payload.get("en"), dict):
+		payload = payload.get("en")
+		if not isinstance(payload, dict):
+			raise ValueError("Expected the localized Playspace instrument payload to be a JSON object.")
 
-	instrument_key = language_payload.get("instrument_key")
-	instrument_version = language_payload.get("instrument_version")
+	instrument_key = payload.get("instrument_key")
+	instrument_version = payload.get("instrument_version")
 	if instrument_key != INSTRUMENT_KEY or instrument_version != INSTRUMENT_VERSION:
 		raise ValueError(
 			f"Canonical Playspace instrument payload metadata does not match {INSTRUMENT_KEY} v{INSTRUMENT_VERSION}."
 		)
 
-	return dict(language_payload)
+	return dict(payload)
 
 
 @lru_cache(maxsize=1)
