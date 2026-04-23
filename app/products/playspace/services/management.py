@@ -160,6 +160,7 @@ class PlayspaceManagementService:
 			est_places=project.est_places,
 			est_auditors=project.est_auditors,
 			auditor_description=project.auditor_description,
+			created_by_user_id=project.created_by_user_id,
 			created_at=project.created_at,
 		)
 
@@ -259,8 +260,16 @@ class PlayspaceManagementService:
 			requested_account_id=payload.account_id,
 		)
 		await self._get_account(account_id)
+
+		if actor.user_id is None:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="Authenticated user context is required to create a project.",
+			)
+
 		project = Project(
 			account_id=account_id,
+			created_by_user_id=actor.user_id,
 			name=payload.name,
 			overview=payload.overview,
 			place_types=payload.place_types,

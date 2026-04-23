@@ -32,6 +32,7 @@ class CurrentUserContext:
 	role: CurrentUserRole
 	account_id: uuid.UUID | None
 	auditor_code: str | None
+	user_id: uuid.UUID | None = None
 
 
 def _parse_role(raw_value: str | None) -> CurrentUserRole | None:

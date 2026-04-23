@@ -43,6 +43,7 @@ from app.models import (
 	Instrument,
 	ManagerProfile,
 	Place,
+	PlayspaceType,
 	Project,
 	ProjectPlace,
 	User,
@@ -95,13 +96,13 @@ SECONDARY_PLAYSPACE_ORGANIZATION_NAME = "Canterbury Civic Play Trust"
 PLAYSPACE_ADMIN_ACCOUNT_NAME = "Playspace Platform Administration"
 NEW_ZEALAND = "New Zealand"
 
-PUBLIC_PLAYSPACE = "public playspace"
-SCHOOL_PLAYSPACE = "school playspace"
-PRESCHOOL_PLAYSPACE = "preschool playspace"
-DESTINATION_PLAYSPACE = "destination playspace"
-NATURE_PLAYSPACE = "nature playspace"
-WATERFRONT_PLAYSPACE = "waterfront playspace"
-NEIGHBORHOOD_PLAYSPACE = "neighborhood playspace"
+PUBLIC_PLAYSPACE = PlayspaceType.PUBLIC.value
+SCHOOL_PLAYSPACE = PlayspaceType.SCHOOL.value
+PRESCHOOL_PLAYSPACE = PlayspaceType.PRE_SCHOOL.value
+DESTINATION_PLAYSPACE = PlayspaceType.DESTINATION.value
+NATURE_PLAYSPACE = PlayspaceType.NATURE.value
+WATERFRONT_PLAYSPACE = PlayspaceType.WATERFRONT.value
+NEIGHBORHOOD_PLAYSPACE = PlayspaceType.NEIGHBORHOOD.value
 
 PLAYSPACE_AUDIT_RIVERSIDE_IN_PROGRESS_ID = uuid.UUID("55555555-5555-4555-8555-555555555554")
 
@@ -538,13 +539,36 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 	]
 
 	auditor_contexts = _build_auditor_contexts(reference_date=reference_date)
+
+	accounts = [
+		admin_account,
+		primary_manager_account,
+		secondary_manager_account,
+		*(context.account for context in auditor_contexts),
+	]
+	auditor_profiles = [context.profile for context in auditor_contexts]
+	users = _build_user_entities(
+		accounts=accounts,
+		manager_profiles=manager_profiles,
+		auditor_profiles=auditor_profiles,
+	)
+
+	primary_manager_user = next(
+		user for user in users if user.account_id == primary_manager_account.id
+	)
+	secondary_manager_user = next(
+		user for user in users if user.account_id == secondary_manager_account.id
+	)
+
 	primary_project_contexts = _build_project_contexts(
 		account_id=primary_manager_account.id,
+		created_by_user_id=primary_manager_user.id,
 		reference_date=reference_date,
 		blueprints=PRIMARY_MANAGER_PROJECT_BLUEPRINTS,
 	)
 	secondary_project_contexts = _build_project_contexts(
 		account_id=secondary_manager_account.id,
+		created_by_user_id=secondary_manager_user.id,
 		reference_date=reference_date,
 		blueprints=SECONDARY_MANAGER_PROJECT_BLUEPRINTS,
 	)
@@ -576,18 +600,6 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		randomizer=randomizer,
 	)
 
-	accounts = [
-		admin_account,
-		primary_manager_account,
-		secondary_manager_account,
-		*(context.account for context in auditor_contexts),
-	]
-	auditor_profiles = [context.profile for context in auditor_contexts]
-	users = _build_user_entities(
-		accounts=accounts,
-		manager_profiles=manager_profiles,
-		auditor_profiles=auditor_profiles,
-	)
 	projects = [context.project for context in project_contexts]
 	places = [context.place for context in place_contexts]
 
@@ -707,6 +719,7 @@ def _build_user_entities(
 def _build_project_contexts(
 	*,
 	account_id: uuid.UUID,
+	created_by_user_id: uuid.UUID,
 	reference_date: date,
 	blueprints: tuple[ProjectBlueprint, ...],
 ) -> list[ProjectSeedContext]:
@@ -719,6 +732,7 @@ def _build_project_contexts(
 		project = Project(
 			id=project_id,
 			account_id=account_id,
+			created_by_user_id=created_by_user_id,
 			name=blueprint.name,
 			overview=blueprint.overview,
 			place_types=list(blueprint.place_types),

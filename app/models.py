@@ -73,6 +73,16 @@ class NotificationType(str, Enum):
 	ASSIGNMENT_UPDATED = "ASSIGNMENT_UPDATED"
 	AUDIT_COMPLETED = "AUDIT_COMPLETED"
 
+class PlayspaceType(str, Enum):
+	"""Type of playspace that can be audited."""
+
+	PUBLIC = "Public Playspace"
+	PRE_SCHOOL = "Pre-School Playspace"
+	DESTINATION = "Destination Playspace"
+	NATURE = "Nature Playspace"
+	NEIGHBORHOOD = "Neighborhood Playspace"
+	WATERFRONT = "Waterfront Playspace"
+	SCHOOL = "School Playspace"
 
 JSONDict = dict[str, object]
 
@@ -120,6 +130,7 @@ class PostgresEnumWithCast(TypeDecorator[str]):
 ACCOUNT_TYPE_ENUM = PostgresEnumWithCast(AccountType, name="shared_account_type")
 AUDIT_STATUS_ENUM = PostgresEnumWithCast(AuditStatus, name="shared_audit_status")
 NOTIFICATION_TYPE_ENUM = PostgresEnumWithCast(NotificationType, name="notification_type_enum")
+PLAYSPACE_TYPE_ENUM = PostgresEnumWithCast(PlayspaceType, name="playspace_type_enum")
 
 # Shared cascade configuration for parent -> child relationships.
 CASCADE_DELETE_ORPHAN: str = "all, delete-orphan"
@@ -165,6 +176,7 @@ class User(Base):
 	)
 
 	account: Mapped[Account | None] = relationship(back_populates="users")
+	manager_profile: Mapped[ManagerProfile | None] = relationship(back_populates="user", uselist=False)
 	auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False)
 	notifications: Mapped[list[Notification]] = relationship(
 		back_populates="user",
@@ -263,6 +275,15 @@ class ManagerProfile(Base):
 
 	__tablename__ = "manager_profiles"
 
+	__table_args__ = (
+		Index(
+			"ix_manager_profiles_account_primary_true",
+			"account_id",
+			unique=True,
+			postgresql_where=text("is_primary = true"),
+		),
+	)
+
 	id: Mapped[uuid.UUID] = mapped_column(
 		UUID(as_uuid=True),
 		primary_key=True,
@@ -273,6 +294,12 @@ class ManagerProfile(Base):
 		ForeignKey("accounts.id", ondelete="CASCADE"),
 		index=True,
 		nullable=False,
+	)
+	user_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("users.id", ondelete="SET NULL"),
+		unique=True,
+		nullable=True,
 	)
 	full_name: Mapped[str] = mapped_column(String(200), nullable=False)
 	email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
@@ -287,6 +314,7 @@ class ManagerProfile(Base):
 	)
 
 	account: Mapped[Account] = relationship(back_populates="manager_profiles")
+	user: Mapped[User | None] = relationship(back_populates="manager_profile")
 
 
 class Project(Base):
@@ -370,7 +398,7 @@ class Place(Base):
 	province: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	country: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	postal_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
-	place_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+	place_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
 	lat: Mapped[float | None] = mapped_column(Float, nullable=True)
 	lng: Mapped[float | None] = mapped_column(Float, nullable=True)
 	start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -533,6 +561,39 @@ class AuditorInvite(Base):
 	account: Mapped[Account] = relationship()
 	invited_by_user: Mapped[User] = relationship()
 	auditor: Mapped[AuditorProfile | None] = relationship(back_populates="invites")
+
+
+class ManagerInvite(Base):
+	__tablename__ = "manager_invites"
+
+	id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+	account_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("accounts.id", ondelete="CASCADE"),
+		index=True,
+		nullable=False,
+	)
+	invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("users.id", ondelete="CASCADE"),
+		index=True,
+		nullable=False,
+	)
+	accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("users.id", ondelete="SET NULL"),
+		index=True,
+		nullable=True,
+	)
+	email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+	token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+	accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+	account: Mapped[Account] = relationship()
+	invited_by_user: Mapped[User] = relationship(foreign_keys=[invited_by_user_id])
+	accepted_by_user: Mapped[User | None] = relationship(foreign_keys=[accepted_by_user_id])
 
 
 class AuditorAssignment(Base):

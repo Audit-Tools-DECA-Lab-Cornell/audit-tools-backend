@@ -98,6 +98,7 @@ class ProjectDetailResponse(ApiModel):
 	est_places: int | None
 	est_auditors: int | None
 	auditor_description: str | None
+	created_by_user_id: uuid.UUID
 	created_at: datetime
 
 

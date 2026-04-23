@@ -83,3 +83,20 @@ def send_auditor_invite_email(*, to_email: str, invite_url: str) -> bool:
 		log_label="Auditor invite link",
 		fallback_url=invite_url,
 	)
+
+
+def send_manager_invite_email(*, to_email: str, invite_url: str) -> bool:
+	"""Send a manager invite email using SMTP config or log the link locally."""
+
+	return _send_email(
+		to_email=to_email,
+		subject="You have been invited to manage an Audit Tools workspace",
+		body=(
+			"You have been invited to join an Audit Tools workspace as a manager.\n\n"
+			"Open the invite link below to set your password and continue setup:\n"
+			f"{invite_url}\n\n"
+			"If you were not expecting this invite, you can ignore this email."
+		),
+		log_label="Manager invite link",
+		fallback_url=invite_url,
+	)

@@ -193,6 +193,8 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/auth/resend-verification"),
 		("GET", "/playspace/auth/invite/{token}"),
 		("POST", "/playspace/auth/invite/{token}/accept"),
+		("POST", "/playspace/auth/manager-invites"),
+		("POST", "/playspace/auth/manager-invites/{token}/accept"),
 		("GET", "/playspace/accounts/{account_id}"),
 		("GET", "/playspace/accounts/{account_id}/manager-profiles"),
 		("GET", "/playspace/accounts/{account_id}/projects"),
@@ -310,6 +312,32 @@ def test_auth_self_service_and_instrument_endpoints(
 	)
 	assert login_me_response.status_code == 200
 	assert login_me_response.json()["user"]["email"] == MANAGER_EMAIL
+
+	secondary_manager_email = f"secondary-manager-{_unique_suffix()}@example.org"
+	create_manager_invite_response = playspace_client.post(
+		"/playspace/auth/manager-invites",
+		headers=manager_auth_headers,
+		json={"email": secondary_manager_email},
+	)
+	assert create_manager_invite_response.status_code == 201
+	manager_invite_url = create_manager_invite_response.json()["invite_url"]
+	manager_invite_token = manager_invite_url.rsplit("/", 1)[-1]
+
+	accept_manager_invite_response = playspace_client.post(
+		f"/playspace/auth/manager-invites/{manager_invite_token}/accept",
+		json={"name": "Secondary Manager", "password": SEED_PASSWORD},
+	)
+	assert accept_manager_invite_response.status_code == 200
+	assert accept_manager_invite_response.json()["user"]["account_type"] == "MANAGER"
+	assert accept_manager_invite_response.json()["user"]["email"] == secondary_manager_email
+	secondary_manager_token = accept_manager_invite_response.json()["access_token"]
+
+	secondary_invite_attempt_response = playspace_client.post(
+		"/playspace/auth/manager-invites",
+		headers=_bearer_headers(secondary_manager_token),
+		json={"email": f"blocked-secondary-{_unique_suffix()}@example.org"},
+	)
+	assert secondary_invite_attempt_response.status_code == 403
 
 	auditor_token = _login_auditor(
 		playspace_client,

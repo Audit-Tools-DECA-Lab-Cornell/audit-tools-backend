@@ -9,6 +9,7 @@ from app.models import (
 	AuditorAssignment,
 	Project,
 	ProjectPlace,
+	User,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
 
@@ -35,6 +36,20 @@ def test_build_playspace_seed_entities_spreads_projects_across_manager_accounts(
 	project_account_ids = {project.account_id for project in projects}
 
 	assert len(project_account_ids) >= 2
+
+
+def test_build_playspace_seed_entities_projects_have_created_by_user_id() -> None:
+	"""Every seeded project must reference a creator user."""
+
+	entities = build_playspace_seed_entities()
+	projects = [entity for entity in entities if isinstance(entity, Project)]
+	users = [entity for entity in entities if isinstance(entity, User)]
+	user_ids = {user.id for user in users}
+
+	assert len(projects) > 0
+	for project in projects:
+		assert project.created_by_user_id is not None
+		assert project.created_by_user_id in user_ids
 
 
 def test_build_playspace_seed_entities_include_project_place_links_and_pair_scoped_audits() -> None:

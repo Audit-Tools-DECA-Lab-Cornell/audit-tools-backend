@@ -357,22 +357,15 @@ def _display_auditor_code(code: str | None) -> str:
 def _project_scope_filter(user: User) -> ColumnElement[bool] | None:
 	if user.account_type == AccountType.ADMIN:
 		return None
-	return Project.created_by_user_id == user.id
+	return Project.account_id == _manager_account_id(user)
 
 
 def _manager_project_ids_subquery(user: User):
-	return select(Project.id).where(Project.created_by_user_id == user.id)
+	return select(Project.id).where(Project.account_id == _manager_account_id(user))
 
 
 def _manager_invited_auditor_ids_subquery(user: User):
-	return (
-		select(AuditorInvite.auditor_id)
-		.where(
-			AuditorInvite.invited_by_user_id == user.id,
-			AuditorInvite.auditor_id.is_not(None),
-		)
-		.distinct()
-	)
+	return select(Auditor.id).where(Auditor.account_id == _manager_account_id(user)).distinct()
 
 
 def _extract_score(scores_json: dict[str, object]) -> int:
@@ -980,7 +973,7 @@ async def _fetch_auditors(session: AsyncSession, user: User) -> list[AuditorList
 			.order_by(Place.name.asc())
 		)
 		if user.account_type != AccountType.ADMIN:
-			place_stmt = place_stmt.where(Project.created_by_user_id == user.id)
+			place_stmt = place_stmt.where(Project.account_id == _manager_account_id(user))
 		place_rows = (await session.execute(place_stmt)).all()
 		for auditor_id, place_name in place_rows:
 			if place_name not in assigned_places_by_auditor[auditor_id]:
@@ -1141,13 +1134,13 @@ async def get_dashboard_overview(
 	else:
 		owned_project_ids = _manager_project_ids_subquery(user)
 		invited_auditor_ids = _manager_invited_auditor_ids_subquery(user)
-		projects_count = await _count_rows(session, Project, Project.created_by_user_id == user.id)
+		projects_count = await _count_rows(session, Project, Project.account_id == _manager_account_id(user))
 		places_count = int(
 			(
 				await session.execute(
 					select(func.count(func.distinct(ProjectPlace.place_id)))
 					.join(Project, ProjectPlace.project_id == Project.id)
-					.where(Project.created_by_user_id == user.id)
+					.where(Project.account_id == _manager_account_id(user))
 				)
 			).scalar_one()
 		)
@@ -1409,7 +1402,7 @@ async def update_project(
 	project = await session.get(Project, project_id)
 	if project is None:
 		raise HTTPException(status_code=404, detail="Project not found.")
-	if project.account_id != account_id or project.created_by_user_id != user.id:
+	if project.account_id != account_id:
 		raise HTTPException(status_code=403, detail="Project is outside your manager scope.")
 
 	project.name = payload.name.strip()
@@ -1429,7 +1422,7 @@ async def update_project(
 		id=str(project.id),
 		name=project.name,
 		summary=project.description or "Project summary pending",
-		organization=_manager_account_name(user),
+		organization=_manager_account_name(user.name, user.email),
 		places=place_total,
 		audits=audit_total,
 		status="Planning" if project.start_date is None else "Active",
@@ -1450,7 +1443,7 @@ async def create_place(
 	project = await session.get(Project, payload.project_id)
 	if project is None:
 		raise HTTPException(status_code=404, detail="Project not found.")
-	if project.account_id != account_id or project.created_by_user_id != user.id:
+	if project.account_id != account_id:
 		raise HTTPException(status_code=403, detail="Project is outside your manager scope.")
 
 	place = Place(
@@ -1504,9 +1497,9 @@ async def update_place(
 	target_project = await session.get(Project, payload.project_id)
 	if current_project is None or target_project is None:
 		raise HTTPException(status_code=404, detail="Project not found.")
-	if current_project.account_id != account_id or current_project.created_by_user_id != user.id:
+	if current_project.account_id != account_id:
 		raise HTTPException(status_code=403, detail="Place is outside your manager scope.")
-	if target_project.account_id != account_id or target_project.created_by_user_id != user.id:
+	if target_project.account_id != account_id:
 		raise HTTPException(status_code=403, detail="Target project is outside your manager scope.")
 
 	place.name = payload.name.strip()
@@ -1531,7 +1524,9 @@ async def update_place(
 		.order_by(Auditor.auditor_code.asc())
 	)
 	if user.account_type != AccountType.ADMIN:
-		assigned_auditors_stmt = assigned_auditors_stmt.where(Auditor.id.in_(_manager_invited_auditor_ids_subquery(user)))
+		assigned_auditors_stmt = assigned_auditors_stmt.where(
+			Auditor.id.in_(_manager_invited_auditor_ids_subquery(user))
+		)
 	assigned_auditor_codes = (await session.execute(assigned_auditors_stmt)).scalars().all()
 
 	return PlaceListItem(
@@ -1539,7 +1534,7 @@ async def update_place(
 		name=place.name,
 		project_id=str(target_project.id),
 		project=target_project.name,
-		organization=_manager_account_name(user),
+		organization=_manager_account_name(user.name, user.email),
 		address=place.address,
 		postal_code=place.postal_code,
 		assigned_auditors=[_display_auditor_code(code) for code in assigned_auditor_codes],
@@ -1601,18 +1596,16 @@ async def create_assignment(
 		raise HTTPException(status_code=403, detail="Admin assignments are not supported from this route.")
 
 	project = await session.get(Project, payload.project_id)
-	if project is None or project.account_id != account_id or project.created_by_user_id != user.id:
+	if project is None or project.account_id != account_id:
 		raise HTTPException(status_code=404, detail="Project not found in your manager scope.")
 
 	auditors = (
 		(
 			await session.execute(
 				select(Auditor)
-				.join(AuditorInvite, AuditorInvite.auditor_id == Auditor.id)
 				.where(
 					Auditor.id.in_(payload.auditor_ids),
 					Auditor.account_id == account_id,
-					AuditorInvite.invited_by_user_id == user.id,
 				)
 				.distinct()
 			)
@@ -1623,7 +1616,7 @@ async def create_assignment(
 	if len(auditors) != len(set(payload.auditor_ids)):
 		raise HTTPException(
 			status_code=404,
-			detail="One or more auditors were not found in your invited auditor scope.",
+			detail="One or more auditors were not found in your account scope.",
 		)
 
 	places = (

@@ -30,8 +30,8 @@ from app.auth_security import (
 	verify_password,
 )
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
-from app.email_service import send_verification_email
-from app.models import Account, AccountType, Auditor, AuditorInvite, User
+from app.email_service import send_manager_invite_email, send_verification_email
+from app.models import Account, AccountType, Auditor, AuditorInvite, ManagerInvite, ManagerProfile, User
 
 router: APIRouter = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -105,6 +105,23 @@ class InvitePreviewResponse(BaseModel):
 
 
 class AcceptInviteRequest(BaseModel):
+	name: str = Field(..., min_length=1, max_length=200)
+	password: str = Field(..., min_length=8, max_length=4096)
+
+
+class CreateManagerInviteRequest(BaseModel):
+	email: str = Field(..., max_length=320)
+
+
+class ManagerInviteResponse(BaseModel):
+	id: uuid.UUID
+	email: str
+	expires_at: datetime
+	invite_url: str
+	status: str = "PENDING"
+
+
+class AcceptManagerInviteRequest(BaseModel):
 	name: str = Field(..., min_length=1, max_length=200)
 	password: str = Field(..., min_length=8, max_length=4096)
 
@@ -256,6 +273,86 @@ async def _ensure_playspace_auditor_profile(
 		auditor_profile.full_name = full_name
 
 
+async def _ensure_manager_profile_for_user(
+	*,
+	session: AsyncSession,
+	user: User,
+	email: str,
+	clean_name: str | None,
+	prefer_primary: bool,
+) -> None:
+	"""Create or link one manager profile row to the authenticated manager user."""
+
+	if user.account_type != AccountType.MANAGER or user.account_id is None:
+		return
+
+	normalized_email = _normalize_email(email)
+	full_name = clean_name or _clean_name(user.name) or normalized_email.split("@", 1)[0]
+
+	profile_result = await session.execute(select(ManagerProfile).where(ManagerProfile.user_id == user.id))
+	manager_profile = profile_result.scalar_one_or_none()
+	if manager_profile is None:
+		by_email_result = await session.execute(
+			select(ManagerProfile).where(
+				ManagerProfile.account_id == user.account_id,
+				ManagerProfile.email == normalized_email,
+			)
+		)
+		manager_profile = by_email_result.scalar_one_or_none()
+	if manager_profile is None and prefer_primary:
+		primary_result = await session.execute(
+			select(ManagerProfile).where(
+				ManagerProfile.account_id == user.account_id,
+				ManagerProfile.is_primary.is_(True),
+				ManagerProfile.user_id.is_(None),
+			)
+		)
+		manager_profile = primary_result.scalar_one_or_none()
+
+	if manager_profile is None:
+		has_primary_result = await session.execute(
+			select(ManagerProfile.id)
+			.where(
+				ManagerProfile.account_id == user.account_id,
+				ManagerProfile.is_primary.is_(True),
+			)
+			.limit(1)
+		)
+		has_primary = has_primary_result.scalar_one_or_none() is not None
+		session.add(
+			ManagerProfile(
+				account_id=user.account_id,
+				user_id=user.id,
+				full_name=full_name,
+				email=normalized_email,
+				is_primary=prefer_primary and not has_primary,
+			)
+		)
+		return
+
+	if manager_profile.account_id != user.account_id:
+		raise HTTPException(status_code=409, detail="Manager profile is linked to a different account.")
+	if manager_profile.user_id is None:
+		manager_profile.user_id = user.id
+	if not manager_profile.full_name or not manager_profile.full_name.strip():
+		manager_profile.full_name = full_name
+	if not manager_profile.email or not manager_profile.email.strip():
+		manager_profile.email = normalized_email
+	if prefer_primary and not manager_profile.is_primary:
+		has_primary_result = await session.execute(
+			select(ManagerProfile.id)
+			.where(
+				ManagerProfile.account_id == user.account_id,
+				ManagerProfile.is_primary.is_(True),
+				ManagerProfile.id != manager_profile.id,
+			)
+			.limit(1)
+		)
+		has_other_primary = has_primary_result.scalar_one_or_none() is not None
+		if not has_other_primary:
+			manager_profile.is_primary = True
+
+
 async def _playspace_signup(
 	*,
 	payload: SignupRequest,
@@ -326,12 +423,21 @@ async def _playspace_signup(
 		last_login_at=now,
 	)
 	session.add(user)
+	await session.flush()
 	if resolved_account_type == AccountType.AUDITOR:
 		await _ensure_playspace_auditor_profile(
 			session=session,
 			user=user,
 			email=email,
 			clean_name=clean_name,
+		)
+	if resolved_account_type == AccountType.MANAGER:
+		await _ensure_manager_profile_for_user(
+			session=session,
+			user=user,
+			email=email,
+			clean_name=clean_name,
+			prefer_primary=True,
 		)
 	try:
 		await session.commit()
@@ -361,6 +467,13 @@ async def _playspace_login(
 
 	user.failed_login_attempts = 0
 	user.last_login_at = datetime.now(timezone.utc)
+	await _ensure_manager_profile_for_user(
+		session=session,
+		user=user,
+		email=user.email,
+		clean_name=_clean_name(user.name),
+		prefer_primary=True,
+	)
 	await session.commit()
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	authenticated_user = result.scalar_one()
@@ -437,9 +550,31 @@ def _build_invite_url(*, request: FastAPIRequest, token: str) -> str:
 	return f"{base}/invite/{token}"
 
 
+def _build_manager_invite_url(*, request: FastAPIRequest, token: str) -> str:
+	template = os.getenv("AUTH_MANAGER_INVITE_URL_TEMPLATE", "").strip()
+	if template:
+		return template.format(token=token)
+
+	base = str(request.base_url).rstrip("/")
+	return f"{base}/manager-invite/{token}"
+
+
 async def _get_valid_invite(session: AsyncSession, token: str) -> AuditorInvite:
 	token_hash = hash_verification_token(token.strip())
 	result = await session.execute(select(AuditorInvite).where(AuditorInvite.token_hash == token_hash))
+	invite = result.scalar_one_or_none()
+	if invite is None:
+		raise HTTPException(status_code=404, detail="Invite not found.")
+	if invite.accepted_at is not None:
+		raise HTTPException(status_code=400, detail="Invite has already been accepted.")
+	if datetime.now(timezone.utc) > invite.expires_at:
+		raise HTTPException(status_code=400, detail="Invite has expired.")
+	return invite
+
+
+async def _get_valid_manager_invite(session: AsyncSession, token: str) -> ManagerInvite:
+	token_hash = hash_verification_token(token.strip())
+	result = await session.execute(select(ManagerInvite).where(ManagerInvite.token_hash == token_hash))
 	invite = result.scalar_one_or_none()
 	if invite is None:
 		raise HTTPException(status_code=404, detail="Invite not found.")
@@ -549,9 +684,8 @@ async def signup(
 	password_hash = hash_password(payload.password)
 	now = datetime.now(timezone.utc)
 	approved = account_type == AccountType.MANAGER
-	account_name = (
-		_manager_account_name(_clean_name(payload.name), email) if account_type == AccountType.MANAGER else None
-	)
+	clean_name = _clean_name(payload.name)
+	account_name = _manager_account_name(clean_name, email) if account_type == AccountType.MANAGER else None
 
 	existing_result = await session.execute(select(User).where(User.email == email))
 	existing_user = existing_result.scalar_one_or_none()
@@ -576,7 +710,7 @@ async def signup(
 			password_hash=password_hash,
 			account_id=account.id if account is not None else None,
 			account_type=account_type,
-			name=_clean_name(payload.name),
+			name=clean_name,
 			email_verified=False,
 			failed_login_attempts=0,
 			approved=approved,
@@ -603,13 +737,22 @@ async def signup(
 			user.account_id = account.id
 		user.password_hash = password_hash
 		user.account_type = account_type
-		user.name = _clean_name(payload.name)
+		user.name = clean_name
 		user.email_verified = False
 		user.email_verified_at = None
 		user.approved = approved
 		user.approved_at = now if approved else None
 		user.profile_completed = False
 		user.profile_completed_at = None
+
+	if user.account_type == AccountType.MANAGER:
+		await _ensure_manager_profile_for_user(
+			session=session,
+			user=user,
+			email=email,
+			clean_name=clean_name,
+			prefer_primary=True,
+		)
 
 	await _send_or_log_verification_email(request=request, user=user, session=session)
 
@@ -714,6 +857,13 @@ async def login(
 	token, expires_at = generate_access_token(str(user.id))
 	user.failed_login_attempts = 0
 	user.last_login_at = datetime.now(timezone.utc)
+	await _ensure_manager_profile_for_user(
+		session=session,
+		user=user,
+		email=user.email,
+		clean_name=_clean_name(user.name),
+		prefer_primary=True,
+	)
 	await session.commit()
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	user = result.scalar_one()
@@ -736,9 +886,25 @@ async def get_current_session(
 
 	if _is_playspace_request(request):
 		user = await get_current_user(credentials=credentials, session=session)
+		await _ensure_manager_profile_for_user(
+			session=session,
+			user=user,
+			email=user.email,
+			clean_name=_clean_name(user.name),
+			prefer_primary=True,
+		)
+		await session.commit()
 		return SessionResponse(user=_serialize_auth_user(user))
 
 	user = await _get_current_yee_user(credentials=credentials, session=session)
+	await _ensure_manager_profile_for_user(
+		session=session,
+		user=user,
+		email=user.email,
+		clean_name=_clean_name(user.name),
+		prefer_primary=True,
+	)
+	await session.commit()
 	return SessionResponse(user=_serialize_auth_user(user))
 
 
@@ -871,6 +1037,172 @@ async def accept_invite(
 		auditor.user_id = user.id
 
 	invite.accepted_at = now
+	token_value, expires_at = generate_access_token(str(user.id))
+	user.last_login_at = now
+	await session.commit()
+	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
+	user = result.scalar_one()
+
+	return AuthResponse(
+		access_token=token_value,
+		token_type="bearer",
+		expires_at=expires_at,
+		user=_serialize_auth_user(user),
+	)
+
+
+@router.post("/manager-invites", response_model=ManagerInviteResponse, status_code=status.HTTP_201_CREATED)
+async def create_manager_invite(
+	payload: CreateManagerInviteRequest,
+	request: FastAPIRequest,
+	credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerInviteResponse:
+	"""Create an invite so a secondary manager can join an existing manager account."""
+
+	user = await get_current_user(credentials=credentials, session=session)
+	if user.account_type != AccountType.MANAGER:
+		raise HTTPException(status_code=403, detail="Only managers can invite secondary managers.")
+	if user.account_id is None:
+		raise HTTPException(status_code=403, detail="Manager account scope is required to invite managers.")
+	await _ensure_manager_profile_for_user(
+		session=session,
+		user=user,
+		email=user.email,
+		clean_name=_clean_name(user.name),
+		prefer_primary=True,
+	)
+	await session.flush()
+	manager_profile_result = await session.execute(
+		select(ManagerProfile).where(
+			ManagerProfile.user_id == user.id,
+			ManagerProfile.account_id == user.account_id,
+		)
+	)
+	manager_profile = manager_profile_result.scalar_one_or_none()
+	if manager_profile is None or not manager_profile.is_primary:
+		raise HTTPException(status_code=403, detail="Only the primary manager can invite secondary managers.")
+
+	email = _normalize_email(payload.email)
+	if not email:
+		raise HTTPException(status_code=400, detail="Email is required.")
+	if email == _normalize_email(user.email):
+		raise HTTPException(status_code=409, detail="Use your existing credentials for this account.")
+
+	existing_user = await _find_user_by_email(session=session, email=email)
+	if existing_user is not None:
+		if existing_user.account_type != AccountType.MANAGER:
+			raise HTTPException(status_code=409, detail="This email is already used by a non-manager account.")
+		if existing_user.account_id == user.account_id:
+			raise HTTPException(status_code=409, detail="This manager already has account access.")
+		raise HTTPException(status_code=409, detail="This email is already used by another manager account.")
+
+	existing_profile_result = await session.execute(select(ManagerProfile).where(ManagerProfile.email == email))
+	existing_profile = existing_profile_result.scalar_one_or_none()
+	if existing_profile is not None:
+		if existing_profile.account_id != user.account_id:
+			raise HTTPException(status_code=409, detail="This email is already linked to another manager account.")
+		if existing_profile.user_id is not None:
+			raise HTTPException(status_code=409, detail="This manager already has account access.")
+
+	now = datetime.now(timezone.utc)
+	existing_invite_result = await session.execute(
+		select(ManagerInvite)
+		.where(
+			ManagerInvite.account_id == user.account_id,
+			ManagerInvite.email == email,
+			ManagerInvite.accepted_at.is_(None),
+		)
+		.order_by(ManagerInvite.created_at.desc())
+		.limit(1)
+	)
+	existing_invite = existing_invite_result.scalar_one_or_none()
+	if existing_invite is not None and now <= existing_invite.expires_at:
+		raise HTTPException(status_code=409, detail="An active manager invite already exists for this email.")
+
+	token = generate_email_verification_token()
+	invite = ManagerInvite(
+		account_id=user.account_id,
+		invited_by_user_id=user.id,
+		email=email,
+		token_hash=hash_verification_token(token),
+		expires_at=now + timedelta(days=7),
+	)
+	session.add(invite)
+	await session.flush()
+
+	invite_url = _build_manager_invite_url(request=request, token=token)
+	send_manager_invite_email(to_email=email, invite_url=invite_url)
+	await session.commit()
+
+	return ManagerInviteResponse(
+		id=invite.id,
+		email=invite.email,
+		expires_at=invite.expires_at,
+		invite_url=invite_url,
+	)
+
+
+@router.post("/manager-invites/{token}/accept", response_model=AuthResponse)
+async def accept_manager_invite(
+	token: str,
+	payload: AcceptManagerInviteRequest,
+	session: AsyncSession = Depends(get_auth_session),
+) -> AuthResponse:
+	"""Accept a manager invite and return an authenticated manager session."""
+
+	invite = await _get_valid_manager_invite(session, token)
+	email = _normalize_email(invite.email)
+	clean_name = _clean_name(payload.name)
+	if clean_name is None:
+		raise HTTPException(status_code=400, detail="Name is required.")
+
+	user_result = await session.execute(select(User).options(selectinload(User.account)).where(User.email == email))
+	user = user_result.scalar_one_or_none()
+	if user is not None and user.account_type != AccountType.MANAGER:
+		raise HTTPException(status_code=409, detail="This email is already used by a non-manager account.")
+	if user is not None and user.account_id not in {None, invite.account_id}:
+		raise HTTPException(status_code=409, detail="This email is already linked to another manager account.")
+
+	now = datetime.now(timezone.utc)
+	if user is None:
+		user = User(
+			email=email,
+			password_hash=hash_password(payload.password),
+			account_id=invite.account_id,
+			account_type=AccountType.MANAGER,
+			name=clean_name,
+			email_verified=True,
+			email_verified_at=now,
+			failed_login_attempts=0,
+			approved=True,
+			approved_at=now,
+			profile_completed=True,
+			profile_completed_at=now,
+		)
+		session.add(user)
+		await session.flush()
+	else:
+		user.password_hash = hash_password(payload.password)
+		user.account_id = invite.account_id
+		user.account_type = AccountType.MANAGER
+		user.name = clean_name
+		user.email_verified = True
+		user.email_verified_at = now
+		user.approved = True
+		user.approved_at = now
+		user.profile_completed = True
+		user.profile_completed_at = now
+
+	await _ensure_manager_profile_for_user(
+		session=session,
+		user=user,
+		email=email,
+		clean_name=clean_name,
+		prefer_primary=False,
+	)
+	invite.accepted_at = now
+	invite.accepted_by_user_id = user.id
 	token_value, expires_at = generate_access_token(str(user.id))
 	user.last_login_at = now
 	await session.commit()

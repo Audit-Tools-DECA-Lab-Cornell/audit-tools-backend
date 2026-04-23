@@ -45,11 +45,11 @@ Workspace/account record shared across products.
 
 ### `users`
 
-Platform auth identity table used by the real YEE auth flow.
+Platform auth identity table for both YEE and Playspace.
 
-Playspace currently uses a lighter account-based auth bootstrap for the mobile
-client, so `users` should be treated as the YEE-oriented auth table unless the
-Playspace client contract is intentionally migrated.
+Manager workspaces now support multiple manager users (`account_type=MANAGER`)
+linked to the same `account_id`, so `users` is the canonical login identity
+table for all manager sign-in flows.
 
 
 | Column                          | Notes                                    |
@@ -84,6 +84,7 @@ Manager profile rows owned by a manager account.
 | ------------------------------- | ---------------- |
 | `id`                            | UUID primary key |
 | `account_id`                    | FK → `accounts`  |
+| `user_id`                       | Nullable, unique FK → `users` |
 | `full_name` / `email` / `phone` |                  |
 | `position` / `organization`     |                  |
 | `is_primary`                    |                  |
@@ -126,6 +127,26 @@ Invite rows used by the YEE onboarding flow.
 | `created_at`         |                                   |
 | `expires_at`         | Invite expiry timestamp           |
 | `accepted_at`        | Nullable until the invite is used |
+
+
+---
+
+### `manager_invites`
+
+Invite rows used to add secondary managers to an existing manager account.
+
+
+| Column                | Notes                                         |
+| --------------------- | --------------------------------------------- |
+| `id`                  | UUID primary key                              |
+| `account_id`          | FK → `accounts`                               |
+| `invited_by_user_id`  | FK → `users`                                  |
+| `accepted_by_user_id` | Nullable FK → `users`                         |
+| `email`               | Invite target email                           |
+| `token_hash`          | Unique hashed invite token                    |
+| `created_at`          |                                               |
+| `expires_at`          | Invite expiry timestamp                       |
+| `accepted_at`         | Nullable until the invite is used             |
 
 
 ---
@@ -380,4 +401,3 @@ The following have been discussed historically but are **not** current backend t
 - Weighted Playspace score columns such as `base_total_score` or `weighted_total_score`
 - Playspace manager-survey tables for combined scoring
 - Reliability / kappa comparison tables
-
