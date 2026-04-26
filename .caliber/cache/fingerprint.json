@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "gitHead": "cc44b1052da107d4b2905170c6968563a69ad3d8",
-  "treeSignature": "4688d8970442e432",
+  "gitHead": "51ff6c044f59ed169f54c737829a8b8443bb2f3c",
+  "treeSignature": "0cb46e5e5166e007",
   "codeAnalysis": {
     "files": [
       {
@@ -458,7 +458,7 @@
     "duplicateGroups": 0
   },
   "languages": ["Python", "Shell", "Markdown"],
-  "frameworks": ["FastAPI", "SQLAlchemy", "Alembic", "asyncpg", "pytest"],
-  "tools": ["PostgreSQL", "Render", "GitHub Actions", "Postman", "Caliber"],
+  "frameworks": ["FastAPI", "SQLAlchemy", "Alembic", "Pydantic"],
+  "tools": ["PostgreSQL", "asyncpg", "Render", "GitHub Actions", "Postman"],
   "workspaces": []
 }

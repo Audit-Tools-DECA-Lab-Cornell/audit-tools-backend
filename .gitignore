@@ -43,3 +43,6 @@ neon-postgres/
 Thumbs.db
 
 docs/superpowers/
+.caliber/
+.caliber/.caliber-state.json
+.caliber/cache/fingerprint.json
