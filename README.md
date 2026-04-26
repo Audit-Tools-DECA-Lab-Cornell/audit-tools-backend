@@ -34,10 +34,12 @@ flow is automatically safe for the other.
 
 Implemented today:
 
-- shared-core account, project, place, auditor-profile, assignment, and audit models
+- shared-core account, project, place (with `address` field), auditor-profile, assignment, and audit models
 - YEE real auth with email verification, approvals, invite acceptance, and session state
 - Playspace normalized audit storage and scoring-backed draft/submit flows
 - manager/admin Playspace dashboards and management APIs
+- manager multi-user auth: each manager profile now gets a dedicated `User` record
+- Playspace enum types for structured field values
 - YEE instrument metadata enrichment for section intros, comment prompts, and grouped question rendering
 - manager-scoped YEE edit APIs for projects and places
 - seeded test data and product-scoped migration support
@@ -148,7 +150,7 @@ important for future engineers to preserve:
   - item-kind hints used for grouped presence/condition question display
 - `PATCH /yee/dashboard/projects/{project_id}` allows manager-scoped project edits
 - `PATCH /yee/dashboard/places/{place_id}` allows manager-scoped place edits,
-  including postal code updates
+  including postal code and address updates
 
 Those contracts are consumed directly by the Next.js frontend for:
 
@@ -212,4 +214,5 @@ When changing this repository, double-check:
 - `app/models.py` and `alembic/versions/`: schema/code alignment
 - `app/core/actors.py`: Playspace header-based actor resolution
 - `app/products/playspace/seed_data.py` and `app/seed.py`: demo credentials and seeded contracts
+- `app/products/playspace/schemas/` and `app/products/playspace/services/`: Playspace API contracts consumed by mobile
 - `tests/products/playspace/`: API contract coverage for the mobile-facing surface

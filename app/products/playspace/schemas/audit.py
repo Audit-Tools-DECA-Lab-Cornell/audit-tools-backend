@@ -229,6 +229,8 @@ class AuditorPlaceResponse(ApiModel):
 	city: str | None
 	province: str | None
 	country: str | None
+	postal_code: str | None
+	address: str | None
 	lat: float | None
 	lng: float | None
 	audit_status: AuditStatus | None
