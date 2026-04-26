@@ -118,6 +118,8 @@ class _AssignedPlaceSummary:
 	city: str | None
 	province: str | None
 	country: str | None
+	postal_code: str | None
+	address: str | None
 	lat: float | None
 	lng: float | None
 	end_date: date | None
@@ -179,6 +181,8 @@ class PlayspaceAuditSessionsMixin:
 				Place.city.label("city"),
 				Place.province.label("province"),
 				Place.country.label("country"),
+				Place.postal_code.label("postal_code"),
+				Place.address.label("address"),
 				Place.lat.label("lat"),
 				Place.lng.label("lng"),
 				Place.end_date.label("end_date"),
@@ -216,6 +220,8 @@ class PlayspaceAuditSessionsMixin:
 					city=getattr(row, "city", None),
 					province=getattr(row, "province", None),
 					country=getattr(row, "country", None),
+					postal_code=getattr(row, "postal_code", None),
+					address=getattr(row, "address", None),
 					lat=getattr(row, "lat", None),
 					lng=getattr(row, "lng", None),
 					end_date=getattr(row, "end_date", None),
@@ -400,6 +406,8 @@ class PlayspaceAuditSessionsMixin:
 					city=assigned_place.city,
 					province=assigned_place.province,
 					country=assigned_place.country,
+					postal_code=assigned_place.postal_code,
+					address=assigned_place.address,
 					lat=assigned_place.lat,
 					lng=assigned_place.lng,
 					audit_status=(latest_audit.status if latest_audit is not None else None),
@@ -436,6 +444,8 @@ class PlayspaceAuditSessionsMixin:
 						response.place_name,
 						response.project_name,
 						response.place_type or "",
+						response.postal_code or "",
+						response.address or "",
 						response.city or "",
 						response.province or "",
 						response.country or "",

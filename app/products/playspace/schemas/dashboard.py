@@ -98,7 +98,7 @@ class ProjectDetailResponse(ApiModel):
 	est_places: int | None
 	est_auditors: int | None
 	auditor_description: str | None
-	created_by_user_id: uuid.UUID
+	created_by_user_id: uuid.UUID | None
 	created_at: datetime
 
 
@@ -150,6 +150,8 @@ class ManagerPlaceRowResponse(ApiModel):
 	city: str | None
 	province: str | None
 	country: str | None
+	postal_code: str | None
+	address: str | None
 	place_type: str | None
 	status: PlaceActivityStatus
 	audits_completed: int
@@ -223,6 +225,13 @@ class PlaceHistoryResponse(ApiModel):
 
 	place_id: uuid.UUID
 	place_name: str
+	address: str | None
+	city: str | None
+	province: str | None
+	country: str | None
+	postal_code: str | None
+	lat: float | None
+	lng: float | None
 	project_id: uuid.UUID
 	project_name: str
 	total_audits: int
@@ -242,6 +251,8 @@ class PlaceSummaryResponse(ApiModel):
 	city: str | None
 	province: str | None
 	country: str | None
+	postal_code: str | None
+	address: str | None
 	place_type: str | None
 	status: PlaceActivityStatus
 	audits_completed: int

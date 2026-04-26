@@ -1,0 +1,7 @@
+[
+  {
+    "id": "codex_agents_md_exists",
+    "reason": "Project uses Claude Code (CLAUDE.md present, .claude/ directory configured) — not an OpenAI Codex project, so AGENTS.md is not applicable",
+    "dismissedAt": "2026-04-25T08:23:03.389Z"
+  }
+]

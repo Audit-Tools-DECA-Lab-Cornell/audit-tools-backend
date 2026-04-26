@@ -682,6 +682,8 @@ class PlayspaceDashboardService:
 				Place.city.label("city"),
 				Place.province.label("province"),
 				Place.country.label("country"),
+				Place.postal_code.label("postal_code"),
+				Place.address.label("address"),
 				Place.place_type.label("place_type"),
 				status_expression,
 				place_audit_summary_subquery.c.audits_completed.label("audits_completed"),
@@ -707,6 +709,8 @@ class PlayspaceDashboardService:
 				or_(
 					Place.name.ilike(search_term),
 					Project.name.ilike(search_term),
+					Place.address.ilike(search_term),
+					Place.postal_code.ilike(search_term),
 					Place.city.ilike(search_term),
 					Place.province.ilike(search_term),
 					Place.country.ilike(search_term),
@@ -788,6 +792,8 @@ class PlayspaceDashboardService:
 					city=row.city,
 					province=row.province,
 					country=row.country,
+					postal_code=row.postal_code,
+					address=row.address,
 					place_type=row.place_type,
 					status=row.status,
 					audits_completed=int(row.audits_completed or 0),
@@ -973,6 +979,7 @@ class PlayspaceDashboardService:
 			est_auditors=project.est_auditors,
 			auditor_description=project.auditor_description,
 			created_at=project.created_at,
+			created_by_user_id=project.created_by_user_id,
 		)
 
 	async def get_project_stats(
@@ -1042,6 +1049,8 @@ class PlayspaceDashboardService:
 					city=place.city,
 					province=place.province,
 					country=place.country,
+					postal_code=place.postal_code,
+					address=place.address,
 					place_type=place.place_type,
 					status=_derive_place_status(project_audits),
 					audits_completed=len(submitted_audits),
@@ -1117,6 +1126,13 @@ class PlayspaceDashboardService:
 		return PlaceHistoryResponse(
 			place_id=place.id,
 			place_name=place.name,
+			address=place.address,
+			city=place.city,
+			province=place.province,
+			country=place.country,
+			postal_code=place.postal_code,
+			lat=place.lat,
+			lng=place.lng,
 			project_id=project.id,
 			project_name=project.name,
 			total_audits=len(audits),

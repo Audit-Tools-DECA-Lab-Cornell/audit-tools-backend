@@ -60,6 +60,8 @@ class AdminPlaceRowResponse(ApiModel):
 	account_id: uuid.UUID
 	account_name: str
 	name: str
+	address: str | None
+	postal_code: str | None
 	city: str | None
 	province: str | None
 	country: str | None

@@ -400,6 +400,7 @@ class Place(Base):
 	province: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	country: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	postal_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+	address: Mapped[str | None] = mapped_column(Text, nullable=True)
 	place_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
 	lat: Mapped[float | None] = mapped_column(Float, nullable=True)
 	lng: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -430,15 +431,6 @@ class Place(Base):
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
 	)
-
-	@property
-	def address(self) -> str:
-		parts = [self.city, self.province, self.postal_code, self.country]
-		return ", ".join(part for part in parts if part) or "Address not set"
-
-	@address.setter
-	def address(self, value: str) -> None:
-		self.city = value.strip() if value else None
 
 	@property
 	def notes(self) -> str | None:

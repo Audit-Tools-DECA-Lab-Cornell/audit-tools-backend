@@ -65,6 +65,8 @@ class PlaceCreateRequest(RequestModel):
 	city: str | None = None
 	province: str | None = None
 	country: str | None = None
+	postal_code: str | None = None
+	address: str | None = None
 	place_type: str | None = None
 	lat: float | None = None
 	lng: float | None = None
@@ -82,6 +84,8 @@ class PlaceUpdateRequest(RequestModel):
 	city: str | None = None
 	province: str | None = None
 	country: str | None = None
+	postal_code: str | None = None
+	address: str | None = None
 	place_type: str | None = None
 	lat: float | None = None
 	lng: float | None = None
@@ -101,6 +105,8 @@ class PlaceDetailResponse(ApiModel):
 	city: str | None
 	province: str | None
 	country: str | None
+	postal_code: str | None
+	address: str | None
 	place_type: str | None
 	lat: float | None
 	lng: float | None

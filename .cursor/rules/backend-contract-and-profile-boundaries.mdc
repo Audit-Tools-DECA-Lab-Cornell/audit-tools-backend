@@ -9,8 +9,10 @@ alwaysApply: false
 - Treat mobile and web as active Playspace clients. Check both before changing endpoint names, shapes, or semantics.
 - Keep both draft patch endpoints while place-scoped and audit-scoped flows are both in use.
 - Do not design new profile write APIs as auditor-only. `accounts`, `auditor_profiles`, and `manager_profiles` have different constraints.
+- Each manager profile has a dedicated `User` record for authentication; treat manager user creation as part of the manager profile lifecycle.
 - Keep profile endpoints read-only until authentication, verification, and account-type-specific permissions are designed together.
 - Do not turn freeform profile fields into strict enums unless the product contract truly requires it.
 - Prefer migrations and adapters that are safe for fresh, partially migrated, or rerun states when practical.
 - Keep Alembic and seed-tool compatibility helpers stable if migrations or tooling import them.
 - Favor API changes that remain easy to refine later over rigid schemas that lock manager flows into auditor assumptions.
+- Do not reintroduce `quantity` fields to Playspace audit schemas; quantity support was intentionally removed.
