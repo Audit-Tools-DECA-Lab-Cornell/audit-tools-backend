@@ -9,19 +9,23 @@ import uuid
 from datetime import date, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, case, distinct, func, or_, select
+from sqlalchemy import and_, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.actors import CurrentUserContext, require_manager_user
+from app.products.playspace.execution_mode_scope import (
+	execution_mode_includes_audit,
+	execution_mode_includes_survey,
+)
 from app.models import (
 	Account,
-	Audit,
 	AuditorAssignment,
 	AuditorProfile,
 	AuditStatus,
 	ManagerProfile,
 	Place,
+	PlayspaceSubmission,
 	Project,
 	ProjectPlace,
 )
@@ -36,6 +40,7 @@ from app.products.playspace.schemas import (
 	ManagerPlacesListResponse,
 	ManagerPlacesSummaryResponse,
 	ManagerProfileResponse,
+	PlayspacePlaceRollup,
 	PlaceActivityStatus,
 	PlaceAuditHistoryItemResponse,
 	PlaceHistoryResponse,
@@ -45,6 +50,7 @@ from app.products.playspace.schemas import (
 	ProjectStatus,
 	ProjectSummaryResponse,
 	RecentActivityResponse,
+	ScorePairResponse,
 )
 
 PROJECT_NOT_FOUND_DETAIL = "Project not found."
@@ -63,14 +69,33 @@ def _derive_project_status(start_date: date | None, end_date: date | None) -> Pr
 	return "active"
 
 
-def _derive_place_status(audits: list[Audit]) -> PlaceActivityStatus:
-	"""Derive a compact place status from related audit lifecycle states."""
+def _derive_row_place_status(submissions: list[PlayspaceSubmission]) -> PlaceActivityStatus:
+	"""Single lifecycle column for a place: any in-progress work, else any submitted, else not started."""
 
-	if any(audit.status == AuditStatus.IN_PROGRESS for audit in audits):
+	if any(s.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for s in submissions):
 		return "in_progress"
-	if any(audit.status == AuditStatus.SUBMITTED for audit in audits):
+	if any(s.status == AuditStatus.SUBMITTED for s in submissions):
 		return "submitted"
 	return "not_started"
+
+
+def _derive_place_activity_status(
+	submissions: list[PlayspaceSubmission],
+) -> tuple[PlaceActivityStatus, PlaceActivityStatus]:
+	"""Summarize audit vs survey activity; `both` mode counts on both axes."""
+	place_audit_status: PlaceActivityStatus = "not_started"
+	place_survey_status: PlaceActivityStatus = "not_started"
+	audits = [s for s in submissions if execution_mode_includes_audit(s.execution_mode)]
+	surveys = [s for s in submissions if execution_mode_includes_survey(s.execution_mode)]
+	if any(submission.status == AuditStatus.SUBMITTED for submission in audits):
+		place_audit_status = "submitted"
+	elif any(submission.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for submission in audits):
+		place_audit_status = "in_progress"
+	if any(submission.status == AuditStatus.SUBMITTED for submission in surveys):
+		place_survey_status = "submitted"
+	elif any(submission.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for submission in surveys):
+		place_survey_status = "in_progress"
+	return place_audit_status, place_survey_status
 
 
 def _round_score(value: float | None) -> float | None:
@@ -81,7 +106,15 @@ def _round_score(value: float | None) -> float | None:
 	return round(value, 1)
 
 
-def _average_submitted_score(audits: list[Audit]) -> float | None:
+def _average(values: list[float]) -> float | None:
+	"""Return the mean of a non-empty list of floats, or None if empty."""
+
+	if not values:
+		return None
+	return _round_score(sum(values) / len(values))
+
+
+def _average_submitted_score(audits: list[PlayspaceSubmission]) -> float | None:
 	"""Return the mean summary score across submitted audits."""
 
 	submitted_scores = [
@@ -95,13 +128,72 @@ def _average_submitted_score(audits: list[Audit]) -> float | None:
 	return _round_score(sum(submitted_scores) / len(submitted_scores))
 
 
-def _latest_activity_timestamp(audits: list[Audit]) -> datetime | None:
+def _latest_activity_timestamp(audits: list[PlayspaceSubmission]) -> datetime | None:
 	"""Return the latest visible audit activity timestamp for an auditor or place."""
 
 	timestamps = [audit.submitted_at if audit.submitted_at is not None else audit.started_at for audit in audits]
 	if not timestamps:
 		return None
 	return max(timestamps)
+
+
+def _round_score_pair(pv: float | None, u: float | None) -> ScorePairResponse | None:
+	"""Build the compact PV/U pair when both values are present."""
+
+	if pv is None or u is None:
+		return None
+	return ScorePairResponse(pv=round(pv, 1), u=round(u, 1))
+
+
+def _mean_score_pair(
+	submissions: list[PlayspaceSubmission],
+	*,
+	partition: str,
+) -> ScorePairResponse | None:
+	"""Average the persisted partition scores across submitted Playspace submissions."""
+
+	pv_values: list[float] = []
+	u_values: list[float] = []
+	for submission in submissions:
+		if submission.status != AuditStatus.SUBMITTED:
+			continue
+		if partition == "audit":
+			pv_value = submission.audit_play_value_score
+			u_value = submission.audit_usability_score
+		else:
+			pv_value = submission.survey_play_value_score
+			u_value = submission.survey_usability_score
+		if pv_value is None or u_value is None:
+			continue
+		pv_values.append(float(pv_value))
+		u_values.append(float(u_value))
+
+	if not pv_values or not u_values:
+		return None
+	return _round_score_pair(sum(pv_values) / len(pv_values), sum(u_values) / len(u_values))
+
+
+def _overall_score_pair(
+	audit_scores: ScorePairResponse | None,
+	survey_scores: ScorePairResponse | None,
+) -> ScorePairResponse | None:
+	"""Combine the audit and survey mean score pairs into the requested overall pair."""
+
+	if audit_scores is None or survey_scores is None:
+		return None
+	return _round_score_pair(audit_scores.pv + survey_scores.pv, audit_scores.u + survey_scores.u)
+
+
+def _mean_score_pairs(score_pairs: list[ScorePairResponse | None]) -> ScorePairResponse | None:
+	"""Average a list of compact PV/U score pairs while ignoring missing values."""
+
+	valid_pairs = [score_pair for score_pair in score_pairs if score_pair is not None]
+	if not valid_pairs:
+		return None
+	return _round_score_pair(
+		sum(score_pair.pv for score_pair in valid_pairs) / len(valid_pairs),
+		sum(score_pair.u for score_pair in valid_pairs) / len(valid_pairs),
+	)
 
 
 def _total_pages(total_count: int, page_size: int) -> int:
@@ -116,6 +208,29 @@ def _collect_project_auditor_ids(project: Project) -> set[uuid.UUID]:
 	"""Collect unique auditor profile IDs assigned at project or place scope."""
 
 	return {assignment.auditor_profile_id for assignment in project.assignments}
+
+
+def _build_place_rollup(submissions: list[PlayspaceSubmission]) -> PlayspacePlaceRollup:
+	"""Compute place-level coverage statuses, counts, and score pairs."""
+
+	place_audit_status, place_survey_status = _derive_place_activity_status(submissions)
+	audit_mean_scores = _mean_score_pair(submissions, partition="audit")
+	survey_mean_scores = _mean_score_pair(submissions, partition="survey")
+	overall_scores = _overall_score_pair(audit_mean_scores, survey_mean_scores)
+
+	return {
+		"place_audit_status": place_audit_status,
+		"place_survey_status": place_survey_status,
+		"place_audit_count": sum(
+			1 for submission in submissions if execution_mode_includes_audit(submission.execution_mode)
+		),
+		"place_survey_count": sum(
+			1 for submission in submissions if execution_mode_includes_survey(submission.execution_mode)
+		),
+		"audit_mean_scores": audit_mean_scores,
+		"survey_mean_scores": survey_mean_scores,
+		"overall_scores": overall_scores,
+	}
 
 
 class PlayspaceDashboardService:
@@ -154,7 +269,7 @@ class PlayspaceDashboardService:
 			.where(Project.id == project_id)
 			.options(
 				selectinload(Project.assignments),
-				selectinload(Project.places).selectinload(Place.audits),
+				selectinload(Project.places).selectinload(Place.playspace_submissions),
 				selectinload(Project.places).selectinload(Place.assignments),
 			)
 		)
@@ -169,8 +284,8 @@ class PlayspaceDashboardService:
 			.where(Place.id == place_id)
 			.options(
 				selectinload(Place.projects),
-				selectinload(Place.audits).selectinload(Audit.auditor_profile),
-				selectinload(Place.audits).selectinload(Audit.project),
+				selectinload(Place.playspace_submissions).selectinload(PlayspaceSubmission.auditor_profile),
+				selectinload(Place.playspace_submissions).selectinload(PlayspaceSubmission.project),
 			)
 		)
 		result = await self._session.execute(stmt)
@@ -252,15 +367,22 @@ class PlayspaceDashboardService:
 				AuditorProfile.country.label("country"),
 				AuditorProfile.role.label("role"),
 				func.count(AuditorAssignment.id).label("assignments_count"),
-				func.max(func.coalesce(Audit.submitted_at, Audit.started_at)).label("last_active_at"),
-				func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("completed_audits"),
+				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
+					"last_active_at"
+				),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("completed_audits"),
 			)
 			.select_from(AuditorProfile)
 			.outerjoin(
 				AuditorAssignment,
 				AuditorAssignment.auditor_profile_id.in_(auditor_profile_ids),
 			)
-			.outerjoin(Audit, AuditorAssignment.id == Audit.id)
+			.outerjoin(
+				PlayspaceSubmission,
+				PlayspaceSubmission.auditor_profile_id == AuditorProfile.id,
+			)
 			.group_by(AuditorProfile.id)
 			.subquery()
 		)
@@ -327,14 +449,18 @@ class PlayspaceDashboardService:
 
 		audit_stats_subquery = (
 			select(
-				Audit.auditor_profile_id.label("auditor_profile_id"),
-				func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("completed_audits"),
-				func.max(func.coalesce(Audit.submitted_at, Audit.started_at)).label("last_active_at"),
+				PlayspaceSubmission.auditor_profile_id.label("auditor_profile_id"),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("completed_audits"),
+				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
+					"last_active_at"
+				),
 			)
-			.select_from(Audit)
-			.join(Project, Audit.project_id == Project.id)
+			.select_from(PlayspaceSubmission)
+			.join(Project, PlayspaceSubmission.project_id == Project.id)
 			.where(Project.account_id == account_id)
-			.group_by(Audit.auditor_profile_id)
+			.group_by(PlayspaceSubmission.auditor_profile_id)
 			.subquery()
 		)
 
@@ -408,34 +534,38 @@ class PlayspaceDashboardService:
 			.where(Project.account_id == account_id)
 		)
 		total_audits_completed_result = await self._session.execute(
-			select(func.count(Audit.id))
-			.select_from(Audit)
-			.join(Project, Audit.project_id == Project.id)
+			select(func.count(PlayspaceSubmission.id))
+			.select_from(PlayspaceSubmission)
+			.join(Project, PlayspaceSubmission.project_id == Project.id)
 			.where(
 				Project.account_id == account_id,
-				Audit.status == AuditStatus.SUBMITTED,
+				PlayspaceSubmission.status == AuditStatus.SUBMITTED,
 			)
 		)
 		recent_activity_result = await self._session.execute(
 			select(
-				Audit.id.label("audit_id"),
-				Audit.audit_code.label("audit_code"),
+				PlayspaceSubmission.id.label("audit_id"),
+				PlayspaceSubmission.audit_code.label("audit_code"),
 				Project.id.label("project_id"),
 				Project.name.label("project_name"),
 				Place.id.label("place_id"),
 				Place.name.label("place_name"),
-				Audit.submitted_at.label("completed_at"),
-				Audit.summary_score.label("score"),
+				PlayspaceSubmission.submitted_at.label("completed_at"),
+				PlayspaceSubmission.summary_score.label("score"),
+				PlayspaceSubmission.audit_play_value_score.label("audit_play_value_score"),
+				PlayspaceSubmission.audit_usability_score.label("audit_usability_score"),
+				PlayspaceSubmission.survey_play_value_score.label("survey_play_value_score"),
+				PlayspaceSubmission.survey_usability_score.label("survey_usability_score"),
 			)
-			.select_from(Audit)
-			.join(Place, Audit.place_id == Place.id)
-			.join(Project, Audit.project_id == Project.id)
+			.select_from(PlayspaceSubmission)
+			.join(Place, PlayspaceSubmission.place_id == Place.id)
+			.join(Project, PlayspaceSubmission.project_id == Project.id)
 			.where(
 				Project.account_id == account_id,
-				Audit.status == AuditStatus.SUBMITTED,
-				Audit.submitted_at.is_not(None),
+				PlayspaceSubmission.status == AuditStatus.SUBMITTED,
+				PlayspaceSubmission.submitted_at.is_not(None),
 			)
-			.order_by(Audit.submitted_at.desc())
+			.order_by(PlayspaceSubmission.submitted_at.desc())
 			.limit(5)
 		)
 		recent_activity = [
@@ -448,6 +578,16 @@ class PlayspaceDashboardService:
 				place_name=row.place_name,
 				completed_at=row.completed_at,
 				score=_round_score(row.score),
+				score_pair=_overall_score_pair(
+					_round_score_pair(
+						float(row.audit_play_value_score) if row.audit_play_value_score is not None else None,
+						float(row.audit_usability_score) if row.audit_usability_score is not None else None,
+					),
+					_round_score_pair(
+						float(row.survey_play_value_score) if row.survey_play_value_score is not None else None,
+						float(row.survey_usability_score) if row.survey_usability_score is not None else None,
+					),
+				),
 			)
 			for row in recent_activity_result.all()
 		]
@@ -538,19 +678,25 @@ class PlayspaceDashboardService:
 		)
 		audit_stats_subquery = (
 			select(
-				Audit.project_id.label("project_id"),
-				func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("audits_completed"),
-				func.avg(Audit.summary_score)
+				PlayspaceSubmission.project_id.label("project_id"),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("audits_completed"),
+				func.avg(PlayspaceSubmission.summary_score)
 				.filter(
 					and_(
-						Audit.status == AuditStatus.SUBMITTED,
-						Audit.summary_score.is_not(None),
+						PlayspaceSubmission.status == AuditStatus.SUBMITTED,
+						PlayspaceSubmission.summary_score.is_not(None),
 					)
 				)
 				.label("average_score"),
+				func.avg(PlayspaceSubmission.audit_play_value_score).label("audit_mean_pv"),
+				func.avg(PlayspaceSubmission.audit_usability_score).label("audit_mean_u"),
+				func.avg(PlayspaceSubmission.survey_play_value_score).label("survey_mean_pv"),
+				func.avg(PlayspaceSubmission.survey_usability_score).label("survey_mean_u"),
 			)
-			.select_from(Audit)
-			.group_by(Audit.project_id)
+			.select_from(PlayspaceSubmission)
+			.group_by(PlayspaceSubmission.project_id)
 			.subquery()
 		)
 
@@ -567,6 +713,10 @@ class PlayspaceDashboardService:
 				auditors_count_subquery.c.auditors_count.label("auditors_count"),
 				audit_stats_subquery.c.audits_completed.label("audits_completed"),
 				audit_stats_subquery.c.average_score.label("average_score"),
+				audit_stats_subquery.c.audit_mean_pv.label("audit_mean_pv"),
+				audit_stats_subquery.c.audit_mean_u.label("audit_mean_u"),
+				audit_stats_subquery.c.survey_mean_pv.label("survey_mean_pv"),
+				audit_stats_subquery.c.survey_mean_u.label("survey_mean_u"),
 			)
 			.select_from(Project)
 			.outerjoin(
@@ -599,6 +749,16 @@ class PlayspaceDashboardService:
 				auditors_count=int(row.auditors_count or 0),
 				audits_completed=int(row.audits_completed or 0),
 				average_score=_round_score(float(row.average_score) if row.average_score is not None else None),
+				average_scores=_overall_score_pair(
+					_round_score_pair(
+						float(row.audit_mean_pv) if row.audit_mean_pv is not None else None,
+						float(row.audit_mean_u) if row.audit_mean_u is not None else None,
+					),
+					_round_score_pair(
+						float(row.survey_mean_pv) if row.survey_mean_pv is not None else None,
+						float(row.survey_mean_u) if row.survey_mean_u is not None else None,
+					),
+				),
 			)
 			for row in result.all()
 		]
@@ -623,196 +783,149 @@ class PlayspaceDashboardService:
 		search: str | None = None,
 		sort: str | None = None,
 		project_ids: list[uuid.UUID] | None = None,
-		statuses: list[str] | None = None,
+		auditor_ids: list[uuid.UUID] | None = None,
+		audit_statuses: list[str] | None = None,
+		survey_statuses: list[str] | None = None,
 	) -> ManagerPlacesListResponse:
-		"""Return paginated manager place rows with SQL-backed filtering."""
+		"""Return paginated manager place rows with Playspace-specific rollups."""
 
 		await self._require_account_for_actor(actor=actor, account_id=account_id)
 
+		_valid_axis_statuses = {"not_started", "in_progress", "submitted", "complete"}
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
-		normalized_statuses = {
-			raw_status for raw_status in (statuses or []) if raw_status in {"not_started", "in_progress", "submitted"}
-		}
+		normalized_auditor_ids = set(auditor_ids) if auditor_ids else set()
+		normalized_audit_statuses = {s for s in (audit_statuses or []) if s in _valid_axis_statuses}
+		normalized_survey_statuses = {s for s in (survey_statuses or []) if s in _valid_axis_statuses}
 		safe_page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 		offset = max(page - 1, 0) * safe_page_size
 
-		place_audit_summary_subquery = (
-			select(
-				Audit.project_id.label("project_id"),
-				Audit.place_id.label("place_id"),
-				func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("audits_completed"),
-				func.avg(Audit.summary_score)
-				.filter(
-					and_(
-						Audit.status == AuditStatus.SUBMITTED,
-						Audit.summary_score.is_not(None),
-					)
-				)
-				.label("average_score"),
-				func.max(Audit.submitted_at)
-				.filter(
-					and_(
-						Audit.status == AuditStatus.SUBMITTED,
-						Audit.submitted_at.is_not(None),
-					)
-				)
-				.label("last_audited_at"),
-				func.max(case((Audit.status == AuditStatus.IN_PROGRESS, 1), else_=0)).label("has_in_progress"),
-				func.max(case((Audit.status == AuditStatus.SUBMITTED, 1), else_=0)).label("has_submitted"),
-			)
-			.group_by(Audit.project_id, Audit.place_id)
-			.subquery()
-		)
-
-		has_in_progress = func.coalesce(place_audit_summary_subquery.c.has_in_progress, 0)
-		has_submitted = func.coalesce(place_audit_summary_subquery.c.has_submitted, 0)
-		status_expression = case(
-			(has_in_progress == 1, "in_progress"),
-			(has_submitted == 1, "submitted"),
-			else_="not_started",
-		).label("status")
-
-		filtered_rows_query = (
-			select(
-				ProjectPlace.place_id.label("id"),
-				Project.id.label("project_id"),
-				Project.name.label("project_name"),
-				Place.name.label("name"),
-				Place.city.label("city"),
-				Place.province.label("province"),
-				Place.country.label("country"),
-				Place.postal_code.label("postal_code"),
-				Place.address.label("address"),
-				Place.place_type.label("place_type"),
-				status_expression,
-				place_audit_summary_subquery.c.audits_completed.label("audits_completed"),
-				place_audit_summary_subquery.c.average_score.label("average_score"),
-				place_audit_summary_subquery.c.last_audited_at.label("last_audited_at"),
-			)
-			.select_from(ProjectPlace)
-			.join(Project, ProjectPlace.project_id == Project.id)
-			.join(Place, ProjectPlace.place_id == Place.id)
-			.outerjoin(
-				place_audit_summary_subquery,
-				and_(
-					place_audit_summary_subquery.c.project_id == Project.id,
-					place_audit_summary_subquery.c.place_id == Place.id,
-				),
-			)
+		projects_result = await self._session.execute(
+			select(Project)
 			.where(Project.account_id == account_id)
+			.options(selectinload(Project.places).selectinload(Place.playspace_submissions))
 		)
+		projects = projects_result.scalars().all()
 
-		if normalized_search is not None:
-			search_term = f"%{normalized_search}%"
-			filtered_rows_query = filtered_rows_query.where(
-				or_(
-					Place.name.ilike(search_term),
-					Project.name.ilike(search_term),
-					Place.address.ilike(search_term),
-					Place.postal_code.ilike(search_term),
-					Place.city.ilike(search_term),
-					Place.province.ilike(search_term),
-					Place.country.ilike(search_term),
-					Place.place_type.ilike(search_term),
+		all_rows: list[ManagerPlaceRowResponse] = []
+		for project in projects:
+			if normalized_project_ids and project.id not in normalized_project_ids:
+				continue
+			for place in project.places:
+				project_submissions = [
+					submission for submission in place.playspace_submissions if submission.project_id == project.id
+				]
+				if normalized_auditor_ids:
+					has_matching_auditor = any(
+						s.auditor_profile_id in normalized_auditor_ids for s in project_submissions
+					)
+					if not has_matching_auditor:
+						continue
+				submitted_submissions = [
+					submission for submission in project_submissions if submission.status == AuditStatus.SUBMITTED
+				]
+				rollup = _build_place_rollup(project_submissions)
+				all_rows.append(
+					ManagerPlaceRowResponse(
+						id=place.id,
+						project_id=project.id,
+						project_name=project.name,
+						name=place.name,
+						city=place.city,
+						province=place.province,
+						country=place.country,
+						postal_code=place.postal_code,
+						address=place.address,
+						place_type=place.place_type,
+						status=_derive_row_place_status(project_submissions),
+						place_audit_status=rollup["place_audit_status"],
+						place_survey_status=rollup["place_survey_status"],
+						audits_completed=len(submitted_submissions),
+						average_score=_average_submitted_score(submitted_submissions),
+						last_audited_at=_latest_activity_timestamp(submitted_submissions),
+						place_audit_count=rollup["place_audit_count"],
+						place_survey_count=rollup["place_survey_count"],
+						audit_mean_scores=rollup["audit_mean_scores"],
+						survey_mean_scores=rollup["survey_mean_scores"],
+						overall_scores=rollup["overall_scores"],
+					)
 				)
-			)
 
-		if normalized_project_ids:
-			filtered_rows_query = filtered_rows_query.where(Project.id.in_(normalized_project_ids))
+		summary_rows = list(all_rows)
+		filtered_rows = list(all_rows)
+		if normalized_search is not None:
+			search_term = normalized_search.lower()
+			filtered_rows = [
+				row
+				for row in filtered_rows
+				if search_term
+				in " ".join(
+					part
+					for part in [
+						row.name,
+						row.project_name,
+						row.address or "",
+						row.postal_code or "",
+						row.city or "",
+						row.province or "",
+						row.country or "",
+						row.place_type or "",
+					]
+				).lower()
+			]
 
-		if normalized_statuses:
-			status_conditions = []
-			if "in_progress" in normalized_statuses:
-				status_conditions.append(has_in_progress == 1)
-			if "submitted" in normalized_statuses:
-				status_conditions.append(and_(has_in_progress == 0, has_submitted == 1))
-			if "not_started" in normalized_statuses:
-				status_conditions.append(and_(has_in_progress == 0, has_submitted == 0))
-			filtered_rows_query = filtered_rows_query.where(or_(*status_conditions))
-
-		filtered_rows_subquery = filtered_rows_query.subquery()
-		total_count_result = await self._session.execute(select(func.count()).select_from(filtered_rows_subquery))
-		total_count = int(total_count_result.scalar_one() or 0)
+		if normalized_audit_statuses:
+			filtered_rows = [row for row in filtered_rows if row.place_audit_status in normalized_audit_statuses]
+		if normalized_survey_statuses:
+			filtered_rows = [row for row in filtered_rows if row.place_survey_status in normalized_survey_statuses]
 
 		raw_sort = sort.strip() if sort is not None and sort.strip() else "-last_audited_at"
 		is_descending = raw_sort.startswith("-")
 		sort_key = raw_sort[1:] if is_descending else raw_sort
-		sort_map = {
-			"name": filtered_rows_subquery.c.name,
-			"project_name": filtered_rows_subquery.c.project_name,
-			"status": filtered_rows_subquery.c.status,
-			"audits_completed": filtered_rows_subquery.c.audits_completed,
-			"average_score": filtered_rows_subquery.c.average_score,
-			"last_audited_at": filtered_rows_subquery.c.last_audited_at,
-		}
-		sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.last_audited_at)
-		primary_order = sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
 
-		rows_result = await self._session.execute(
-			select(filtered_rows_subquery)
-			.order_by(
-				primary_order,
-				filtered_rows_subquery.c.name.asc(),
-				filtered_rows_subquery.c.id.asc(),
-			)
-			.offset(offset)
-			.limit(safe_page_size)
-		)
-		rows = rows_result.all()
+		def sort_value(row: ManagerPlaceRowResponse) -> str | float | datetime | None:
+			if sort_key == "project_name":
+				return row.project_name.lower()
+			if sort_key == "status":
+				return row.status
+			if sort_key == "audits_completed":
+				return row.audits_completed
+			if sort_key == "average_score":
+				return row.average_score
+			if sort_key == "name":
+				return row.name.lower()
+			return row.last_audited_at
 
-		summary_result = await self._session.execute(
-			select(
-				func.count(ProjectPlace.place_id).label("total_places"),
-				func.sum(case((and_(has_in_progress == 0, has_submitted == 1), 1), else_=0)).label("submitted_places"),
-				func.sum(case((has_in_progress == 1, 1), else_=0)).label("in_progress_places"),
-				func.avg(place_audit_summary_subquery.c.average_score).label("average_score"),
-			)
-			.select_from(ProjectPlace)
-			.join(Project, ProjectPlace.project_id == Project.id)
-			.join(Place, ProjectPlace.place_id == Place.id)
-			.outerjoin(
-				place_audit_summary_subquery,
-				and_(
-					place_audit_summary_subquery.c.project_id == Project.id,
-					place_audit_summary_subquery.c.place_id == Place.id,
-				),
-			)
-			.where(Project.account_id == account_id)
+		non_null_rows = [row for row in filtered_rows if sort_value(row) is not None]
+		null_rows = [row for row in filtered_rows if sort_value(row) is None]
+		non_null_rows = sorted(
+			non_null_rows,
+			key=lambda row: (sort_value(row), row.name.lower(), str(row.id)),
+			reverse=is_descending,
 		)
-		summary_row = summary_result.one()
+		filtered_rows = [*non_null_rows, *null_rows]
+
+		total_count = len(filtered_rows)
+		paged_rows = filtered_rows[offset : offset + safe_page_size]
 
 		return ManagerPlacesListResponse(
-			items=[
-				ManagerPlaceRowResponse(
-					id=row.id,
-					project_id=row.project_id,
-					project_name=row.project_name,
-					name=row.name,
-					city=row.city,
-					province=row.province,
-					country=row.country,
-					postal_code=row.postal_code,
-					address=row.address,
-					place_type=row.place_type,
-					status=row.status,
-					audits_completed=int(row.audits_completed or 0),
-					average_score=_round_score(float(row.average_score) if row.average_score is not None else None),
-					last_audited_at=row.last_audited_at,
-				)
-				for row in rows
-			],
+			items=paged_rows,
 			total_count=total_count,
 			page=page,
 			page_size=safe_page_size,
 			total_pages=_total_pages(total_count, safe_page_size),
 			summary=ManagerPlacesSummaryResponse(
-				total_places=int(summary_row.total_places or 0),
-				submitted_places=int(summary_row.submitted_places or 0),
-				in_progress_places=int(summary_row.in_progress_places or 0),
-				average_score=_round_score(
-					float(summary_row.average_score) if summary_row.average_score is not None else None
+				total_places=len(summary_rows),
+				submitted_places=sum(1 for row in summary_rows if row.status == "submitted"),
+				in_progress_places=sum(1 for row in summary_rows if row.status == "in_progress"),
+				average_score=_average(
+					[float(row.average_score) for row in summary_rows if row.average_score is not None]
 				),
+				completed_place_audits=sum(1 for row in summary_rows if row.place_audit_status == "submitted"),
+				completed_place_surveys=sum(1 for row in summary_rows if row.place_survey_status == "submitted"),
+				audit_mean_scores=_mean_score_pairs([row.audit_mean_scores for row in summary_rows]),
+				survey_mean_scores=_mean_score_pairs([row.survey_mean_scores for row in summary_rows]),
+				overall_scores=_mean_score_pairs([row.overall_scores for row in summary_rows]),
 			),
 		)
 
@@ -826,6 +939,7 @@ class PlayspaceDashboardService:
 		search: str | None = None,
 		sort: str | None = None,
 		project_ids: list[uuid.UUID] | None = None,
+		auditor_ids: list[uuid.UUID] | None = None,
 		statuses: list[str] | None = None,
 	) -> ManagerAuditsListResponse:
 		"""Return paginated manager audit rows with SQL-backed filtering."""
@@ -834,6 +948,7 @@ class PlayspaceDashboardService:
 
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
+		normalized_auditor_ids = auditor_ids or []
 		normalized_statuses = {
 			raw_status for raw_status in (statuses or []) if raw_status in {"IN_PROGRESS", "PAUSED", "SUBMITTED"}
 		}
@@ -842,22 +957,27 @@ class PlayspaceDashboardService:
 
 		filtered_rows_query = (
 			select(
-				Audit.id.label("audit_id"),
-				Audit.audit_code.label("audit_code"),
-				Audit.status.label("status"),
+				PlayspaceSubmission.id.label("audit_id"),
+				PlayspaceSubmission.audit_code.label("audit_code"),
+				PlayspaceSubmission.status.label("status"),
+				PlayspaceSubmission.execution_mode.label("execution_mode"),
 				AuditorProfile.auditor_code.label("auditor_code"),
 				Project.id.label("project_id"),
 				Project.name.label("project_name"),
 				Place.id.label("place_id"),
 				Place.name.label("place_name"),
-				Audit.started_at.label("started_at"),
-				Audit.submitted_at.label("submitted_at"),
-				Audit.summary_score.label("summary_score"),
+				PlayspaceSubmission.started_at.label("started_at"),
+				PlayspaceSubmission.submitted_at.label("submitted_at"),
+				PlayspaceSubmission.summary_score.label("summary_score"),
+				PlayspaceSubmission.audit_play_value_score.label("audit_play_value_score"),
+				PlayspaceSubmission.audit_usability_score.label("audit_usability_score"),
+				PlayspaceSubmission.survey_play_value_score.label("survey_play_value_score"),
+				PlayspaceSubmission.survey_usability_score.label("survey_usability_score"),
 			)
-			.select_from(Audit)
-			.join(Place, Audit.place_id == Place.id)
-			.join(Project, Audit.project_id == Project.id)
-			.join(AuditorProfile, Audit.auditor_profile_id == AuditorProfile.id)
+			.select_from(PlayspaceSubmission)
+			.join(Place, PlayspaceSubmission.place_id == Place.id)
+			.join(Project, PlayspaceSubmission.project_id == Project.id)
+			.join(AuditorProfile, PlayspaceSubmission.auditor_profile_id == AuditorProfile.id)
 			.where(Project.account_id == account_id)
 		)
 
@@ -865,7 +985,7 @@ class PlayspaceDashboardService:
 			search_term = f"%{normalized_search}%"
 			filtered_rows_query = filtered_rows_query.where(
 				or_(
-					Audit.audit_code.ilike(search_term),
+					PlayspaceSubmission.audit_code.ilike(search_term),
 					AuditorProfile.auditor_code.ilike(search_term),
 					Place.name.ilike(search_term),
 					Project.name.ilike(search_term),
@@ -875,8 +995,11 @@ class PlayspaceDashboardService:
 		if normalized_project_ids:
 			filtered_rows_query = filtered_rows_query.where(Project.id.in_(normalized_project_ids))
 
+		if normalized_auditor_ids:
+			filtered_rows_query = filtered_rows_query.where(AuditorProfile.id.in_(normalized_auditor_ids))
+
 		if normalized_statuses:
-			filtered_rows_query = filtered_rows_query.where(Audit.status.in_(normalized_statuses))
+			filtered_rows_query = filtered_rows_query.where(PlayspaceSubmission.status.in_(normalized_statuses))
 
 		filtered_rows_subquery = filtered_rows_query.subquery()
 		total_count_result = await self._session.execute(select(func.count()).select_from(filtered_rows_subquery))
@@ -912,15 +1035,23 @@ class PlayspaceDashboardService:
 
 		summary_result = await self._session.execute(
 			select(
-				func.count(Audit.id).label("total_audits"),
-				func.count(Audit.id).filter(Audit.status == AuditStatus.SUBMITTED).label("submitted_audits"),
-				func.count(Audit.id)
-				.filter(Audit.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED]))
+				func.count(PlayspaceSubmission.id).label("total_audits"),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("submitted_audits"),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED]))
 				.label("in_progress_audits"),
-				func.avg(Audit.summary_score).filter(Audit.summary_score.is_not(None)).label("average_score"),
+				func.avg(PlayspaceSubmission.summary_score)
+				.filter(PlayspaceSubmission.summary_score.is_not(None))
+				.label("average_score"),
+				func.avg(PlayspaceSubmission.audit_play_value_score).label("audit_mean_pv"),
+				func.avg(PlayspaceSubmission.audit_usability_score).label("audit_mean_u"),
+				func.avg(PlayspaceSubmission.survey_play_value_score).label("survey_mean_pv"),
+				func.avg(PlayspaceSubmission.survey_usability_score).label("survey_mean_u"),
 			)
-			.select_from(Audit)
-			.join(Project, Audit.project_id == Project.id)
+			.select_from(PlayspaceSubmission)
+			.join(Project, PlayspaceSubmission.project_id == Project.id)
 			.where(Project.account_id == account_id)
 		)
 		summary_row = summary_result.one()
@@ -939,6 +1070,17 @@ class PlayspaceDashboardService:
 					started_at=row.started_at,
 					submitted_at=row.submitted_at,
 					summary_score=_round_score(float(row.summary_score) if row.summary_score is not None else None),
+					execution_mode=row.execution_mode,
+					score_pair=_overall_score_pair(
+						_round_score_pair(
+							float(row.audit_play_value_score) if row.audit_play_value_score is not None else None,
+							float(row.audit_usability_score) if row.audit_usability_score is not None else None,
+						),
+						_round_score_pair(
+							float(row.survey_play_value_score) if row.survey_play_value_score is not None else None,
+							float(row.survey_usability_score) if row.survey_usability_score is not None else None,
+						),
+					),
 				)
 				for row in rows
 			],
@@ -952,6 +1094,16 @@ class PlayspaceDashboardService:
 				in_progress_audits=int(summary_row.in_progress_audits or 0),
 				average_score=_round_score(
 					float(summary_row.average_score) if summary_row.average_score is not None else None
+				),
+				average_scores=_overall_score_pair(
+					_round_score_pair(
+						float(summary_row.audit_mean_pv) if summary_row.audit_mean_pv is not None else None,
+						float(summary_row.audit_mean_u) if summary_row.audit_mean_u is not None else None,
+					),
+					_round_score_pair(
+						float(summary_row.survey_mean_pv) if summary_row.survey_mean_pv is not None else None,
+						float(summary_row.survey_mean_u) if summary_row.survey_mean_u is not None else None,
+					),
 				),
 			),
 		)
@@ -997,19 +1149,36 @@ class PlayspaceDashboardService:
 		submitted_audits = [
 			audit
 			for place in project.places
-			for audit in place.audits
+			for audit in place.playspace_submissions
 			if audit.project_id == project.id and audit.status == AuditStatus.SUBMITTED
 		]
 		in_progress_audits = sum(
 			1
 			for place in project.places
-			for audit in place.audits
+			for audit in place.playspace_submissions
 			if audit.project_id == project.id and audit.status == AuditStatus.IN_PROGRESS
 		)
 		auditors_count = _collect_project_auditor_ids(project)
 
 		places_with_audits = sum(
-			1 for place in project.places if any(audit.project_id == project.id for audit in place.audits)
+			1
+			for place in project.places
+			if any(audit.project_id == project.id for audit in place.playspace_submissions)
+		)
+		overall_scores = _mean_score_pairs(
+			[
+				_overall_score_pair(
+					_mean_score_pair(
+						[audit for audit in place.playspace_submissions if audit.project_id == project.id],
+						partition="audit",
+					),
+					_mean_score_pair(
+						[audit for audit in place.playspace_submissions if audit.project_id == project.id],
+						partition="survey",
+					),
+				)
+				for place in project.places
+			]
 		)
 		return ProjectStatsResponse(
 			project_id=project.id,
@@ -1019,6 +1188,7 @@ class PlayspaceDashboardService:
 			auditors_count=len(auditors_count),
 			in_progress_audits=in_progress_audits,
 			average_score=_average_submitted_score(submitted_audits),
+			average_scores=overall_scores,
 		)
 
 	async def list_project_places(
@@ -1037,10 +1207,11 @@ class PlayspaceDashboardService:
 		for place in sorted(project.places, key=lambda current_place: current_place.name.lower()):
 			submitted_audits = [
 				audit
-				for audit in place.audits
+				for audit in place.playspace_submissions
 				if audit.project_id == project.id and audit.status == AuditStatus.SUBMITTED
 			]
-			project_audits = [audit for audit in place.audits if audit.project_id == project.id]
+			project_audits = [audit for audit in place.playspace_submissions if audit.project_id == project.id]
+			rollup = _build_place_rollup(project_audits)
 			place_summaries.append(
 				PlaceSummaryResponse(
 					id=place.id,
@@ -1052,10 +1223,16 @@ class PlayspaceDashboardService:
 					postal_code=place.postal_code,
 					address=place.address,
 					place_type=place.place_type,
-					status=_derive_place_status(project_audits),
+					place_audit_status=rollup["place_audit_status"],
+					place_survey_status=rollup["place_survey_status"],
 					audits_completed=len(submitted_audits),
 					average_score=_average_submitted_score(submitted_audits),
 					last_audited_at=_latest_activity_timestamp(submitted_audits),
+					place_audit_count=rollup["place_audit_count"],
+					place_survey_count=rollup["place_survey_count"],
+					audit_mean_scores=rollup["audit_mean_scores"],
+					survey_mean_scores=rollup["survey_mean_scores"],
+					overall_scores=rollup["overall_scores"],
 				),
 			)
 
@@ -1076,7 +1253,7 @@ class PlayspaceDashboardService:
 			place_id=place_id,
 		)
 		sorted_audits = sorted(
-			[audit for audit in place.audits if audit.project_id == project.id],
+			[audit for audit in place.playspace_submissions if audit.project_id == project.id],
 			key=lambda audit: audit.submitted_at if audit.submitted_at is not None else audit.started_at,
 			reverse=True,
 		)
@@ -1093,6 +1270,11 @@ class PlayspaceDashboardService:
 					started_at=audit.started_at,
 					submitted_at=audit.submitted_at,
 					summary_score=_round_score(audit.summary_score),
+					execution_mode=audit.execution_mode,
+					score_pair=_overall_score_pair(
+						_round_score_pair(audit.audit_play_value_score, audit.audit_usability_score),
+						_round_score_pair(audit.survey_play_value_score, audit.survey_usability_score),
+					),
 				)
 			)
 		return history_rows
@@ -1111,11 +1293,12 @@ class PlayspaceDashboardService:
 			project_id=project_id,
 			place_id=place_id,
 		)
-		audits = [audit for audit in place.audits if audit.project_id == project.id]
+		audits = [audit for audit in place.playspace_submissions if audit.project_id == project.id]
 		submitted_audits = [audit for audit in audits if audit.status == AuditStatus.SUBMITTED]
 		in_progress_audits = [
 			audit for audit in audits if audit.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
 		]
+		rollup = _build_place_rollup(audits)
 		history_rows = await self.list_place_audits(
 			actor=actor,
 			project_id=project.id,
@@ -1141,4 +1324,11 @@ class PlayspaceDashboardService:
 			average_submitted_score=_average_submitted_score(submitted_audits),
 			latest_submitted_at=latest_submitted_at,
 			audits=history_rows,
+			place_audit_status=rollup["place_audit_status"],
+			place_survey_status=rollup["place_survey_status"],
+			place_audit_count=rollup["place_audit_count"],
+			place_survey_count=rollup["place_survey_count"],
+			audit_mean_scores=rollup["audit_mean_scores"],
+			survey_mean_scores=rollup["survey_mean_scores"],
+			overall_scores=rollup["overall_scores"],
 		)

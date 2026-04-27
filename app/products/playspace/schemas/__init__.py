@@ -35,6 +35,7 @@ from app.products.playspace.schemas.audit import (
 	PlaceAuditAccessRequest,
 	PreAuditPatchRequest,
 	PreAuditResponse,
+	ScorePairResponse,
 	SectionDraftPatchRequest,
 )
 from app.products.playspace.schemas.base import (
@@ -56,6 +57,7 @@ from app.products.playspace.schemas.dashboard import (
 	ManagerPlacesListResponse,
 	ManagerPlacesSummaryResponse,
 	ManagerProfileResponse,
+	PlayspacePlaceRollup,
 	PlaceAuditHistoryItemResponse,
 	PlaceHistoryResponse,
 	PlaceSummaryResponse,
@@ -164,6 +166,7 @@ __all__ = [
 	"PlaceHistoryResponse",
 	"PlaceSummaryResponse",
 	"PlaceUpdateRequest",
+	"PlayspacePlaceRollup",
 	"PlayspaceInstrumentResponse",
 	"PreAuditInputType",
 	"PreAuditResponse",
@@ -177,5 +180,6 @@ __all__ = [
 	"RecentActivityResponse",
 	"RequestModel",
 	"ScaleKey",
+	"ScorePairResponse",
 	"SectionDraftPatchRequest",
 ]

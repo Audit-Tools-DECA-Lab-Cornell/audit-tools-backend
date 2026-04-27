@@ -4,6 +4,8 @@ Administrator dashboard endpoints for global Playspace oversight.
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Query
 
 from app.core.actors import CurrentUserContext
@@ -16,9 +18,12 @@ from app.products.playspace.schemas.admin import (
 	AdminAccountRowResponse,
 	AdminAuditorRowResponse,
 	AdminAuditRowResponse,
+	AdminAuditsExportResponse,
 	AdminOverviewResponse,
 	AdminPlaceRowResponse,
+	AdminPlacesExportResponse,
 	AdminProjectRowResponse,
+	AdminProjectsExportResponse,
 	AdminSystemResponse,
 )
 from app.products.playspace.services.admin import PlayspaceAdminService
@@ -64,6 +69,7 @@ async def list_admin_projects(
 	page_size: int = Query(default=10, ge=1, le=100),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
 ) -> PaginatedResponse[AdminProjectRowResponse]:
@@ -75,6 +81,7 @@ async def list_admin_projects(
 		page_size=page_size,
 		search=search,
 		sort=sort,
+		account_ids=account_ids,
 	)
 
 
@@ -84,6 +91,10 @@ async def list_admin_places(
 	page_size: int = Query(default=10, ge=1, le=100),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	audit_statuses: list[str] | None = Query(default=None, alias="audit_status"),
+	survey_statuses: list[str] | None = Query(default=None, alias="survey_status"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
 ) -> PaginatedResponse[AdminPlaceRowResponse]:
@@ -95,6 +106,10 @@ async def list_admin_places(
 		page_size=page_size,
 		search=search,
 		sort=sort,
+		project_ids=project_ids,
+		account_ids=account_ids,
+		audit_statuses=audit_statuses,
+		survey_statuses=survey_statuses,
 	)
 
 
@@ -104,6 +119,7 @@ async def list_admin_auditors(
 	page_size: int = Query(default=10, ge=1, le=100),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
 ) -> PaginatedResponse[AdminAuditorRowResponse]:
@@ -115,6 +131,7 @@ async def list_admin_auditors(
 		page_size=page_size,
 		search=search,
 		sort=sort,
+		account_ids=account_ids,
 	)
 
 
@@ -124,6 +141,9 @@ async def list_admin_audits(
 	page_size: int = Query(default=10, ge=1, le=100),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	auditor_ids: list[uuid.UUID] | None = Query(default=None, alias="auditor_id"),
 	statuses: list[str] | None = Query(default=None, alias="status"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
@@ -136,6 +156,9 @@ async def list_admin_audits(
 		page_size=page_size,
 		search=search,
 		sort=sort,
+		project_ids=project_ids,
+		account_ids=account_ids,
+		auditor_ids=auditor_ids,
 		statuses=statuses,
 	)
 
@@ -148,3 +171,82 @@ async def get_admin_system(
 	"""Return system metadata for admin dashboards."""
 
 	return await service.get_system(actor=current_user)
+
+
+# ── Bulk Export Endpoints ─────────────────────────────────────────────────────
+
+
+@router.get("/export/projects")
+async def export_admin_projects(
+	search: str | None = Query(default=None),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
+) -> AdminProjectsExportResponse:
+	"""Export all matching projects (up to 10 000 rows) with richer fields."""
+
+	return await service.export_projects(
+		actor=current_user,
+		search=search,
+		account_ids=account_ids,
+	)
+
+
+@router.get("/export/places")
+async def export_admin_places(
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	audit_statuses: list[str] | None = Query(default=None, alias="audit_status"),
+	survey_statuses: list[str] | None = Query(default=None, alias="survey_status"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
+) -> AdminPlacesExportResponse:
+	"""Export all matching places (up to 10 000 rows) with full location and score data."""
+
+	return await service.export_places(
+		actor=current_user,
+		search=search,
+		account_ids=account_ids,
+		project_ids=project_ids,
+		audit_statuses=audit_statuses,
+		survey_statuses=survey_statuses,
+	)
+
+
+@router.get("/export/audits")
+async def export_admin_audits(
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	statuses: list[str] | None = Query(default=None, alias="status"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
+) -> AdminAuditsExportResponse:
+	"""Export all matching audits (up to 10 000 rows) with split PV/U scores."""
+
+	return await service.export_audits(
+		actor=current_user,
+		search=search,
+		account_ids=account_ids,
+		project_ids=project_ids,
+		statuses=statuses,
+	)
+
+
+@router.get("/export/reports")
+async def export_admin_reports(
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
+) -> AdminAuditsExportResponse:
+	"""Export all submitted audit reports (up to 10 000 rows)."""
+
+	return await service.export_reports(
+		actor=current_user,
+		search=search,
+		account_ids=account_ids,
+		project_ids=project_ids,
+	)

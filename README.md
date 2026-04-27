@@ -36,8 +36,8 @@ Implemented today:
 
 - shared-core account, project, place (with `address` field), auditor-profile, assignment, and audit models
 - YEE real auth with email verification, approvals, invite acceptance, and session state
-- Playspace normalized audit storage and scoring-backed draft/submit flows
-- manager/admin Playspace dashboards and management APIs
+- Playspace-only `playspace_submissions` storage with scoring-backed draft/submit flows
+- manager/admin Playspace dashboards with separate audit / survey / full-audit place rollups
 - manager multi-user auth: each manager profile now gets a dedicated `User` record
 - Playspace enum types for structured field values
 - YEE instrument metadata enrichment for section intros, comment prompts, and grouped question rendering
@@ -211,7 +211,7 @@ Recommended release sequence:
 When changing this repository, double-check:
 
 - `app/auth.py`: product-aware auth behavior
-- `app/models.py` and `alembic/versions/`: schema/code alignment
+- `app/models.py` and `alembic/versions/`: schema/code alignment, especially `playspace_submissions`
 - `app/core/actors.py`: Playspace header-based actor resolution
 - `app/products/playspace/seed_data.py` and `app/seed.py`: demo credentials and seeded contracts
 - `app/products/playspace/schemas/` and `app/products/playspace/services/`: Playspace API contracts consumed by mobile

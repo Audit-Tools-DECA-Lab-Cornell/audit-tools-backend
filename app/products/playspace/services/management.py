@@ -199,6 +199,22 @@ class PlayspaceManagementService:
 		)
 		return list(project_result.scalars().all())
 
+	async def _sync_project_place_types(self, project_id: uuid.UUID) -> None:
+		"""Recompute project.place_types from the place_type values of all linked places.
+
+		Called after any place create, update, or delete so the project's denormalized
+		place_types column always reflects the actual places in the project.
+		"""
+
+		place_type_result = await self._session.execute(
+			select(Place.place_type)
+			.join(ProjectPlace, ProjectPlace.place_id == Place.id)
+			.where(ProjectPlace.project_id == project_id, Place.place_type.is_not(None))
+		)
+		computed_types = sorted({row[0] for row in place_type_result.fetchall()})
+		project = await self._get_project(project_id)
+		project.place_types = computed_types
+
 	async def _validate_project_ids(self, project_ids: list[uuid.UUID]) -> list[Project]:
 		"""Load requested projects, requiring at least one and a shared owning account."""
 
@@ -385,6 +401,9 @@ class PlayspaceManagementService:
 			self._session.add(ProjectPlace(project_id=project.id, place_id=place.id))
 		await self._session.commit()
 		await self._session.refresh(place)
+		for project in projects:
+			await self._sync_project_place_types(project.id)
+		await self._session.commit()
 		return self._serialize_place(place, projects)
 
 	async def update_place(
@@ -427,6 +446,9 @@ class PlayspaceManagementService:
 
 		await self._session.commit()
 		await self._session.refresh(place)
+		for project in response_projects:
+			await self._sync_project_place_types(project.id)
+		await self._session.commit()
 		return self._serialize_place(place, response_projects)
 
 	async def delete_place(
@@ -446,7 +468,11 @@ class PlayspaceManagementService:
 				detail="The place is not linked to any project.",
 			)
 		self._ensure_account_access(actor=actor, account_id=linked_projects[0].account_id)
+		linked_project_ids = [project.id for project in linked_projects]
 		await self._session.delete(place)
+		await self._session.commit()
+		for project_id in linked_project_ids:
+			await self._sync_project_place_types(project_id)
 		await self._session.commit()
 
 	async def create_auditor_profile(

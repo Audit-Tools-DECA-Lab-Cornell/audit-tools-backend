@@ -6,13 +6,28 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import TypedDict
 
 from app.models import AccountType
+from app.products.playspace.schemas.audit import ScorePairResponse
 from app.products.playspace.schemas.base import (
 	ApiModel,
 	PlaceActivityStatus,
 	ProjectStatus,
 )
+
+
+class PlayspacePlaceRollup(TypedDict):
+	"""Typed place-level coverage and score rollups used by manager and admin list/detail APIs."""
+
+	place_audit_status: PlaceActivityStatus
+	place_survey_status: PlaceActivityStatus
+	place_audit_count: int
+	place_survey_count: int
+	audit_mean_scores: ScorePairResponse | None
+	survey_mean_scores: ScorePairResponse | None
+	overall_scores: ScorePairResponse | None
+
 
 ######################################################################################
 ################################## Dashboard Schemas #################################
@@ -53,6 +68,7 @@ class RecentActivityResponse(ApiModel):
 	place_name: str
 	completed_at: datetime
 	score: float | None
+	score_pair: ScorePairResponse | None = None
 
 
 class AccountDetailResponse(ApiModel):
@@ -83,6 +99,7 @@ class ProjectSummaryResponse(ApiModel):
 	auditors_count: int
 	audits_completed: int
 	average_score: float | None
+	average_scores: ScorePairResponse | None = None
 
 
 class ProjectDetailResponse(ApiModel):
@@ -112,6 +129,7 @@ class ProjectStatsResponse(ApiModel):
 	auditors_count: int
 	in_progress_audits: int
 	average_score: float | None
+	average_scores: ScorePairResponse | None = None
 
 
 class AuditorSummaryResponse(ApiModel):
@@ -138,6 +156,11 @@ class ManagerPlacesSummaryResponse(ApiModel):
 	submitted_places: int
 	in_progress_places: int
 	average_score: float | None
+	completed_place_audits: int = 0
+	completed_place_surveys: int = 0
+	audit_mean_scores: ScorePairResponse | None = None
+	survey_mean_scores: ScorePairResponse | None = None
+	overall_scores: ScorePairResponse | None = None
 
 
 class ManagerPlaceRowResponse(ApiModel):
@@ -153,10 +176,18 @@ class ManagerPlaceRowResponse(ApiModel):
 	postal_code: str | None
 	address: str | None
 	place_type: str | None
-	status: PlaceActivityStatus
+	# Single lifecycle view for sorting/filter: open sessions, else submitted, else not started
+	status: PlaceActivityStatus = "not_started"
 	audits_completed: int
 	average_score: float | None
 	last_audited_at: datetime | None
+	place_audit_status: PlaceActivityStatus = "not_started"
+	place_survey_status: PlaceActivityStatus = "not_started"
+	place_audit_count: int = 0
+	place_survey_count: int = 0
+	audit_mean_scores: ScorePairResponse | None = None
+	survey_mean_scores: ScorePairResponse | None = None
+	overall_scores: ScorePairResponse | None = None
 
 
 class ManagerPlacesListResponse(ApiModel):
@@ -177,6 +208,7 @@ class ManagerAuditsSummaryResponse(ApiModel):
 	submitted_audits: int
 	in_progress_audits: int
 	average_score: float | None
+	average_scores: ScorePairResponse | None = None
 
 
 class ManagerAuditRowResponse(ApiModel):
@@ -193,6 +225,8 @@ class ManagerAuditRowResponse(ApiModel):
 	started_at: datetime
 	submitted_at: datetime | None
 	summary_score: float | None
+	execution_mode: str | None = None
+	score_pair: ScorePairResponse | None = None
 
 
 class ManagerAuditsListResponse(ApiModel):
@@ -218,6 +252,8 @@ class PlaceAuditHistoryItemResponse(ApiModel):
 	started_at: datetime
 	submitted_at: datetime | None
 	summary_score: float | None
+	execution_mode: str | None = None
+	score_pair: ScorePairResponse | None = None
 
 
 class PlaceHistoryResponse(ApiModel):
@@ -240,6 +276,13 @@ class PlaceHistoryResponse(ApiModel):
 	average_submitted_score: float | None
 	latest_submitted_at: datetime | None
 	audits: list[PlaceAuditHistoryItemResponse]
+	place_audit_status: PlaceActivityStatus = "not_started"
+	place_survey_status: PlaceActivityStatus = "not_started"
+	place_audit_count: int = 0
+	place_survey_count: int = 0
+	audit_mean_scores: ScorePairResponse | None = None
+	survey_mean_scores: ScorePairResponse | None = None
+	overall_scores: ScorePairResponse | None = None
 
 
 class PlaceSummaryResponse(ApiModel):
@@ -254,7 +297,13 @@ class PlaceSummaryResponse(ApiModel):
 	postal_code: str | None
 	address: str | None
 	place_type: str | None
-	status: PlaceActivityStatus
 	audits_completed: int
 	average_score: float | None
 	last_audited_at: datetime | None
+	place_audit_status: PlaceActivityStatus = "not_started"
+	place_survey_status: PlaceActivityStatus = "not_started"
+	place_audit_count: int = 0
+	place_survey_count: int = 0
+	audit_mean_scores: ScorePairResponse | None = None
+	survey_mean_scores: ScorePairResponse | None = None
+	overall_scores: ScorePairResponse | None = None

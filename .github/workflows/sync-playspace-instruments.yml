@@ -1,0 +1,58 @@
+name: Sync Playspace canonical instruments
+
+on:
+  schedule:
+    - cron: "17 5 * * 0"
+  workflow_dispatch: {}
+
+concurrency:
+  group: sync-playspace-instruments
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  sync:
+    name: Export instruments from Playspace DB
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Sync from database and commit if changed
+        env:
+          PLAYSPACE_INSTRUMENT_SYNC_DATABASE_URL: ${{ secrets.PLAYSPACE_INSTRUMENT_SYNC_DATABASE_URL }}
+        run: |
+          if [ -z "$PLAYSPACE_INSTRUMENT_SYNC_DATABASE_URL" ]; then
+            echo "PLAYSPACE_INSTRUMENT_SYNC_DATABASE_URL is not set; skipping (configure the secret to enable export)."
+            exit 0
+          fi
+          python scripts/sync_canonical_instruments_from_db.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/products/playspace/instruments
+          if git diff --staged --quiet; then
+            echo "No file changes; nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore: sync Playspace canonical instruments from database [skip ci]"
+          git push

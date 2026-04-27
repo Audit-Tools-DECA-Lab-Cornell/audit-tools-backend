@@ -399,13 +399,10 @@ async def _playspace_signup(
 		account = Account(
 			name=account_name,
 			email=email,
-			password_hash=password_hash,
 			account_type=resolved_account_type,
 		)
 		session.add(account)
 		await session.flush()
-	else:
-		account.password_hash = password_hash
 
 	user = User(
 		email=email,

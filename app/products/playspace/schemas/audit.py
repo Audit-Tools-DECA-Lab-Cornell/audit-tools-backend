@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import Field
 
 from app.models import AuditStatus
-from app.products.playspace.schemas.base import ApiModel, RequestModel
+from app.products.playspace.schemas.base import ApiModel, PlaceActivityStatus, RequestModel
 from app.products.playspace.schemas.instrument import (
 	ExecutionMode,
 	PlayspaceInstrumentResponse,
@@ -23,6 +23,13 @@ from app.products.playspace.schemas.instrument import (
 
 QuestionResponseValue = str | list[str] | dict[str, str] | None
 QuestionResponsePayload = dict[str, QuestionResponseValue]
+
+
+class ScorePairResponse(ApiModel):
+	"""Compact Playspace score pair rendered as PV and usability totals."""
+
+	pv: float
+	u: float
 
 
 class AssignmentResponse(ApiModel):
@@ -138,6 +145,8 @@ class AuditScoresResponse(ApiModel):
 
 	draft_progress_percent: float | None = None
 	execution_mode: ExecutionMode | None = None
+	audit: AuditScoreTotalsResponse | None = None
+	survey: AuditScoreTotalsResponse | None = None
 	overall: AuditScoreTotalsResponse | None = None
 	by_section: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
 	by_domain: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
@@ -233,8 +242,9 @@ class AuditorPlaceResponse(ApiModel):
 	address: str | None
 	lat: float | None
 	lng: float | None
-	audit_status: AuditStatus | None
+	status: AuditStatus | None
 	audit_id: uuid.UUID | None
+	execution_mode: ExecutionMode | None = None
 	started_at: datetime | None
 	submitted_at: datetime | None
 	due_date: datetime | None = None
@@ -242,6 +252,11 @@ class AuditorPlaceResponse(ApiModel):
 	score_totals: AuditScoreTotalsResponse | None = None
 	progress_percent: float | None
 	selected_execution_mode: ExecutionMode | None = None
+	place_audit_status: PlaceActivityStatus = "not_started"
+	place_survey_status: PlaceActivityStatus = "not_started"
+	audit_scores: ScorePairResponse | None = None
+	survey_scores: ScorePairResponse | None = None
+	overall_scores: ScorePairResponse | None = None
 
 
 class AuditorAuditSummaryResponse(ApiModel):
@@ -249,11 +264,13 @@ class AuditorAuditSummaryResponse(ApiModel):
 
 	audit_id: uuid.UUID
 	audit_code: str
+	auditor_code: str
 	place_id: uuid.UUID
 	place_name: str
 	project_id: uuid.UUID
 	project_name: str
 	status: AuditStatus
+	execution_mode: ExecutionMode | None = None
 	started_at: datetime
 	submitted_at: datetime | None
 	summary_score: float | None
@@ -276,11 +293,13 @@ class AuditSessionResponse(ApiModel):
 
 	audit_id: uuid.UUID
 	audit_code: str
+	auditor_code: str
 	project_id: uuid.UUID
 	project_name: str
 	place_id: uuid.UUID
 	place_name: str
 	place_type: str | None
+	execution_mode: ExecutionMode | None = None
 	allowed_execution_modes: list[ExecutionMode]
 	selected_execution_mode: ExecutionMode | None
 	status: AuditStatus

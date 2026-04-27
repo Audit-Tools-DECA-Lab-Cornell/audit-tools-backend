@@ -86,7 +86,9 @@ async def list_account_places(
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
-	statuses: list[str] | None = Query(default=None, alias="status"),
+	auditor_ids: list[uuid.UUID] | None = Query(default=None, alias="auditor_id"),
+	audit_statuses: list[str] | None = Query(default=None, alias="audit_status"),
+	survey_statuses: list[str] | None = Query(default=None, alias="survey_status"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
 ) -> ManagerPlacesListResponse:
@@ -100,7 +102,9 @@ async def list_account_places(
 		search=search,
 		sort=sort,
 		project_ids=project_ids,
-		statuses=statuses,
+		auditor_ids=auditor_ids,
+		audit_statuses=audit_statuses,
+		survey_statuses=survey_statuses,
 	)
 
 
@@ -112,6 +116,7 @@ async def list_account_audits(
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	auditor_ids: list[uuid.UUID] | None = Query(default=None, alias="auditor_id"),
 	statuses: list[str] | None = Query(default=None, alias="status"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
@@ -126,6 +131,7 @@ async def list_account_audits(
 		search=search,
 		sort=sort,
 		project_ids=project_ids,
+		auditor_ids=auditor_ids,
 		statuses=statuses,
 	)
 

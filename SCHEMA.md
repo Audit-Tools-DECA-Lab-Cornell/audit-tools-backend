@@ -2,12 +2,10 @@
 
 > This document records the **current** backend data model used by `audit-tools-backend`.
 
-
 | Also see       | Purpose                    |
 | -------------- | -------------------------- |
 | `README.md`    | Setup and responsibilities |
 | `STRUCTURE.md` | Code organization          |
-
 
 Intentionally split into: shared core tables · Playspace-specific normalized audit tables · compatibility caches.
 
@@ -16,11 +14,10 @@ Intentionally split into: shared core tables · Playspace-specific normalized au
 ## Table of Contents
 
 - [Shared Core Tables](#1-shared-core-tables)
-- [Playspace Normalized Audit Tables](#2-playspace-normalized-audit-tables)
-- [Playspace Write-Path Notes](#3-playspace-write-path-notes)
-- [Current Score Model](#4-current-playspace-score-model)
-- [Compatibility Caches](#5-compatibility-caches)
-- [Not In The Current Schema](#6-not-in-the-current-schema)
+- [Playspace Normalized Draft Tables](#2-playspace-normalized-draft-tables)
+- [Current Score Model](#3-current-playspace-score-model)
+- [Dual-Storage Boundary](#4-dual-storage-boundary)
+- [Not In The Current Schema](#5-not-in-the-current-schema)
 
 ---
 
@@ -30,7 +27,6 @@ Intentionally split into: shared core tables · Playspace-specific normalized au
 
 Workspace/account record shared across products.
 
-
 | Column          | Notes                             |
 | --------------- | --------------------------------- |
 | `id`            | UUID primary key                  |
@@ -39,7 +35,6 @@ Workspace/account record shared across products.
 | `password_hash` | Nullable                          |
 | `account_type`  | `ADMIN`, `MANAGER`, or `AUDITOR`  |
 | `created_at`    |                                   |
-
 
 ---
 
@@ -51,27 +46,25 @@ Manager workspaces now support multiple manager users (`account_type=MANAGER`)
 linked to the same `account_id`, so `users` is the canonical login identity
 table for all manager sign-in flows.
 
-
-| Column                          | Notes                                    |
-| ------------------------------- | ---------------------------------------- |
-| `id`                            | UUID primary key                         |
-| `email`                         | Unique login email                       |
-| `password_hash`                 | Required hashed password                 |
-| `account_id`                    | Nullable FK → `accounts`                 |
-| `account_type`                  | `ADMIN`, `MANAGER`, or `AUDITOR`         |
-| `name`                          | Nullable display name                    |
-| `email_verified`                | Boolean                                  |
-| `email_verification_token_hash` | Nullable                                 |
-| `email_verification_sent_at`    | Nullable                                 |
-| `email_verified_at`             | Nullable                                 |
-| `failed_login_attempts`         | Integer                                  |
-| `approved`                      | Boolean                                  |
-| `approved_at`                   | Nullable                                 |
-| `profile_completed`             | Boolean                                  |
-| `profile_completed_at`          | Nullable                                 |
-| `last_login_at`                 | Nullable                                 |
-| `created_at`                    |                                          |
-
+| Column                          | Notes                            |
+| ------------------------------- | -------------------------------- |
+| `id`                            | UUID primary key                 |
+| `email`                         | Unique login email               |
+| `password_hash`                 | Required hashed password         |
+| `account_id`                    | Nullable FK → `accounts`         |
+| `account_type`                  | `ADMIN`, `MANAGER`, or `AUDITOR` |
+| `name`                          | Nullable display name            |
+| `email_verified`                | Boolean                          |
+| `email_verification_token_hash` | Nullable                         |
+| `email_verification_sent_at`    | Nullable                         |
+| `email_verified_at`             | Nullable                         |
+| `failed_login_attempts`         | Integer                          |
+| `approved`                      | Boolean                          |
+| `approved_at`                   | Nullable                         |
+| `profile_completed`             | Boolean                          |
+| `profile_completed_at`          | Nullable                         |
+| `last_login_at`                 | Nullable                         |
+| `created_at`                    |                                  |
 
 ---
 
@@ -79,24 +72,21 @@ table for all manager sign-in flows.
 
 Manager profile rows owned by a manager account.
 
-
-| Column                          | Notes            |
-| ------------------------------- | ---------------- |
-| `id`                            | UUID primary key |
-| `account_id`                    | FK → `accounts`  |
+| Column                          | Notes                         |
+| ------------------------------- | ----------------------------- |
+| `id`                            | UUID primary key              |
+| `account_id`                    | FK → `accounts`               |
 | `user_id`                       | Nullable, unique FK → `users` |
-| `full_name` / `email` / `phone` |                  |
-| `position` / `organization`     |                  |
-| `is_primary`                    |                  |
-| `created_at`                    |                  |
-
+| `full_name` / `email` / `phone` |                               |
+| `position` / `organization`     |                               |
+| `is_primary`                    |                               |
+| `created_at`                    |                               |
 
 ---
 
 ### `auditor_profiles`
 
 Auditor identity/profile rows owned by auditor accounts.
-
 
 | Column                                                    | Notes                                                       |
 | --------------------------------------------------------- | ----------------------------------------------------------- |
@@ -108,13 +98,11 @@ Auditor identity/profile rows owned by auditor accounts.
 | `full_name` / `age_range` / `gender` / `country` / `role` |                                                             |
 | `created_at`                                              |                                                             |
 
-
 ---
 
 ### `auditor_invites`
 
 Invite rows used by the YEE onboarding flow.
-
 
 | Column               | Notes                             |
 | -------------------- | --------------------------------- |
@@ -128,33 +116,29 @@ Invite rows used by the YEE onboarding flow.
 | `expires_at`         | Invite expiry timestamp           |
 | `accepted_at`        | Nullable until the invite is used |
 
-
 ---
 
 ### `manager_invites`
 
 Invite rows used to add secondary managers to an existing manager account.
 
-
-| Column                | Notes                                         |
-| --------------------- | --------------------------------------------- |
-| `id`                  | UUID primary key                              |
-| `account_id`          | FK → `accounts`                               |
-| `invited_by_user_id`  | FK → `users`                                  |
-| `accepted_by_user_id` | Nullable FK → `users`                         |
-| `email`               | Invite target email                           |
-| `token_hash`          | Unique hashed invite token                    |
-| `created_at`          |                                               |
-| `expires_at`          | Invite expiry timestamp                       |
-| `accepted_at`         | Nullable until the invite is used             |
-
+| Column                | Notes                             |
+| --------------------- | --------------------------------- |
+| `id`                  | UUID primary key                  |
+| `account_id`          | FK → `accounts`                   |
+| `invited_by_user_id`  | FK → `users`                      |
+| `accepted_by_user_id` | Nullable FK → `users`             |
+| `email`               | Invite target email               |
+| `token_hash`          | Unique hashed invite token        |
+| `created_at`          |                                   |
+| `expires_at`          | Invite expiry timestamp           |
+| `accepted_at`         | Nullable until the invite is used |
 
 ---
 
 ### `projects`
 
 Projects belong to one account.
-
 
 | Column                        | Notes            |
 | ----------------------------- | ---------------- |
@@ -167,13 +151,11 @@ Projects belong to one account.
 | `auditor_description`         |                  |
 | `created_at`                  |                  |
 
-
 ---
 
 ### `places`
 
 Places are shared place records that can be linked to multiple projects.
-
 
 | Column                                   | Notes            |
 | ---------------------------------------- | ---------------- |
@@ -185,20 +167,17 @@ Places are shared place records that can be linked to multiple projects.
 | `est_auditors` / `auditor_description`   |                  |
 | `created_at`                             |                  |
 
-
 ---
 
 ### `project_places`
 
 Join table linking places to projects.
 
-
-| Column      | Notes                                   |
-| ----------- | --------------------------------------- |
+| Column       | Notes                                   |
+| ------------ | --------------------------------------- |
 | `project_id` | FK → `projects`                         |
 | `place_id`   | FK → `places`                           |
 | `linked_at`  | Timestamp recorded when the link is set |
-
 
 **Primary key:** `(project_id, place_id)`
 
@@ -208,15 +187,13 @@ Join table linking places to projects.
 
 Assignments grant project-level or project-place-level access to an auditor.
 
-
-| Column               | Notes                           |
-| -------------------- | ------------------------------- |
-| `id`                 | UUID primary key                |
-| `auditor_profile_id` | FK → `auditor_profiles`         |
-| `project_id`         | Required FK → `projects`        |
-| `place_id`           | Nullable FK → `places`          |
-| `assigned_at`        |                                 |
-
+| Column               | Notes                    |
+| -------------------- | ------------------------ |
+| `id`                 | UUID primary key         |
+| `auditor_profile_id` | FK → `auditor_profiles`  |
+| `project_id`         | Required FK → `projects` |
+| `place_id`           | Nullable FK → `places`   |
+| `assigned_at`        |                          |
 
 > **Invariant:** `project_id` is always set. When `place_id` is also set, the row is scoped to one specific `(project_id, place_id)` pair.
 
@@ -224,8 +201,7 @@ Assignments grant project-level or project-place-level access to an auditor.
 
 ### `audits`
 
-Shared audit shell record used by both products.
-
+Shared audit shell record used by YEE and retained for compatibility.
 
 | Column                                  | Notes                                                 |
 | --------------------------------------- | ----------------------------------------------------- |
@@ -244,66 +220,84 @@ Shared audit shell record used by both products.
 | `scores_json`                           | JSONB compatibility cache                             |
 | `created_at` / `updated_at`             |                                                       |
 
-
-> **Current Playspace rule:** `summary_score = play_value_total + usability_total`
->
-> **Current uniqueness rule:** one audit per `(project_id, place_id, auditor_profile_id)`.
+> **YEE / legacy rule:** `summary_score = play_value_total + usability_total`
 
 ---
 
-## 2. Playspace Normalized Audit Tables
+### `playspace_submissions`
 
-Playspace audit state is stored in product-specific normalized tables. These are the **current authoritative write targets** for draft and submit flows.
+Playspace-only submission root. Scope is selected with **`execution_mode`**: `audit`, `survey`, or `both` (instrument enum); `both` counts toward both audit- and survey-axis place rollups.
 
-### `playspace_audit_contexts`
+| Column                                          | Notes                                             |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `id`                                            | UUID primary key                                  |
+| `project_id` / `place_id`                       | FK pair to `project_places`                       |
+| `auditor_profile_id`                            | FK → `auditor_profiles`                           |
+| `audit_code`                                    | Stable public-facing submission identifier        |
+| `execution_mode`                                | `audit`, `survey`, or `both` (nullable until set) |
+| `draft_progress_percent`                        | Draft progress projection for list surfaces       |
+| `status`                                        | `IN_PROGRESS`, `PAUSED`, or `SUBMITTED`           |
+| `summary_score`                                 | Legacy compact summary retained for compatibility |
+| `audit_play_value_score`                        | Submission-level audit partition PV total         |
+| `audit_usability_score`                         | Submission-level audit partition usability total  |
+| `survey_play_value_score`                       | Submission-level survey partition PV total        |
+| `survey_usability_score`                        | Submission-level survey partition usability total |
+| `responses_json`                                | Canonical aggregate payload                       |
+| `scores_json`                                   | Compatibility cache plus scored partitions        |
+| `started_at` / `submitted_at` / `total_minutes` | Submission lifecycle metadata                     |
+| `created_at` / `updated_at`                     |                                                   |
 
-One-to-one audit metadata row.
+**Current uniqueness rule:** one Playspace submission per `(project_id, place_id, auditor_profile_id)`.
 
+---
 
-| Column                      | Notes                              |
-| --------------------------- | ---------------------------------- |
-| `audit_id`                  | UUID primary key and FK → `audits` |
+## 2. Playspace Normalized Draft Tables
+
+These tables are the **live write path** during an active audit session. They are cleared automatically when the parent `PlayspaceSubmission` is deleted (CASCADE). At submission, the service reads from these rows to compute scores and writes the JSONB snapshot; they remain as a durable draft record until the next session opens.
+
+### `playspace_submission_contexts`
+
+One-to-one session metadata per submission.
+
+| Column                      | Notes                                              |
+| --------------------------- | -------------------------------------------------- |
+| `submission_id`             | UUID primary key and FK → `playspace_submissions`  |
 | `execution_mode`            | Auditor self-selected `audit`, `survey`, or `both` |
-| `draft_progress_percent`    |                                    |
-| `created_at` / `updated_at` |                                    |
-
+| `draft_progress_percent`    |                                                    |
+| `created_at` / `updated_at` |                                                    |
 
 ---
 
-### `playspace_pre_audit_answers`
+### `playspace_pre_submission_answers`
 
 One row per pre-audit selection.
-
 
 | Column           | Notes                                                                                     |
 | ---------------- | ----------------------------------------------------------------------------------------- |
 | `id`             | UUID primary key                                                                          |
-| `audit_id`       | FK → `audits`                                                                             |
+| `submission_id`  | FK → `playspace_submissions`                                                              |
 | `field_key`      | `season`, `weather_conditions`, `users_present`, `user_count`, `age_groups`, `place_size` |
 | `selected_value` |                                                                                           |
 | `sort_order`     |                                                                                           |
 | `created_at`     |                                                                                           |
 
-
-**Unique constraint:** `(audit_id, field_key, selected_value)`
+**Unique constraint:** `(submission_id, field_key, selected_value)`
 
 ---
 
-### `playspace_audit_sections`
+### `playspace_submission_sections`
 
 One row per audit section with section-level note state.
 
+| Column                      | Notes                        |
+| --------------------------- | ---------------------------- |
+| `id`                        | UUID primary key             |
+| `submission_id`             | FK → `playspace_submissions` |
+| `section_key`               |                              |
+| `note`                      |                              |
+| `created_at` / `updated_at` |                              |
 
-| Column                      | Notes            |
-| --------------------------- | ---------------- |
-| `id`                        | UUID primary key |
-| `audit_id`                  | FK → `audits`    |
-| `section_key`               |                  |
-| `note`                      |                  |
-| `created_at` / `updated_at` |                  |
-
-
-**Unique constraint:** `(audit_id, section_key)`
+**Unique constraint:** `(submission_id, section_key)`
 
 ---
 
@@ -311,14 +305,12 @@ One row per audit section with section-level note state.
 
 One row per question within a section.
 
-
-| Column                      | Notes                           |
-| --------------------------- | ------------------------------- |
-| `id`                        | UUID primary key                |
-| `section_id`                | FK → `playspace_audit_sections` |
-| `question_key`              |                                 |
-| `created_at` / `updated_at` |                                 |
-
+| Column                      | Notes                                |
+| --------------------------- | ------------------------------------ |
+| `id`                        | UUID primary key                     |
+| `section_id`                | FK → `playspace_submission_sections` |
+| `question_key`              |                                      |
+| `created_at` / `updated_at` |                                      |
 
 **Unique constraint:** `(section_id, question_key)`
 
@@ -328,7 +320,6 @@ One row per question within a section.
 
 One row per answered scale inside a question response.
 
-
 | Column                      | Notes                               |
 | --------------------------- | ----------------------------------- |
 | `id`                        | UUID primary key                    |
@@ -337,64 +328,49 @@ One row per answered scale inside a question response.
 | `option_key`                |                                     |
 | `created_at` / `updated_at` |                                     |
 
-
 **Unique constraint:** `(question_response_id, scale_key)`
 
 ---
 
-## 3. Playspace Write-Path Notes
+## 3. Current Playspace Score Model
 
-Normalization helpers must respect natural unique keys. Repeated draft saves should:
-
-
-| Rule                                                                                 |
-| ------------------------------------------------------------------------------------ |
-| Reuse existing rows when the logical key is unchanged                                |
-| Update/remove rows that are no longer present                                        |
-| Avoid blind delete/reinsert replacement that can collide with uniqueness constraints |
-
-
-This is especially critical for: pre-audit answers · section rows · question response rows · scale answer rows.
-
----
-
-## 4. Current Playspace Score Model
-
-Scoring is computed from normalized audit rows, then serialized into typed payloads and compatibility caches.
-
+Scoring is computed from the audit's JSONB response payload, then serialized into typed partition scores and stored on `playspace_submissions`.
 
 | Bucket              | Type            |
 | ------------------- | --------------- |
-| `provision_total`    | Column total    |
+| `provision_total`   | Column total    |
 | `diversity_total`   | Column total    |
 | `challenge_total`   | Column total    |
 | `sociability_total` | Construct total |
 | `play_value_total`  | Construct total |
 | `usability_total`   | Construct total |
 
-
 These totals are returned in: audit session responses · assigned-place summaries · dashboard/stat payloads where applicable.
 
 ---
 
-## 5. Compatibility Caches
+## 4. Dual-Storage Boundary
 
-`audits.responses_json` and `audits.scores_json` are still present because some consumers depend on them.
+| Phase              | Storage                          | Rationale                                             |
+| ------------------ | -------------------------------- | ----------------------------------------------------- |
+| Draft / in-session | Normalized tables above          | Fast per-question upserts; no race conditions         |
+| Post-submission    | JSONB on `playspace_submissions` | Immutable snapshot; single-row reads; no JOINs needed |
 
-
-| Step | Action                                                              |
-| ---- | ------------------------------------------------------------------- |
-| 1    | Playspace writes normalized rows first                              |
-| 2    | Compatibility caches are rebuilt or maintained alongside those rows |
-
-
-> Older or shared layers may still read JSON caches. Normalized data remains the source for scoring and durable draft state.
+`audit_state.py` currently writes the draft state to `responses_json` (JSONB). Migrating drafts to the normalized tables is a planned next step. Until that migration is complete, the normalized tables exist in the schema with the correct FK wiring but are not yet populated by the runtime.
 
 ---
 
-## 6. Not In The Current Schema
+## Historical Compatibility Caches
 
-The following have been discussed historically but are **not** current backend tables:
+`audits.responses_json` and `audits.scores_json` exist for the YEE audit shell and are written alongside `Audit` rows in the YEE seed and submission flow.
+
+`playspace_submissions.responses_json` and `playspace_submissions.scores_json` are the Playspace canonical records: `responses_json` holds the complete audit payload; `scores_json` holds the computed score partitions.
+
+---
+
+## 5. Not In The Current Schema
+
+The following are **not** current backend tables:
 
 - Generic Playspace `Audit_Responses` table
 - Standalone `audit_scores` table

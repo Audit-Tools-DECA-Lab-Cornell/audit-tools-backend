@@ -185,6 +185,66 @@ def _build_construct_scoring_section() -> ScoringSection:
 	)
 
 
+def _build_partition_scoring_section() -> ScoringSection:
+	"""Create one section that covers audit, survey, and both-mode partitioning."""
+
+	provision_scale = ScoringScale(
+		key="provision",
+		options=[
+			ScoringScaleOption(
+				key="no",
+				addition_value=0.0,
+				boost_value=0.0,
+				allows_follow_up_scales=False,
+			),
+			ScoringScaleOption(
+				key="some",
+				addition_value=1.0,
+				boost_value=1.0,
+				allows_follow_up_scales=False,
+			),
+		],
+	)
+	return ScoringSection(
+		section_key="section_partitions",
+		questions=[
+			ScoringQuestion(
+				question_key="q_audit",
+				mode="audit",
+				constructs=["play_value"],
+				domains=["Partition Demo"],
+				question_type="scaled",
+				required=True,
+				display_if=None,
+				options=[],
+				scales=[provision_scale],
+			),
+			ScoringQuestion(
+				question_key="q_survey",
+				mode="survey",
+				constructs=["play_value"],
+				domains=["Partition Demo"],
+				question_type="scaled",
+				required=True,
+				display_if=None,
+				options=[],
+				scales=[provision_scale],
+			),
+			ScoringQuestion(
+				question_key="q_both",
+				mode="both",
+				constructs=["play_value"],
+				domains=["Partition Demo"],
+				question_type="scaled",
+				required=True,
+				display_if=None,
+				options=[],
+				scales=[provision_scale],
+			),
+		],
+	)
+
+
 def test_build_audit_progress_ignores_optional_checklist_follow_up_questions(
 	monkeypatch,
 ) -> None:
@@ -333,3 +393,93 @@ def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(
 	assert overall["play_value_total_max"] == 18.0
 	assert overall["usability_total"] == 6.0
 	assert overall["usability_total_max"] == 18.0
+
+
+def test_score_audit_builds_audit_and_survey_partitions_for_both_mode(monkeypatch) -> None:
+	"""A `both` execution should emit separate audit and survey partitions by question mode."""
+
+	custom_sections = [_build_partition_scoring_section()]
+	monkeypatch.setattr(
+		"app.products.playspace.scoring.get_scoring_sections",
+		lambda: custom_sections,
+	)
+
+	scores = score_audit(
+		responses_json={
+			"meta": {"execution_mode": ExecutionMode.BOTH.value},
+			"pre_audit": {
+				"place_size": "medium",
+				"current_users_0_5": "none",
+				"current_users_6_12": "some",
+				"current_users_13_17": "none",
+				"current_users_18_plus": "none",
+				"playspace_busyness": "some",
+				"season": "summer",
+				"weather_conditions": ["sunshine"],
+				"wind_conditions": "calm",
+			},
+			"sections": {
+				"section_partitions": {
+					"responses": {
+						"q_audit": {"provision": "some"},
+						"q_survey": {"provision": "some"},
+						"q_both": {"provision": "some"},
+					}
+				}
+			},
+		},
+		include_maximums=True,
+	)
+
+	overall = scores.get("overall")
+	audit_partition = scores.get("audit")
+	survey_partition = scores.get("survey")
+	assert isinstance(overall, dict)
+	assert isinstance(audit_partition, dict)
+	assert isinstance(survey_partition, dict)
+	assert overall["play_value_total"] == 3.0
+	assert audit_partition["play_value_total"] == 2.0
+	assert survey_partition["play_value_total"] == 2.0
+
+
+def test_score_audit_allows_both_questions_to_feed_survey_partition_in_audit_mode(monkeypatch) -> None:
+	"""Audit-mode submissions should still feed the survey partition for `both` questions."""
+
+	custom_sections = [_build_partition_scoring_section()]
+	monkeypatch.setattr(
+		"app.products.playspace.scoring.get_scoring_sections",
+		lambda: custom_sections,
+	)
+
+	scores = score_audit(
+		responses_json={
+			"meta": {"execution_mode": ExecutionMode.AUDIT.value},
+			"pre_audit": {
+				"place_size": "medium",
+				"current_users_0_5": "none",
+				"current_users_6_12": "some",
+				"current_users_13_17": "none",
+				"current_users_18_plus": "none",
+				"playspace_busyness": "some",
+				"season": "summer",
+				"weather_conditions": ["sunshine"],
+				"wind_conditions": "calm",
+			},
+			"sections": {
+				"section_partitions": {
+					"responses": {
+						"q_audit": {"provision": "some"},
+						"q_both": {"provision": "some"},
+					}
+				}
+			},
+		},
+		include_maximums=True,
+	)
+
+	audit_partition = scores.get("audit")
+	survey_partition = scores.get("survey")
+	assert isinstance(audit_partition, dict)
+	assert isinstance(survey_partition, dict)
+	assert audit_partition["play_value_total"] == 2.0
+	assert survey_partition["play_value_total"] == 1.0

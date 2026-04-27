@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from app.core.actors import CurrentUserContext
 from app.products.playspace.routes.dependencies import (
@@ -74,7 +74,7 @@ async def update_project(
 	)
 
 
-@router.delete("/projects/{project_id}", status_code=204)
+@router.delete("/projects/{project_id}", status_code=204, response_model=None, response_class=Response)
 async def delete_project(
 	project_id: uuid.UUID,
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
@@ -108,7 +108,7 @@ async def update_place(
 	return await service.update_place(actor=current_user, place_id=place_id, payload=payload)
 
 
-@router.delete("/places/{place_id}", status_code=204)
+@router.delete("/places/{place_id}", status_code=204, response_model=None, response_class=Response)
 async def delete_place(
 	place_id: uuid.UUID,
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
@@ -146,7 +146,12 @@ async def update_auditor_profile(
 	)
 
 
-@router.delete("/auditor-profiles/{auditor_profile_id}", status_code=204)
+@router.delete(
+	"/auditor-profiles/{auditor_profile_id}",
+	status_code=204,
+	response_model=None,
+	response_class=Response,
+)
 async def delete_auditor_profile(
 	auditor_profile_id: uuid.UUID,
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,

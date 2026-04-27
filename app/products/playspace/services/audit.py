@@ -7,7 +7,7 @@ from __future__ import annotations
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Audit, AuditorAssignment, AuditStatus
+from app.models import AuditStatus, AuditorAssignment, PlayspaceSubmission
 from app.products.playspace.schemas import ExecutionMode
 from app.products.playspace.services.audit_assignments import (
 	PlayspaceAuditAssignmentsMixin,
@@ -28,19 +28,14 @@ class PlayspaceAuditService(
 	def __init__(self, session: AsyncSession):
 		self._session = session
 
-	async def _commit_and_refresh(self, instance: Audit | AuditorAssignment) -> None:
+	async def _commit_and_refresh(self, instance: PlayspaceSubmission | AuditorAssignment) -> None:
 		"""Persist and re-hydrate one ORM instance."""
 
 		await self._session.commit()
-		if isinstance(instance, Audit):
+		if isinstance(instance, PlayspaceSubmission):
 			await self._session.refresh(
 				instance,
-				[
-					"updated_at",
-					"playspace_context",
-					"playspace_pre_audit_answers",
-					"playspace_sections",
-				],
+				["updated_at"],
 			)
 			return
 
@@ -62,7 +57,7 @@ class PlayspaceAuditService(
 			)
 
 	@staticmethod
-	def _ensure_not_submitted(*, audit: Audit, detail: str) -> None:
+	def _ensure_not_submitted(*, audit: PlayspaceSubmission, detail: str) -> None:
 		"""Reject writes to already-submitted audits."""
 		if audit.status is AuditStatus.SUBMITTED:
 			raise HTTPException(

@@ -22,6 +22,17 @@ from app.products.playspace.services.me import PlayspaceMeService
 router: APIRouter = APIRouter(tags=["playspace-me"])
 
 
+def _require_user_id(current_user: CurrentUserContext) -> uuid.UUID:
+	"""Extract user_id from the current user context or raise 403."""
+
+	if current_user.user_id is None:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Authenticated user identity is required for self-service operations.",
+		)
+	return current_user.user_id
+
+
 def _require_account_id(current_user: CurrentUserContext) -> uuid.UUID:
 	"""Extract account_id from the current user context or raise 403."""
 
@@ -38,17 +49,18 @@ async def get_my_account(
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	session=SESSION_DEPENDENCY,
 ) -> MyAccountResponse:
-	"""Return the current user's account details."""
+	"""Return the current user's profile identity for settings and display."""
 
-	account_id = _require_account_id(current_user)
+	user_id = _require_user_id(current_user)
 	service = PlayspaceMeService(session=session)
-	account = await service.get_account(account_id=account_id)
+	name, email, account_type, organization, account_id = await service.get_my_identity(user_id=user_id)
 
 	return MyAccountResponse(
-		account_id=account.id,
-		name=account.name,
-		email=account.email,
-		account_type=account.account_type.value,
+		account_id=account_id,
+		name=name,
+		email=email,
+		account_type=account_type,
+		organization=organization,
 	)
 
 

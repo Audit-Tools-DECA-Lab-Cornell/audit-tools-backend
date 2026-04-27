@@ -246,7 +246,6 @@ class Account(Base):
 	)
 	name: Mapped[str] = mapped_column(String(200), nullable=False)
 	email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
-	password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 	account_type: Mapped[AccountType] = mapped_column(
 		ACCOUNT_TYPE_ENUM,
 		nullable=False,
@@ -375,6 +374,10 @@ class Project(Base):
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="project",
 	)
+	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
+		back_populates="project",
+		cascade=CASCADE_DELETE_ORPHAN,
+	)
 
 	@property
 	def description(self) -> str | None:
@@ -428,6 +431,10 @@ class Place(Base):
 		cascade=CASCADE_DELETE_ORPHAN,
 	)
 	audits: Mapped[list[Audit]] = relationship(
+		back_populates="place",
+		cascade=CASCADE_DELETE_ORPHAN,
+	)
+	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
 	)
@@ -515,6 +522,10 @@ class AuditorProfile(Base):
 		cascade=CASCADE_DELETE_ORPHAN,
 	)
 	audits: Mapped[list[Audit]] = relationship(
+		back_populates="auditor_profile",
+		cascade=CASCADE_DELETE_ORPHAN,
+	)
+	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
 	)
@@ -734,37 +745,77 @@ class Audit(Base):
 	project: Mapped[Project] = relationship(back_populates="audits")
 	place: Mapped[Place] = relationship(back_populates="audits")
 	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits")
-	playspace_context: Mapped[PlayspaceAuditContext | None] = relationship(
-		back_populates="audit",
-		cascade=CASCADE_DELETE_ORPHAN,
-		uselist=False,
-	)
-	playspace_pre_audit_answers: Mapped[list[PlayspacePreAuditAnswer]] = relationship(
-		back_populates="audit",
-		cascade=CASCADE_DELETE_ORPHAN,
-	)
-	playspace_sections: Mapped[list[PlayspaceAuditSection]] = relationship(
-		back_populates="audit",
-		cascade=CASCADE_DELETE_ORPHAN,
-	)
 
 	@property
 	def auditor_id(self) -> uuid.UUID:
 		return self.auditor_profile_id
 
 
-class PlayspaceAuditContext(Base):
-	"""Normalized one-to-one Playspace metadata stored for an audit session."""
+class PlayspaceSubmission(Base):
+	"""Playspace-only submission root decoupled from the shared Audit shell."""
 
-	__tablename__ = "playspace_audit_contexts"
-
-	audit_id: Mapped[uuid.UUID] = mapped_column(
-		UUID(as_uuid=True),
-		ForeignKey("audits.id", ondelete="CASCADE", name="fk_ps_context_audit"),
-		primary_key=True,
+	__tablename__ = "playspace_submissions"
+	__table_args__ = (
+		UniqueConstraint(
+			"project_id",
+			"place_id",
+			"auditor_profile_id",
+			name="uq_playspace_submissions_project_place_auditor",
+		),
+		ForeignKeyConstraint(
+			["project_id", "place_id"],
+			["project_places.project_id", "project_places.place_id"],
+			name="fk_playspace_submissions_project_place_pair",
+			ondelete="CASCADE",
+		),
 	)
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	project_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("projects.id", ondelete="CASCADE"),
+		index=True,
+		nullable=False,
+	)
+	place_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("places.id", ondelete="CASCADE"),
+		index=True,
+		nullable=False,
+	)
+	auditor_profile_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("auditor_profiles.id", ondelete="CASCADE"),
+		index=True,
+		nullable=False,
+	)
+	audit_code: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
+	instrument_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+	instrument_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
 	execution_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
 	draft_progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+	status: Mapped[AuditStatus] = mapped_column(
+		AUDIT_STATUS_ENUM,
+		nullable=False,
+	)
+	started_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
+	submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	total_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	summary_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+	audit_play_value_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+	audit_usability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+	survey_play_value_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+	survey_usability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+	responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+	scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
@@ -777,19 +828,71 @@ class PlayspaceAuditContext(Base):
 		nullable=False,
 	)
 
-	audit: Mapped[Audit] = relationship(back_populates="playspace_context", lazy="selectin")
+	project: Mapped[Project] = relationship(back_populates="playspace_submissions")
+	place: Mapped[Place] = relationship(back_populates="playspace_submissions")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="playspace_submissions")
+
+	# Normalized draft-session tables. These are the live write path for
+	# in-progress audits; the JSONB fields above become the immutable snapshot
+	# written exactly once at submission.
+	submission_context: Mapped[PlayspaceSubmissionContext | None] = relationship(
+		back_populates="submission",
+		cascade=CASCADE_DELETE_ORPHAN,
+		uselist=False,
+	)
+	pre_submission_answers: Mapped[list[PlayspacePreSubmissionAnswer]] = relationship(
+		back_populates="submission",
+		cascade=CASCADE_DELETE_ORPHAN,
+	)
+	submission_sections: Mapped[list[PlayspaceSubmissionSection]] = relationship(
+		back_populates="submission",
+		cascade=CASCADE_DELETE_ORPHAN,
+	)
+
+	@property
+	def auditor_id(self) -> uuid.UUID:
+		return self.auditor_profile_id
 
 
-class PlayspacePreAuditAnswer(Base):
-	"""One normalized Playspace pre-audit answer row."""
+class PlayspaceSubmissionContext(Base):
+	"""Normalized one-to-one Playspace session metadata for one submission."""
 
-	__tablename__ = "playspace_pre_audit_answers"
+	__tablename__ = "playspace_submission_contexts"
+
+	submission_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("playspace_submissions.id", ondelete="CASCADE", name="fk_ps_context_submission"),
+		primary_key=True,
+	)
+	execution_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+	draft_progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+	schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+	revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
+	updated_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		onupdate=func.now(),
+		nullable=False,
+	)
+
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_context")
+
+
+class PlayspacePreSubmissionAnswer(Base):
+	"""One normalized pre-audit answer row owned by a PlayspaceSubmission."""
+
+	__tablename__ = "playspace_pre_submission_answers"
 	__table_args__ = (
 		UniqueConstraint(
-			"audit_id",
+			"submission_id",
 			"field_key",
 			"selected_value",
-			name="uq_playspace_pre_audit_answers_audit_field_value",
+			name="uq_playspace_pre_submission_answers_submission_field_value",
 		),
 	)
 
@@ -798,9 +901,9 @@ class PlayspacePreAuditAnswer(Base):
 		primary_key=True,
 		default=uuid.uuid4,
 	)
-	audit_id: Mapped[uuid.UUID] = mapped_column(
+	submission_id: Mapped[uuid.UUID] = mapped_column(
 		UUID(as_uuid=True),
-		ForeignKey("audits.id", ondelete="CASCADE", name="fk_ps_pre_audit_answer_audit"),
+		ForeignKey("playspace_submissions.id", ondelete="CASCADE", name="fk_ps_pre_submission_answer_submission"),
 		index=True,
 		nullable=False,
 	)
@@ -813,18 +916,18 @@ class PlayspacePreAuditAnswer(Base):
 		nullable=False,
 	)
 
-	audit: Mapped[Audit] = relationship(back_populates="playspace_pre_audit_answers")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="pre_submission_answers")
 
 
-class PlayspaceAuditSection(Base):
-	"""One normalized Playspace section state row for note and child answers."""
+class PlayspaceSubmissionSection(Base):
+	"""One normalized section row for note state and child answers, owned by a PlayspaceSubmission."""
 
-	__tablename__ = "playspace_audit_sections"
+	__tablename__ = "playspace_submission_sections"
 	__table_args__ = (
 		UniqueConstraint(
-			"audit_id",
+			"submission_id",
 			"section_key",
-			name="uq_playspace_audit_sections_audit_section",
+			name="uq_playspace_submission_sections_submission_section",
 		),
 	)
 
@@ -833,9 +936,9 @@ class PlayspaceAuditSection(Base):
 		primary_key=True,
 		default=uuid.uuid4,
 	)
-	audit_id: Mapped[uuid.UUID] = mapped_column(
+	submission_id: Mapped[uuid.UUID] = mapped_column(
 		UUID(as_uuid=True),
-		ForeignKey("audits.id", ondelete="CASCADE", name="fk_ps_audit_section_audit"),
+		ForeignKey("playspace_submissions.id", ondelete="CASCADE", name="fk_ps_submission_section_submission"),
 		index=True,
 		nullable=False,
 	)
@@ -853,7 +956,7 @@ class PlayspaceAuditSection(Base):
 		nullable=False,
 	)
 
-	audit: Mapped[Audit] = relationship(back_populates="playspace_sections")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_sections")
 	question_responses: Mapped[list[PlayspaceQuestionResponse]] = relationship(
 		back_populates="section",
 		cascade=CASCADE_DELETE_ORPHAN,
@@ -861,7 +964,7 @@ class PlayspaceAuditSection(Base):
 
 
 class PlayspaceQuestionResponse(Base):
-	"""One normalized Playspace question response row within a section."""
+	"""One normalized question response row within a PlayspaceSubmissionSection."""
 
 	__tablename__ = "playspace_question_responses"
 	__table_args__ = (
@@ -880,7 +983,7 @@ class PlayspaceQuestionResponse(Base):
 	section_id: Mapped[uuid.UUID] = mapped_column(
 		UUID(as_uuid=True),
 		ForeignKey(
-			"playspace_audit_sections.id",
+			"playspace_submission_sections.id",
 			ondelete="CASCADE",
 			name="fk_ps_question_response_section",
 		),
@@ -900,7 +1003,7 @@ class PlayspaceQuestionResponse(Base):
 		nullable=False,
 	)
 
-	section: Mapped[PlayspaceAuditSection] = relationship(back_populates="question_responses")
+	section: Mapped[PlayspaceSubmissionSection] = relationship(back_populates="question_responses")
 	scale_answers: Mapped[list[PlayspaceScaleAnswer]] = relationship(
 		back_populates="question_response",
 		cascade=CASCADE_DELETE_ORPHAN,
@@ -908,7 +1011,7 @@ class PlayspaceQuestionResponse(Base):
 
 
 class PlayspaceScaleAnswer(Base):
-	"""One normalized Playspace scale-answer row for a question response."""
+	"""One normalized scale-answer row within a PlayspaceQuestionResponse."""
 
 	__tablename__ = "playspace_scale_answers"
 	__table_args__ = (
