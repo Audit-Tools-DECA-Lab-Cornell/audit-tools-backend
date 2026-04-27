@@ -242,7 +242,6 @@ class AuditorPlaceResponse(ApiModel):
 	address: str | None
 	lat: float | None
 	lng: float | None
-	status: AuditStatus | None
 	audit_id: uuid.UUID | None
 	execution_mode: ExecutionMode | None = None
 	started_at: datetime | None

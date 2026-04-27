@@ -406,6 +406,7 @@ class PlayspaceDashboardService:
 				assignment_counts_subquery.c.id == AuditorProfile.id,
 			)
 			.order_by(func.lower(AuditorProfile.auditor_code).asc())
+			.limit(MAX_PAGE_SIZE)
 		)
 
 		result = await self._session.execute(stmt)

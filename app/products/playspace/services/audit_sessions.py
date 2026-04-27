@@ -891,6 +891,14 @@ class PlayspaceAuditSessionsMixin:
 			self._session.add(audit)
 			await self._commit_and_refresh(audit)
 
+			audit = await self._get_existing_audit(
+				project_id=project.id,
+				place_id=place.id,
+				auditor_profile_id=auditor_profile.id,
+			)
+			if audit is None:
+				raise RuntimeError("Audit was created but could not be reloaded.")
+
 		return await self._build_audit_session_response(
 			audit=audit,
 			project=project,

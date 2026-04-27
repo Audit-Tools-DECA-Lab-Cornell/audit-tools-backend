@@ -509,7 +509,6 @@ class PlayspaceManagementService:
 		account = Account(
 			name=payload.full_name,
 			email=payload.email,
-			password_hash=hash_password("DemoPass123!"),
 			account_type=AccountType.AUDITOR,
 		)
 		self._session.add(account)
