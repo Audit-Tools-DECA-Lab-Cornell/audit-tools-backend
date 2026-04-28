@@ -18,6 +18,13 @@ from app.products.playspace.execution_mode_scope import (
 	execution_mode_includes_audit,
 	execution_mode_includes_survey,
 )
+from app.products.playspace.schemas.base import PlaceActivityStatus
+from app.products.playspace.services._place_rollup import (
+	derive_place_activity_status,
+	mean_partition_score_pair,
+	overall_score_pair,
+	round_score_pair,
+)
 from app.models import (
 	Account,
 	AuditorAssignment,
@@ -41,7 +48,6 @@ from app.products.playspace.schemas import (
 	ManagerPlacesSummaryResponse,
 	ManagerProfileResponse,
 	PlayspacePlaceRollup,
-	PlaceActivityStatus,
 	PlaceAuditHistoryItemResponse,
 	PlaceHistoryResponse,
 	PlaceSummaryResponse,
@@ -77,25 +83,6 @@ def _derive_row_place_status(submissions: list[PlayspaceSubmission]) -> PlaceAct
 	if any(s.status == AuditStatus.SUBMITTED for s in submissions):
 		return "submitted"
 	return "not_started"
-
-
-def _derive_place_activity_status(
-	submissions: list[PlayspaceSubmission],
-) -> tuple[PlaceActivityStatus, PlaceActivityStatus]:
-	"""Summarize audit vs survey activity; `both` mode counts on both axes."""
-	place_audit_status: PlaceActivityStatus = "not_started"
-	place_survey_status: PlaceActivityStatus = "not_started"
-	audits = [s for s in submissions if execution_mode_includes_audit(s.execution_mode)]
-	surveys = [s for s in submissions if execution_mode_includes_survey(s.execution_mode)]
-	if any(submission.status == AuditStatus.SUBMITTED for submission in audits):
-		place_audit_status = "submitted"
-	elif any(submission.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for submission in audits):
-		place_audit_status = "in_progress"
-	if any(submission.status == AuditStatus.SUBMITTED for submission in surveys):
-		place_survey_status = "submitted"
-	elif any(submission.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for submission in surveys):
-		place_survey_status = "in_progress"
-	return place_audit_status, place_survey_status
 
 
 def _round_score(value: float | None) -> float | None:
@@ -137,60 +124,13 @@ def _latest_activity_timestamp(audits: list[PlayspaceSubmission]) -> datetime | 
 	return max(timestamps)
 
 
-def _round_score_pair(pv: float | None, u: float | None) -> ScorePairResponse | None:
-	"""Build the compact PV/U pair when both values are present."""
-
-	if pv is None or u is None:
-		return None
-	return ScorePairResponse(pv=round(pv, 1), u=round(u, 1))
-
-
-def _mean_score_pair(
-	submissions: list[PlayspaceSubmission],
-	*,
-	partition: str,
-) -> ScorePairResponse | None:
-	"""Average the persisted partition scores across submitted Playspace submissions."""
-
-	pv_values: list[float] = []
-	u_values: list[float] = []
-	for submission in submissions:
-		if submission.status != AuditStatus.SUBMITTED:
-			continue
-		if partition == "audit":
-			pv_value = submission.audit_play_value_score
-			u_value = submission.audit_usability_score
-		else:
-			pv_value = submission.survey_play_value_score
-			u_value = submission.survey_usability_score
-		if pv_value is None or u_value is None:
-			continue
-		pv_values.append(float(pv_value))
-		u_values.append(float(u_value))
-
-	if not pv_values or not u_values:
-		return None
-	return _round_score_pair(sum(pv_values) / len(pv_values), sum(u_values) / len(u_values))
-
-
-def _overall_score_pair(
-	audit_scores: ScorePairResponse | None,
-	survey_scores: ScorePairResponse | None,
-) -> ScorePairResponse | None:
-	"""Combine the audit and survey mean score pairs into the requested overall pair."""
-
-	if audit_scores is None or survey_scores is None:
-		return None
-	return _round_score_pair(audit_scores.pv + survey_scores.pv, audit_scores.u + survey_scores.u)
-
-
 def _mean_score_pairs(score_pairs: list[ScorePairResponse | None]) -> ScorePairResponse | None:
 	"""Average a list of compact PV/U score pairs while ignoring missing values."""
 
 	valid_pairs = [score_pair for score_pair in score_pairs if score_pair is not None]
 	if not valid_pairs:
 		return None
-	return _round_score_pair(
+	return round_score_pair(
 		sum(score_pair.pv for score_pair in valid_pairs) / len(valid_pairs),
 		sum(score_pair.u for score_pair in valid_pairs) / len(valid_pairs),
 	)
@@ -213,10 +153,10 @@ def _collect_project_auditor_ids(project: Project) -> set[uuid.UUID]:
 def _build_place_rollup(submissions: list[PlayspaceSubmission]) -> PlayspacePlaceRollup:
 	"""Compute place-level coverage statuses, counts, and score pairs."""
 
-	place_audit_status, place_survey_status = _derive_place_activity_status(submissions)
-	audit_mean_scores = _mean_score_pair(submissions, partition="audit")
-	survey_mean_scores = _mean_score_pair(submissions, partition="survey")
-	overall_scores = _overall_score_pair(audit_mean_scores, survey_mean_scores)
+	place_audit_status, place_survey_status = derive_place_activity_status(submissions)
+	audit_mean_scores = mean_partition_score_pair(submissions, partition="audit")
+	survey_mean_scores = mean_partition_score_pair(submissions, partition="survey")
+	overall_scores = overall_score_pair(audit_mean_scores, survey_mean_scores)
 
 	return {
 		"place_audit_status": place_audit_status,
@@ -579,12 +519,12 @@ class PlayspaceDashboardService:
 				place_name=row.place_name,
 				completed_at=row.completed_at,
 				score=_round_score(row.score),
-				score_pair=_overall_score_pair(
-					_round_score_pair(
+				score_pair=overall_score_pair(
+					round_score_pair(
 						float(row.audit_play_value_score) if row.audit_play_value_score is not None else None,
 						float(row.audit_usability_score) if row.audit_usability_score is not None else None,
 					),
-					_round_score_pair(
+					round_score_pair(
 						float(row.survey_play_value_score) if row.survey_play_value_score is not None else None,
 						float(row.survey_usability_score) if row.survey_usability_score is not None else None,
 					),
@@ -750,12 +690,12 @@ class PlayspaceDashboardService:
 				auditors_count=int(row.auditors_count or 0),
 				audits_completed=int(row.audits_completed or 0),
 				average_score=_round_score(float(row.average_score) if row.average_score is not None else None),
-				average_scores=_overall_score_pair(
-					_round_score_pair(
+				average_scores=overall_score_pair(
+					round_score_pair(
 						float(row.audit_mean_pv) if row.audit_mean_pv is not None else None,
 						float(row.audit_mean_u) if row.audit_mean_u is not None else None,
 					),
-					_round_score_pair(
+					round_score_pair(
 						float(row.survey_mean_pv) if row.survey_mean_pv is not None else None,
 						float(row.survey_mean_u) if row.survey_mean_u is not None else None,
 					),
@@ -1072,12 +1012,12 @@ class PlayspaceDashboardService:
 					submitted_at=row.submitted_at,
 					summary_score=_round_score(float(row.summary_score) if row.summary_score is not None else None),
 					execution_mode=row.execution_mode,
-					score_pair=_overall_score_pair(
-						_round_score_pair(
+					score_pair=overall_score_pair(
+						round_score_pair(
 							float(row.audit_play_value_score) if row.audit_play_value_score is not None else None,
 							float(row.audit_usability_score) if row.audit_usability_score is not None else None,
 						),
-						_round_score_pair(
+						round_score_pair(
 							float(row.survey_play_value_score) if row.survey_play_value_score is not None else None,
 							float(row.survey_usability_score) if row.survey_usability_score is not None else None,
 						),
@@ -1096,12 +1036,12 @@ class PlayspaceDashboardService:
 				average_score=_round_score(
 					float(summary_row.average_score) if summary_row.average_score is not None else None
 				),
-				average_scores=_overall_score_pair(
-					_round_score_pair(
+				average_scores=overall_score_pair(
+					round_score_pair(
 						float(summary_row.audit_mean_pv) if summary_row.audit_mean_pv is not None else None,
 						float(summary_row.audit_mean_u) if summary_row.audit_mean_u is not None else None,
 					),
-					_round_score_pair(
+					round_score_pair(
 						float(summary_row.survey_mean_pv) if summary_row.survey_mean_pv is not None else None,
 						float(summary_row.survey_mean_u) if summary_row.survey_mean_u is not None else None,
 					),
@@ -1168,12 +1108,12 @@ class PlayspaceDashboardService:
 		)
 		overall_scores = _mean_score_pairs(
 			[
-				_overall_score_pair(
-					_mean_score_pair(
+				overall_score_pair(
+					mean_partition_score_pair(
 						[audit for audit in place.playspace_submissions if audit.project_id == project.id],
 						partition="audit",
 					),
-					_mean_score_pair(
+					mean_partition_score_pair(
 						[audit for audit in place.playspace_submissions if audit.project_id == project.id],
 						partition="survey",
 					),
@@ -1272,9 +1212,9 @@ class PlayspaceDashboardService:
 					submitted_at=audit.submitted_at,
 					summary_score=_round_score(audit.summary_score),
 					execution_mode=audit.execution_mode,
-					score_pair=_overall_score_pair(
-						_round_score_pair(audit.audit_play_value_score, audit.audit_usability_score),
-						_round_score_pair(audit.survey_play_value_score, audit.survey_usability_score),
+					score_pair=overall_score_pair(
+						round_score_pair(audit.audit_play_value_score, audit.audit_usability_score),
+						round_score_pair(audit.survey_play_value_score, audit.survey_usability_score),
 					),
 				)
 			)
