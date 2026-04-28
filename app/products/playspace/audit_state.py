@@ -348,9 +348,11 @@ def _replace_normalized(audit: PlayspaceSubmission, aggregate: AuditAggregateWri
 	if aggregate.schema_version is not None:
 		ctx.schema_version = aggregate.schema_version
 
-	# Pre-audit: clear everything and rebuild.
-	audit.pre_submission_answers.clear()
-	if aggregate.pre_audit is not None:
+	# Pre-audit: replace fields in place. Reuse matching rows so the flush does
+	# not insert a duplicate unique key before deleting the previous row.
+	if aggregate.pre_audit is None:
+		audit.pre_submission_answers.clear()
+	else:
 		_upsert_pre_audit_normalized(audit, aggregate.pre_audit)
 
 	# Sections: clear everything and rebuild.
@@ -396,13 +398,34 @@ def _upsert_pre_audit_normalized(audit: PlayspaceSubmission, pre_audit: PreAudit
 	if not patch_map:
 		return
 
-	# Remove all existing rows for patched fields; SQLAlchemy cascades the DELETE.
 	patched_keys = set(patch_map.keys())
-	audit.pre_submission_answers = [a for a in audit.pre_submission_answers if a.field_key not in patched_keys]
+	wanted_pairs = {
+		(field_key, selected_value)
+		for field_key, values in patch_map.items()
+		for selected_value in values
+	}
+	existing_by_pair = {
+		(answer.field_key, answer.selected_value): answer
+		for answer in audit.pre_submission_answers
+		if answer.field_key in patched_keys
+	}
 
-	# Insert replacement rows.
+	# Keep rows that are outside the patch, plus rows whose exact value is still
+	# desired. Reusing matching rows avoids a flush ordering issue where SQLAlchemy
+	# may INSERT the replacement before DELETEing the old row with the same unique
+	# (submission_id, field_key, selected_value) key.
+	audit.pre_submission_answers = [
+		answer
+		for answer in audit.pre_submission_answers
+		if answer.field_key not in patched_keys or (answer.field_key, answer.selected_value) in wanted_pairs
+	]
+
 	for field_key, values in patch_map.items():
 		for sort_order, selected_value in enumerate(values):
+			existing = existing_by_pair.get((field_key, selected_value))
+			if existing is not None:
+				existing.sort_order = sort_order
+				continue
 			audit.pre_submission_answers.append(
 				PlayspacePreSubmissionAnswer(
 					submission_id=audit.id,

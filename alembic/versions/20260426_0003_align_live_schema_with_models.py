@@ -66,6 +66,30 @@ def _table_exists(name: str) -> bool:
 	return name in insp.get_table_names()
 
 
+def _column_exists(table_name: str, column_name: str) -> bool:
+	if not _table_exists(table_name):
+		return False
+	conn = op.get_bind()
+	insp = sa.inspect(conn)
+	return column_name in {column["name"] for column in insp.get_columns(table_name)}
+
+
+def _constraint_exists(table_name: str, constraint_name: str) -> bool:
+	row = op.get_bind().execute(
+		sa.text(
+			"SELECT 1 "
+			"FROM pg_constraint c "
+			"JOIN pg_class t ON t.oid = c.conrelid "
+			"JOIN pg_namespace n ON n.oid = t.relnamespace "
+			"WHERE n.nspname = current_schema() "
+			"AND t.relname = :table_name "
+			"AND c.conname = :constraint_name"
+		),
+		{"table_name": table_name, "constraint_name": constraint_name},
+	).first()
+	return row is not None
+
+
 # ---------------------------------------------------------------------------
 # upgrade
 # ---------------------------------------------------------------------------
@@ -75,49 +99,56 @@ def upgrade() -> None:
 	# ── Phase 1: Modify existing tables ──────────────────────────────────
 
 	# 1a. accounts — drop legacy password_hash
-	if _table_exists("accounts"):
+	if _column_exists("accounts", "password_hash"):
 		op.drop_column("accounts", "password_hash")
 
 	# 1b. playspace_submissions — submission_kind → execution_mode + new column
 	if _table_exists("playspace_submissions"):
-		op.add_column(
-			"playspace_submissions",
-			sa.Column("execution_mode", sa.String(length=20), nullable=True),
-		)
-		op.add_column(
-			"playspace_submissions",
-			sa.Column("draft_progress_percent", sa.Float(), nullable=True),
-		)
-		op.execute(
-			"UPDATE playspace_submissions "
-			"SET execution_mode = LEFT(submission_kind, 20) "
-			"WHERE submission_kind IS NOT NULL"
-		)
-		op.drop_column("playspace_submissions", "submission_kind")
+		if not _column_exists("playspace_submissions", "execution_mode"):
+			op.add_column(
+				"playspace_submissions",
+				sa.Column("execution_mode", sa.String(length=20), nullable=True),
+			)
+		if not _column_exists("playspace_submissions", "draft_progress_percent"):
+			op.add_column(
+				"playspace_submissions",
+				sa.Column("draft_progress_percent", sa.Float(), nullable=True),
+			)
+		if _column_exists("playspace_submissions", "submission_kind"):
+			op.execute(
+				"UPDATE playspace_submissions "
+				"SET execution_mode = LEFT(submission_kind, 20) "
+				"WHERE submission_kind IS NOT NULL"
+			)
+			op.drop_column("playspace_submissions", "submission_kind")
 
 	# 1c. playspace_submission_contexts — add schema_version + revision, rename FK
 	if _table_exists("playspace_submission_contexts"):
-		op.add_column(
-			"playspace_submission_contexts",
-			sa.Column("schema_version", sa.Integer(), server_default="1", nullable=False),
-		)
-		op.add_column(
-			"playspace_submission_contexts",
-			sa.Column("revision", sa.Integer(), server_default="0", nullable=False),
-		)
-		op.drop_constraint(
-			"fk_ps_submission_context_submission",
-			"playspace_submission_contexts",
-			type_="foreignkey",
-		)
-		op.create_foreign_key(
-			"fk_ps_context_submission",
-			"playspace_submission_contexts",
-			"playspace_submissions",
-			["submission_id"],
-			["id"],
-			ondelete="CASCADE",
-		)
+		if not _column_exists("playspace_submission_contexts", "schema_version"):
+			op.add_column(
+				"playspace_submission_contexts",
+				sa.Column("schema_version", sa.Integer(), server_default="1", nullable=False),
+			)
+		if not _column_exists("playspace_submission_contexts", "revision"):
+			op.add_column(
+				"playspace_submission_contexts",
+				sa.Column("revision", sa.Integer(), server_default="0", nullable=False),
+			)
+		if _constraint_exists("playspace_submission_contexts", "fk_ps_submission_context_submission"):
+			op.drop_constraint(
+				"fk_ps_submission_context_submission",
+				"playspace_submission_contexts",
+				type_="foreignkey",
+			)
+			if not _constraint_exists("playspace_submission_contexts", "fk_ps_context_submission"):
+				op.create_foreign_key(
+					"fk_ps_context_submission",
+					"playspace_submission_contexts",
+					"playspace_submissions",
+					["submission_id"],
+					["id"],
+					ondelete="CASCADE",
+				)
 
 	# ── Phase 2: Create new tables (conditionally) ──────────────────────
 
@@ -399,11 +430,12 @@ def upgrade() -> None:
 	# ── Phase 4: Redirect FK on playspace_question_responses ────────────
 
 	# 4a. Drop old FK (points to playspace_audit_sections)
-	op.drop_constraint(
-		"fk_ps_question_response_section",
-		"playspace_question_responses",
-		type_="foreignkey",
-	)
+	if _constraint_exists("playspace_question_responses", "fk_ps_question_response_section"):
+		op.drop_constraint(
+			"fk_ps_question_response_section",
+			"playspace_question_responses",
+			type_="foreignkey",
+		)
 
 	# 4b. Delete orphaned rows whose section_id has no match in the new table
 	op.execute(
@@ -412,14 +444,15 @@ def upgrade() -> None:
 	)
 
 	# 4c. Add FK pointing to the new submission-sections table
-	op.create_foreign_key(
-		"fk_ps_question_response_section",
-		"playspace_question_responses",
-		"playspace_submission_sections",
-		["section_id"],
-		["id"],
-		ondelete="CASCADE",
-	)
+	if not _constraint_exists("playspace_question_responses", "fk_ps_question_response_section"):
+		op.create_foreign_key(
+			"fk_ps_question_response_section",
+			"playspace_question_responses",
+			"playspace_submission_sections",
+			["section_id"],
+			["id"],
+			ondelete="CASCADE",
+		)
 
 	# ── Phase 5: Drop old tables (children first) ───────────────────────
 

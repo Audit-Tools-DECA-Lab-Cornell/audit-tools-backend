@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
-MANAGER_EMAIL = "manager@example.org"
+MANAGER_EMAIL = "amelia.carter@example.org"
 ADMIN_EMAIL = "playspace.admin@example.org"
 SEED_PASSWORD = "DemoPass123!"
 
@@ -229,6 +229,10 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/admin/places"),
 		("GET", "/playspace/admin/auditors"),
 		("GET", "/playspace/admin/audits"),
+		("GET", "/playspace/admin/export/reports"),
+		("GET", "/playspace/admin/export/projects"),
+		("GET", "/playspace/admin/export/places"),
+		("GET", "/playspace/admin/export/audits"),
 		("GET", "/playspace/admin/system"),
 		("GET", "/playspace/admin/instruments"),
 		("POST", "/playspace/bulk-assignments"),
