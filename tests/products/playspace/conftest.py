@@ -81,8 +81,6 @@ async def _reseed_playspace_database(
 		await session.commit()
 
 
-
-
 async def _terminate_playspace_test_database_connections(engine: AsyncEngine) -> None:
 	"""Close stale sessions before the destructive schema reset."""
 
@@ -109,6 +107,7 @@ async def _terminate_playspace_test_database_connections(engine: AsyncEngine) ->
 				)
 			)
 		await asyncio.sleep(0.25)
+
 
 async def _reset_playspace_test_database(engine: AsyncEngine) -> None:
 	"""Drop and recreate the public schema so squashed Alembic history can apply cleanly."""

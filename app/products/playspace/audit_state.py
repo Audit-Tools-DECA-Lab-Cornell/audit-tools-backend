@@ -399,11 +399,7 @@ def _upsert_pre_audit_normalized(audit: PlayspaceSubmission, pre_audit: PreAudit
 		return
 
 	patched_keys = set(patch_map.keys())
-	wanted_pairs = {
-		(field_key, selected_value)
-		for field_key, values in patch_map.items()
-		for selected_value in values
-	}
+	wanted_pairs = {(field_key, selected_value) for field_key, values in patch_map.items() for selected_value in values}
 	existing_by_pair = {
 		(answer.field_key, answer.selected_value): answer
 		for answer in audit.pre_submission_answers

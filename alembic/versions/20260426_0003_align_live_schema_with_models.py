@@ -75,18 +75,22 @@ def _column_exists(table_name: str, column_name: str) -> bool:
 
 
 def _constraint_exists(table_name: str, constraint_name: str) -> bool:
-	row = op.get_bind().execute(
-		sa.text(
-			"SELECT 1 "
-			"FROM pg_constraint c "
-			"JOIN pg_class t ON t.oid = c.conrelid "
-			"JOIN pg_namespace n ON n.oid = t.relnamespace "
-			"WHERE n.nspname = current_schema() "
-			"AND t.relname = :table_name "
-			"AND c.conname = :constraint_name"
-		),
-		{"table_name": table_name, "constraint_name": constraint_name},
-	).first()
+	row = (
+		op.get_bind()
+		.execute(
+			sa.text(
+				"SELECT 1 "
+				"FROM pg_constraint c "
+				"JOIN pg_class t ON t.oid = c.conrelid "
+				"JOIN pg_namespace n ON n.oid = t.relnamespace "
+				"WHERE n.nspname = current_schema() "
+				"AND t.relname = :table_name "
+				"AND c.conname = :constraint_name"
+			),
+			{"table_name": table_name, "constraint_name": constraint_name},
+		)
+		.first()
+	)
 	return row is not None
 
 

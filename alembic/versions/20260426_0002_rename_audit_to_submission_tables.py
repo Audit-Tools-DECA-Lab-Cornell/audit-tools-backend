@@ -33,33 +33,41 @@ def _table_exists(name: str) -> bool:
 
 
 def _constraint_exists(table_name: str, constraint_name: str) -> bool:
-	row = op.get_bind().execute(
-		sa.text(
-			"SELECT 1 "
-			"FROM pg_constraint c "
-			"JOIN pg_class t ON t.oid = c.conrelid "
-			"JOIN pg_namespace n ON n.oid = t.relnamespace "
-			"WHERE n.nspname = current_schema() "
-			"AND t.relname = :table_name "
-			"AND c.conname = :constraint_name"
-		),
-		{"table_name": table_name, "constraint_name": constraint_name},
-	).first()
+	row = (
+		op.get_bind()
+		.execute(
+			sa.text(
+				"SELECT 1 "
+				"FROM pg_constraint c "
+				"JOIN pg_class t ON t.oid = c.conrelid "
+				"JOIN pg_namespace n ON n.oid = t.relnamespace "
+				"WHERE n.nspname = current_schema() "
+				"AND t.relname = :table_name "
+				"AND c.conname = :constraint_name"
+			),
+			{"table_name": table_name, "constraint_name": constraint_name},
+		)
+		.first()
+	)
 	return row is not None
 
 
 def _index_exists(index_name: str) -> bool:
-	row = op.get_bind().execute(
-		sa.text(
-			"SELECT 1 "
-			"FROM pg_class i "
-			"JOIN pg_namespace n ON n.oid = i.relnamespace "
-			"WHERE n.nspname = current_schema() "
-			"AND i.relkind = 'i' "
-			"AND i.relname = :index_name"
-		),
-		{"index_name": index_name},
-	).first()
+	row = (
+		op.get_bind()
+		.execute(
+			sa.text(
+				"SELECT 1 "
+				"FROM pg_class i "
+				"JOIN pg_namespace n ON n.oid = i.relnamespace "
+				"WHERE n.nspname = current_schema() "
+				"AND i.relkind = 'i' "
+				"AND i.relname = :index_name"
+			),
+			{"index_name": index_name},
+		)
+		.first()
+	)
 	return row is not None
 
 
@@ -69,10 +77,12 @@ def _rename_table_if_needed(old_name: str, new_name: str) -> None:
 
 
 def _rename_constraint_if_needed(table_name: str, old_name: str, new_name: str) -> None:
-	if _table_exists(table_name) and _constraint_exists(table_name, old_name) and not _constraint_exists(table_name, new_name):
-		op.execute(
-			sa.text(f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{old_name}" TO "{new_name}"')
-		)
+	if (
+		_table_exists(table_name)
+		and _constraint_exists(table_name, old_name)
+		and not _constraint_exists(table_name, new_name)
+	):
+		op.execute(sa.text(f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{old_name}" TO "{new_name}"'))
 
 
 def _rename_index_if_needed(old_name: str, new_name: str) -> None:
