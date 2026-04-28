@@ -27,10 +27,6 @@ from app.models import (
 	Project,
 	ProjectPlace,
 )
-from app.products.playspace.execution_mode_scope import (
-	execution_mode_includes_audit,
-	execution_mode_includes_survey,
-)
 from app.products.playspace.audit_state import (
 	CURRENT_AUDIT_SCHEMA_VERSION,
 	apply_draft_patch_to_relations,
@@ -77,6 +73,11 @@ from app.products.playspace.scoring import (
 	resolve_execution_mode_for_audit,
 	score_audit,
 	score_audit_for_audit,
+)
+from app.products.playspace.services._place_rollup import (
+	derive_place_activity_status,
+	mean_partition_score_pair,
+	overall_score_pair,
 )
 from app.products.playspace.services.instrument import get_active_instrument
 
@@ -413,68 +414,17 @@ class PlayspaceAuditSessionsMixin:
 	) -> _PlaceRollupSnapshot:
 		"""Build one place rollup from the submitted and in-progress Playspace submissions."""
 
-		place_audit_status, place_survey_status = self._derive_place_activity_status(submissions=submissions)
+		place_audit_status, place_survey_status = derive_place_activity_status(submissions)
 
-		audit_scores = self._mean_partition_score_pair(submissions=submissions, partition="audit")
-		survey_scores = self._mean_partition_score_pair(submissions=submissions, partition="survey")
+		audit_scores = mean_partition_score_pair(submissions, partition="audit")
+		survey_scores = mean_partition_score_pair(submissions, partition="survey")
 
 		return _PlaceRollupSnapshot(
 			place_audit_status=place_audit_status,
 			place_survey_status=place_survey_status,
 			audit_scores=audit_scores,
 			survey_scores=survey_scores,
-			overall_scores=self._overall_score_pair(audit_scores=audit_scores, survey_scores=survey_scores),
-		)
-
-	def _derive_place_activity_status(
-		self,
-		*,
-		submissions: list[PlayspaceSubmission],
-	) -> tuple[PlaceActivityStatus, PlaceActivityStatus]:
-		"""Summarize one place activity status from the relevant submission kinds."""
-		place_audit_status: PlaceActivityStatus = "not_started"
-		place_survey_status: PlaceActivityStatus = "not_started"
-		audits = [s for s in submissions if execution_mode_includes_audit(s.execution_mode)]
-		surveys = [s for s in submissions if execution_mode_includes_survey(s.execution_mode)]
-		if any(submission.status == AuditStatus.SUBMITTED for submission in audits):
-			place_audit_status = "submitted"
-		elif any(submission.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for submission in audits):
-			place_audit_status = "in_progress"
-		if any(submission.status == AuditStatus.SUBMITTED for submission in surveys):
-			place_survey_status = "submitted"
-		elif any(submission.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED} for submission in surveys):
-			place_survey_status = "in_progress"
-		return place_audit_status, place_survey_status
-
-	def _mean_partition_score_pair(
-		self,
-		*,
-		submissions: list[PlayspaceSubmission],
-		partition: str,
-	) -> ScorePairResponse | None:
-		"""Average one partition's PV/U scores across submitted Playspace submissions."""
-
-		pv_values: list[float] = []
-		u_values: list[float] = []
-		for submission in submissions:
-			if submission.status != AuditStatus.SUBMITTED:
-				continue
-			if partition == "audit":
-				pv_value = submission.audit_play_value_score
-				u_value = submission.audit_usability_score
-			else:
-				pv_value = submission.survey_play_value_score
-				u_value = submission.survey_usability_score
-			if pv_value is None or u_value is None:
-				continue
-			pv_values.append(float(pv_value))
-			u_values.append(float(u_value))
-
-		if not pv_values or not u_values:
-			return None
-		return ScorePairResponse(
-			pv=round(sum(pv_values) / len(pv_values), 1),
-			u=round(sum(u_values) / len(u_values), 1),
+			overall_scores=overall_score_pair(audit_scores, survey_scores),
 		)
 
 	async def list_auditor_places(
@@ -491,10 +441,16 @@ class PlayspaceAuditSessionsMixin:
 
 		auditor_profile = await self._require_auditor_profile(actor=actor)
 		normalized_search = search.strip().lower() if search is not None and search.strip() else None
+		status_by_filter: dict[str, PlaceActivityStatus] = {
+			"not_started": "not_started",
+			"in_progress": "in_progress",
+			"paused": "in_progress",
+			"submitted": "submitted",
+		}
 		normalized_statuses = {
-			raw_status
+			status_by_filter[normalized_status]
 			for raw_status in (statuses or [])
-			if raw_status in {"not_started", "IN_PROGRESS", "PAUSED", "SUBMITTED"}
+			if (normalized_status := raw_status.strip().lower()) in status_by_filter
 		}
 		safe_page_size = max(1, min(page_size, 100))
 		offset = max(page - 1, 0) * safe_page_size
@@ -579,8 +535,8 @@ class PlayspaceAuditSessionsMixin:
 			filtered_responses = [
 				response
 				for response in filtered_responses
-				if (response.status is None and "not_started" in normalized_statuses)
-				or (response.status is not None and response.status.value in normalized_statuses)
+				if (response.place_audit_status == "not_started" and "not_started" in normalized_statuses)
+				or (response.place_audit_status != "not_started" and response.place_audit_status in normalized_statuses)
 			]
 
 		raw_sort = sort.strip() if sort is not None and sort.strip() else "place_name"
@@ -595,7 +551,7 @@ class PlayspaceAuditSessionsMixin:
 			if sort_key == "project_name":
 				return response.project_name.lower()
 			if sort_key == "status":
-				return response.status.value if response.status is not None else None
+				return response.place_audit_status
 			if sort_key == "started_at":
 				return response.started_at
 			if sort_key == "submitted_at":
@@ -1596,21 +1552,6 @@ class PlayspaceAuditSessionsMixin:
 		return ScorePairResponse(
 			pv=round(score_totals.play_value_total, 1),
 			u=round(score_totals.usability_total, 1),
-		)
-
-	@staticmethod
-	def _overall_score_pair(
-		*,
-		audit_scores: ScorePairResponse | None,
-		survey_scores: ScorePairResponse | None,
-	) -> ScorePairResponse | None:
-		"""Combine the audit and survey mean score pairs into the requested overall pair."""
-
-		if audit_scores is None or survey_scores is None:
-			return None
-		return ScorePairResponse(
-			pv=round(audit_scores.pv + survey_scores.pv, 1),
-			u=round(audit_scores.u + survey_scores.u, 1),
 		)
 
 	@staticmethod
