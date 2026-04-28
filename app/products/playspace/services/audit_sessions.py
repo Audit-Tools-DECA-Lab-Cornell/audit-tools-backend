@@ -387,16 +387,18 @@ class PlayspaceAuditSessionsMixin:
 	async def _get_place_rollups(
 		self,
 		*,
+		auditor_profile_id: uuid.UUID,
 		project_place_pairs: list[tuple[uuid.UUID, uuid.UUID]],
 	) -> dict[tuple[uuid.UUID, uuid.UUID], _PlaceRollupSnapshot]:
-		"""Aggregate place-level coverage and score rollups across all matching submissions."""
+		"""Aggregate place-level coverage and score rollups for one auditor's matching submissions."""
 
 		if not project_place_pairs:
 			return {}
 
 		result = await self._session.execute(
 			select(PlayspaceSubmission).where(
-				tuple_(PlayspaceSubmission.project_id, PlayspaceSubmission.place_id).in_(project_place_pairs)
+				PlayspaceSubmission.auditor_profile_id == auditor_profile_id,
+				tuple_(PlayspaceSubmission.project_id, PlayspaceSubmission.place_id).in_(project_place_pairs),
 			)
 		)
 		grouped_submissions: dict[tuple[uuid.UUID, uuid.UUID], list[PlayspaceSubmission]] = {}
@@ -461,7 +463,10 @@ class PlayspaceAuditSessionsMixin:
 			auditor_profile_id=auditor_profile.id,
 			project_place_pairs=project_place_pairs,
 		)
-		place_rollups = await self._get_place_rollups(project_place_pairs=project_place_pairs)
+		place_rollups = await self._get_place_rollups(
+			auditor_profile_id=auditor_profile.id,
+			project_place_pairs=project_place_pairs,
+		)
 
 		responses: list[AuditorPlaceResponse] = []
 		for assigned_place in assigned_places:
