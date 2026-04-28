@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import uuid
 
-from sqlalchemy import and_, distinct, func, or_, select
+from sqlalchemy import and_, case, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -471,125 +471,220 @@ class PlayspaceAdminService:
 
 		self._require_admin(actor)
 
-		_valid_axis_statuses = {"not_started", "in_progress", "submitted", "complete"}
+		valid_axis_statuses = {"not_started", "in_progress", "submitted", "complete"}
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
-		normalized_account_ids = set(account_ids) if account_ids else set()
-		normalized_audit_statuses = {s for s in (audit_statuses or []) if s in _valid_axis_statuses}
-		normalized_survey_statuses = {s for s in (survey_statuses or []) if s in _valid_axis_statuses}
+		normalized_account_ids = account_ids or []
+		normalized_audit_statuses = {
+			"submitted" if raw_status == "complete" else raw_status
+			for raw_status in (audit_statuses or [])
+			if raw_status in valid_axis_statuses
+		}
+		normalized_survey_statuses = {
+			"submitted" if raw_status == "complete" else raw_status
+			for raw_status in (survey_statuses or [])
+			if raw_status in valid_axis_statuses
+		}
 		safe_page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 		offset = max(page - 1, 0) * safe_page_size
-		projects_result = await self._session.execute(
-			select(Project).options(
-				selectinload(Project.account),
-				selectinload(Project.places).selectinload(Place.playspace_submissions),
+
+		audit_mode_filter = PlayspaceSubmission.execution_mode.in_(["audit", "both"])
+		survey_mode_filter = PlayspaceSubmission.execution_mode.in_(["survey", "both"])
+		submitted_filter = PlayspaceSubmission.status == AuditStatus.SUBMITTED
+		active_status_filter = PlayspaceSubmission.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED])
+		audit_scores_present = and_(
+			PlayspaceSubmission.audit_play_value_score.is_not(None),
+			PlayspaceSubmission.audit_usability_score.is_not(None),
+		)
+		survey_scores_present = and_(
+			PlayspaceSubmission.survey_play_value_score.is_not(None),
+			PlayspaceSubmission.survey_usability_score.is_not(None),
+		)
+		audit_submitted_count = func.count(PlayspaceSubmission.id).filter(
+			audit_mode_filter,
+			submitted_filter,
+		)
+		audit_active_count = func.count(PlayspaceSubmission.id).filter(
+			audit_mode_filter,
+			active_status_filter,
+		)
+		survey_submitted_count = func.count(PlayspaceSubmission.id).filter(
+			survey_mode_filter,
+			submitted_filter,
+		)
+		survey_active_count = func.count(PlayspaceSubmission.id).filter(
+			survey_mode_filter,
+			active_status_filter,
+		)
+		place_audit_status = case(
+			(audit_submitted_count > 0, "submitted"),
+			(audit_active_count > 0, "in_progress"),
+			else_="not_started",
+		).label("place_audit_status")
+		place_survey_status = case(
+			(survey_submitted_count > 0, "submitted"),
+			(survey_active_count > 0, "in_progress"),
+			else_="not_started",
+		).label("place_survey_status")
+
+		filtered_rows_query = (
+			select(
+				Place.id.label("place_id"),
+				Project.id.label("project_id"),
+				Project.name.label("project_name"),
+				Account.id.label("account_id"),
+				Account.name.label("account_name"),
+				Place.name.label("name"),
+				Place.address.label("address"),
+				Place.city.label("city"),
+				Place.province.label("province"),
+				Place.country.label("country"),
+				Place.postal_code.label("postal_code"),
+				func.count(PlayspaceSubmission.id).filter(submitted_filter).label("audits_completed"),
+				func.avg(PlayspaceSubmission.summary_score)
+				.filter(submitted_filter, PlayspaceSubmission.summary_score.is_not(None))
+				.label("average_score"),
+				func.max(PlayspaceSubmission.submitted_at).filter(submitted_filter).label("last_audited_at"),
+				place_audit_status,
+				place_survey_status,
+				func.count(PlayspaceSubmission.id).filter(audit_mode_filter).label("place_audit_count"),
+				func.count(PlayspaceSubmission.id).filter(survey_mode_filter).label("place_survey_count"),
+				func.avg(PlayspaceSubmission.audit_play_value_score)
+				.filter(submitted_filter, audit_scores_present)
+				.label("audit_mean_pv"),
+				func.avg(PlayspaceSubmission.audit_usability_score)
+				.filter(submitted_filter, audit_scores_present)
+				.label("audit_mean_u"),
+				func.avg(PlayspaceSubmission.survey_play_value_score)
+				.filter(submitted_filter, survey_scores_present)
+				.label("survey_mean_pv"),
+				func.avg(PlayspaceSubmission.survey_usability_score)
+				.filter(submitted_filter, survey_scores_present)
+				.label("survey_mean_u"),
+			)
+			.select_from(ProjectPlace)
+			.join(Project, ProjectPlace.project_id == Project.id)
+			.join(Account, Project.account_id == Account.id)
+			.join(Place, ProjectPlace.place_id == Place.id)
+			.outerjoin(
+				PlayspaceSubmission,
+				and_(
+					PlayspaceSubmission.project_id == ProjectPlace.project_id,
+					PlayspaceSubmission.place_id == ProjectPlace.place_id,
+				),
+			)
+			.group_by(
+				Place.id,
+				Project.id,
+				Project.name,
+				Account.id,
+				Account.name,
+				Place.name,
+				Place.address,
+				Place.city,
+				Place.province,
+				Place.country,
+				Place.postal_code,
 			)
 		)
-		projects = projects_result.scalars().all()
-
-		rows: list[AdminPlaceRowResponse] = []
-		for project in projects:
-			if normalized_project_ids and project.id not in normalized_project_ids:
-				continue
-			account = project.account
-			if account is None:
-				continue
-			if normalized_account_ids and account.id not in normalized_account_ids:
-				continue
-			for place in project.places:
-				project_submissions = [
-					submission for submission in place.playspace_submissions if submission.project_id == project.id
-				]
-				submitted_submissions = [
-					submission for submission in project_submissions if submission.status == AuditStatus.SUBMITTED
-				]
-				summary_values = [float(s.summary_score) for s in submitted_submissions if s.summary_score is not None]
-				place_average = _round_score(sum(summary_values) / len(summary_values)) if summary_values else None
-				rollup = _build_place_rollup(project_submissions)
-				rows.append(
-					AdminPlaceRowResponse(
-						place_id=place.id,
-						project_id=project.id,
-						project_name=project.name,
-						account_id=account.id,
-						account_name=account.name,
-						name=place.name,
-						address=place.address,
-						city=place.city,
-						province=place.province,
-						country=place.country,
-						postal_code=place.postal_code,
-						audits_completed=len(submitted_submissions),
-						average_score=place_average,
-						last_audited_at=max(
-							(
-								submission.submitted_at
-								for submission in submitted_submissions
-								if submission.submitted_at is not None
-							),
-							default=None,
-						),
-						place_audit_status=rollup["place_audit_status"],
-						place_survey_status=rollup["place_survey_status"],
-						place_audit_count=rollup["place_audit_count"],
-						place_survey_count=rollup["place_survey_count"],
-						audit_mean_scores=rollup["audit_mean_scores"],
-						survey_mean_scores=rollup["survey_mean_scores"],
-						overall_scores=rollup["overall_scores"],
-					)
-				)
 
 		if normalized_search is not None:
-			search_term = normalized_search.lower()
-			rows = [
-				row
-				for row in rows
-				if search_term
-				in " ".join(
-					part
-					for part in [
-						row.name,
-						row.address or "",
-						row.postal_code or "",
-						row.project_name,
-						row.account_name,
-						row.city or "",
-						row.province or "",
-						row.country or "",
-					]
-				).lower()
-			]
+			search_term = f"%{normalized_search}%"
+			filtered_rows_query = filtered_rows_query.where(
+				or_(
+					Place.name.ilike(search_term),
+					Place.address.ilike(search_term),
+					Place.postal_code.ilike(search_term),
+					Project.name.ilike(search_term),
+					Account.name.ilike(search_term),
+					Place.city.ilike(search_term),
+					Place.province.ilike(search_term),
+					Place.country.ilike(search_term),
+				)
+			)
 
+		if normalized_project_ids:
+			filtered_rows_query = filtered_rows_query.where(Project.id.in_(normalized_project_ids))
+		if normalized_account_ids:
+			filtered_rows_query = filtered_rows_query.where(Account.id.in_(normalized_account_ids))
+
+		filtered_rows_subquery = filtered_rows_query.subquery()
+		count_query = select(func.count()).select_from(filtered_rows_subquery)
 		if normalized_audit_statuses:
-			rows = [row for row in rows if row.place_audit_status in normalized_audit_statuses]
+			count_query = count_query.where(filtered_rows_subquery.c.place_audit_status.in_(normalized_audit_statuses))
 		if normalized_survey_statuses:
-			rows = [row for row in rows if row.place_survey_status in normalized_survey_statuses]
+			count_query = count_query.where(
+				filtered_rows_subquery.c.place_survey_status.in_(normalized_survey_statuses)
+			)
+		total_count_result = await self._session.execute(count_query)
+		total_count = int(total_count_result.scalar_one() or 0)
 
 		raw_sort = sort.strip() if sort is not None and sort.strip() else "-last_audited_at"
 		is_descending = raw_sort.startswith("-")
 		sort_key = raw_sort[1:] if is_descending else raw_sort
+		sort_map = {
+			"place": filtered_rows_subquery.c.name,
+			"name": filtered_rows_subquery.c.name,
+			"audits_completed": filtered_rows_subquery.c.audits_completed,
+			"average_score": filtered_rows_subquery.c.average_score,
+			"last_audited_at": filtered_rows_subquery.c.last_audited_at,
+		}
+		sort_column = sort_map.get(sort_key, filtered_rows_subquery.c.last_audited_at)
+		primary_order = sort_column.desc().nulls_last() if is_descending else sort_column.asc().nulls_last()
+		page_query = select(filtered_rows_subquery)
+		if normalized_audit_statuses:
+			page_query = page_query.where(filtered_rows_subquery.c.place_audit_status.in_(normalized_audit_statuses))
+		if normalized_survey_statuses:
+			page_query = page_query.where(filtered_rows_subquery.c.place_survey_status.in_(normalized_survey_statuses))
 
-		def sort_value(row: AdminPlaceRowResponse) -> str | float | datetime | None:
-			if sort_key in {"place", "name"}:
-				return row.name.lower()
-			if sort_key == "audits_completed":
-				return row.audits_completed
-			if sort_key == "average_score":
-				return row.average_score
-			return row.last_audited_at
-
-		non_null_rows = [row for row in rows if sort_value(row) is not None]
-		null_rows = [row for row in rows if sort_value(row) is None]
-		non_null_rows = sorted(
-			non_null_rows,
-			key=lambda row: (sort_value(row), row.name.lower(), str(row.place_id)),
-			reverse=is_descending,
+		rows_result = await self._session.execute(
+			page_query.order_by(
+				primary_order,
+				filtered_rows_subquery.c.name.asc(),
+				filtered_rows_subquery.c.place_id.asc(),
+			)
+			.offset(offset)
+			.limit(safe_page_size)
 		)
-		rows = [*non_null_rows, *null_rows]
-		total_count = len(rows)
+
+		items: list[AdminPlaceRowResponse] = []
+		for row in rows_result.all():
+			audit_mean_scores = round_score_pair(
+				float(row.audit_mean_pv) if row.audit_mean_pv is not None else None,
+				float(row.audit_mean_u) if row.audit_mean_u is not None else None,
+			)
+			survey_mean_scores = round_score_pair(
+				float(row.survey_mean_pv) if row.survey_mean_pv is not None else None,
+				float(row.survey_mean_u) if row.survey_mean_u is not None else None,
+			)
+			items.append(
+				AdminPlaceRowResponse(
+					place_id=row.place_id,
+					project_id=row.project_id,
+					project_name=row.project_name,
+					account_id=row.account_id,
+					account_name=row.account_name,
+					name=row.name,
+					address=row.address,
+					city=row.city,
+					province=row.province,
+					country=row.country,
+					postal_code=row.postal_code,
+					audits_completed=int(row.audits_completed or 0),
+					average_score=_round_score(float(row.average_score) if row.average_score is not None else None),
+					last_audited_at=row.last_audited_at,
+					place_audit_status=row.place_audit_status,
+					place_survey_status=row.place_survey_status,
+					place_audit_count=int(row.place_audit_count or 0),
+					place_survey_count=int(row.place_survey_count or 0),
+					audit_mean_scores=audit_mean_scores,
+					survey_mean_scores=survey_mean_scores,
+					overall_scores=overall_score_pair(audit_mean_scores, survey_mean_scores),
+				)
+			)
 
 		return PaginatedResponse[AdminPlaceRowResponse](
-			items=rows[offset : offset + safe_page_size],
+			items=items,
 			total_count=total_count,
 			page=page,
 			page_size=safe_page_size,

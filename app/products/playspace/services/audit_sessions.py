@@ -294,6 +294,7 @@ class PlayspaceAuditSessionsMixin:
 				PlayspaceSubmission.summary_score.label("summary_score"),
 				PlayspaceSubmission.scores_json.label("scores_json"),
 				PlayspaceSubmission.responses_json.label("responses_json"),
+				PlayspaceSubmission.draft_progress_percent.label("draft_progress_percent"),
 				latest_audit_rank.label("audit_rank"),
 			)
 			.where(
