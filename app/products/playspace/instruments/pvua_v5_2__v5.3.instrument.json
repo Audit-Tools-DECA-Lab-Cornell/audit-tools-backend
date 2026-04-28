@@ -4296,6 +4296,37 @@
                 ]
               },
               {
+                "key": "challenge",
+                "title": "Challenge Opportunities",
+                "prompt": "To what extent does this feature/environmental characteristic provide opportunities with different levels of challenge?",
+                "options": [
+                  {
+                    "key": "no_challenge",
+                    "label": "No Challenge",
+                    "boost_value": 1,
+                    "addition_value": 1,
+                    "is_not_applicable": true,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "some_challenge",
+                    "label": "Some Challenge",
+                    "boost_value": 2,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "a_lot_of_challenge",
+                    "label": "A lot of Challenge",
+                    "boost_value": 3,
+                    "addition_value": 3,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ]
+              },
+              {
                 "key": "sociability",
                 "title": "Sociability Support",
                 "prompt": "Can more than one child or person use this feature/environmental characteristic together?",
@@ -4556,6 +4587,37 @@
                 ]
               },
               {
+                "key": "challenge",
+                "title": "Challenge Opportunities",
+                "prompt": "To what extent does this feature/environmental characteristic provide opportunities with different levels of challenge?",
+                "options": [
+                  {
+                    "key": "no_challenge",
+                    "label": "No Challenge",
+                    "boost_value": 1,
+                    "addition_value": 1,
+                    "is_not_applicable": true,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "some_challenge",
+                    "label": "Some Challenge",
+                    "boost_value": 2,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "a_lot_of_challenge",
+                    "label": "A lot of Challenge",
+                    "boost_value": 3,
+                    "addition_value": 3,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ]
+              },
+              {
                 "key": "sociability",
                 "title": "Sociability Support",
                 "prompt": "Can more than one child or person use this feature/environmental characteristic together?",
@@ -4658,6 +4720,37 @@
                   {
                     "key": "a_lot_of_diversity",
                     "label": "A lot of Diversity",
+                    "boost_value": 3,
+                    "addition_value": 3,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ]
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge Opportunities",
+                "prompt": "To what extent does this feature/environmental characteristic provide opportunities with different levels of challenge?",
+                "options": [
+                  {
+                    "key": "no_challenge",
+                    "label": "No Challenge",
+                    "boost_value": 1,
+                    "addition_value": 1,
+                    "is_not_applicable": true,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "some_challenge",
+                    "label": "Some Challenge",
+                    "boost_value": 2,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "a_lot_of_challenge",
+                    "label": "A lot of Challenge",
                     "boost_value": 3,
                     "addition_value": 3,
                     "is_not_applicable": false,
@@ -8839,7 +8932,7 @@
           },
           {
             "mode": "audit",
-            "prompt": "... **has manufactured play features with accessible access** (e.g. play features designed to accommodate users together with their mobility aids)",
+            "prompt": "... **has manufactured play features with accessible access** (e.g. features designed to accommodate users with mobility aids, TODO THOAMS: put example here )",
             "scales": [
               {
                 "key": "provision",

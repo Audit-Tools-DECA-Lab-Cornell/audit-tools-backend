@@ -767,6 +767,7 @@ class PlayspaceAuditSessionsMixin:
 				AuditorAuditSummaryResponse(
 					audit_id=audit_id,
 					audit_code=audit_code,
+					auditor_code=auditor_profile.auditor_code,
 					place_id=place_id,
 					place_name=place_name,
 					project_id=project_id,

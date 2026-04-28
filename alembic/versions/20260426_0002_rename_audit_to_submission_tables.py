@@ -10,9 +10,9 @@ Affected tables:
   playspace_pre_audit_answers  → playspace_pre_submission_answers
   playspace_audit_sections     → playspace_submission_sections
 
-Revision ID: 0002
+Revision ID: 20260426_0002
 Revises: 0001
-Create Date: 2026-04-27
+Create Date: 2026-04-26
 
 """
 
@@ -21,7 +21,7 @@ from __future__ import annotations
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "0002"
+revision = "20260426_0002"
 down_revision = "0001"
 branch_labels = None
 depends_on = None
