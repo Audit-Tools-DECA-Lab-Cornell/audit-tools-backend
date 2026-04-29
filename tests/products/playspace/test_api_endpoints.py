@@ -45,12 +45,12 @@ def _login_admin(client: TestClient) -> str:
 	return response.json()["access_token"]
 
 
-def _login_auditor(client: TestClient, email: str) -> str:
+def _login_auditor(client: TestClient, email: str, password: str = SEED_PASSWORD) -> str:
 	"""Login an auditor account and return a bearer token."""
 
 	response = client.post(
 		"/playspace/auth/login",
-		json={"email": email, "password": SEED_PASSWORD},
+		json={"email": email, "password": password},
 	)
 	assert response.status_code == 200
 	return response.json()["access_token"]
@@ -178,7 +178,10 @@ def _create_auditor_profile(
 		},
 	)
 	assert response.status_code == 201
-	return response.json()
+	payload = response.json()
+	assert payload["temporary_password"]
+	assert payload["temporary_password"] != SEED_PASSWORD
+	return payload
 
 
 def test_playspace_route_inventory_matches_expected_surface() -> None:
@@ -757,10 +760,20 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 		},
 	)
 	assert assignment_response.status_code == 201
-	auditor_profile_id = assignment_response.json()["id"]
+	created_auditor = assignment_response.json()
+	auditor_profile_id = created_auditor["id"]
+	temporary_password = created_auditor["temporary_password"]
+	assert temporary_password
+	assert temporary_password != SEED_PASSWORD
 
-	# Auditor account is created with the shared seed password.
-	auditor_token = _login_auditor(playspace_client, auditor_email)
+	seed_password_response = playspace_client.post(
+		"/playspace/auth/login",
+		json={"email": auditor_email, "password": SEED_PASSWORD},
+	)
+	assert seed_password_response.status_code == 401
+
+	# Auditor account is created with a one-time random temporary password.
+	auditor_token = _login_auditor(playspace_client, auditor_email, str(temporary_password))
 	auditor_headers = _bearer_headers(auditor_token)
 
 	assign_to_place_response = playspace_client.post(

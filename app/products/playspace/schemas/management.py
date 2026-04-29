@@ -153,6 +153,7 @@ class AuditorProfileDetailResponse(ApiModel):
 	country: str | None
 	role: str | None
 	created_at: datetime
+	temporary_password: str | None = None
 
 
 ######################################################################################

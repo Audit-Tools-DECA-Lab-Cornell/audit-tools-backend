@@ -4,6 +4,7 @@ Manager/admin write-path service for Playspace dashboard workflows.
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -514,9 +515,10 @@ class PlayspaceManagementService:
 		self._session.add(account)
 		await self._session.flush()
 
+		temporary_password = secrets.token_urlsafe(24)
 		user = User(
 			email=payload.email,
-			password_hash=hash_password("DemoPass123!"),
+			password_hash=hash_password(temporary_password),
 			account_id=account.id,
 			account_type=AccountType.AUDITOR,
 			name=payload.full_name,
@@ -545,7 +547,7 @@ class PlayspaceManagementService:
 		self._session.add(profile)
 		await self._session.commit()
 		await self._session.refresh(profile)
-		return self._serialize_auditor_profile(profile)
+		return self._serialize_auditor_profile(profile).model_copy(update={"temporary_password": temporary_password})
 
 	async def update_auditor_profile(
 		self,
