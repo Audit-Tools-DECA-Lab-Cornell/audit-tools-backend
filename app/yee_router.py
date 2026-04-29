@@ -218,6 +218,24 @@ async def _get_draft_audit(
 	return (await session.execute(stmt)).scalars().first()
 
 
+async def _get_latest_yee_audit(
+	session: AsyncSession,
+	*,
+	auditor: Auditor,
+	place_id: uuid.UUID,
+) -> Audit | None:
+	stmt = (
+		select(Audit)
+		.where(
+			Audit.auditor_profile_id == auditor.id,
+			Audit.place_id == place_id,
+			Audit.instrument_key == "yee",
+		)
+		.order_by(Audit.updated_at.desc(), Audit.created_at.desc())
+	)
+	return (await session.execute(stmt)).scalars().first()
+
+
 @router.get("/instrument")
 def get_yee_instrument() -> dict[str, object]:
 	"""Return YEE instrument metadata and scoring matrix extracted from QSF."""
@@ -337,12 +355,7 @@ async def save_yee_draft(
 	if existing_submission is not None:
 		raise HTTPException(status_code=409, detail="This audit has already been submitted and is locked.")
 
-	existing_audit_stmt = select(Audit).where(
-		Audit.auditor_profile_id == auditor.id,
-		Audit.place_id == place_id,
-		Audit.instrument_key == "yee",
-	)
-	existing_audit = (await session.execute(existing_audit_stmt)).scalar_one_or_none()
+	existing_audit = await _get_latest_yee_audit(session, auditor=auditor, place_id=place_id)
 	if existing_audit is not None and existing_audit.status == AuditStatus.SUBMITTED:
 		raise HTTPException(status_code=409, detail="This audit has already been submitted and is locked.")
 
@@ -421,12 +434,7 @@ async def submit_yee_audit(
 		raise HTTPException(status_code=409, detail="You have already submitted an audit for this place.")
 
 	score = score_yee_responses(payload.responses)
-	draft_or_existing_stmt = select(Audit).where(
-		Audit.auditor_profile_id == auditor.id,
-		Audit.place_id == payload.place_id,
-		Audit.instrument_key == "yee",
-	)
-	audit = (await session.execute(draft_or_existing_stmt)).scalar_one_or_none()
+	audit = await _get_latest_yee_audit(session, auditor=auditor, place_id=payload.place_id)
 	if audit is None:
 		audit = Audit(
 			project_id=assignment.project_id,
