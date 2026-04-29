@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from app.core.actors import CurrentUserContext
 from app.products.playspace.routes.dependencies import (
@@ -81,6 +81,8 @@ async def update_auditor_assignment(
 @router.delete(
 	"/auditor-profiles/{auditor_profile_id}/assignments/{assignment_id}",
 	status_code=204,
+	response_model=None,
+	response_class=Response,
 )
 async def delete_auditor_assignment(
 	auditor_profile_id: uuid.UUID,

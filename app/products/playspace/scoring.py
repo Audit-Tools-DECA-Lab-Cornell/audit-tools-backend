@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.models import Audit
+from app.models import PlayspaceSubmission
 from app.products.playspace.audit_state import build_responses_json_from_relations
 from app.products.playspace.instrument import get_canonical_instrument_response
 from app.products.playspace.schemas import (
@@ -86,7 +86,7 @@ def resolve_execution_mode(
 
 def resolve_execution_mode_for_audit(
 	*,
-	audit: Audit,
+	audit: PlayspaceSubmission,
 ) -> ExecutionMode | None:
 	"""Resolve execution mode directly from normalized audit relations."""
 
@@ -173,7 +173,7 @@ def build_audit_progress(
 
 def build_audit_progress_for_audit(
 	*,
-	audit: Audit,
+	audit: PlayspaceSubmission,
 	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> AuditProgressResponse:
 	"""Build user-facing progress directly from normalized audit relations."""
@@ -293,7 +293,7 @@ def score_audit(
 
 def score_audit_for_audit(
 	*,
-	audit: Audit,
+	audit: PlayspaceSubmission,
 	include_maximums: bool = False,
 	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> JsonDict:
@@ -324,6 +324,14 @@ def _score_audit_from_snapshot(
 
 	section_scores: dict[str, JsonDict] = {}
 	domain_scores: dict[str, ScoreTotals] = {}
+	partition_scores: dict[str, ScoreTotals] = {
+		"audit": ScoreTotals(),
+		"survey": ScoreTotals(),
+	}
+	partition_has_questions = {
+		"audit": False,
+		"survey": False,
+	}
 	sections_payload = snapshot.sections_payload
 
 	for section in scoring_sections:
@@ -344,6 +352,14 @@ def _score_audit_from_snapshot(
 				section_answers=section_answers,
 			)
 			section_totals = _add_score_totals(section_totals, question_totals)
+
+			for partition_key in ("audit", "survey"):
+				if _question_contributes_to_partition(question=question, partition_key=partition_key):
+					partition_scores[partition_key] = _add_score_totals(
+						partition_scores[partition_key],
+						question_totals,
+					)
+					partition_has_questions[partition_key] = True
 
 			for domain_label in question.domains:
 				current_domain_score = domain_scores.get(domain_label, ScoreTotals())
@@ -370,6 +386,16 @@ def _score_audit_from_snapshot(
 
 	return {
 		"overall": _serialize_score_totals(overall_totals, include_maximums=include_maximums),
+		"audit": (
+			_serialize_score_totals(partition_scores["audit"], include_maximums=include_maximums)
+			if partition_has_questions["audit"]
+			else None
+		),
+		"survey": (
+			_serialize_score_totals(partition_scores["survey"], include_maximums=include_maximums)
+			if partition_has_questions["survey"]
+			else None
+		),
 		"by_section": section_scores,
 		"by_domain": serialized_domain_scores,
 		"execution_mode": execution_mode.value,
@@ -398,7 +424,7 @@ def _build_snapshot_from_json(responses_json: JsonDict) -> AuditStateSnapshot:
 	)
 
 
-def _build_snapshot_from_audit(audit: Audit) -> AuditStateSnapshot:
+def _build_snapshot_from_audit(audit: PlayspaceSubmission) -> AuditStateSnapshot:
 	"""Build a scoring snapshot from the canonical aggregate with legacy fallback."""
 
 	return _build_snapshot_from_json(build_responses_json_from_relations(audit))
@@ -440,6 +466,16 @@ def _is_question_visible(*, question: ScoringQuestion, section_answers: JsonDict
 		return any(
 			isinstance(entry, str) and entry in question.display_if.any_of_option_keys for entry in selected_value
 		)
+	return False
+
+
+def _question_contributes_to_partition(*, question: ScoringQuestion, partition_key: str) -> bool:
+	"""Return whether one scored question feeds the audit or survey partition."""
+
+	if partition_key == "audit":
+		return question.mode in {"audit", "both"}
+	if partition_key == "survey":
+		return question.mode in {"survey", "both"}
 	return False
 
 
@@ -515,61 +551,27 @@ def _read_json_dict(value: object) -> JsonDict:
 	return dict(value) if isinstance(value, dict) else {}
 
 
-def _read_execution_mode_value_from_audit(audit: Audit) -> str | None:
-	"""Read the selected execution mode directly from normalized rows or cache fallback."""
+# def _read_execution_mode_value_from_audit(audit: PlayspaceSubmission) -> str | None:
+# 	"""Read the selected execution mode directly from normalized rows or cache fallback."""
 
-	if audit.playspace_context is not None and audit.playspace_context.execution_mode is not None:
-		return audit.playspace_context.execution_mode
+# 	if audit.playspace_context is not None and audit.playspace_context.execution_mode is not None:
+# 		return audit.playspace_context.execution_mode
 
-	meta = _read_json_dict(_read_json_dict(audit.responses_json).get("meta"))
-	raw_execution_mode = meta.get("execution_mode")
-	if isinstance(raw_execution_mode, str) and raw_execution_mode.strip():
-		return raw_execution_mode
-	return None
+# 	meta = _read_json_dict(_read_json_dict(audit.responses_json).get("meta"))
+# 	raw_execution_mode = meta.get("execution_mode")
+# 	if isinstance(raw_execution_mode, str) and raw_execution_mode.strip():
+# 		return raw_execution_mode
+# 	return None
 
 
-def _build_pre_audit_payload_from_audit(audit: Audit) -> JsonDict:
-	"""Build pre-audit values from normalized rows or cache fallback."""
-
-	if audit.playspace_pre_audit_answers:
-		grouped_values: dict[str, list[tuple[int, str]]] = {}
-		for answer in audit.playspace_pre_audit_answers:
-			grouped_values.setdefault(answer.field_key, []).append((answer.sort_order, answer.selected_value))
-
-		payload: JsonDict = {}
-		for field_key, ordered_pairs in grouped_values.items():
-			ordered_values = [value for _sort_order, value in sorted(ordered_pairs, key=lambda item: item[0])]
-			if field_key in MULTI_SELECT_PRE_AUDIT_FIELDS:
-				payload[field_key] = ordered_values
-				continue
-			payload[field_key] = ordered_values[0] if ordered_values else None
-		return payload
+def _build_pre_audit_payload_from_audit(audit: PlayspaceSubmission) -> JsonDict:
+	"""Build pre-audit values from the cached aggregate payload."""
 
 	return _read_json_dict(_read_json_dict(audit.responses_json).get("pre_audit"))
 
 
-def _build_sections_payload_from_audit(audit: Audit) -> dict[str, JsonDict]:
-	"""Build section answer lookups from normalized rows or cache fallback."""
-
-	if audit.playspace_sections:
-		section_payloads: dict[str, JsonDict] = {}
-		ordered_sections = sorted(audit.playspace_sections, key=lambda section: section.section_key)
-		for section in ordered_sections:
-			question_payloads: JsonDict = {}
-			ordered_questions = sorted(
-				section.question_responses,
-				key=lambda question_response: question_response.question_key,
-			)
-			for question_response in ordered_questions:
-				scale_answers: JsonDict = {}
-				for scale_answer in sorted(
-					question_response.scale_answers,
-					key=lambda answer: answer.scale_key,
-				):
-					scale_answers[scale_answer.scale_key] = scale_answer.option_key
-				question_payloads[question_response.question_key] = scale_answers
-			section_payloads[section.section_key] = question_payloads
-		return section_payloads
+def _build_sections_payload_from_audit(audit: PlayspaceSubmission) -> dict[str, JsonDict]:
+	"""Build section answer lookups from the cached aggregate payload."""
 
 	cached_sections = _read_json_dict(_read_json_dict(audit.responses_json).get("sections"))
 	return {

@@ -36,13 +36,13 @@ from app.core.demo_data import (
 from app.models import (
 	Account,
 	AccountType,
-	Audit,
 	AuditorAssignment,
 	AuditorProfile,
 	AuditStatus,
 	Instrument,
 	ManagerProfile,
 	Place,
+	PlayspaceSubmission,
 	PlayspaceType,
 	Project,
 	ProjectPlace,
@@ -83,7 +83,7 @@ PlayspaceEntity = (
 	| Place
 	| ProjectPlace
 	| AuditorAssignment
-	| Audit
+	| PlayspaceSubmission
 	| Instrument
 )
 SeedJson = dict[str, object]
@@ -462,7 +462,6 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		id=DEMO_ACCOUNT_ID,
 		name=PLAYSPACE_ORGANIZATION_NAME,
 		email="manager@example.org",
-		password_hash=_placeholder_password_hash("playspace-manager"),
 		account_type=AccountType.MANAGER,
 		created_at=BASE_MANAGER_CREATED_AT,
 	)
@@ -470,7 +469,6 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		id=SECONDARY_MANAGER_ACCOUNT_ID,
 		name=SECONDARY_PLAYSPACE_ORGANIZATION_NAME,
 		email="canterbury.manager@example.org",
-		password_hash=_placeholder_password_hash("playspace-manager-secondary"),
 		account_type=AccountType.MANAGER,
 		created_at=BASE_SECONDARY_MANAGER_CREATED_AT,
 	)
@@ -478,7 +476,6 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		id=PLAYSPACE_ADMIN_ACCOUNT_ID,
 		name=PLAYSPACE_ADMIN_ACCOUNT_NAME,
 		email="playspace.admin@example.org",
-		password_hash=_placeholder_password_hash("playspace-admin"),
 		account_type=AccountType.ADMIN,
 		created_at=BASE_ADMIN_CREATED_AT,
 	)
@@ -553,8 +550,19 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		auditor_profiles=auditor_profiles,
 	)
 
-	primary_manager_user = next(user for user in users if user.account_id == primary_manager_account.id)
-	secondary_manager_user = next(user for user in users if user.account_id == secondary_manager_account.id)
+	# After _build_user_entities, every profile has its user_id set.
+	# Use the primary profile for each account as the project creator.
+	users_by_id = {user.id: user for user in users}
+	primary_manager_profile = next(
+		p for p in manager_profiles if p.account_id == primary_manager_account.id and p.is_primary
+	)
+	secondary_manager_profile = next(
+		p for p in manager_profiles if p.account_id == secondary_manager_account.id and p.is_primary
+	)
+	assert primary_manager_profile.user_id is not None, "Primary manager profile has no user_id after entity build"
+	assert secondary_manager_profile.user_id is not None, "Secondary manager profile has no user_id after entity build"
+	primary_manager_user = users_by_id[primary_manager_profile.user_id]
+	secondary_manager_user = users_by_id[secondary_manager_profile.user_id]
 
 	primary_project_contexts = _build_project_contexts(
 		account_id=primary_manager_account.id,
@@ -637,7 +645,6 @@ def _build_auditor_contexts(*, reference_date: date) -> list[AuditorSeedContext]
 			id=account_id,
 			name=blueprint.full_name,
 			email=email,
-			password_hash=_placeholder_password_hash(f"playspace-{blueprint.auditor_code.lower()}"),
 			account_type=AccountType.AUDITOR,
 			created_at=created_at + timedelta(minutes=index * 7),
 		)
@@ -670,44 +677,82 @@ def _build_user_entities(
 	manager_profiles: list[ManagerProfile],
 	auditor_profiles: list[AuditorProfile],
 ) -> list[User]:
-	"""Create one auth user per seeded Playspace account."""
+	"""Create one auth User per profile, plus one per admin account.
 
-	primary_manager_name_by_account_id = {
-		profile.account_id: profile.full_name for profile in manager_profiles if profile.is_primary
-	}
-	auditor_profile_by_account_id = {profile.account_id: profile for profile in auditor_profiles}
+	Accounts are organisational workspaces. No User is created for a MANAGER or
+	AUDITOR account record itself. Each profile is the login identity:
+	- ADMIN accounts: one User per account (no profile table exists for admins).
+	- MANAGER accounts: one User per ManagerProfile using the profile's email.
+	- AUDITOR accounts: one User per AuditorProfile using the profile's email.
+	Each profile's user_id is set here so the relationship is bidirectional.
+	"""
+
 	users: list[User] = []
 
+	# Admin accounts have no profile table; the account IS their identity.
 	for account in accounts:
-		if account.account_type == AccountType.MANAGER:
-			display_name = primary_manager_name_by_account_id.get(account.id)
-		elif account.account_type == AccountType.AUDITOR:
-			auditor_profile = auditor_profile_by_account_id.get(account.id)
-			display_name = auditor_profile.full_name if auditor_profile is not None else account.name
-		else:
-			display_name = account.name
-
+		if account.account_type != AccountType.ADMIN:
+			continue
 		user = User(
 			id=_stable_uuid("playspace-user", account.email),
 			email=account.email,
-			password_hash=account.password_hash or _placeholder_password_hash(account.email),
+			password_hash=_placeholder_password_hash(account.email),
 			account_id=account.id,
-			account_type=account.account_type,
-			name=display_name,
+			account_type=AccountType.ADMIN,
+			name=account.name,
 			email_verified=True,
 			email_verified_at=account.created_at,
 			failed_login_attempts=0,
 			approved=True,
 			approved_at=account.created_at,
-			profile_completed=display_name is not None,
-			profile_completed_at=(account.created_at if display_name is not None else None),
+			profile_completed=True,
+			profile_completed_at=account.created_at,
 			created_at=account.created_at,
 		)
 		users.append(user)
 
-		auditor_profile = auditor_profile_by_account_id.get(account.id)
-		if auditor_profile is not None:
-			auditor_profile.user_id = user.id
+	# One User per ManagerProfile, keyed to the profile's own email.
+	for mgr_profile in manager_profiles:
+		user = User(
+			id=_stable_uuid("playspace-user", mgr_profile.email),
+			email=mgr_profile.email,
+			password_hash=_placeholder_password_hash(mgr_profile.email),
+			account_id=mgr_profile.account_id,
+			account_type=AccountType.MANAGER,
+			name=mgr_profile.full_name,
+			email_verified=True,
+			email_verified_at=mgr_profile.created_at,
+			failed_login_attempts=0,
+			approved=True,
+			approved_at=mgr_profile.created_at,
+			profile_completed=True,
+			profile_completed_at=mgr_profile.created_at,
+			created_at=mgr_profile.created_at,
+		)
+		mgr_profile.user_id = user.id
+		users.append(user)
+
+	# One User per AuditorProfile, keyed to the profile's own email.
+	for aud_profile in auditor_profiles:
+		aud_email = aud_profile.email or _email_from_name(aud_profile.full_name)
+		user = User(
+			id=_stable_uuid("playspace-user", aud_email),
+			email=aud_email,
+			password_hash=_placeholder_password_hash(aud_email),
+			account_id=aud_profile.account_id,
+			account_type=AccountType.AUDITOR,
+			name=aud_profile.full_name,
+			email_verified=True,
+			email_verified_at=aud_profile.created_at,
+			failed_login_attempts=0,
+			approved=True,
+			approved_at=aud_profile.created_at,
+			profile_completed=True,
+			profile_completed_at=aud_profile.created_at,
+			created_at=aud_profile.created_at,
+		)
+		aud_profile.user_id = user.id
+		users.append(user)
 
 	return users
 
@@ -1293,10 +1338,10 @@ def _build_audits(
 	execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
 	reference_date: date,
 	randomizer: Random,
-) -> list[Audit]:
+) -> list[PlayspaceSubmission]:
 	"""Create submitted and draft audits that stay aligned with the live Playspace rules."""
 
-	audits: list[Audit] = []
+	audits: list[PlayspaceSubmission] = []
 	auditor_context_by_id = {auditor_context.profile.id: auditor_context for auditor_context in auditor_contexts}
 	generated_place_ids: set[uuid.UUID] = set()
 
@@ -1376,7 +1421,7 @@ def _build_fixed_base_audits_for_riverside(
 	execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
 	reference_date: date,
 	randomizer: Random,
-) -> list[Audit]:
+) -> list[PlayspaceSubmission]:
 	"""Keep the original Riverside pair while generating real responses and progress."""
 
 	submitted_audit = _build_fixed_base_audit(
@@ -1418,7 +1463,7 @@ def _build_fixed_base_audit(
 	status: AuditStatus,
 	quality_bias: float,
 	draft_ratio: float | None,
-) -> list[Audit]:
+) -> list[PlayspaceSubmission]:
 	"""Create one known audit record using the same generation helpers as the bulk dataset."""
 
 	allowed_modes = execution_modes_by_place_and_auditor.get(
@@ -1428,9 +1473,17 @@ def _build_fixed_base_audit(
 	if not allowed_modes:
 		return []
 
-	reference_datetime = datetime.combine(reference_date, time(9, 0), tzinfo=UTC)
-	day_offset = -16 if status == AuditStatus.SUBMITTED else -4
-	started_at = reference_datetime + timedelta(days=day_offset, hours=7, minutes=15)
+	# Use the same helper as generated audits so started_at always falls within
+	# the place's fieldwork window rather than relying on a hard-coded day offset.
+	if status == AuditStatus.SUBMITTED:
+		started_at = _historical_started_at(
+			place_context=place_context,
+			reference_date=reference_date,
+			slot_index=0,
+			randomizer=randomizer,
+		)
+	else:
+		started_at = _draft_started_at(reference_date=reference_date, randomizer=randomizer)
 	usage_bias = max(0.2, min(0.95, place_context.usage_bias + 0.03))
 	audit = _build_audit_record(
 		audit_id=audit_id,
@@ -1455,7 +1508,7 @@ def _build_generated_audits_for_place(
 	execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
 	reference_date: date,
 	randomizer: Random,
-) -> list[Audit]:
+) -> list[PlayspaceSubmission]:
 	"""Create a realistic mix of completed, active, and untouched place audit histories."""
 
 	project_status = _status_from_dates(
@@ -1491,7 +1544,7 @@ def _build_generated_audits_for_place(
 	elif randomizer.random() < 0.35:
 		audit_count = 2
 
-	audits: list[Audit] = []
+	audits: list[PlayspaceSubmission] = []
 	author_ids = assigned_auditor_ids[:]
 	randomizer.shuffle(author_ids)
 	historical_author_ids = author_ids[:audit_count]
@@ -1587,7 +1640,7 @@ def _build_audit_record(
 	quality_bias: float,
 	usage_bias: float,
 	draft_ratio: float | None,
-) -> Audit:
+) -> PlayspaceSubmission:
 	"""Create one audit row with responses and scores derived from live Playspace helpers."""
 
 	execution_mode = _select_execution_mode(
@@ -1608,7 +1661,7 @@ def _build_audit_record(
 		)
 		duration_minutes = randomizer.randint(42, 96)
 		submitted_at = started_at + timedelta(minutes=duration_minutes)
-		submitted_audit = Audit(
+		submitted_audit = PlayspaceSubmission(
 			id=audit_id,
 			project_id=place_context.project_context.project.id,
 			place_id=place_context.place.id,
@@ -1637,6 +1690,28 @@ def _build_audit_record(
 		)
 		calculated_scores = score_audit_for_audit(audit=submitted_audit, include_maximums=True)
 		submitted_audit.scores_json = calculated_scores
+		audit_partition = calculated_scores.get("audit")
+		survey_partition = calculated_scores.get("survey")
+		submitted_audit.audit_play_value_score = (
+			float(audit_partition["play_value_total"])
+			if isinstance(audit_partition, dict) and isinstance(audit_partition.get("play_value_total"), int | float)
+			else None
+		)
+		submitted_audit.audit_usability_score = (
+			float(audit_partition["usability_total"])
+			if isinstance(audit_partition, dict) and isinstance(audit_partition.get("usability_total"), int | float)
+			else None
+		)
+		submitted_audit.survey_play_value_score = (
+			float(survey_partition["play_value_total"])
+			if isinstance(survey_partition, dict) and isinstance(survey_partition.get("play_value_total"), int | float)
+			else None
+		)
+		submitted_audit.survey_usability_score = (
+			float(survey_partition["usability_total"])
+			if isinstance(survey_partition, dict) and isinstance(survey_partition.get("usability_total"), int | float)
+			else None
+		)
 		overall_payload = calculated_scores.get("overall")
 		submitted_audit.summary_score = (
 			round(
@@ -1661,9 +1736,12 @@ def _build_audit_record(
 		target_completion_ratio=resolved_ratio,
 		complete_pre_audit=resolved_ratio >= 0.35,
 	)
+	# last_saved_minutes represents how long the auditor has worked so far. We use
+	# it to derive updated_at but do NOT set total_minutes: that field is only
+	# populated once the audit is submitted (it captures the full session duration).
 	last_saved_minutes = randomizer.randint(12, 78)
 	updated_at = started_at + timedelta(minutes=last_saved_minutes)
-	draft_audit = Audit(
+	draft_audit = PlayspaceSubmission(
 		id=audit_id,
 		project_id=place_context.project_context.project.id,
 		place_id=place_context.place.id,
@@ -1679,7 +1757,7 @@ def _build_audit_record(
 		status=status,
 		started_at=started_at,
 		submitted_at=None,
-		total_minutes=last_saved_minutes,
+		total_minutes=None,
 		summary_score=None,
 		responses_json=responses_json,
 		scores_json={},

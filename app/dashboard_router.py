@@ -925,7 +925,7 @@ async def _fetch_place_detail(
 	return PlaceDetailResponse(
 		id=str(place.id),
 		name=place.name,
-		address=place.address,
+		address=place.address or "",
 		postal_code=place.postal_code,
 		notes=place.notes or "No additional place notes have been added yet.",
 		status="Needs review" if submitted_count == 0 else "Up to date",
@@ -1463,7 +1463,7 @@ async def create_place(
 		project_id=str(project.id),
 		project=project.name,
 		organization=None,
-		address=place.address,
+		address=place.address or "",
 		postal_code=place.postal_code,
 		audits=0,
 		last_audit="Not yet",

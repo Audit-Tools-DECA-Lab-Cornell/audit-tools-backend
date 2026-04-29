@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
-MANAGER_EMAIL = "manager@example.org"
+MANAGER_EMAIL = "amelia.carter@example.org"
 ADMIN_EMAIL = "playspace.admin@example.org"
 SEED_PASSWORD = "DemoPass123!"
 
@@ -229,6 +229,10 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/admin/places"),
 		("GET", "/playspace/admin/auditors"),
 		("GET", "/playspace/admin/audits"),
+		("GET", "/playspace/admin/export/reports"),
+		("GET", "/playspace/admin/export/projects"),
+		("GET", "/playspace/admin/export/places"),
+		("GET", "/playspace/admin/export/audits"),
 		("GET", "/playspace/admin/system"),
 		("GET", "/playspace/admin/instruments"),
 		("POST", "/playspace/bulk-assignments"),
@@ -427,6 +431,8 @@ def test_manager_dashboard_endpoints(
 	)
 	assert places_response.status_code == 200
 	assert len(places_response.json()["items"]) >= 1
+	assert "place_audit_status" in places_response.json()["items"][0]
+	assert "overall_scores" in places_response.json()["items"][0]
 
 	audits_response = playspace_client.get(
 		f"/playspace/accounts/{account_id}/audits",
@@ -471,6 +477,7 @@ def test_manager_dashboard_endpoints(
 	)
 	assert place_history_response.status_code == 200
 	assert place_history_response.json()["project_id"] == project_id
+	assert "audit_mean_scores" in place_history_response.json()
 
 
 def test_admin_dashboard_endpoints(
@@ -778,6 +785,7 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 	audit_session = access_response.json()
 	audit_id = audit_session["audit_id"]
 	assert audit_session["project_id"] == project["id"]
+	assert audit_session["execution_mode"] == "audit"
 	assert audit_session["schema_version"] == 1
 	assert audit_session["revision"] == 1
 	assert audit_session["aggregate"]["schema_version"] == 1

@@ -81,6 +81,34 @@ async def _reseed_playspace_database(
 		await session.commit()
 
 
+async def _terminate_playspace_test_database_connections(engine: AsyncEngine) -> None:
+	"""Close stale sessions before the destructive schema reset."""
+
+	for _ in range(5):
+		async with engine.begin() as conn:
+			remaining = (
+				await conn.execute(
+					text(
+						"SELECT count(*) "
+						"FROM pg_stat_activity "
+						"WHERE datname = current_database() "
+						"AND pid <> pg_backend_pid()"
+					)
+				)
+			).scalar_one()
+			if remaining == 0:
+				return
+			await conn.execute(
+				text(
+					"SELECT pg_terminate_backend(pid) "
+					"FROM pg_stat_activity "
+					"WHERE datname = current_database() "
+					"AND pid <> pg_backend_pid()"
+				)
+			)
+		await asyncio.sleep(0.25)
+
+
 async def _reset_playspace_test_database(engine: AsyncEngine) -> None:
 	"""Drop and recreate the public schema so squashed Alembic history can apply cleanly."""
 
@@ -131,6 +159,21 @@ def playspace_test_session_factory() -> Iterator[async_sessionmaker[AsyncSession
 	original_session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.PLAYSPACE]
 
 	RAW_DATABASE_URL_BY_PRODUCT[ProductKey.PLAYSPACE] = test_database_url
+	# ``app`` is imported at module load time, so the original Playspace engine may
+	# already have pooled connections to this same test database.  Release those
+	# connections before dropping/recreating ``public`` to avoid schema reset locks
+	# leaking across full-suite runs.
+	asyncio.run(original_engine.dispose())
+
+	cleanup_engine: AsyncEngine = create_async_engine(
+		normalized_url,
+		echo=False,
+		pool_pre_ping=True,
+		poolclass=NullPool,
+		connect_args=connect_args,
+	)
+	asyncio.run(_terminate_playspace_test_database_connections(cleanup_engine))
+	asyncio.run(cleanup_engine.dispose())
 
 	migration_engine: AsyncEngine = create_async_engine(
 		normalized_url,

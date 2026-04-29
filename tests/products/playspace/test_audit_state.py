@@ -13,12 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
 from app.models import (
-	Audit,
 	AuditorAssignment,
 	AuditorProfile,
 	AuditStatus,
 	JSONDict,
 	Place,
+	PlayspaceSubmission,
 	Project,
 )
 from app.products.playspace.audit_state import (
@@ -43,10 +43,11 @@ from app.products.playspace.services.audit import PlayspaceAuditService
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
 
 
-def _build_audit() -> Audit:
-	"""Create an in-memory audit shell for relationship synchronization tests."""
+def _build_audit() -> PlayspaceSubmission:
+	"""Create an in-memory Playspace submission shell for aggregate patch tests."""
 
-	return Audit(
+	now = datetime.now(timezone.utc)
+	return PlayspaceSubmission(
 		id=uuid.uuid4(),
 		project_id=uuid.uuid4(),
 		place_id=uuid.uuid4(),
@@ -55,9 +56,11 @@ def _build_audit() -> Audit:
 		instrument_key="pvua_v5_2",
 		instrument_version="5.2",
 		status=AuditStatus.IN_PROGRESS,
-		started_at=datetime.now(timezone.utc),
+		started_at=now,
 		responses_json={"meta": {}, "pre_audit": {}, "sections": {}},
 		scores_json={},
+		created_at=now,
+		updated_at=now,
 	)
 
 
@@ -107,14 +110,14 @@ def _build_service_audit(
 	execution_mode: ExecutionMode | None = None,
 	revision: int = 1,
 	status: AuditStatus = AuditStatus.IN_PROGRESS,
-) -> Audit:
-	"""Create an audit shell with related project, place, and auditor objects."""
+) -> PlayspaceSubmission:
+	"""Create a Playspace submission shell with related project, place, and auditor objects."""
 
 	project = _build_project()
 	place = _build_place()
 	auditor_profile = _build_auditor_profile()
 	now = datetime.now(timezone.utc)
-	audit = Audit(
+	audit = PlayspaceSubmission(
 		id=uuid.uuid4(),
 		project_id=project.id,
 		place_id=place.id,
@@ -132,11 +135,12 @@ def _build_service_audit(
 			"sections": {},
 		},
 		scores_json={},
+		created_at=now,
+		updated_at=now,
 	)
 	audit.project = project
 	audit.place = place
 	audit.auditor_profile = auditor_profile
-	audit.updated_at = now
 
 	if execution_mode is not None:
 		set_execution_mode_value(audit=audit, execution_mode=execution_mode.value)
@@ -150,13 +154,13 @@ class _DummyAuditSessionsService(PlayspaceAuditSessionsMixin):
 
 
 class _DummySession:
-	"""Minimal session stub that records added audit objects."""
+	"""Minimal session stub that records added Playspace submission objects."""
 
 	def __init__(self) -> None:
-		self.added_audits: list[Audit] = []
+		self.added_audits: list[PlayspaceSubmission] = []
 
-	def add(self, instance: Audit) -> None:
-		"""Record one added audit without touching a database."""
+	def add(self, instance: PlayspaceSubmission) -> None:
+		"""Record one added submission without touching a database."""
 
 		self.added_audits.append(instance)
 
@@ -176,7 +180,7 @@ class _DummyAuditService(PlayspaceAuditService):
 	def __init__(
 		self,
 		*,
-		audit: Audit | None = None,
+		audit: PlayspaceSubmission | None = None,
 		project: Project | None = None,
 		place: Place | None = None,
 		auditor_profile: AuditorProfile | None = None,
@@ -193,11 +197,11 @@ class _DummyAuditService(PlayspaceAuditService):
 			self._auditor_profile = auditor_profile or _build_auditor_profile()
 		self.commit_count = 0
 
-	async def _commit_and_refresh(self, instance: Audit | AuditorAssignment) -> None:
+	async def _commit_and_refresh(self, instance: PlayspaceSubmission | AuditorAssignment) -> None:
 		"""Track commit calls and refresh timestamps without a real session."""
 
 		self.commit_count += 1
-		if isinstance(instance, Audit):
+		if isinstance(instance, PlayspaceSubmission):
 			instance.updated_at = datetime.now(timezone.utc)
 			instance.project = self._project
 			instance.place = self._place
@@ -238,8 +242,8 @@ class _DummyAuditService(PlayspaceAuditService):
 		project_id: uuid.UUID,
 		place_id: uuid.UUID,
 		auditor_profile_id: uuid.UUID,
-	) -> Audit | None:
-		"""Return the preconfigured in-memory audit."""
+	) -> PlayspaceSubmission | None:
+		"""Return the preconfigured in-memory Playspace submission."""
 
 		return self._audit
 
@@ -248,8 +252,8 @@ class _DummyAuditService(PlayspaceAuditService):
 		*,
 		actor: CurrentUserContext,
 		audit_id: uuid.UUID,
-	) -> Audit:
-		"""Return the preconfigured in-memory audit."""
+	) -> PlayspaceSubmission:
+		"""Return the preconfigured in-memory Playspace submission."""
 
 		if self._audit is None:
 			raise AssertionError("Dummy audit must be configured before loading it.")
