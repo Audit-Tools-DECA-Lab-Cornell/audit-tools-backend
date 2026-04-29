@@ -1,4 +1,4 @@
-"""Regression tests for normalized Playspace audit state synchronization."""
+"""Regression tests for Playspace canonical audit state synchronization."""
 
 from __future__ import annotations
 
@@ -13,21 +13,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
 from app.models import (
-	Audit,
 	AuditorAssignment,
 	AuditorProfile,
 	AuditStatus,
 	JSONDict,
 	Place,
-	PlayspaceAuditSection,
-	PlayspaceQuestionResponse,
-	PlayspaceScaleAnswer,
+	PlayspaceSubmission,
 	Project,
 )
 from app.products.playspace.audit_state import (
-	_replace_sections_from_cache,
 	apply_draft_patch_to_relations,
-	build_responses_json_from_relations,
 	get_aggregate_revision,
 	get_execution_mode_value,
 	replace_audit_aggregate,
@@ -48,10 +43,11 @@ from app.products.playspace.services.audit import PlayspaceAuditService
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
 
 
-def _build_audit() -> Audit:
-	"""Create an in-memory audit shell for relationship synchronization tests."""
+def _build_audit() -> PlayspaceSubmission:
+	"""Create an in-memory Playspace submission shell for aggregate patch tests."""
 
-	return Audit(
+	now = datetime.now(timezone.utc)
+	return PlayspaceSubmission(
 		id=uuid.uuid4(),
 		project_id=uuid.uuid4(),
 		place_id=uuid.uuid4(),
@@ -60,9 +56,11 @@ def _build_audit() -> Audit:
 		instrument_key="pvua_v5_2",
 		instrument_version="5.2",
 		status=AuditStatus.IN_PROGRESS,
-		started_at=datetime.now(timezone.utc),
+		started_at=now,
 		responses_json={"meta": {}, "pre_audit": {}, "sections": {}},
 		scores_json={},
+		created_at=now,
+		updated_at=now,
 	)
 
 
@@ -112,14 +110,14 @@ def _build_service_audit(
 	execution_mode: ExecutionMode | None = None,
 	revision: int = 1,
 	status: AuditStatus = AuditStatus.IN_PROGRESS,
-) -> Audit:
-	"""Create an audit shell with related project, place, and auditor objects."""
+) -> PlayspaceSubmission:
+	"""Create a Playspace submission shell with related project, place, and auditor objects."""
 
 	project = _build_project()
 	place = _build_place()
 	auditor_profile = _build_auditor_profile()
 	now = datetime.now(timezone.utc)
-	audit = Audit(
+	audit = PlayspaceSubmission(
 		id=uuid.uuid4(),
 		project_id=project.id,
 		place_id=place.id,
@@ -137,11 +135,12 @@ def _build_service_audit(
 			"sections": {},
 		},
 		scores_json={},
+		created_at=now,
+		updated_at=now,
 	)
 	audit.project = project
 	audit.place = place
 	audit.auditor_profile = auditor_profile
-	audit.updated_at = now
 
 	if execution_mode is not None:
 		set_execution_mode_value(audit=audit, execution_mode=execution_mode.value)
@@ -155,13 +154,13 @@ class _DummyAuditSessionsService(PlayspaceAuditSessionsMixin):
 
 
 class _DummySession:
-	"""Minimal session stub that records added audit objects."""
+	"""Minimal session stub that records added Playspace submission objects."""
 
 	def __init__(self) -> None:
-		self.added_audits: list[Audit] = []
+		self.added_audits: list[PlayspaceSubmission] = []
 
-	def add(self, instance: Audit) -> None:
-		"""Record one added audit without touching a database."""
+	def add(self, instance: PlayspaceSubmission) -> None:
+		"""Record one added submission without touching a database."""
 
 		self.added_audits.append(instance)
 
@@ -181,7 +180,7 @@ class _DummyAuditService(PlayspaceAuditService):
 	def __init__(
 		self,
 		*,
-		audit: Audit | None = None,
+		audit: PlayspaceSubmission | None = None,
 		project: Project | None = None,
 		place: Place | None = None,
 		auditor_profile: AuditorProfile | None = None,
@@ -198,11 +197,11 @@ class _DummyAuditService(PlayspaceAuditService):
 			self._auditor_profile = auditor_profile or _build_auditor_profile()
 		self.commit_count = 0
 
-	async def _commit_and_refresh(self, instance: Audit | AuditorAssignment) -> None:
+	async def _commit_and_refresh(self, instance: PlayspaceSubmission | AuditorAssignment) -> None:
 		"""Track commit calls and refresh timestamps without a real session."""
 
 		self.commit_count += 1
-		if isinstance(instance, Audit):
+		if isinstance(instance, PlayspaceSubmission):
 			instance.updated_at = datetime.now(timezone.utc)
 			instance.project = self._project
 			instance.place = self._place
@@ -243,8 +242,8 @@ class _DummyAuditService(PlayspaceAuditService):
 		project_id: uuid.UUID,
 		place_id: uuid.UUID,
 		auditor_profile_id: uuid.UUID,
-	) -> Audit | None:
-		"""Return the preconfigured in-memory audit."""
+	) -> PlayspaceSubmission | None:
+		"""Return the preconfigured in-memory Playspace submission."""
 
 		return self._audit
 
@@ -253,8 +252,8 @@ class _DummyAuditService(PlayspaceAuditService):
 		*,
 		actor: CurrentUserContext,
 		audit_id: uuid.UUID,
-	) -> Audit:
-		"""Return the preconfigured in-memory audit."""
+	) -> PlayspaceSubmission:
+		"""Return the preconfigured in-memory Playspace submission."""
 
 		if self._audit is None:
 			raise AssertionError("Dummy audit must be configured before loading it.")
@@ -452,75 +451,6 @@ def test_replace_audit_aggregate_preserves_revision_and_replaces_payload() -> No
 			}
 		},
 	}
-
-
-def test_build_responses_json_normalizes_legacy_quantity_keys() -> None:
-	"""Legacy cached aggregates should normalize quantity keys before scoring."""
-
-	audit = _build_audit()
-	audit.responses_json = {
-		"schema_version": 1,
-		"revision": 4,
-		"meta": {"execution_mode": "audit"},
-		"pre_audit": {"season": "spring"},
-		"sections": {
-			"section_a": {
-				"note": "Before",
-				"responses": {"question_a": {"quantity": "some"}},
-			}
-		},
-	}
-
-	normalized = build_responses_json_from_relations(audit)
-
-	sections = normalized.get("sections")
-	assert isinstance(sections, dict)
-	section_a = sections.get("section_a")
-	assert isinstance(section_a, dict)
-	responses = section_a.get("responses")
-	assert isinstance(responses, dict)
-	question_a = responses.get("question_a")
-	assert isinstance(question_a, dict)
-	assert question_a == {"provision": "some"}
-
-
-def test_replace_sections_from_cache_reuses_existing_section_tree() -> None:
-	"""Cache hydration should reuse matching section, question, and scale ORM rows."""
-
-	audit = _build_audit()
-	section = PlayspaceAuditSection(section_key="section_a", note="Before")
-	question = PlayspaceQuestionResponse(question_key="question_a")
-	provision = PlayspaceScaleAnswer(scale_key="provision", option_key="some")
-	question.scale_answers = [provision]
-	section.question_responses = [question]
-	audit.playspace_sections = [section]
-	audit.responses_json = {
-		"meta": {},
-		"pre_audit": {},
-		"sections": {
-			"section_a": {
-				"note": "After",
-				"responses": {
-					"question_a": {
-						"provision": "some",
-						"diversity": "no_diversity",
-					}
-				},
-			}
-		},
-	}
-
-	_replace_sections_from_cache(audit)
-
-	updated_section = audit.playspace_sections[0]
-	updated_question = updated_section.question_responses[0]
-	answers_by_scale = {answer.scale_key: answer for answer in updated_question.scale_answers}
-
-	assert updated_section is section
-	assert updated_section.note == "After"
-	assert updated_question is question
-	assert answers_by_scale["provision"] is provision
-	assert sorted(answers_by_scale) == ["diversity", "provision"]
 
 
 def test_apply_draft_patch_merges_checklist_question_payload_into_canonical_aggregate() -> None:

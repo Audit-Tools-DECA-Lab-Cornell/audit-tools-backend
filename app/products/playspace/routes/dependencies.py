@@ -57,6 +57,7 @@ async def _resolve_authenticated_playspace_user(
 		role=_role_for_account_type(user.account_type),
 		account_id=user.account_id,
 		auditor_code=auditor_code,
+		user_id=user.id,
 	)
 
 

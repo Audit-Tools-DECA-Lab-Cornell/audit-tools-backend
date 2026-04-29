@@ -5,7 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from app.models import AuditStatus
+from app.models import AuditStatus, PlayspaceSubmission
+from app.products.playspace.audit_state import set_execution_mode_value
 from app.products.playspace.schemas.audit import AuditorPlaceResponse
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import _get_visible_questions
@@ -29,11 +30,17 @@ def test_resolve_compact_audit_summary_prefers_cached_overall_totals() -> None:
 		raw_scores={
 			"overall": {
 				"provision_total": 1.0,
+				"provision_total_max": 10.0,
 				"diversity_total": 2.0,
+				"diversity_total_max": 10.0,
 				"challenge_total": 3.0,
+				"challenge_total_max": 10.0,
 				"sociability_total": 4.0,
+				"sociability_total_max": 10.0,
 				"play_value_total": 5.25,
+				"play_value_total_max": 10.0,
 				"usability_total": 1.75,
+				"usability_total_max": 10.0,
 			}
 		},
 		fallback_summary_score=11.0,
@@ -54,11 +61,17 @@ def test_resolve_compact_audit_summary_falls_back_to_stored_summary_score() -> N
 		raw_scores={
 			"overall": {
 				"provision_total": 1.0,
+				"provision_total_max": 10.0,
 				"diversity_total": 2.0,
+				"diversity_total_max": 10.0,
 				"challenge_total": 3.0,
+				"challenge_total_max": 10.0,
 				"sociability_total": 4.0,
+				"sociability_total_max": 10.0,
 				"play_value_total": "invalid",
+				"play_value_total_max": 10.0,
 				"usability_total": 1.75,
+				"usability_total_max": 10.0,
 			}
 		},
 		fallback_summary_score=8.4,
@@ -95,6 +108,7 @@ def test_compact_audit_snapshot_tracks_selected_execution_mode() -> None:
 		place_id=uuid.uuid4(),
 		audit_code="AUD-001",
 		status=AuditStatus.IN_PROGRESS,
+		execution_mode=ExecutionMode.SURVEY,
 		started_at=datetime.now(timezone.utc),
 		submitted_at=None,
 		summary_score=None,
@@ -104,6 +118,24 @@ def test_compact_audit_snapshot_tracks_selected_execution_mode() -> None:
 	)
 
 	assert snapshot.selected_execution_mode is ExecutionMode.SURVEY
+
+
+def test_set_execution_mode_value_persists_on_submission() -> None:
+	"""Execution mode changes should persist on the Playspace submission row."""
+
+	submission = PlayspaceSubmission(
+		project_id=uuid.uuid4(),
+		place_id=uuid.uuid4(),
+		auditor_profile_id=uuid.uuid4(),
+		audit_code="PS-001",
+		status=AuditStatus.IN_PROGRESS,
+		responses_json={},
+		scores_json={},
+	)
+
+	set_execution_mode_value(audit=submission, execution_mode=ExecutionMode.BOTH.value)
+
+	assert submission.execution_mode == ExecutionMode.BOTH.value
 
 
 def test_auditor_place_response_schema_exposes_selected_execution_mode() -> None:

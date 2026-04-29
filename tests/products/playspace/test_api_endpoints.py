@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
-MANAGER_EMAIL = "manager@example.org"
+MANAGER_EMAIL = "amelia.carter@example.org"
 ADMIN_EMAIL = "playspace.admin@example.org"
 SEED_PASSWORD = "DemoPass123!"
 
@@ -193,6 +193,8 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/auth/resend-verification"),
 		("GET", "/playspace/auth/invite/{token}"),
 		("POST", "/playspace/auth/invite/{token}/accept"),
+		("POST", "/playspace/auth/manager-invites"),
+		("POST", "/playspace/auth/manager-invites/{token}/accept"),
 		("GET", "/playspace/accounts/{account_id}"),
 		("GET", "/playspace/accounts/{account_id}/manager-profiles"),
 		("GET", "/playspace/accounts/{account_id}/projects"),
@@ -217,7 +219,6 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/places/{place_id}/audits/access"),
 		("GET", "/playspace/audits/{audit_id}"),
 		("PATCH", "/playspace/audits/{audit_id}/draft"),
-		("PATCH", "/playspace/places/{place_id}/audits/draft"),
 		("POST", "/playspace/audits/{audit_id}/submit"),
 		("GET", "/playspace/auditor/me/places"),
 		("GET", "/playspace/auditor/me/audits"),
@@ -228,6 +229,10 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/admin/places"),
 		("GET", "/playspace/admin/auditors"),
 		("GET", "/playspace/admin/audits"),
+		("GET", "/playspace/admin/export/reports"),
+		("GET", "/playspace/admin/export/projects"),
+		("GET", "/playspace/admin/export/places"),
+		("GET", "/playspace/admin/export/audits"),
 		("GET", "/playspace/admin/system"),
 		("GET", "/playspace/admin/instruments"),
 		("POST", "/playspace/bulk-assignments"),
@@ -311,6 +316,32 @@ def test_auth_self_service_and_instrument_endpoints(
 	)
 	assert login_me_response.status_code == 200
 	assert login_me_response.json()["user"]["email"] == MANAGER_EMAIL
+
+	secondary_manager_email = f"secondary-manager-{_unique_suffix()}@example.org"
+	create_manager_invite_response = playspace_client.post(
+		"/playspace/auth/manager-invites",
+		headers=manager_auth_headers,
+		json={"email": secondary_manager_email},
+	)
+	assert create_manager_invite_response.status_code == 201
+	manager_invite_url = create_manager_invite_response.json()["invite_url"]
+	manager_invite_token = manager_invite_url.rsplit("/", 1)[-1]
+
+	accept_manager_invite_response = playspace_client.post(
+		f"/playspace/auth/manager-invites/{manager_invite_token}/accept",
+		json={"name": "Secondary Manager", "password": SEED_PASSWORD},
+	)
+	assert accept_manager_invite_response.status_code == 200
+	assert accept_manager_invite_response.json()["user"]["account_type"] == "MANAGER"
+	assert accept_manager_invite_response.json()["user"]["email"] == secondary_manager_email
+	secondary_manager_token = accept_manager_invite_response.json()["access_token"]
+
+	secondary_invite_attempt_response = playspace_client.post(
+		"/playspace/auth/manager-invites",
+		headers=_bearer_headers(secondary_manager_token),
+		json={"email": f"blocked-secondary-{_unique_suffix()}@example.org"},
+	)
+	assert secondary_invite_attempt_response.status_code == 403
 
 	auditor_token = _login_auditor(
 		playspace_client,
@@ -400,6 +431,8 @@ def test_manager_dashboard_endpoints(
 	)
 	assert places_response.status_code == 200
 	assert len(places_response.json()["items"]) >= 1
+	assert "place_audit_status" in places_response.json()["items"][0]
+	assert "overall_scores" in places_response.json()["items"][0]
 
 	audits_response = playspace_client.get(
 		f"/playspace/accounts/{account_id}/audits",
@@ -444,6 +477,7 @@ def test_manager_dashboard_endpoints(
 	)
 	assert place_history_response.status_code == 200
 	assert place_history_response.json()["project_id"] == project_id
+	assert "audit_mean_scores" in place_history_response.json()
 
 
 def test_admin_dashboard_endpoints(
@@ -751,6 +785,7 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 	audit_session = access_response.json()
 	audit_id = audit_session["audit_id"]
 	assert audit_session["project_id"] == project["id"]
+	assert audit_session["execution_mode"] == "audit"
 	assert audit_session["schema_version"] == 1
 	assert audit_session["revision"] == 1
 	assert audit_session["aggregate"]["schema_version"] == 1
@@ -786,10 +821,9 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 	)
 	assert stale_patch_response.status_code == 409
 
-	patch_place_draft_response = playspace_client.patch(
-		f"/playspace/places/{place['id']}/audits/draft",
+	patch_aggregate_response = playspace_client.patch(
+		f"/playspace/audits/{audit_id}/draft",
 		headers=auditor_headers,
-		params={"project_id": str(project["id"])},
 		json={
 			"expected_revision": patch_draft_response.json()["revision"],
 			"aggregate": {
@@ -810,9 +844,9 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 			},
 		},
 	)
-	assert patch_place_draft_response.status_code == 200
-	assert patch_place_draft_response.json()["audit_id"] == audit_id
-	assert patch_place_draft_response.json()["revision"] == 3
+	assert patch_aggregate_response.status_code == 200
+	assert patch_aggregate_response.json()["audit_id"] == audit_id
+	assert patch_aggregate_response.json()["revision"] == 3
 
 	refreshed_audit_response = playspace_client.get(
 		f"/playspace/audits/{audit_id}",

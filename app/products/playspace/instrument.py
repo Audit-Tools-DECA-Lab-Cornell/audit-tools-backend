@@ -1,5 +1,18 @@
 """
 Playspace instrument metadata and canonical payload loader.
+
+The ``app/products/playspace/instruments/`` directory is updated from the
+``instruments`` table by ``scripts/sync_canonical_instruments_from_db.py`` (see
+``sync-playspace-instruments`` GitHub workflow). Expected layout:
+
+* ``pvua_v5_2.instrument.json`` — best row for the legacy anchor (``INSTRUMENT_KEY`` /
+  ``INSTRUMENT_VERSION``), used as the server fallback when the database has no
+  active copy.
+* ``<instrument_key>.active.instrument.json`` — the row with ``is_active`` for that
+  key (``created_at`` tie-break, matching ``get_active_instrument``).
+* ``<instrument_key>__v<version>.instrument.json`` — one export per
+  ``(instrument_key, instrument_version)`` pair (winner chosen when many rows
+  share a pair: active first, then newest ``updated_at``).
 """
 
 from __future__ import annotations
@@ -12,30 +25,11 @@ from typing import Any
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
 
-def normalize_legacy_instrument_payload(value: object) -> object:
-	"""Recursively rename legacy ``quantity`` keys to ``provision`` in instrument JSON."""
-
-	if isinstance(value, dict):
-		next_payload: dict[str, Any] = {}
-		for key, item in value.items():
-			next_key = "provision" if key == "quantity" else key
-			next_payload[next_key] = normalize_legacy_instrument_payload(item)
-		return next_payload
-
-	if isinstance(value, list):
-		return [normalize_legacy_instrument_payload(item) for item in value]
-
-	if value == "quantity":
-		return "provision"
-
-	return value
-
-
 INSTRUMENT_KEY = "pvua_v5_2"
 INSTRUMENT_VERSION = "5.2"
 INSTRUMENT_NAME = "Playspace Play Value and Usability Audit Tool"
 
-_INSTRUMENT_PATH = Path(__file__).with_name("pvua_v5_2.instrument.json")
+_INSTRUMENT_PATH = Path(__file__).parent / "instruments" / "pvua_v5_2.instrument.json"
 
 
 @lru_cache(maxsize=1)
@@ -49,7 +43,7 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
 
 	if "instrument_key" not in payload and isinstance(payload.get("en"), dict):
-		payload = normalize_legacy_instrument_payload(payload["en"])
+		payload = payload.get("en")
 		if not isinstance(payload, dict):
 			raise ValueError("Expected the localized Playspace instrument payload to be a JSON object.")
 
@@ -60,7 +54,7 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 			f"Canonical Playspace instrument payload metadata does not match {INSTRUMENT_KEY} v{INSTRUMENT_VERSION}."
 		)
 
-	return payload
+	return dict(payload)
 
 
 @lru_cache(maxsize=1)

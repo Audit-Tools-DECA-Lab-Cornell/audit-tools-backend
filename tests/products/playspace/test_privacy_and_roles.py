@@ -1,34 +1,13 @@
-"""Tests for role parsing and role-aware dashboard privacy payloads."""
+"""Tests for role-aware dashboard privacy payloads."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
-from starlette.requests import Request
-
-from app.core.actors import CurrentUserRole, resolve_current_user
 from app.products.playspace.schemas.admin import AdminAuditorRowResponse
 from app.products.playspace.schemas.dashboard import AuditorSummaryResponse
 from app.products.playspace.services.privacy import mask_email
-
-
-def _build_request(headers: list[tuple[bytes, bytes]]) -> Request:
-	"""Build a minimal Starlette request for actor resolution tests."""
-
-	scope = {
-		"type": "http",
-		"http_version": "1.1",
-		"method": "GET",
-		"scheme": "http",
-		"path": "/",
-		"raw_path": b"/",
-		"query_string": b"",
-		"headers": headers,
-		"client": ("127.0.0.1", 12345),
-		"server": ("testserver", 80),
-	}
-	return Request(scope)
 
 
 def test_mask_email_masks_local_and_domain_sections() -> None:
@@ -40,23 +19,6 @@ def test_mask_email_masks_local_and_domain_sections() -> None:
 	assert "@e" in masked
 	assert masked.endswith(".com")
 	assert masked != "auditor@example.com"
-
-
-def test_resolve_current_user_parses_admin_role() -> None:
-	"""Actor resolver should accept explicit admin role headers."""
-
-	account_id = str(uuid.uuid4())
-	request = _build_request(
-		headers=[
-			(b"x-demo-role", b"admin"),
-			(b"x-demo-account-id", account_id.encode("utf-8")),
-		]
-	)
-
-	actor = resolve_current_user(request)
-	assert actor.role is CurrentUserRole.ADMIN
-	assert actor.account_id is not None
-	assert str(actor.account_id) == account_id
 
 
 def test_auditor_summary_response_includes_manager_visible_identity() -> None:
