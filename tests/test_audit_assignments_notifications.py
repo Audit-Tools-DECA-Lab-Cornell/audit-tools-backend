@@ -69,9 +69,12 @@ class TestAssignmentNotificationIntegration:
 			},
 		)
 		assert profile_response.status_code == 201
-		auditor_profile_id = str(profile_response.json()["id"])
+		created_auditor = profile_response.json()
+		auditor_profile_id = str(created_auditor["id"])
+		temporary_password = created_auditor["temporary_password"]
+		assert temporary_password
 
-		auditor_token = _login_auditor(playspace_client, auditor_email)
+		auditor_token = _login_auditor(playspace_client, auditor_email, str(temporary_password))
 		auditor_headers = _bearer_headers(auditor_token)
 
 		assignment_response = playspace_client.post(
