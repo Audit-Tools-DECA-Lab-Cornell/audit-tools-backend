@@ -117,6 +117,7 @@ async def list_account_audits(
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
 	auditor_ids: list[uuid.UUID] | None = Query(default=None, alias="auditor_id"),
+	place_ids: list[uuid.UUID] | None = Query(default=None, alias="place_id"),
 	statuses: list[str] | None = Query(default=None, alias="status"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
@@ -132,6 +133,7 @@ async def list_account_audits(
 		sort=sort,
 		project_ids=project_ids,
 		auditor_ids=auditor_ids,
+		place_ids=place_ids,
 		statuses=statuses,
 	)
 

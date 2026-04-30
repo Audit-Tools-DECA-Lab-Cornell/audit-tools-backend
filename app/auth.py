@@ -31,7 +31,16 @@ from app.auth_security import (
 )
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
 from app.email_service import send_manager_invite_email, send_verification_email
-from app.models import Account, AccountType, Auditor, AuditorInvite, ManagerInvite, ManagerProfile, User
+from app.models import (
+	Account,
+	AccountType,
+	Auditor,
+	AuditorAccessRequest,
+	AuditorInvite,
+	ManagerInvite,
+	ManagerProfile,
+	User,
+)
 
 router: APIRouter = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -124,6 +133,18 @@ class ManagerInviteResponse(BaseModel):
 class AcceptManagerInviteRequest(BaseModel):
 	name: str = Field(..., min_length=1, max_length=200)
 	password: str = Field(..., min_length=8, max_length=4096)
+
+
+class AccessRequestRequest(BaseModel):
+	name: str = Field(..., min_length=1, max_length=200)
+	email: str = Field(..., max_length=320)
+	password: str = Field(..., min_length=8, max_length=4096)
+	manager_email: str = Field(..., max_length=320)
+
+
+class AccessRequestResponse(BaseModel):
+	message: str
+	email: str
 
 
 def _normalize_email(email: str) -> str:
@@ -225,14 +246,18 @@ async def _find_user_by_email(
 	return result.scalar_one_or_none()
 
 
-async def _get_auditor_profile_for_account(
+async def _get_auditor_profile_for_user(
 	*,
 	session: AsyncSession,
-	account_id: uuid.UUID,
+	user_id: uuid.UUID,
 ) -> Auditor | None:
-	"""Return the auditor profile tied to one account when it exists."""
+	"""Return the auditor profile tied to one user when it exists.
 
-	result = await session.execute(select(Auditor).where(Auditor.account_id == account_id).limit(1))
+	Keyed by ``user_id`` because multiple auditors now share the same
+	``account_id`` (the manager's organisation account).
+	"""
+
+	result = await session.execute(select(Auditor).where(Auditor.user_id == user_id).limit(1))
 	return result.scalar_one_or_none()
 
 
@@ -248,9 +273,9 @@ async def _ensure_playspace_auditor_profile(
 	if user.account_id is None:
 		raise HTTPException(status_code=400, detail="Auditor accounts require an account link.")
 
-	auditor_profile = await _get_auditor_profile_for_account(
+	auditor_profile = await _get_auditor_profile_for_user(
 		session=session,
-		account_id=user.account_id,
+		user_id=user.id,
 	)
 	full_name = clean_name or user.name or email.split("@", 1)[0]
 	if auditor_profile is None:
@@ -445,6 +470,84 @@ async def _playspace_signup(
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	created_user = result.scalar_one()
 	return _build_auth_response_for_user(created_user)
+
+
+async def _playspace_request_access(
+	*,
+	payload: AccessRequestRequest,
+	session: AsyncSession,
+) -> AccessRequestResponse:
+	"""Create an unapproved Playspace AUDITOR account and log an access request.
+
+	No auth token is issued.  The auditor waits until a manager creates their
+	AuditorProfile (which will approve the account and issue a temporary password).
+	"""
+
+	email = _normalize_email(payload.email)
+	manager_email = _normalize_email(payload.manager_email)
+	if not email:
+		raise HTTPException(status_code=400, detail="Email is required.")
+	if not manager_email:
+		raise HTTPException(status_code=400, detail="Manager email is required.")
+
+	clean_name = _clean_name(payload.name)
+	if clean_name is None:
+		raise HTTPException(status_code=400, detail="Name is required.")
+
+	if len(payload.password) < 8:
+		raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+	existing_user = await _find_user_by_email(session=session, email=email)
+	if existing_user is not None:
+		raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+	existing_account = await _find_account_by_email(session=session, email=email)
+	if existing_account is not None:
+		raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+	now = datetime.now(timezone.utc)
+	account = Account(
+		name=clean_name,
+		email=email,
+		account_type=AccountType.AUDITOR,
+	)
+	session.add(account)
+	await session.flush()
+
+	user = User(
+		email=email,
+		password_hash=hash_password(payload.password),
+		account_id=account.id,
+		account_type=AccountType.AUDITOR,
+		name=clean_name,
+		email_verified=True,
+		email_verified_at=now,
+		failed_login_attempts=0,
+		approved=False,
+		profile_completed=False,
+	)
+	session.add(user)
+	await session.flush()
+
+	access_request = AuditorAccessRequest(
+		id=uuid.uuid4(),
+		name=clean_name,
+		email=email,
+		manager_email=manager_email,
+		status="pending",
+	)
+	session.add(access_request)
+
+	try:
+		await session.commit()
+	except IntegrityError as err:
+		await session.rollback()
+		raise HTTPException(status_code=409, detail="Unable to create account.") from err
+
+	return AccessRequestResponse(
+		message="Access request submitted. Your manager will set up your account and share your login credentials.",
+		email=email,
+	)
 
 
 async def _playspace_login(
@@ -754,6 +857,24 @@ async def signup(
 	await _send_or_log_verification_email(request=request, user=user, session=session)
 
 	return SignupResponse(message="Account created. Please verify your email before logging in.")
+
+
+@router.post(
+	"/request-access",
+	response_model=AccessRequestResponse,
+	status_code=status.HTTP_201_CREATED,
+)
+async def request_access(
+	payload: AccessRequestRequest,
+	request: FastAPIRequest,
+	session: AsyncSession = Depends(get_auth_session),
+) -> AccessRequestResponse:
+	"""Create an unapproved Playspace auditor account and send an access request to the manager."""
+
+	if not _is_playspace_request(request):
+		raise HTTPException(status_code=404, detail="Not found.")
+
+	return await _playspace_request_access(payload=payload, session=session)
 
 
 @router.get("/verify-email", response_model=MessageResponse)

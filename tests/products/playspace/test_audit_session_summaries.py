@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
 from app.models import AuditStatus, PlayspaceSubmission
 from app.products.playspace.audit_state import set_execution_mode_value
@@ -12,7 +11,10 @@ from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import _get_visible_questions
 from app.products.playspace.scoring_metadata import SCORING_SECTIONS
 from app.products.playspace.services.audit import PlayspaceAuditService
-from app.products.playspace.services.audit_sessions import _CompactAuditSnapshot
+from app.products.playspace.services.audit_sessions import (
+	_derive_place_axis_status,
+	_resolve_composite_place_status,
+)
 
 
 def _build_service() -> PlayspaceAuditService:
@@ -99,25 +101,75 @@ def test_get_visible_questions_returns_all_questions_for_both_mode() -> None:
 	assert len(visible_questions) == len(section.questions)
 
 
-def test_compact_audit_snapshot_tracks_selected_execution_mode() -> None:
-	"""Compact audit snapshots should preserve the latest execution mode."""
+def test_derive_place_axis_status_not_started_when_no_submission() -> None:
+	"""Axis status should be not_started when the auditor has no submission."""
 
-	snapshot = _CompactAuditSnapshot(
-		audit_id=uuid.uuid4(),
-		project_id=uuid.uuid4(),
-		place_id=uuid.uuid4(),
-		audit_code="AUD-001",
-		status=AuditStatus.IN_PROGRESS,
-		execution_mode=ExecutionMode.SURVEY,
-		started_at=datetime.now(timezone.utc),
-		submitted_at=None,
-		summary_score=None,
-		score_totals=None,
-		progress_percent=50.0,
-		selected_execution_mode=ExecutionMode.SURVEY,
+	assert _derive_place_axis_status(axis_included=True, audit_status=None) == "not_started"
+
+
+def test_derive_place_axis_status_not_started_when_axis_not_covered() -> None:
+	"""Axis status should be not_started when the mode does not cover the axis."""
+
+	assert _derive_place_axis_status(axis_included=False, audit_status=AuditStatus.IN_PROGRESS) == "not_started"
+
+
+def test_derive_place_axis_status_in_progress_when_active() -> None:
+	"""An active (IN_PROGRESS) submission on a covered axis should yield in_progress."""
+
+	assert _derive_place_axis_status(axis_included=True, audit_status=AuditStatus.IN_PROGRESS) == "in_progress"
+
+
+def test_derive_place_axis_status_submitted_when_submitted() -> None:
+	"""A SUBMITTED submission on a covered axis should yield submitted."""
+
+	assert _derive_place_axis_status(axis_included=True, audit_status=AuditStatus.SUBMITTED) == "submitted"
+
+
+def test_resolve_composite_status_audit_mode_uses_audit_axis() -> None:
+	"""In audit-only mode the composite status mirrors the audit axis status."""
+
+	assert (
+		_resolve_composite_place_status(
+			place_audit_status="submitted",
+			place_survey_status="not_started",
+			selected_execution_mode=ExecutionMode.AUDIT,
+		)
+		== "submitted"
 	)
 
-	assert snapshot.selected_execution_mode is ExecutionMode.SURVEY
+
+def test_resolve_composite_status_survey_mode_uses_survey_axis() -> None:
+	"""In survey-only mode the composite status mirrors the survey axis status."""
+
+	assert (
+		_resolve_composite_place_status(
+			place_audit_status="not_started",
+			place_survey_status="in_progress",
+			selected_execution_mode=ExecutionMode.SURVEY,
+		)
+		== "in_progress"
+	)
+
+
+def test_resolve_composite_status_both_mode_requires_both_axes_submitted() -> None:
+	"""In both mode the composite status is submitted only when both axes are submitted."""
+
+	assert (
+		_resolve_composite_place_status(
+			place_audit_status="submitted",
+			place_survey_status="in_progress",
+			selected_execution_mode=ExecutionMode.BOTH,
+		)
+		== "in_progress"
+	)
+	assert (
+		_resolve_composite_place_status(
+			place_audit_status="submitted",
+			place_survey_status="submitted",
+			selected_execution_mode=ExecutionMode.BOTH,
+		)
+		== "submitted"
+	)
 
 
 def test_set_execution_mode_value_persists_on_submission() -> None:

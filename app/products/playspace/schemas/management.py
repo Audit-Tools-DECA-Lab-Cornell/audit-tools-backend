@@ -118,11 +118,20 @@ class PlaceDetailResponse(ApiModel):
 
 
 class AuditorProfileCreateRequest(RequestModel):
-	"""Create one auditor account and profile."""
+	"""Create one auditor User + profile under a manager's account.
 
+	``account_id`` is only required when the caller is an admin — managers
+	automatically use their own account.
+
+	``auditor_code`` is optional. When omitted the backend auto-generates a
+	code in the format ``AUD-{ORG}-{YY}-{NNNNNNNN}`` using the account name
+	and a DB-side count of existing codes for the same org/year prefix.
+	"""
+
+	account_id: uuid.UUID | None = None
 	email: str
 	full_name: str
-	auditor_code: str
+	auditor_code: str | None = None
 	age_range: str | None = None
 	gender: str | None = None
 	country: str | None = None

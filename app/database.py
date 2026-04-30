@@ -76,6 +76,7 @@ def _normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, obj
 		"verify-full",
 	}:
 		connect_args["ssl"] = True
+		connect_args["statement_cache_size"] = 0
 
 	return sqlalchemy_url.set(query=url_query), connect_args
 

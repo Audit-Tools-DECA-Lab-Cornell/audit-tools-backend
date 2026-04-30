@@ -162,6 +162,27 @@ class InstrumentSectionResponse(ApiModel):
 	questions: list[InstrumentQuestionResponse]
 
 
+class LegalSectionResponse(ApiModel):
+	"""One section within a legal document (terms or privacy notice)."""
+
+	key: str
+	title: str
+	body: list[str]
+	bullets: list[str] = Field(default_factory=list)
+
+
+class LegalDocumentResponse(ApiModel):
+	"""A legal document displayed during onboarding (e.g. Terms, Privacy Notice)."""
+
+	key: str
+	short_title: str
+	title: str
+	eyebrow: str
+	last_updated: str
+	summary: str
+	sections: list[LegalSectionResponse]
+
+
 class PlayspaceInstrumentResponse(ApiModel):
 	"""Canonical full Playspace instrument returned by the backend."""
 
@@ -175,3 +196,4 @@ class PlayspaceInstrumentResponse(ApiModel):
 	pre_audit_questions: list[InstrumentPreAuditQuestionResponse]
 	scale_guidance: list[InstrumentScaleDefinitionResponse]
 	sections: list[InstrumentSectionResponse]
+	legal_documents: list[LegalDocumentResponse] = Field(default_factory=list)

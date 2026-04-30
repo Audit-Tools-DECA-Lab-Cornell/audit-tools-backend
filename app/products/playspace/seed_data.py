@@ -50,6 +50,7 @@ from app.models import (
 )
 from app.products.playspace.audit_state import (
 	CURRENT_AUDIT_SCHEMA_VERSION,
+	build_responses_json_from_relations,
 	set_draft_progress_percent,
 	set_execution_mode_value,
 )
@@ -86,6 +87,10 @@ PlayspaceEntity = (
 	| PlayspaceSubmission
 	| Instrument
 )
+
+# Auditors whose home city maps to the primary manager account (DEMO_ACCOUNT_ID).
+_PRIMARY_MANAGER_CITIES = {"Auckland", "Wellington"}
+# All remaining auditors are assigned to the secondary manager account.
 SeedJson = dict[str, object]
 ProjectStatusLabel = Literal["completed", "active", "planned"]
 
@@ -178,9 +183,13 @@ class AuditorBlueprint:
 
 @dataclass(frozen=True)
 class AuditorSeedContext:
-	"""Bundle the ORM entities and home metro for one auditor."""
+	"""Bundle the ORM entities and home metro for one auditor.
 
-	account: Account
+	Auditors no longer have their own Account — each auditor's profile and user
+	are owned by a manager's Account, resolved at seed-build time based on the
+	auditor's home city.
+	"""
+
 	profile: AuditorProfile
 	home_city: str
 
@@ -535,13 +544,17 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		),
 	]
 
-	auditor_contexts = _build_auditor_contexts(reference_date=reference_date)
+	auditor_contexts = _build_auditor_contexts(
+		reference_date=reference_date,
+		primary_account_id=DEMO_ACCOUNT_ID,
+		secondary_account_id=SECONDARY_MANAGER_ACCOUNT_ID,
+	)
 
+	# Auditors no longer have their own Account — only manager and admin accounts exist.
 	accounts = [
 		admin_account,
 		primary_manager_account,
 		secondary_manager_account,
-		*(context.account for context in auditor_contexts),
 	]
 	auditor_profiles = [context.profile for context in auditor_contexts]
 	users = _build_user_entities(
@@ -603,6 +616,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		reference_date=reference_date,
 		randomizer=randomizer,
 	)
+	_validate_seed_audits(audits=audits, assignments=assignments)
 
 	projects = [context.project for context in project_contexts]
 	places = [context.place for context in place_contexts]
@@ -621,33 +635,34 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 	]
 
 
-def _build_auditor_contexts(*, reference_date: date) -> list[AuditorSeedContext]:
-	"""Create the stable auditor accounts and profiles used across all seeded projects."""
+def _build_auditor_contexts(
+	*,
+	reference_date: date,
+	primary_account_id: uuid.UUID,
+	secondary_account_id: uuid.UUID,
+) -> list[AuditorSeedContext]:
+	"""Create auditor profiles assigned to manager accounts.
+
+	Auditors whose home city is in ``_PRIMARY_MANAGER_CITIES`` are placed under
+	``primary_account_id``; all others go to ``secondary_account_id``.  No
+	separate Account row is created per auditor.
+	"""
 
 	contexts: list[AuditorSeedContext] = []
 	created_at = datetime.combine(reference_date - timedelta(days=80), time(9, 0), tzinfo=UTC)
-	fixed_ids_by_code: dict[str, tuple[uuid.UUID, uuid.UUID]] = {
-		"AKL-01": (_stable_uuid("playspace-account", "AKL-01"), DEMO_AUDITOR_AKL01_ID),
-		"AKL-02": (_stable_uuid("playspace-account", "AKL-02"), DEMO_AUDITOR_AKL02_ID),
-		"CHC-01": (_stable_uuid("playspace-account", "CHC-01"), DEMO_AUDITOR_CHC01_ID),
+	fixed_profile_ids_by_code: dict[str, uuid.UUID] = {
+		"AKL-01": DEMO_AUDITOR_AKL01_ID,
+		"AKL-02": DEMO_AUDITOR_AKL02_ID,
+		"CHC-01": DEMO_AUDITOR_CHC01_ID,
 	}
 
 	for index, blueprint in enumerate(AUDITOR_BLUEPRINTS):
-		fixed_ids = fixed_ids_by_code.get(blueprint.auditor_code)
-		account_id = (
-			fixed_ids[0] if fixed_ids is not None else _stable_uuid("playspace-account", blueprint.auditor_code)
+		profile_id = fixed_profile_ids_by_code.get(
+			blueprint.auditor_code,
+			_stable_uuid("playspace-profile", blueprint.auditor_code),
 		)
-		profile_id = (
-			fixed_ids[1] if fixed_ids is not None else _stable_uuid("playspace-profile", blueprint.auditor_code)
-		)
+		account_id = primary_account_id if blueprint.home_city in _PRIMARY_MANAGER_CITIES else secondary_account_id
 		email = _email_from_name(blueprint.full_name)
-		account = Account(
-			id=account_id,
-			name=blueprint.full_name,
-			email=email,
-			account_type=AccountType.AUDITOR,
-			created_at=created_at + timedelta(minutes=index * 7),
-		)
 		profile = AuditorProfile(
 			id=profile_id,
 			account_id=account_id,
@@ -662,7 +677,6 @@ def _build_auditor_contexts(*, reference_date: date) -> list[AuditorSeedContext]
 		)
 		contexts.append(
 			AuditorSeedContext(
-				account=account,
 				profile=profile,
 				home_city=blueprint.home_city,
 			)
@@ -679,11 +693,11 @@ def _build_user_entities(
 ) -> list[User]:
 	"""Create one auth User per profile, plus one per admin account.
 
-	Accounts are organisational workspaces. No User is created for a MANAGER or
-	AUDITOR account record itself. Each profile is the login identity:
+	Accounts are organisational workspaces. Auditors no longer have their own
+	Account — each auditor User receives the manager's ``account_id``.
 	- ADMIN accounts: one User per account (no profile table exists for admins).
 	- MANAGER accounts: one User per ManagerProfile using the profile's email.
-	- AUDITOR accounts: one User per AuditorProfile using the profile's email.
+	- AUDITOR: one User per AuditorProfile; account_id = manager's Account.id.
 	Each profile's user_id is set here so the relationship is bidirectional.
 	"""
 
@@ -1369,6 +1383,7 @@ def _build_audits(
 				_build_fixed_base_audit(
 					audit_id=DEMO_AUDIT_KEPLER_ID,
 					slot_key="kepler-submitted",
+					forced_execution_mode=ExecutionMode.AUDIT,
 					place_context=place_context,
 					auditor_context=auditor_context_by_id[DEMO_AUDITOR_AKL02_ID],
 					execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
@@ -1386,6 +1401,7 @@ def _build_audits(
 				_build_fixed_base_audit(
 					audit_id=DEMO_AUDIT_MATAI_ID,
 					slot_key="matai-submitted",
+					forced_execution_mode=ExecutionMode.SURVEY,
 					place_context=place_context,
 					auditor_context=auditor_context_by_id[DEMO_AUDITOR_CHC01_ID],
 					execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
@@ -1427,6 +1443,7 @@ def _build_fixed_base_audits_for_riverside(
 	submitted_audit = _build_fixed_base_audit(
 		audit_id=DEMO_AUDIT_RIVERSIDE_ID,
 		slot_key="riverside-submitted",
+		forced_execution_mode=ExecutionMode.BOTH,
 		place_context=place_context,
 		auditor_context=auditor_context_by_id[DEMO_AUDITOR_AKL01_ID],
 		execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
@@ -1439,6 +1456,7 @@ def _build_fixed_base_audits_for_riverside(
 	draft_audit = _build_fixed_base_audit(
 		audit_id=PLAYSPACE_AUDIT_RIVERSIDE_IN_PROGRESS_ID,
 		slot_key="riverside-draft",
+		forced_execution_mode=ExecutionMode.AUDIT,
 		place_context=place_context,
 		auditor_context=auditor_context_by_id[DEMO_AUDITOR_AKL02_ID],
 		execution_modes_by_place_and_auditor=execution_modes_by_place_and_auditor,
@@ -1455,6 +1473,7 @@ def _build_fixed_base_audit(
 	*,
 	audit_id: uuid.UUID,
 	slot_key: str,
+	forced_execution_mode: ExecutionMode,
 	place_context: PlaceSeedContext,
 	auditor_context: AuditorSeedContext,
 	execution_modes_by_place_and_auditor: dict[tuple[uuid.UUID, uuid.UUID], list[ExecutionMode]],
@@ -1496,6 +1515,7 @@ def _build_fixed_base_audit(
 		status=status,
 		quality_bias=quality_bias,
 		usage_bias=usage_bias,
+		forced_execution_mode=forced_execution_mode,
 		draft_ratio=draft_ratio,
 	)
 	return [audit]
@@ -1601,7 +1621,7 @@ def _build_generated_audits_for_place(
 	draft_allowed_modes = execution_modes_by_place_and_auditor[(place_context.place.id, draft_author_id)]
 	draft_status = AuditStatus.PAUSED if randomizer.random() < 0.35 else AuditStatus.IN_PROGRESS
 	started_at = _draft_started_at(reference_date=reference_date, randomizer=randomizer)
-	draft_ratio = randomizer.uniform(0.12, 0.88)
+	draft_ratio = randomizer.uniform(0.12, 0.72)
 	audits.append(
 		_build_audit_record(
 			audit_id=_stable_uuid(
@@ -1640,14 +1660,17 @@ def _build_audit_record(
 	quality_bias: float,
 	usage_bias: float,
 	draft_ratio: float | None,
+	forced_execution_mode: ExecutionMode | None = None,
 ) -> PlayspaceSubmission:
 	"""Create one audit row with responses and scores derived from live Playspace helpers."""
 
-	execution_mode = _select_execution_mode(
+	execution_mode = forced_execution_mode or _select_execution_mode(
 		allowed_execution_modes=allowed_execution_modes,
 		randomizer=randomizer,
 		quality_bias=quality_bias,
 	)
+	if execution_mode not in allowed_execution_modes:
+		raise ValueError(f"Forced execution mode {execution_mode.value!r} is not allowed for this assignment.")
 	if status == AuditStatus.SUBMITTED:
 		responses_json = _build_responses_json(
 			execution_mode=execution_mode,
@@ -1688,10 +1711,11 @@ def _build_audit_record(
 			audit=submitted_audit,
 			execution_mode=execution_mode.value,
 		)
+		submitted_audit.responses_json = build_responses_json_from_relations(submitted_audit)
 		calculated_scores = score_audit_for_audit(audit=submitted_audit, include_maximums=True)
 		submitted_audit.scores_json = calculated_scores
-		audit_partition = calculated_scores.get("audit")
-		survey_partition = calculated_scores.get("survey")
+		audit_partition = calculated_scores.get("audit") if _execution_mode_includes_audit(execution_mode) else None
+		survey_partition = calculated_scores.get("survey") if _execution_mode_includes_survey(execution_mode) else None
 		submitted_audit.audit_play_value_score = (
 			float(audit_partition["play_value_total"])
 			if isinstance(audit_partition, dict) and isinstance(audit_partition.get("play_value_total"), int | float)
@@ -1768,6 +1792,7 @@ def _build_audit_record(
 		audit=draft_audit,
 		execution_mode=execution_mode.value,
 	)
+	draft_audit.responses_json = build_responses_json_from_relations(draft_audit)
 	progress = build_audit_progress_for_audit(audit=draft_audit)
 	draft_progress_percent = _progress_percent(progress=progress)
 	draft_audit.scores_json = {
@@ -1805,33 +1830,33 @@ def _build_responses_json(
 		if len(_visible_questions_for_mode(section=section, execution_mode=execution_mode)) > 0
 	]
 
-	total_visible_questions = sum(
+	required_completion_questions = sum(
 		1
 		for section in visible_sections
 		for question in _visible_questions_for_mode(section=section, execution_mode=execution_mode)
-		if question.required and question.question_type == "scaled"
+		if _question_counts_toward_seed_completion(question)
 	)
 	target_answered_questions = min(
-		total_visible_questions,
-		max(0, round(total_visible_questions * target_completion_ratio)),
+		required_completion_questions,
+		max(0, round(required_completion_questions * target_completion_ratio)),
 	)
-	if 0.0 < target_completion_ratio < 1.0 and target_answered_questions == total_visible_questions:
-		target_answered_questions = max(total_visible_questions - 1, 0)
-	if target_completion_ratio > 0 and target_answered_questions == 0 and total_visible_questions > 0:
+	if 0.0 < target_completion_ratio < 1.0 and target_answered_questions == required_completion_questions:
+		target_answered_questions = max(required_completion_questions - 1, 0)
+	if target_completion_ratio > 0 and target_answered_questions == 0 and required_completion_questions > 0:
 		target_answered_questions = 1
 
 	sections_payload: SeedJson = {}
-	remaining_questions = target_answered_questions
+	remaining_required_questions = target_answered_questions
 	# We fill sections in order so drafts look like a real session that progressed through the form.
 	for section in visible_sections:
-		if remaining_questions <= 0:
+		if remaining_required_questions <= 0 and target_completion_ratio < 1.0:
 			break
 
 		visible_questions = _visible_questions_for_mode(
 			section=section,
 			execution_mode=execution_mode,
 		)
-		answered_count = 0
+		answered_required_count = 0
 		section_responses: SeedJson = {}
 		for question in visible_questions:
 			if not _is_question_visible_for_seed(
@@ -1840,17 +1865,29 @@ def _build_responses_json(
 			):
 				continue
 
-			if question.question_type == "checklist":
-				if question.required or randomizer.random() < 0.35:
-					checklist_answers = _build_checklist_answers(
-						question=question,
-						randomizer=randomizer,
-					)
-					if checklist_answers:
-						section_responses[question.question_key] = checklist_answers
+			counts_toward_completion = _question_counts_toward_seed_completion(question)
+			if counts_toward_completion and remaining_required_questions <= 0 and target_completion_ratio < 1.0:
 				continue
 
-			if remaining_questions <= 0:
+			if question.question_type == "checklist":
+				should_answer = counts_toward_completion or target_completion_ratio >= 1.0 or randomizer.random() < 0.35
+				if not should_answer:
+					continue
+				checklist_answers = _build_checklist_answers(
+					question=question,
+					randomizer=randomizer,
+				)
+				if checklist_answers:
+					section_responses[question.question_key] = checklist_answers
+					if counts_toward_completion:
+						answered_required_count += 1
+						remaining_required_questions -= 1
+				continue
+
+			should_answer_scaled = (
+				counts_toward_completion or target_completion_ratio >= 1.0 or randomizer.random() < 0.18
+			)
+			if not should_answer_scaled:
 				continue
 
 			section_responses[question.question_key] = _build_question_answers(
@@ -1859,15 +1896,15 @@ def _build_responses_json(
 				usage_bias=usage_bias,
 				randomizer=randomizer,
 			)
-			answered_count += 1
-			remaining_questions -= 1
+			if counts_toward_completion:
+				answered_required_count += 1
+				remaining_required_questions -= 1
 
 		if section_responses:
 			required_visible_question_count = sum(
 				1
 				for question in visible_questions
-				if question.required
-				and question.question_type == "scaled"
+				if _question_counts_toward_seed_completion(question)
 				and _is_question_visible_for_seed(
 					question=question,
 					section_responses=section_responses,
@@ -1879,7 +1916,7 @@ def _build_responses_json(
 					section_key=section.section_key,
 					place_name=place_context.place.name,
 					focus_terms=place_context.project_context.blueprint.focus_terms,
-					is_complete=answered_count == required_visible_question_count,
+					is_complete=answered_required_count == required_visible_question_count,
 				)
 			sections_payload[section.section_key] = section_payload
 
@@ -2202,6 +2239,222 @@ def _progress_percent(*, progress: object) -> float:
 	return round((answered_visible_questions / total_visible_questions) * 100, 2)
 
 
+def _validate_seed_audits(
+	*,
+	audits: list[PlayspaceSubmission],
+	assignments: list[AuditorAssignment],
+) -> None:
+	"""Fail fast when generated submissions drift from the runtime audit contract."""
+
+	seen_submission_keys: set[tuple[uuid.UUID, uuid.UUID, uuid.UUID]] = set()
+	submitted_modes: set[ExecutionMode] = set()
+	has_audit_only_draft = False
+
+	for audit in audits:
+		submission_key = (audit.project_id, audit.place_id, audit.auditor_profile_id)
+		if submission_key in seen_submission_keys:
+			raise ValueError(
+				"Seed data violates the PlayspaceSubmission unique constraint for "
+				f"project/place/auditor key {submission_key}."
+			)
+		seen_submission_keys.add(submission_key)
+
+		responses_json = build_responses_json_from_relations(audit)
+		meta = _read_seed_json_dict(responses_json.get("meta"))
+		execution_mode = _parse_seed_execution_mode(meta.get("execution_mode"))
+		if execution_mode is None:
+			raise ValueError(f"Seeded submission {audit.id} is missing a valid execution mode.")
+		if audit.execution_mode != execution_mode.value:
+			raise ValueError(
+				f"Seeded submission {audit.id} has execution_mode={audit.execution_mode!r} "
+				f"but responses_json meta stores {execution_mode.value!r}."
+			)
+
+		if audit.status == AuditStatus.SUBMITTED:
+			submitted_modes.add(execution_mode)
+			_validate_submitted_seed_audit(
+				audit=audit,
+				execution_mode=execution_mode,
+				responses_json=responses_json,
+			)
+		elif audit.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}:
+			if execution_mode is ExecutionMode.AUDIT:
+				has_audit_only_draft = True
+			_validate_draft_seed_audit(audit=audit, responses_json=responses_json)
+		else:
+			raise ValueError(f"Seeded submission {audit.id} has unsupported status {audit.status}.")
+
+	assignment_keys = {
+		(assignment.project_id, assignment.place_id, assignment.auditor_profile_id)
+		for assignment in assignments
+		if assignment.place_id is not None
+	}
+	has_not_started_assignment = any(assignment_key not in seen_submission_keys for assignment_key in assignment_keys)
+
+	missing_submitted_modes = {ExecutionMode.AUDIT, ExecutionMode.SURVEY, ExecutionMode.BOTH} - submitted_modes
+	if missing_submitted_modes:
+		missing_labels = ", ".join(sorted(mode.value for mode in missing_submitted_modes))
+		raise ValueError(f"Seed data must include submitted examples for: {missing_labels}.")
+	if not has_audit_only_draft:
+		raise ValueError("Seed data must include at least one in-progress audit-only submission.")
+	if not has_not_started_assignment:
+		raise ValueError("Seed data must include at least one assignment with no submission.")
+
+
+def _validate_submitted_seed_audit(
+	*,
+	audit: PlayspaceSubmission,
+	execution_mode: ExecutionMode,
+	responses_json: SeedJson,
+) -> None:
+	"""Validate one submitted seed row against progress and scoring helpers."""
+
+	if audit.submitted_at is None:
+		raise ValueError(f"Submitted seeded submission {audit.id} is missing submitted_at.")
+	if audit.draft_progress_percent is not None:
+		raise ValueError(f"Submitted seeded submission {audit.id} should not keep draft progress.")
+	if not _read_seed_json_dict(responses_json.get("pre_audit")):
+		raise ValueError(f"Submitted seeded submission {audit.id} has empty pre_audit responses.")
+	if not _read_seed_json_dict(responses_json.get("sections")):
+		raise ValueError(f"Submitted seeded submission {audit.id} has empty section responses.")
+
+	progress = build_audit_progress_for_audit(audit=audit)
+	if not progress.ready_to_submit:
+		raise ValueError(f"Submitted seeded submission {audit.id} is not ready to submit.")
+
+	calculated_scores = score_audit_for_audit(audit=audit, include_maximums=True)
+	if not calculated_scores:
+		raise ValueError(f"Submitted seeded submission {audit.id} has empty calculated scores.")
+	if audit.scores_json != calculated_scores:
+		raise ValueError(f"Submitted seeded submission {audit.id} stores scores that do not match scoring helpers.")
+
+	_assert_score_column_matches(
+		audit_id=audit.id,
+		column_name="audit_play_value_score",
+		actual_value=audit.audit_play_value_score,
+		score_payload=(calculated_scores.get("audit") if _execution_mode_includes_audit(execution_mode) else None),
+		score_key="play_value_total",
+	)
+	_assert_score_column_matches(
+		audit_id=audit.id,
+		column_name="audit_usability_score",
+		actual_value=audit.audit_usability_score,
+		score_payload=(calculated_scores.get("audit") if _execution_mode_includes_audit(execution_mode) else None),
+		score_key="usability_total",
+	)
+	_assert_score_column_matches(
+		audit_id=audit.id,
+		column_name="survey_play_value_score",
+		actual_value=audit.survey_play_value_score,
+		score_payload=(calculated_scores.get("survey") if _execution_mode_includes_survey(execution_mode) else None),
+		score_key="play_value_total",
+	)
+	_assert_score_column_matches(
+		audit_id=audit.id,
+		column_name="survey_usability_score",
+		actual_value=audit.survey_usability_score,
+		score_payload=(calculated_scores.get("survey") if _execution_mode_includes_survey(execution_mode) else None),
+		score_key="usability_total",
+	)
+
+	overall_payload = _read_seed_json_dict(calculated_scores.get("overall"))
+	expected_summary = _combined_construct_total(overall_payload)
+	if audit.summary_score != expected_summary:
+		raise ValueError(
+			f"Submitted seeded submission {audit.id} has summary_score={audit.summary_score!r} "
+			f"but expected {expected_summary!r}."
+		)
+
+
+def _validate_draft_seed_audit(*, audit: PlayspaceSubmission, responses_json: SeedJson) -> None:
+	"""Validate one in-progress/paused seed row against runtime progress helpers."""
+
+	if audit.submitted_at is not None:
+		raise ValueError(f"Draft seeded submission {audit.id} should not have submitted_at.")
+	if not _read_seed_json_dict(responses_json.get("sections")):
+		raise ValueError(f"Draft seeded submission {audit.id} should contain partial section responses.")
+	progress = build_audit_progress_for_audit(audit=audit)
+	if progress.ready_to_submit:
+		raise ValueError(f"Draft seeded submission {audit.id} should not be ready to submit.")
+	expected_progress_percent = _progress_percent(progress=progress)
+	if audit.draft_progress_percent != expected_progress_percent:
+		raise ValueError(
+			f"Draft seeded submission {audit.id} has draft_progress_percent={audit.draft_progress_percent!r} "
+			f"but expected {expected_progress_percent!r}."
+		)
+	if not (0.0 < expected_progress_percent < 100.0):
+		raise ValueError(f"Draft seeded submission {audit.id} should have partial progress between 0 and 100.")
+
+
+def _assert_score_column_matches(
+	*,
+	audit_id: uuid.UUID,
+	column_name: str,
+	actual_value: float | None,
+	score_payload: object,
+	score_key: str,
+) -> None:
+	"""Validate one denormalized score column against a scoring partition."""
+
+	if score_payload is None:
+		if actual_value is not None:
+			raise ValueError(f"Seeded submission {audit_id} should leave {column_name} empty.")
+		return
+
+	partition_payload = _read_seed_json_dict(score_payload)
+	raw_expected_value = partition_payload.get(score_key)
+	expected_value = float(raw_expected_value) if isinstance(raw_expected_value, int | float) else None
+	if actual_value != expected_value:
+		raise ValueError(
+			f"Seeded submission {audit_id} has {column_name}={actual_value!r} but expected {expected_value!r}."
+		)
+
+
+def _combined_construct_total(score_payload: SeedJson) -> float | None:
+	"""Mirror the audit service compact summary total calculation."""
+
+	play_value_total = score_payload.get("play_value_total")
+	usability_total = score_payload.get("usability_total")
+	if not isinstance(play_value_total, int | float) or not isinstance(usability_total, int | float):
+		return None
+	return round(float(play_value_total) + float(usability_total), 2)
+
+
+def _parse_seed_execution_mode(value: object) -> ExecutionMode | None:
+	"""Parse a stored seed execution mode safely."""
+
+	if not isinstance(value, str):
+		return None
+	try:
+		return ExecutionMode(value)
+	except ValueError:
+		return None
+
+
+def _execution_mode_includes_audit(execution_mode: ExecutionMode) -> bool:
+	"""Return whether a selected execution mode should expose audit scores/status."""
+
+	return execution_mode in {ExecutionMode.AUDIT, ExecutionMode.BOTH}
+
+
+def _execution_mode_includes_survey(execution_mode: ExecutionMode) -> bool:
+	"""Return whether a selected execution mode should expose survey scores/status."""
+
+	return execution_mode in {ExecutionMode.SURVEY, ExecutionMode.BOTH}
+
+
+def _question_counts_toward_seed_completion(question: ScoringQuestion) -> bool:
+	"""Mirror the runtime completion rule used by Playspace scoring/progress helpers."""
+
+	return question.required
+
+
+def _read_seed_json_dict(value: object) -> SeedJson:
+	"""Safely coerce a JSON-like seed payload to a dictionary."""
+
+	return dict(value) if isinstance(value, dict) else {}
+
+
 def _visible_questions_for_mode(
 	*,
 	section: ScoringSection,
@@ -2210,6 +2463,8 @@ def _visible_questions_for_mode(
 	"""Filter a scoring section down to the questions visible for one execution mode."""
 
 	mode_value = execution_mode.value
+	if mode_value == "both":
+		return list(section.questions)
 	return [question for question in section.questions if question.mode == "both" or question.mode == mode_value]
 
 

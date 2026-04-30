@@ -505,10 +505,14 @@ class AuditorProfile(Base):
 	auditor_code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
 	email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
 	full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+	phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	age_range: Mapped[str | None] = mapped_column(String(80), nullable=True)
 	gender: Mapped[str | None] = mapped_column(String(80), nullable=True)
+	city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+	province: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	country: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+	terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
@@ -1078,6 +1082,32 @@ class YeeAuditSubmission(Base):
 
 	auditor: Mapped[AuditorProfile] = relationship()
 	place: Mapped[Place] = relationship()
+
+
+class AuditorAccessRequest(Base):
+	"""Self-initiated access request from an auditor awaiting manager approval."""
+
+	__tablename__ = "auditor_access_requests"
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	name: Mapped[str] = mapped_column(String(200), nullable=False)
+	email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+	manager_email: Mapped[str] = mapped_column(String(320), nullable=False)
+	status: Mapped[str] = mapped_column(
+		String(20),
+		nullable=False,
+		default="pending",
+		server_default="pending",
+	)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
 
 
 # Compatibility aliases for the YEE router code.

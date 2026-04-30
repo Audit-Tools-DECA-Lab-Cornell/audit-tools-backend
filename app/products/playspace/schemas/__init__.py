@@ -95,6 +95,8 @@ from app.products.playspace.schemas.management import (
 	ProjectUpdateRequest,
 )
 from app.products.playspace.schemas.me import (
+	AuditorProfileSelfUpdateRequest,
+	ChangePasswordRequest,
 	MyAccountResponse,
 	MyAuditorProfileResponse,
 )
@@ -155,6 +157,8 @@ __all__ = [
 	"ManagerPlaceRowResponse",
 	"ManagerPlacesListResponse",
 	"ManagerPlacesSummaryResponse",
+	"AuditorProfileSelfUpdateRequest",
+	"ChangePasswordRequest",
 	"MyAccountResponse",
 	"MyAuditorProfileResponse",
 	"PaginatedResponse",

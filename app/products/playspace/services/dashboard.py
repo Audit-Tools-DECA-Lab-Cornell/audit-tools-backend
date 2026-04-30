@@ -289,43 +289,10 @@ class PlayspaceDashboardService:
 		return project, place
 
 	async def list_auditors(self, actor: CurrentUserContext, account_id: uuid.UUID) -> list[AuditorSummaryResponse]:
-		"""Return all auditors in the system that the manager has not assigned to any projects."""
+		"""Return all auditors belonging to the given manager account."""
 
 		self._ensure_manager_scope(actor, account_id)
-		result = await self._session.execute(select(AuditorProfile))
-		auditor_profiles = result.scalars().all()
-		auditor_profile_ids = [profile.id for profile in auditor_profiles]
-		assignment_counts_subquery = (
-			select(
-				AuditorProfile.id.label("id"),
-				AuditorProfile.account_id.label("account_id"),
-				AuditorProfile.auditor_code.label("auditor_code"),
-				AuditorProfile.full_name.label("full_name"),
-				AuditorProfile.email.label("email"),
-				AuditorProfile.age_range.label("age_range"),
-				AuditorProfile.gender.label("gender"),
-				AuditorProfile.country.label("country"),
-				AuditorProfile.role.label("role"),
-				func.count(AuditorAssignment.id).label("assignments_count"),
-				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
-					"last_active_at"
-				),
-				func.count(PlayspaceSubmission.id)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
-				.label("completed_audits"),
-			)
-			.select_from(AuditorProfile)
-			.outerjoin(
-				AuditorAssignment,
-				AuditorAssignment.auditor_profile_id.in_(auditor_profile_ids),
-			)
-			.outerjoin(
-				PlayspaceSubmission,
-				PlayspaceSubmission.auditor_profile_id == AuditorProfile.id,
-			)
-			.group_by(AuditorProfile.id)
-			.subquery()
-		)
+
 		stmt = (
 			select(
 				AuditorProfile.id.label("id"),
@@ -337,14 +304,25 @@ class PlayspaceDashboardService:
 				AuditorProfile.gender.label("gender"),
 				AuditorProfile.country.label("country"),
 				AuditorProfile.role.label("role"),
-				assignment_counts_subquery.c.assignments_count.label("assignments_count"),
-				assignment_counts_subquery.c.last_active_at.label("last_active_at"),
-				assignment_counts_subquery.c.completed_audits.label("completed_audits"),
+				func.count(distinct(AuditorAssignment.id)).label("assignments_count"),
+				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
+					"last_active_at"
+				),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("completed_audits"),
 			)
-			.join(
-				assignment_counts_subquery,
-				assignment_counts_subquery.c.id == AuditorProfile.id,
+			.select_from(AuditorProfile)
+			.where(AuditorProfile.account_id == account_id)
+			.outerjoin(
+				AuditorAssignment,
+				AuditorAssignment.auditor_profile_id == AuditorProfile.id,
 			)
+			.outerjoin(
+				PlayspaceSubmission,
+				PlayspaceSubmission.auditor_profile_id == AuditorProfile.id,
+			)
+			.group_by(AuditorProfile.id)
 			.order_by(func.lower(AuditorProfile.auditor_code).asc())
 			.limit(MAX_PAGE_SIZE)
 		)
@@ -881,6 +859,7 @@ class PlayspaceDashboardService:
 		sort: str | None = None,
 		project_ids: list[uuid.UUID] | None = None,
 		auditor_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
 		statuses: list[str] | None = None,
 	) -> ManagerAuditsListResponse:
 		"""Return paginated manager audit rows with SQL-backed filtering."""
@@ -890,6 +869,7 @@ class PlayspaceDashboardService:
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
 		normalized_auditor_ids = auditor_ids or []
+		normalized_place_ids = place_ids or []
 		normalized_statuses = {
 			raw_status for raw_status in (statuses or []) if raw_status in {"IN_PROGRESS", "PAUSED", "SUBMITTED"}
 		}
@@ -938,6 +918,9 @@ class PlayspaceDashboardService:
 
 		if normalized_auditor_ids:
 			filtered_rows_query = filtered_rows_query.where(AuditorProfile.id.in_(normalized_auditor_ids))
+
+		if normalized_place_ids:
+			filtered_rows_query = filtered_rows_query.where(Place.id.in_(normalized_place_ids))
 
 		if normalized_statuses:
 			filtered_rows_query = filtered_rows_query.where(PlayspaceSubmission.status.in_(normalized_statuses))

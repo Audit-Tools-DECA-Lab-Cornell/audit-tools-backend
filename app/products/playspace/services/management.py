@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth_security import hash_password
@@ -133,6 +133,26 @@ class PlayspaceManagementService:
 				detail="Auditor profile not found.",
 			)
 		return profile
+
+	@staticmethod
+	def _generate_auditor_code(account_name: str) -> str:
+		"""Return a non-sequential auditor code derived from the account name.
+
+		Format: ``AUD-{ORG}-{YY}-{NNNNNNNN}``
+		- ORG		— uppercase initials from the first letter of each word (e.g. "Auckland Play Collective" → "APC").
+		- YY		— two-digit current UTC year.
+		- NNNNNNNN	— cryptographically random 8-digit number (10000000–99999999) that prevents auditor enumeration.
+
+		Uniqueness is enforced by the duplicate-code check that follows this
+		call. A collision is statistically negligible given the 90 000 000-value
+		space and the typical per-org auditor count.
+		"""
+
+		words = account_name.strip().split()
+		org_initials = "".join(w[0].upper() for w in words if w) or "ORG"
+		two_digit_year = str(datetime.now(timezone.utc).year % 100).zfill(2)
+		sequence = secrets.randbelow(90_000_000) + 10_000_000
+		return f"AUD-{org_initials}-{two_digit_year}-{sequence}"
 
 	@staticmethod
 	def _serialize_account(account: Account) -> AccountManagementResponse:
@@ -482,61 +502,80 @@ class PlayspaceManagementService:
 		actor: CurrentUserContext,
 		payload: AuditorProfileCreateRequest,
 	) -> AuditorProfileDetailResponse:
-		"""Create one auditor account + profile pair."""
+		"""Create one auditor User + profile pair under the acting manager's account.
+
+		Auditors no longer have their own Account. The new User and AuditorProfile
+		both receive ``account_id = actor.account_id`` so the auditor belongs to the
+		manager's organisation.
+		"""
 
 		self._require_manager_or_admin(actor)
-		duplicate_profile_query = await self._session.execute(
-			select(AuditorProfile).where(
-				or_(
-					AuditorProfile.auditor_code == payload.auditor_code,
-					AuditorProfile.email == payload.email,
-				)
-			)
+
+		# Resolve the manager/admin's account that will own this auditor.
+		# Managers always use their own account; admins must supply account_id.
+		target_account_id = self._resolve_target_account_id(
+			actor=actor,
+			requested_account_id=payload.account_id,
 		)
-		duplicate_profile = duplicate_profile_query.scalar_one_or_none()
-		if duplicate_profile is not None:
+
+		now = datetime.now(timezone.utc)
+
+		# Resolve or auto-generate the auditor code.
+		if payload.auditor_code is not None:
+			auditor_code = payload.auditor_code
+		else:
+			account = await self._get_account(target_account_id)
+			auditor_code = self._generate_auditor_code(account.name)
+
+		# Reject if the auditor_code is already taken.
+		duplicate_code_query = await self._session.execute(
+			select(AuditorProfile).where(AuditorProfile.auditor_code == auditor_code)
+		)
+		if duplicate_code_query.scalar_one_or_none() is not None:
 			raise HTTPException(
 				status_code=status.HTTP_409_CONFLICT,
-				detail="auditor_code or email is already in use.",
+				detail="auditor_code is already in use.",
 			)
 
-		duplicate_account_query = await self._session.execute(select(Account).where(Account.email == payload.email))
-		if duplicate_account_query.scalar_one_or_none() is not None:
+		# Reject if an AuditorProfile already exists for this email.
+		duplicate_profile_email_query = await self._session.execute(
+			select(AuditorProfile).where(AuditorProfile.email == payload.email)
+		)
+		if duplicate_profile_email_query.scalar_one_or_none() is not None:
 			raise HTTPException(
 				status_code=status.HTTP_409_CONFLICT,
-				detail="Email is already in use by another account.",
+				detail="An auditor profile already exists for this email.",
 			)
 
-		account = Account(
-			name=payload.full_name,
-			email=payload.email,
-			account_type=AccountType.AUDITOR,
-		)
-		self._session.add(account)
-		await self._session.flush()
+		# Reject if a User with this email already exists.
+		duplicate_user_query = await self._session.execute(select(User).where(User.email == payload.email))
+		if duplicate_user_query.scalar_one_or_none() is not None:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="Email is already in use.",
+			)
 
 		temporary_password = secrets.token_urlsafe(24)
 		user = User(
 			email=payload.email,
 			password_hash=hash_password(temporary_password),
-			account_id=account.id,
+			account_id=target_account_id,
 			account_type=AccountType.AUDITOR,
 			name=payload.full_name,
 			email_verified=True,
-			email_verified_at=datetime.now(timezone.utc),
+			email_verified_at=now,
 			failed_login_attempts=0,
 			approved=True,
-			approved_at=datetime.now(timezone.utc),
-			profile_completed=True,
-			profile_completed_at=datetime.now(timezone.utc),
+			approved_at=now,
+			profile_completed=False,
 		)
 		self._session.add(user)
 		await self._session.flush()
 
 		profile = AuditorProfile(
-			account_id=account.id,
+			account_id=target_account_id,
 			user_id=user.id,
-			auditor_code=payload.auditor_code,
+			auditor_code=auditor_code,
 			email=payload.email,
 			full_name=payload.full_name,
 			age_range=payload.age_range,
@@ -563,14 +602,6 @@ class PlayspaceManagementService:
 
 		updates = payload.model_dump(exclude_unset=True)
 		if "email" in updates and updates["email"] is not None:
-			duplicate_account_query = await self._session.execute(
-				select(Account).where(Account.email == updates["email"], Account.id != profile.account_id)
-			)
-			if duplicate_account_query.scalar_one_or_none() is not None:
-				raise HTTPException(
-					status_code=status.HTTP_409_CONFLICT,
-					detail="Email is already in use by another account.",
-				)
 			duplicate_profile_query = await self._session.execute(
 				select(AuditorProfile).where(
 					AuditorProfile.email == updates["email"],
@@ -581,6 +612,15 @@ class PlayspaceManagementService:
 				raise HTTPException(
 					status_code=status.HTTP_409_CONFLICT,
 					detail="Email is already in use by another auditor profile.",
+				)
+			# Also reject if a User with this email already exists.
+			duplicate_user_query = await self._session.execute(
+				select(User).where(User.email == updates["email"], User.id != profile.user_id)
+			)
+			if duplicate_user_query.scalar_one_or_none() is not None:
+				raise HTTPException(
+					status_code=status.HTTP_409_CONFLICT,
+					detail="Email is already in use by another user.",
 				)
 
 		if "auditor_code" in updates and updates["auditor_code"] is not None:
@@ -596,18 +636,8 @@ class PlayspaceManagementService:
 					detail="auditor_code is already in use.",
 				)
 
-		account = await self._get_account(profile.account_id)
 		for key, value in updates.items():
-			if key == "email":
-				profile.email = value
-				if value is not None:
-					account.email = value
-			elif key == "full_name":
-				profile.full_name = value
-				if value is not None:
-					account.name = value
-			else:
-				setattr(profile, key, value)
+			setattr(profile, key, value)
 
 		await self._session.commit()
 		await self._session.refresh(profile)
@@ -619,12 +649,22 @@ class PlayspaceManagementService:
 		actor: CurrentUserContext,
 		auditor_profile_id: uuid.UUID,
 	) -> None:
-		"""Delete one auditor profile and its underlying account."""
+		"""Delete one auditor profile and its associated User.
+
+		The Account is NOT deleted — it belongs to the manager's organisation,
+		not to the individual auditor.
+		"""
 
 		self._require_manager_or_admin(actor)
 		profile = await self._get_auditor_profile(auditor_profile_id)
-		account = await self._get_account(profile.account_id)
+
+		# Delete the linked User when one exists.
+		if profile.user_id is not None:
+			user_result = await self._session.execute(select(User).where(User.id == profile.user_id))
+			user = user_result.scalar_one_or_none()
+			if user is not None:
+				await self._session.delete(user)
+				await self._session.flush()
+
 		await self._session.delete(profile)
-		await self._session.flush()
-		await self._session.delete(account)
 		await self._session.commit()

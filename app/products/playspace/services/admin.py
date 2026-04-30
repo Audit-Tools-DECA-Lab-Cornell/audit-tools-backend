@@ -698,6 +698,8 @@ class PlayspaceAdminService:
 		search: str | None = None,
 		sort: str | None = None,
 		account_ids: list[uuid.UUID] | None = None,
+		project_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
 	) -> PaginatedResponse[AdminAuditorRowResponse]:
 		"""Return paginated global auditor rows."""
 
@@ -705,6 +707,8 @@ class PlayspaceAdminService:
 
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_account_ids = account_ids or []
+		normalized_project_ids = project_ids or []
+		normalized_place_ids = place_ids or []
 		safe_page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 		offset = max(page - 1, 0) * safe_page_size
 
@@ -762,6 +766,30 @@ class PlayspaceAdminService:
 
 		if normalized_account_ids:
 			filtered_rows_query = filtered_rows_query.where(AuditorProfile.account_id.in_(normalized_account_ids))
+
+		if normalized_project_ids:
+			# Restrict to auditors who have at least one assignment in the given projects.
+			project_assignment_subquery = (
+				select(AuditorAssignment.auditor_profile_id)
+				.where(AuditorAssignment.project_id.in_(normalized_project_ids))
+				.distinct()
+				.subquery()
+			)
+			filtered_rows_query = filtered_rows_query.where(
+				AuditorProfile.id.in_(select(project_assignment_subquery.c.auditor_profile_id))
+			)
+
+		if normalized_place_ids:
+			# Restrict to auditors who have at least one assignment in the given places.
+			place_assignment_subquery = (
+				select(AuditorAssignment.auditor_profile_id)
+				.where(AuditorAssignment.place_id.in_(normalized_place_ids))
+				.distinct()
+				.subquery()
+			)
+			filtered_rows_query = filtered_rows_query.where(
+				AuditorProfile.id.in_(select(place_assignment_subquery.c.auditor_profile_id))
+			)
 
 		filtered_rows_subquery = filtered_rows_query.subquery()
 		total_count_result = await self._session.execute(select(func.count()).select_from(filtered_rows_subquery))
@@ -821,6 +849,7 @@ class PlayspaceAdminService:
 		project_ids: list[uuid.UUID] | None = None,
 		account_ids: list[uuid.UUID] | None = None,
 		auditor_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
 		statuses: list[str] | None = None,
 	) -> PaginatedResponse[AdminAuditRowResponse]:
 		"""Return paginated global audit rows."""
@@ -830,6 +859,7 @@ class PlayspaceAdminService:
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
 		normalized_auditor_ids = auditor_ids or []
+		normalized_place_ids = place_ids or []
 		normalized_statuses = {
 			raw_value for raw_value in (statuses or []) if raw_value in {"IN_PROGRESS", "PAUSED", "SUBMITTED"}
 		}
@@ -885,6 +915,9 @@ class PlayspaceAdminService:
 
 		if normalized_auditor_ids:
 			filtered_rows_query = filtered_rows_query.where(AuditorProfile.id.in_(normalized_auditor_ids))
+
+		if normalized_place_ids:
+			filtered_rows_query = filtered_rows_query.where(Place.id.in_(normalized_place_ids))
 
 		if normalized_statuses:
 			filtered_rows_query = filtered_rows_query.where(PlayspaceSubmission.status.in_(normalized_statuses))
