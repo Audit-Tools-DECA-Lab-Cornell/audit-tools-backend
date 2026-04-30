@@ -294,6 +294,7 @@ class RawDataExportRow(BaseModel):
 	weighted_use_and_usability: int
 	total_raw_score: int
 	total_weighted_score: int
+	domain_weights: dict[str, int]
 	responses: dict[str, str]
 
 
@@ -561,6 +562,7 @@ async def _fetch_raw_data_rows(
 				weighted_use_and_usability=weighted_domain_scores["useAndUsability"],
 				total_raw_score=submission.total_score,
 				total_weighted_score=total_weighted_score,
+				domain_weights=_extract_domain_weights(participant_info),
 				responses=_flatten_responses(submission.responses_json),
 			)
 		)
