@@ -321,61 +321,6 @@ def upgrade() -> None:
 		op.create_index(op.f("ix_audits_audits_place_id"), "audits", ["place_id"], unique=False)
 		op.create_index(op.f("ix_audits_audits_project_id"), "audits", ["project_id"], unique=False)
 
-	# 2d. yee_audit_submissions
-	if not _table_exists("yee_audit_submissions"):
-		op.create_table(
-			"yee_audit_submissions",
-			sa.Column("id", sa.UUID(), nullable=False),
-			sa.Column("auditor_id", sa.UUID(), nullable=False),
-			sa.Column("place_id", sa.UUID(), nullable=False),
-			sa.Column(
-				"submitted_at",
-				sa.DateTime(timezone=True),
-				server_default=sa.text("now()"),
-				nullable=False,
-			),
-			sa.Column(
-				"participant_info_json",
-				postgresql.JSONB(astext_type=sa.Text()),
-				nullable=False,
-			),
-			sa.Column(
-				"responses_json",
-				postgresql.JSONB(astext_type=sa.Text()),
-				nullable=False,
-			),
-			sa.Column(
-				"section_scores_json",
-				postgresql.JSONB(astext_type=sa.Text()),
-				nullable=False,
-			),
-			sa.Column("total_score", sa.Integer(), nullable=False),
-			sa.ForeignKeyConstraint(
-				["auditor_id"],
-				["auditor_profiles.id"],
-				name=op.f("fk_yee_audit_submissions_auditor_id_auditor_profiles"),
-				ondelete="RESTRICT",
-			),
-			sa.ForeignKeyConstraint(
-				["place_id"],
-				["places.id"],
-				name=op.f("fk_yee_audit_submissions_place_id_places"),
-				ondelete="CASCADE",
-			),
-			sa.PrimaryKeyConstraint("id", name=op.f("pk_yee_audit_submissions")),
-		)
-		op.create_index(
-			op.f("ix_yee_audit_submissions_yee_audit_submissions_auditor_id"),
-			"yee_audit_submissions",
-			["auditor_id"],
-			unique=False,
-		)
-		op.create_index(
-			op.f("ix_yee_audit_submissions_yee_audit_submissions_place_id"),
-			"yee_audit_submissions",
-			["place_id"],
-			unique=False,
-		)
 
 	# ── Phase 3: Data migration (old audit-linked → new submission-linked) ─
 
