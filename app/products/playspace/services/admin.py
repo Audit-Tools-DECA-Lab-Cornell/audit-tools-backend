@@ -57,7 +57,7 @@ from app.products.playspace.services.instrument import get_active_instrument
 from app.products.playspace.services.privacy import mask_email
 
 DEFAULT_PAGE_SIZE = 10
-MAX_PAGE_SIZE = 100
+MAX_PAGE_SIZE = 500
 MAX_EXPORT_SIZE = 10_000
 
 
@@ -469,17 +469,17 @@ class PlayspaceAdminService:
 
 		self._require_admin(actor)
 
-		valid_axis_statuses = {"not_started", "in_progress", "submitted", "complete"}
+		valid_axis_statuses = {"not_started", "in_progress", "submitted"}
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
 		normalized_account_ids = account_ids or []
 		normalized_audit_statuses = {
-			"submitted" if raw_status == "complete" else raw_status
+			raw_status
 			for raw_status in (audit_statuses or [])
 			if raw_status in valid_axis_statuses
 		}
 		normalized_survey_statuses = {
-			"submitted" if raw_status == "complete" else raw_status
+			raw_status
 			for raw_status in (survey_statuses or [])
 			if raw_status in valid_axis_statuses
 		}
@@ -538,6 +538,7 @@ class PlayspaceAdminService:
 				Place.province.label("province"),
 				Place.country.label("country"),
 				Place.postal_code.label("postal_code"),
+				Place.place_type.label("place_type"),
 				func.count(PlayspaceSubmission.id).filter(submitted_filter).label("audits_completed"),
 				func.avg(PlayspaceSubmission.summary_score)
 				.filter(submitted_filter, PlayspaceSubmission.summary_score.is_not(None))
@@ -583,6 +584,7 @@ class PlayspaceAdminService:
 				Place.province,
 				Place.country,
 				Place.postal_code,
+				Place.place_type,
 			)
 		)
 
@@ -668,6 +670,7 @@ class PlayspaceAdminService:
 					province=row.province,
 					country=row.country,
 					postal_code=row.postal_code,
+					place_type=row.place_type,
 					audits_completed=int(row.audits_completed or 0),
 					average_score=_round_score(float(row.average_score) if row.average_score is not None else None),
 					last_audited_at=row.last_audited_at,
@@ -1133,17 +1136,17 @@ class PlayspaceAdminService:
 
 		self._require_admin(actor)
 
-		valid_axis_statuses = {"not_started", "in_progress", "submitted", "complete"}
+		valid_axis_statuses = {"not_started", "in_progress", "submitted"}
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
 		normalized_account_ids = account_ids or []
 		normalized_audit_statuses = {
-			"submitted" if raw_status == "complete" else raw_status
+			raw_status
 			for raw_status in (audit_statuses or [])
 			if raw_status in valid_axis_statuses
 		}
 		normalized_survey_statuses = {
-			"submitted" if raw_status == "complete" else raw_status
+			raw_status
 			for raw_status in (survey_statuses or [])
 			if raw_status in valid_axis_statuses
 		}

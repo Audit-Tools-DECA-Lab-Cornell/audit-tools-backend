@@ -68,6 +68,7 @@ class AdminPlaceRowResponse(ApiModel):
 	city: str | None
 	province: str | None
 	country: str | None
+	place_type: str | None
 	audits_completed: int
 	average_score: float | None
 	last_audited_at: datetime | None

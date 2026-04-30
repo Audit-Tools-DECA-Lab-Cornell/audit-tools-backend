@@ -100,3 +100,49 @@ def send_manager_invite_email(*, to_email: str, invite_url: str) -> bool:
 		log_label="Manager invite link",
 		fallback_url=invite_url,
 	)
+
+
+def send_auditor_credentials_email(
+	*,
+	to_email: str,
+	full_name: str,
+	auditor_code: str,
+	temporary_password: str,
+) -> bool:
+	"""Email a newly created auditor their login credentials.
+
+	Always sends to ``to_email`` (the auditor).  When the
+	``ADMIN_NOTIFICATION_EMAIL`` env var is set, a second copy is delivered
+	to that address so the creating manager also receives the credentials.
+
+	Returns ``True`` only when every attempted send succeeds.
+	"""
+
+	body = (
+		f"Hello {full_name},\n\n"
+		"Your Playspace auditor account has been created.\n\n"
+		f"  Email:              {to_email}\n"
+		f"  Auditor code:       {auditor_code}\n"
+		f"  Temporary password: {temporary_password}\n\n"
+		"Please sign in and change your password as soon as possible.\n\n"
+		"If you were not expecting this account, contact your administrator."
+	)
+
+	admin_notification_email = os.getenv("ADMIN_NOTIFICATION_EMAIL", "").strip()
+
+	# Deduplicate in case the auditor IS the admin notification address.
+	recipients: list[str] = list(dict.fromkeys(r for r in [to_email, admin_notification_email] if r))
+
+	all_sent = True
+	for recipient in recipients:
+		sent = _send_email(
+			to_email=recipient,
+			subject="Your Playspace auditor account",
+			body=body,
+			log_label="Auditor credentials",
+			fallback_url="",
+		)
+		if not sent:
+			all_sent = False
+
+	return all_sent

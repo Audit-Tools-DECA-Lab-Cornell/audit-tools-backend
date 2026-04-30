@@ -44,7 +44,7 @@ async def get_admin_overview(
 @router.get("/accounts")
 async def list_admin_accounts(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	account_types: list[str] | None = Query(default=None, alias="account_type"),
@@ -66,7 +66,7 @@ async def list_admin_accounts(
 @router.get("/projects")
 async def list_admin_projects(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
@@ -88,7 +88,7 @@ async def list_admin_projects(
 @router.get("/places")
 async def list_admin_places(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
@@ -116,7 +116,7 @@ async def list_admin_places(
 @router.get("/auditors")
 async def list_admin_auditors(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
@@ -142,7 +142,7 @@ async def list_admin_auditors(
 @router.get("/audits")
 async def list_admin_audits(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),

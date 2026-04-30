@@ -40,6 +40,7 @@ from app.products.playspace.schemas import (
 	ProjectDetailResponse,
 	ProjectUpdateRequest,
 )
+from app.email_service import send_auditor_credentials_email
 from app.products.playspace.services.privacy import mask_email
 
 
@@ -586,6 +587,17 @@ class PlayspaceManagementService:
 		self._session.add(profile)
 		await self._session.commit()
 		await self._session.refresh(profile)
+
+		# Deliver credentials to the new auditor via email and CC the admin
+		# notification address (ADMIN_NOTIFICATION_EMAIL env var).
+		# Fire-and-forget: a delivery failure never blocks the response.
+		send_auditor_credentials_email(
+			to_email=payload.email,
+			full_name=payload.full_name,
+			auditor_code=auditor_code,
+			temporary_password=temporary_password,
+		)
+
 		return self._serialize_auditor_profile(profile).model_copy(update={"temporary_password": temporary_password})
 
 	async def update_auditor_profile(
