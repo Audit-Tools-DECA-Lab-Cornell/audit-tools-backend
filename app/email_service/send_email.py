@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 
-import requests  # type: ignore[import-untyped]
+import requests
 
 from dotenv import find_dotenv, load_dotenv
 from app.email_service.templates import credentials_html, invite_html, verification_html
