@@ -8,7 +8,7 @@ import os
 import requests
 
 from dotenv import find_dotenv, load_dotenv
-from templates import _credentials_html, _invite_html, _verification_html
+from app.email_service.templates import _credentials_html, _invite_html, _verification_html
 
 
 load_dotenv(find_dotenv())
