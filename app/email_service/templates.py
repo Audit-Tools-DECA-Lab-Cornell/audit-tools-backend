@@ -5,7 +5,7 @@ _IOS_APP_URL = "https://apps.apple.com/app/id6755903317"
 _ANDROID_APP_URL = "https://play.google.com/apps/internaltest/4701144847649057394"
 
 
-def _credentials_html(
+def credentials_html(
 	full_name: str, to_email: str, auditor_code: str, temporary_password: str, platform: str, product: str
 ) -> str:
 	return f"""<!DOCTYPE html>
@@ -202,7 +202,7 @@ def _credentials_html(
 </html>"""
 
 
-def _invite_html(invite_url: str, role: str) -> str:
+def invite_html(invite_url: str, role: str) -> str:
 	role_label = "manager" if role == "manager" else "auditor"
 	role_action = (
 		"set your password and configure your workspace" if role == "manager" else "create your account and begin setup"
@@ -284,7 +284,7 @@ def _invite_html(invite_url: str, role: str) -> str:
 </html>"""
 
 
-def _verification_html(verify_url: str) -> str:
+def verification_html(verify_url: str) -> str:
 	return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
