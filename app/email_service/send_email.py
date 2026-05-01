@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 import os
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from dotenv import find_dotenv, load_dotenv
-from app.email_service.templates import _credentials_html, _invite_html, _verification_html
+from app.email_service.templates import credentials_html, invite_html, verification_html
 
 
 load_dotenv(find_dotenv())
@@ -20,7 +20,7 @@ _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 def _send_email(
 	*,
 	to_email: str,
-	bcc: list[str] = [],
+	bcc: list[str] | None = None,
 	subject: str,
 	body: str,
 	html_body: str | None = None,
@@ -38,7 +38,7 @@ def _send_email(
 	payload: dict = {
 		"sender": {"name": sender_name, "email": sender_email},
 		"to": [{"email": to_email}],
-		"bcc": [{"email": email} for email in bcc],
+		"bcc": [{"email": email} for email in bcc] if bcc else None,
 		"subject": subject,
 		"textContent": body,
 	}
@@ -75,6 +75,7 @@ def send_verification_email(*, to_email: str, verify_url: str) -> bool:
 			f"{verify_url}\n\n"
 			"If you did not request this account, you can ignore this email."
 		),
+		html_body=verification_html(verify_url),
 		log_label="Verification link",
 		fallback_url=verify_url,
 	)
@@ -91,6 +92,7 @@ def send_auditor_invite_email(*, to_email: str, invite_url: str) -> bool:
 			f"{invite_url}\n\n"
 			"If you were not expecting this invite, you can ignore this email."
 		),
+		html_body=invite_html(invite_url, "auditor"),
 		log_label="Auditor invite link",
 		fallback_url=invite_url,
 	)
@@ -107,6 +109,7 @@ def send_manager_invite_email(*, to_email: str, invite_url: str) -> bool:
 			f"{invite_url}\n\n"
 			"If you were not expecting this invite, you can ignore this email."
 		),
+		html_body=invite_html(invite_url, "manager"),
 		log_label="Manager invite link",
 		fallback_url=invite_url,
 	)
@@ -136,12 +139,13 @@ def send_auditor_credentials_email(
 	)
 
 	product = platform.split(" ")[0]
+	admin_notification_email = os.getenv("ADMIN_NOTIFICATION_EMAIL", "").strip()
 	sent = _send_email(
 		to_email=to_email,
-		bcc=[os.getenv("ADMIN_NOTIFICATION_EMAIL")],
+		bcc=[admin_notification_email] if admin_notification_email else None,
 		subject=f"Your {product} Auditor Account Credentials",
 		body=body,
-		html_body=_credentials_html(full_name, to_email, auditor_code, temporary_password, platform, product),
+		html_body=credentials_html(full_name, to_email, auditor_code, temporary_password, platform, product),
 		log_label="Auditor credentials",
 		fallback_url="",
 	)

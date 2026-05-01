@@ -10,6 +10,7 @@ select = ["E", "F"] # no I, B, UP
 "alembic/versions/*.py" = ["E501", "I001", "F401"]
 "alembic/env.py" = ["E101"]
 "app/products/playspace/seed_data.py" = ["E501"]
+"app/email_service/templates.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
