@@ -556,7 +556,7 @@ class PlayspaceManagementService:
 				detail="Email is already in use.",
 			)
 
-		temporary_password = secrets.token_urlsafe(24)
+		temporary_password = secrets.token_urlsafe(16)
 		user = User(
 			email=payload.email,
 			password_hash=hash_password(temporary_password),
