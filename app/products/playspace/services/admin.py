@@ -474,14 +474,10 @@ class PlayspaceAdminService:
 		normalized_project_ids = project_ids or []
 		normalized_account_ids = account_ids or []
 		normalized_audit_statuses = {
-			raw_status
-			for raw_status in (audit_statuses or [])
-			if raw_status in valid_axis_statuses
+			raw_status for raw_status in (audit_statuses or []) if raw_status in valid_axis_statuses
 		}
 		normalized_survey_statuses = {
-			raw_status
-			for raw_status in (survey_statuses or [])
-			if raw_status in valid_axis_statuses
+			raw_status for raw_status in (survey_statuses or []) if raw_status in valid_axis_statuses
 		}
 		safe_page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 		offset = max(page - 1, 0) * safe_page_size
@@ -1141,14 +1137,10 @@ class PlayspaceAdminService:
 		normalized_project_ids = project_ids or []
 		normalized_account_ids = account_ids or []
 		normalized_audit_statuses = {
-			raw_status
-			for raw_status in (audit_statuses or [])
-			if raw_status in valid_axis_statuses
+			raw_status for raw_status in (audit_statuses or []) if raw_status in valid_axis_statuses
 		}
 		normalized_survey_statuses = {
-			raw_status
-			for raw_status in (survey_statuses or [])
-			if raw_status in valid_axis_statuses
+			raw_status for raw_status in (survey_statuses or []) if raw_status in valid_axis_statuses
 		}
 
 		audit_mode_filter = PlayspaceSubmission.execution_mode.in_(["audit", "both"])

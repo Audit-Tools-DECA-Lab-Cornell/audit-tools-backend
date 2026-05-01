@@ -1,59 +1,71 @@
-"""Email delivery helpers for auth workflows."""
+"""Email delivery helpers for auth workflows — powered by Brevo Transactional API."""
 
 from __future__ import annotations
 
 import logging
 import os
-import smtplib
-from email.message import EmailMessage
 
+import requests
+
+from dotenv import find_dotenv, load_dotenv
+from templates import _credentials_html, _invite_html, _verification_html
+
+
+load_dotenv(find_dotenv())
 logger = logging.getLogger(__name__)
 
+_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
-def _send_email(*, to_email: str, subject: str, body: str, log_label: str, fallback_url: str) -> bool:
-	smtp_host = os.getenv("SMTP_HOST", "").strip()
-	smtp_port_raw = os.getenv("SMTP_PORT", "587").strip()
-	smtp_username = os.getenv("SMTP_USERNAME", "").strip()
-	smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
-	smtp_from = os.getenv("SMTP_FROM_EMAIL", "").strip()
-	smtp_use_tls = os.getenv("SMTP_USE_TLS", "true").strip().lower() != "false"
 
-	if not smtp_host or not smtp_from:
-		logger.warning("SMTP not configured. %s for %s: %s", log_label, to_email, fallback_url)
+def _send_email(
+	*,
+	to_email: str,
+	bcc: list[str] = [],
+	subject: str,
+	body: str,
+	html_body: str | None = None,
+	log_label: str,
+	fallback_url: str,
+) -> bool:
+	api_key = os.getenv("BREVO_API_KEY", "").strip()
+	sender_email = os.getenv("BREVO_SENDER_EMAIL", "").strip()
+	sender_name = os.getenv("BREVO_SENDER_NAME", "Audit Tools").strip()
+
+	if not api_key or not sender_email:
+		logger.warning("Brevo not configured. %s for %s: %s", log_label, to_email, fallback_url)
 		return False
 
-	try:
-		smtp_port = int(smtp_port_raw)
-	except ValueError:
-		smtp_port = 587
+	payload: dict = {
+		"sender": {"name": sender_name, "email": sender_email},
+		"to": [{"email": to_email}],
+		"bcc": [{"email": email} for email in bcc],
+		"subject": subject,
+		"textContent": body,
+	}
+	if html_body:
+		payload["htmlContent"] = html_body
 
-	message = EmailMessage()
-	message["Subject"] = subject
-	message["From"] = smtp_from
-	message["To"] = to_email
-	message.set_content(body)
+	headers = {
+		"accept": "application/json",
+		"content-type": "application/json",
+		"api-key": api_key,
+	}
 
 	try:
-		with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-			if smtp_use_tls:
-				server.starttls()
-			if smtp_username and smtp_password:
-				server.login(smtp_username, smtp_password)
-			server.send_message(message)
+		response = requests.post(_BREVO_API_URL, json=payload, headers=headers, timeout=15)
+		response.raise_for_status()
+		logger.info("Email sent via Brevo to %s (messageId=%s)", to_email, response.json().get("messageId"))
 		return True
+	except requests.HTTPError as e:
+		logger.error("Brevo API error sending to %s: %s — %s", to_email, e, e.response.text)
+		return False
 	except Exception:
 		logger.exception("Failed to send email to %s", to_email)
 		return False
 
 
 def send_verification_email(*, to_email: str, verify_url: str) -> bool:
-	"""
-	Send verification email using SMTP config.
-
-	Returns True when sent successfully. If SMTP config is missing, logs the
-	verification URL and returns False.
-	"""
-
+	"""Send email verification link."""
 	return _send_email(
 		to_email=to_email,
 		subject="Verify your Audit Tools account",
@@ -69,8 +81,7 @@ def send_verification_email(*, to_email: str, verify_url: str) -> bool:
 
 
 def send_auditor_invite_email(*, to_email: str, invite_url: str) -> bool:
-	"""Send an auditor invite email using SMTP config or log the link locally."""
-
+	"""Send an auditor invite email."""
 	return _send_email(
 		to_email=to_email,
 		subject="You have been invited to Audit Tools",
@@ -86,8 +97,7 @@ def send_auditor_invite_email(*, to_email: str, invite_url: str) -> bool:
 
 
 def send_manager_invite_email(*, to_email: str, invite_url: str) -> bool:
-	"""Send a manager invite email using SMTP config or log the link locally."""
-
+	"""Send a manager invite email."""
 	return _send_email(
 		to_email=to_email,
 		subject="You have been invited to manage an Audit Tools workspace",
@@ -108,16 +118,13 @@ def send_auditor_credentials_email(
 	full_name: str,
 	auditor_code: str,
 	temporary_password: str,
+	platform: str,
 ) -> bool:
 	"""Email a newly created auditor their login credentials.
 
-	Always sends to ``to_email`` (the auditor).  When the
-	``ADMIN_NOTIFICATION_EMAIL`` env var is set, a second copy is delivered
-	to that address so the creating manager also receives the credentials.
-
-	Returns ``True`` only when every attempted send succeeds.
+	Delivers to ``to_email`` (the auditor) and, if configured, a second copy
+	to ``ADMIN_NOTIFICATION_EMAIL``. Returns True only if every send succeeds.
 	"""
-
 	body = (
 		f"Hello {full_name},\n\n"
 		"Your Playspace auditor account has been created.\n\n"
@@ -128,21 +135,15 @@ def send_auditor_credentials_email(
 		"If you were not expecting this account, contact your administrator."
 	)
 
-	admin_notification_email = os.getenv("ADMIN_NOTIFICATION_EMAIL", "").strip()
+	product = platform.split(" ")[0]
+	sent = _send_email(
+		to_email=to_email,
+		bcc=[os.getenv("ADMIN_NOTIFICATION_EMAIL")],
+		subject=f"Your {product} Auditor Account Credentials",
+		body=body,
+		html_body=_credentials_html(full_name, to_email, auditor_code, temporary_password, platform, product),
+		log_label="Auditor credentials",
+		fallback_url="",
+	)
 
-	# Deduplicate in case the auditor IS the admin notification address.
-	recipients: list[str] = list(dict.fromkeys(r for r in [to_email, admin_notification_email] if r))
-
-	all_sent = True
-	for recipient in recipients:
-		sent = _send_email(
-			to_email=recipient,
-			subject="Your Playspace auditor account",
-			body=body,
-			log_label="Auditor credentials",
-			fallback_url="",
-		)
-		if not sent:
-			all_sent = False
-
-	return all_sent
+	return sent

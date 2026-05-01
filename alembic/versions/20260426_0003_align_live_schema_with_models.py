@@ -321,7 +321,6 @@ def upgrade() -> None:
 		op.create_index(op.f("ix_audits_audits_place_id"), "audits", ["place_id"], unique=False)
 		op.create_index(op.f("ix_audits_audits_project_id"), "audits", ["project_id"], unique=False)
 
-
 	# ── Phase 3: Data migration (old audit-linked → new submission-linked) ─
 
 	# 3a. playspace_audit_sections → playspace_submission_sections

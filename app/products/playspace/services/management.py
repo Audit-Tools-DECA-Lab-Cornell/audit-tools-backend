@@ -596,6 +596,7 @@ class PlayspaceManagementService:
 			full_name=payload.full_name,
 			auditor_code=auditor_code,
 			temporary_password=temporary_password,
+			platform="Playspace Audit Tools",
 		)
 
 		return self._serialize_auditor_profile(profile).model_copy(update={"temporary_password": temporary_password})
