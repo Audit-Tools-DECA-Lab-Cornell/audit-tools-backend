@@ -16,8 +16,10 @@ from app.products.playspace.routes.dependencies import (
 from app.products.playspace.schemas.me import (
 	AuditorProfileSelfUpdateRequest,
 	ChangePasswordRequest,
+	ManagerProfileSelfUpdateRequest,
 	MyAccountResponse,
 	MyAuditorProfileResponse,
+	MyManagerProfileResponse,
 )
 from app.products.playspace.services.me import PlayspaceMeService
 
@@ -133,6 +135,73 @@ async def change_password(
 		user_id=user_id,
 		current_password=payload.current_password,
 		new_password=payload.new_password,
+	)
+
+
+@router.get("/me/manager-profile")
+async def get_my_manager_profile(
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session=SESSION_DEPENDENCY,
+) -> MyManagerProfileResponse:
+	"""Return the current manager user's own profile."""
+
+	user_id = _require_user_id(current_user)
+	service = PlayspaceMeService(session=session)
+	profile = await service.get_manager_profile(user_id=user_id)
+
+	return MyManagerProfileResponse(
+		profile_id=profile.id,
+		full_name=profile.full_name,
+		email=profile.email,
+		phone=profile.phone,
+		position=profile.position,
+		organization=profile.organization,
+		is_primary=profile.is_primary,
+	)
+
+
+@router.patch("/me/manager-profile")
+async def update_my_manager_profile(
+	payload: ManagerProfileSelfUpdateRequest,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session=SESSION_DEPENDENCY,
+) -> MyManagerProfileResponse:
+	"""Update mutable fields on the current manager user's own profile."""
+
+	user_id = _require_user_id(current_user)
+	service = PlayspaceMeService(session=session)
+	profile = await service.update_manager_profile(user_id=user_id, payload=payload)
+
+	return MyManagerProfileResponse(
+		profile_id=profile.id,
+		full_name=profile.full_name,
+		email=profile.email,
+		phone=profile.phone,
+		position=profile.position,
+		organization=profile.organization,
+		is_primary=profile.is_primary,
+	)
+
+
+@router.post("/me/complete-manager-onboarding")
+async def complete_manager_onboarding(
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session=SESSION_DEPENDENCY,
+) -> MyManagerProfileResponse:
+	"""Mark a manager's onboarding as complete and return their updated profile."""
+
+	user_id = _require_user_id(current_user)
+	service = PlayspaceMeService(session=session)
+	profile = await service.complete_manager_onboarding(user_id=user_id)
+
+	return MyManagerProfileResponse(
+		profile_id=profile.id,
+		full_name=profile.full_name,
+		email=profile.email,
+		phone=profile.phone,
+		position=profile.position,
+		organization=profile.organization,
+		is_primary=profile.is_primary,
 	)
 
 

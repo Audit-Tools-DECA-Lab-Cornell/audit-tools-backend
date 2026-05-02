@@ -183,18 +183,42 @@ def send_auditor_invite_email(*, to_email: str, invite_url: str) -> bool:
 	)
 
 
-def send_manager_invite_email(*, to_email: str, invite_url: str) -> bool:
-	"""Send a manager invite email."""
+def send_manager_invite_email(
+	*,
+	to_email: str,
+	invite_url: str,
+	organization_name: str | None = None,
+	invited_by_name: str | None = None,
+) -> bool:
+	"""Send a manager invite email.
+
+	Optionally include the workspace organisation name and the inviting
+	manager's display name so the recipient can immediately identify who and
+	what org sent the invitation.
+	"""
+	org_line = f" from {organization_name}" if organization_name else ""
+	body_parts = [
+		f"You have been invited to join an Audit Tools workspace{org_line} as a manager.",
+		"",
+		"Open the invite link below to set your password and continue setup:",
+		invite_url,
+		"",
+	]
+	if invited_by_name:
+		body_parts.append(f"Invited by: {invited_by_name}")
+		body_parts.append("")
+	body_parts.append("If you were not expecting this invite, you can ignore this email.")
+
 	return _send_email(
 		to_email=to_email,
 		subject="You have been invited to manage an Audit Tools workspace",
-		body=(
-			"You have been invited to join an Audit Tools workspace as a manager.\n\n"
-			"Open the invite link below to set your password and continue setup:\n"
-			f"{invite_url}\n\n"
-			"If you were not expecting this invite, you can ignore this email."
+		body="\n".join(body_parts),
+		html_body=invite_html(
+			invite_url,
+			"manager",
+			organization_name=organization_name,
+			invited_by_name=invited_by_name,
 		),
-		html_body=invite_html(invite_url, "manager"),
 		log_label="Manager invite link",
 		fallback_url=invite_url,
 		email_type="manager_invite",

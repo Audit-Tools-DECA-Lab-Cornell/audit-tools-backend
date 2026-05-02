@@ -154,7 +154,7 @@ class AuditorProfileDetailResponse(ApiModel):
 	"""Auditor profile payload used by manager/admin management screens."""
 
 	id: uuid.UUID
-	account_id: uuid.UUID
+	account_id: uuid.UUID | None
 	auditor_code: str
 	email_masked: str | None
 	age_range: str | None
@@ -163,6 +163,44 @@ class AuditorProfileDetailResponse(ApiModel):
 	role: str | None
 	created_at: datetime
 	temporary_password: str | None = None
+
+
+######################################################################################
+########################### Manager Invite Schemas ###################################
+######################################################################################
+
+
+class ManagerInviteCreateRequest(RequestModel):
+	"""Payload to invite a secondary manager to the current account."""
+
+	email: str
+
+
+class ManagerInviteCreatedResponse(ApiModel):
+	"""Response returned when a manager invite is first created."""
+
+	id: uuid.UUID
+	email: str
+	expires_at: datetime
+	invite_url: str
+	status: str = "PENDING"
+
+
+class ManagerInviteListItemResponse(ApiModel):
+	"""One invite row returned by the list and resend endpoints.
+
+	``status`` is server-derived:
+	- ``ACCEPTED``  — invite has been accepted.
+	- ``EXPIRED``   — invite has expired without being accepted.
+	- ``PENDING``   — invite is still valid and awaiting acceptance.
+	"""
+
+	id: uuid.UUID
+	email: str
+	status: str
+	created_at: datetime
+	expires_at: datetime
+	accepted_at: datetime | None
 
 
 ######################################################################################

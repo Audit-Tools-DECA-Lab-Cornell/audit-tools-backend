@@ -6,13 +6,13 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth_security import hash_password
+from app.auth_security import generate_email_verification_token, hash_password, hash_verification_token
 from app.core.actors import (
 	CurrentUserContext,
 	CurrentUserRole,
@@ -22,6 +22,8 @@ from app.models import (
 	Account,
 	AccountType,
 	AuditorProfile,
+	ManagerInvite,
+	ManagerProfile,
 	Place,
 	Project,
 	ProjectPlace,
@@ -33,6 +35,9 @@ from app.products.playspace.schemas import (
 	AuditorProfileCreateRequest,
 	AuditorProfileDetailResponse,
 	AuditorProfileUpdateRequest,
+	ManagerInviteCreateRequest,
+	ManagerInviteCreatedResponse,
+	ManagerInviteListItemResponse,
 	PlaceCreateRequest,
 	PlaceDetailResponse,
 	PlaceUpdateRequest,
@@ -40,7 +45,7 @@ from app.products.playspace.schemas import (
 	ProjectDetailResponse,
 	ProjectUpdateRequest,
 )
-from app.email_service import send_auditor_credentials_email
+from app.email_service import send_auditor_credentials_email, send_manager_invite_email
 from app.products.playspace.services.privacy import mask_email
 
 
@@ -273,6 +278,12 @@ class PlayspaceManagementService:
 		profile: AuditorProfile,
 	) -> AuditorProfileDetailResponse:
 		"""Serialize a privacy-safe auditor profile payload."""
+
+		if profile.account_id is None:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="AuditorProfile has no linked account.",
+			)
 
 		return AuditorProfileDetailResponse(
 			id=profile.id,
@@ -662,22 +673,316 @@ class PlayspaceManagementService:
 		actor: CurrentUserContext,
 		auditor_profile_id: uuid.UUID,
 	) -> None:
-		"""Delete one auditor profile and its associated User.
+		"""Remove an auditor from a manager account without destroying records.
 
-		The Account is NOT deleted — it belongs to the manager's organisation,
-		not to the individual auditor.
+		The AuditorProfile and its linked User are NOT deleted.  All historical
+		data — submissions, audits, assignments — is preserved for reporting.
+
+		What changes: ``AuditorProfile.account_id`` is set to NULL so the profile
+		disappears from every account-scoped list; ``User.account_id`` is set to
+		NULL so the auditor can no longer authenticate.
+
+		The Account itself is never touched.
 		"""
 
 		self._require_manager_or_admin(actor)
 		profile = await self._get_auditor_profile(auditor_profile_id)
 
-		# Delete the linked User when one exists.
+		# Managers can only remove auditors from their own account.
+		if actor.role is not CurrentUserRole.ADMIN:
+			if actor.account_id != profile.account_id:
+				raise HTTPException(
+					status_code=status.HTTP_403_FORBIDDEN,
+					detail="You can only remove auditors from your own account.",
+				)
+
+		# Unlink the auditor profile from the account.
+		profile.account_id = None
+
+		# Revoke the linked user's account association so they cannot log in.
 		if profile.user_id is not None:
 			user_result = await self._session.execute(select(User).where(User.id == profile.user_id))
 			user = user_result.scalar_one_or_none()
 			if user is not None:
-				await self._session.delete(user)
-				await self._session.flush()
+				user.account_id = None
 
-		await self._session.delete(profile)
 		await self._session.commit()
+
+	######################################################################################
+	################################# Manager Invites ####################################
+	######################################################################################
+
+	@staticmethod
+	def _derive_invite_status(invite: ManagerInvite) -> str:
+		"""Return the derived status string for a manager invite row."""
+
+		if invite.accepted_at is not None:
+			return "ACCEPTED"
+		if datetime.now(timezone.utc) > invite.expires_at:
+			return "EXPIRED"
+		return "PENDING"
+
+	@staticmethod
+	def _serialize_manager_invite(invite: ManagerInvite) -> ManagerInviteListItemResponse:
+		"""Serialize a ManagerInvite ORM row to the list-item response shape."""
+
+		return ManagerInviteListItemResponse(
+			id=invite.id,
+			email=invite.email,
+			status=PlayspaceManagementService._derive_invite_status(invite),
+			created_at=invite.created_at,
+			expires_at=invite.expires_at,
+			accepted_at=invite.accepted_at,
+		)
+
+	async def _require_primary_manager(self, *, actor: CurrentUserContext) -> uuid.UUID:
+		"""Raise 403 unless the authenticated actor is the primary manager of their account.
+
+		Returns the account_id on success so callers can use it directly.
+		"""
+
+		if actor.role is not CurrentUserRole.MANAGER:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="Only managers can manage invites.",
+			)
+		if actor.account_id is None:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="Manager account scope is required.",
+			)
+		profile_result = await self._session.execute(
+			select(ManagerProfile).where(
+				ManagerProfile.user_id == actor.user_id,
+				ManagerProfile.account_id == actor.account_id,
+			)
+		)
+		profile = profile_result.scalar_one_or_none()
+		if profile is None or not profile.is_primary:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="Only the primary manager can manage invites.",
+			)
+		return actor.account_id
+
+	async def create_manager_invite(
+		self,
+		*,
+		actor: CurrentUserContext,
+		payload: ManagerInviteCreateRequest,
+		invite_url_template: str,
+	) -> ManagerInviteCreatedResponse:
+		"""Create a ManagerInvite record and send the invitation email.
+
+		``invite_url_template`` is a Python format string with a ``{token}``
+		placeholder, resolved by the route handler from the FastAPI request so the
+		service stays decoupled from HTTP context.
+		"""
+
+		account_id = await self._require_primary_manager(actor=actor)
+
+		email = payload.email.strip().lower()
+		if not email:
+			raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required.")
+
+		if actor.user_id is not None:
+			self_result = await self._session.execute(select(User).where(User.id == actor.user_id))
+			self_user = self_result.scalar_one_or_none()
+			if self_user is not None and self_user.email.strip().lower() == email:
+				raise HTTPException(
+					status_code=status.HTTP_409_CONFLICT,
+					detail="Use your existing credentials for this account.",
+				)
+
+		existing_user_result = await self._session.execute(select(User).where(User.email == email))
+		existing_user = existing_user_result.scalar_one_or_none()
+		if existing_user is not None:
+			if existing_user.account_type != AccountType.MANAGER:
+				raise HTTPException(
+					status_code=status.HTTP_409_CONFLICT,
+					detail="This email is already used by a non-manager account.",
+				)
+			if existing_user.account_id == account_id:
+				raise HTTPException(
+					status_code=status.HTTP_409_CONFLICT,
+					detail="This manager already has account access.",
+				)
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="This email is already used by another manager account.",
+			)
+
+		existing_profile_result = await self._session.execute(
+			select(ManagerProfile).where(ManagerProfile.email == email)
+		)
+		existing_profile = existing_profile_result.scalar_one_or_none()
+		if existing_profile is not None:
+			if existing_profile.account_id != account_id:
+				raise HTTPException(
+					status_code=status.HTTP_409_CONFLICT,
+					detail="This email is already linked to another manager account.",
+				)
+			if existing_profile.user_id is not None:
+				raise HTTPException(
+					status_code=status.HTTP_409_CONFLICT,
+					detail="This manager already has account access.",
+				)
+
+		now = datetime.now(timezone.utc)
+		existing_invite_result = await self._session.execute(
+			select(ManagerInvite)
+			.where(
+				ManagerInvite.account_id == account_id,
+				ManagerInvite.email == email,
+				ManagerInvite.accepted_at.is_(None),
+			)
+			.order_by(ManagerInvite.created_at.desc())
+			.limit(1)
+		)
+		existing_invite = existing_invite_result.scalar_one_or_none()
+		if existing_invite is not None and now <= existing_invite.expires_at:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="An active manager invite already exists for this email.",
+			)
+
+		token = generate_email_verification_token()
+		invite = ManagerInvite(
+			account_id=account_id,
+			invited_by_user_id=actor.user_id,
+			email=email,
+			token_hash=hash_verification_token(token),
+			expires_at=now + timedelta(days=7),
+		)
+		self._session.add(invite)
+		await self._session.flush()
+
+		invite_url = invite_url_template.format(token=token)
+
+		# Resolve org name and inviter display name for the email context panel.
+		account_result = await self._session.execute(select(Account).where(Account.id == account_id))
+		account = account_result.scalar_one_or_none()
+		organization_name: str | None = account.name if account is not None else None
+
+		invited_by_name: str | None = None
+		if actor.user_id is not None:
+			profile_result = await self._session.execute(
+				select(ManagerProfile).where(ManagerProfile.user_id == actor.user_id)
+			)
+			inviter_profile = profile_result.scalar_one_or_none()
+			if inviter_profile is not None:
+				invited_by_name = inviter_profile.full_name
+
+		send_manager_invite_email(
+			to_email=email,
+			invite_url=invite_url,
+			organization_name=organization_name,
+			invited_by_name=invited_by_name,
+		)
+		await self._session.commit()
+		await self._session.refresh(invite)
+
+		return ManagerInviteCreatedResponse(
+			id=invite.id,
+			email=invite.email,
+			expires_at=invite.expires_at,
+			invite_url=invite_url,
+		)
+
+	async def list_manager_invites(
+		self,
+		*,
+		actor: CurrentUserContext,
+	) -> list[ManagerInviteListItemResponse]:
+		"""Return all manager invites for the primary manager's account."""
+
+		account_id = await self._require_primary_manager(actor=actor)
+		result = await self._session.execute(
+			select(ManagerInvite)
+			.where(ManagerInvite.account_id == account_id)
+			.order_by(ManagerInvite.created_at.desc())
+		)
+		invites = list(result.scalars().all())
+		return [self._serialize_manager_invite(invite) for invite in invites]
+
+	async def revoke_manager_invite(
+		self,
+		*,
+		actor: CurrentUserContext,
+		invite_id: uuid.UUID,
+	) -> None:
+		"""Delete a pending manager invite, preventing acceptance."""
+
+		account_id = await self._require_primary_manager(actor=actor)
+		result = await self._session.execute(
+			select(ManagerInvite).where(
+				ManagerInvite.id == invite_id,
+				ManagerInvite.account_id == account_id,
+			)
+		)
+		invite = result.scalar_one_or_none()
+		if invite is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found.")
+		if invite.accepted_at is not None:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Cannot revoke an invite that has already been accepted.",
+			)
+		await self._session.delete(invite)
+		await self._session.commit()
+
+	async def resend_manager_invite(
+		self,
+		*,
+		actor: CurrentUserContext,
+		invite_id: uuid.UUID,
+		invite_url_template: str,
+	) -> ManagerInviteListItemResponse:
+		"""Regenerate the invite token, extend the expiry, and re-send the email."""
+
+		account_id = await self._require_primary_manager(actor=actor)
+		result = await self._session.execute(
+			select(ManagerInvite).where(
+				ManagerInvite.id == invite_id,
+				ManagerInvite.account_id == account_id,
+			)
+		)
+		invite = result.scalar_one_or_none()
+		if invite is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found.")
+		if invite.accepted_at is not None:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Cannot resend an invite that has already been accepted.",
+			)
+		now = datetime.now(timezone.utc)
+		token = generate_email_verification_token()
+		invite.token_hash = hash_verification_token(token)
+		invite.expires_at = now + timedelta(days=7)
+		await self._session.flush()
+		invite_url = invite_url_template.format(token=token)
+
+		# Resolve org name and inviter name so the resent email includes the same
+		# workspace context panel as the original invite email.
+		account_result = await self._session.execute(select(Account).where(Account.id == account_id))
+		account = account_result.scalar_one_or_none()
+		organization_name: str | None = account.name if account is not None else None
+
+		invited_by_name: str | None = None
+		if actor.user_id is not None:
+			profile_result = await self._session.execute(
+				select(ManagerProfile).where(ManagerProfile.user_id == actor.user_id)
+			)
+			inviter_profile = profile_result.scalar_one_or_none()
+			if inviter_profile is not None:
+				invited_by_name = inviter_profile.full_name
+
+		send_manager_invite_email(
+			to_email=invite.email,
+			invite_url=invite_url,
+			organization_name=organization_name,
+			invited_by_name=invited_by_name,
+		)
+		await self._session.commit()
+		await self._session.refresh(invite)
+		return self._serialize_manager_invite(invite)

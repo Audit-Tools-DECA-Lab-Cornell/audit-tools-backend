@@ -136,7 +136,7 @@ class AuditorSummaryResponse(ApiModel):
 	"""Manager-facing auditor summary."""
 
 	id: uuid.UUID
-	account_id: uuid.UUID
+	account_id: uuid.UUID | None
 	auditor_code: str
 	full_name: str
 	email: str | None

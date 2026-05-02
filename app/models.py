@@ -490,11 +490,12 @@ class AuditorProfile(Base):
 		primary_key=True,
 		default=uuid.uuid4,
 	)
-	account_id: Mapped[uuid.UUID] = mapped_column(
+	# Nullable: set to NULL when a manager removes the auditor from their account (soft unlink).
+	account_id: Mapped[uuid.UUID | None] = mapped_column(
 		UUID(as_uuid=True),
 		ForeignKey("accounts.id", ondelete="CASCADE"),
 		index=True,
-		nullable=False,
+		nullable=True,
 	)
 	user_id: Mapped[uuid.UUID | None] = mapped_column(
 		UUID(as_uuid=True),

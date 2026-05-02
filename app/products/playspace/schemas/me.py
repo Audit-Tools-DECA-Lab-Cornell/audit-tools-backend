@@ -65,3 +65,27 @@ class AuditorProfileSelfUpdateRequest(RequestModel):
 	province: str | None = None
 	country: str | None = None
 	role: str | None = None
+
+
+class MyManagerProfileResponse(ApiModel):
+	"""Current manager user's own profile details."""
+
+	profile_id: uuid.UUID
+	full_name: str
+	email: str
+	phone: str | None
+	position: str | None
+	organization: str | None
+	is_primary: bool
+
+
+class ManagerProfileSelfUpdateRequest(RequestModel):
+	"""Self-service update for mutable manager profile fields.
+
+	``is_primary`` and ``account_id`` are not editable here.
+	"""
+
+	full_name: str | None = None
+	email: str | None = None
+	phone: str | None = None
+	position: str | None = None

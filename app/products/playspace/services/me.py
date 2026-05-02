@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth_security import hash_password, verify_password
 from app.models import Account, AccountType, AuditorProfile, ManagerProfile, User
-from app.products.playspace.schemas.me import AuditorProfileSelfUpdateRequest
+from app.products.playspace.schemas.me import AuditorProfileSelfUpdateRequest, ManagerProfileSelfUpdateRequest
 
 
 class PlayspaceMeService:
@@ -163,6 +163,65 @@ class PlayspaceMeService:
 		if payload.role is not None:
 			profile.role = payload.role
 
+		await self._session.commit()
+		await self._session.refresh(profile)
+		return profile
+
+	async def get_manager_profile(self, *, user_id: uuid.UUID) -> ManagerProfile:
+		"""Fetch a manager profile for the given user or raise 404."""
+
+		result = await self._session.execute(select(ManagerProfile).where(ManagerProfile.user_id == user_id))
+		profile = result.scalar_one_or_none()
+		if profile is None:
+			raise HTTPException(
+				status_code=status.HTTP_404_NOT_FOUND,
+				detail="Manager profile not found for this user.",
+			)
+		return profile
+
+	async def update_manager_profile(
+		self,
+		*,
+		user_id: uuid.UUID,
+		payload: ManagerProfileSelfUpdateRequest,
+	) -> ManagerProfile:
+		"""Apply non-null fields from the payload to the manager's own profile."""
+
+		profile = await self.get_manager_profile(user_id=user_id)
+
+		if payload.full_name is not None:
+			profile.full_name = payload.full_name
+		if payload.email is not None:
+			profile.email = payload.email
+		if payload.phone is not None:
+			profile.phone = payload.phone
+		if payload.position is not None:
+			profile.position = payload.position
+
+		await self._session.commit()
+		await self._session.refresh(profile)
+		return profile
+
+	async def complete_manager_onboarding(self, *, user_id: uuid.UUID) -> ManagerProfile:
+		"""Mark a manager's onboarding as complete by setting profile_completed on their User record."""
+
+		now = datetime.now(timezone.utc)
+
+		user_result = await self._session.execute(select(User).where(User.id == user_id))
+		user = user_result.scalar_one_or_none()
+		if user is None:
+			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+		if user.account_type != AccountType.MANAGER:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="This endpoint is only available to manager accounts.",
+			)
+
+		user.profile_completed = True
+		user.profile_completed_at = now
+
+		profile = await self.get_manager_profile(user_id=user_id)
 		await self._session.commit()
 		await self._session.refresh(profile)
 		return profile

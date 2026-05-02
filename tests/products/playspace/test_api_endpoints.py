@@ -197,8 +197,11 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/auth/request-access"),
 		("GET", "/playspace/auth/invite/{token}"),
 		("POST", "/playspace/auth/invite/{token}/accept"),
-		("POST", "/playspace/auth/manager-invites"),
 		("POST", "/playspace/auth/manager-invites/{token}/accept"),
+		("POST", "/playspace/manager-invites"),
+		("GET", "/playspace/manager-invites"),
+		("DELETE", "/playspace/manager-invites/{invite_id}"),
+		("POST", "/playspace/manager-invites/{invite_id}/resend"),
 		("GET", "/playspace/accounts/{account_id}"),
 		("GET", "/playspace/accounts/{account_id}/manager-profiles"),
 		("GET", "/playspace/accounts/{account_id}/projects"),
@@ -326,7 +329,7 @@ def test_auth_self_service_and_instrument_endpoints(
 
 	secondary_manager_email = f"secondary-manager-{_unique_suffix()}@example.org"
 	create_manager_invite_response = playspace_client.post(
-		"/playspace/auth/manager-invites",
+		"/playspace/manager-invites",
 		headers=manager_auth_headers,
 		json={"email": secondary_manager_email},
 	)
@@ -344,7 +347,7 @@ def test_auth_self_service_and_instrument_endpoints(
 	secondary_manager_token = accept_manager_invite_response.json()["access_token"]
 
 	secondary_invite_attempt_response = playspace_client.post(
-		"/playspace/auth/manager-invites",
+		"/playspace/manager-invites",
 		headers=_bearer_headers(secondary_manager_token),
 		json={"email": f"blocked-secondary-{_unique_suffix()}@example.org"},
 	)
@@ -393,6 +396,177 @@ def test_auth_self_service_and_instrument_endpoints(
 	assert instrument_response.status_code == 200
 	assert instrument_response.json()["instrument_key"] == "pvua_v5_2"
 	assert len(instrument_response.json()["sections"]) > 0
+
+
+def test_manager_invite_management_endpoints(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""Exercise the manager invite list, revoke, and resend endpoints.
+
+	Covers:
+	- Primary manager can list, create, resend, and revoke invites.
+	- PENDING / ACCEPTED status is correctly derived.
+	- Revoke returns 204; double-revoke returns 404.
+	- Revoke and resend on an accepted invite return 400.
+	- Secondary managers and auditors are denied access (403).
+	"""
+
+	manager_token = _login_manager(playspace_client)
+	manager_auth = _bearer_headers(manager_token)
+	suffix = _unique_suffix()
+
+	# --- List: endpoint is accessible and returns a list ---
+	list_initial_response = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_initial_response.status_code == 200
+	assert isinstance(list_initial_response.json(), list)
+
+	# --- Create an invite so we have something to manage ---
+	invite_email = f"mgmt-invite-{suffix}@example.org"
+	create_response = playspace_client.post(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+		json={"email": invite_email},
+	)
+	assert create_response.status_code == 201
+	created = create_response.json()
+	assert created["email"] == invite_email
+	assert created["status"] == "PENDING"
+
+	# --- List: the new invite appears with PENDING status ---
+	list_response = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_response.status_code == 200
+	invite_list = list_response.json()
+	matching = [i for i in invite_list if i["email"] == invite_email]
+	assert len(matching) == 1
+	invite_id = matching[0]["id"]
+	assert matching[0]["status"] == "PENDING"
+	assert matching[0]["accepted_at"] is None
+
+	# --- Resend: regenerates token without changing status ---
+	resend_response = playspace_client.post(
+		f"/playspace/manager-invites/{invite_id}/resend",
+		headers=manager_auth,
+	)
+	assert resend_response.status_code == 200
+	resent = resend_response.json()
+	assert resent["id"] == invite_id
+	assert resent["email"] == invite_email
+	assert resent["status"] == "PENDING"
+
+	# --- Revoke: deletes the invite and returns 204 ---
+	revoke_response = playspace_client.delete(
+		f"/playspace/manager-invites/{invite_id}",
+		headers=manager_auth,
+	)
+	assert revoke_response.status_code == 204
+
+	# --- List: invite is no longer present ---
+	list_after_revoke = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_after_revoke.status_code == 200
+	assert not any(i["id"] == invite_id for i in list_after_revoke.json())
+
+	# --- Revoke again: returns 404 ---
+	double_revoke_response = playspace_client.delete(
+		f"/playspace/manager-invites/{invite_id}",
+		headers=manager_auth,
+	)
+	assert double_revoke_response.status_code == 404
+
+	# --- Accept an invite so we can test the accepted-state guards ---
+	accept_email = f"mgmt-accept-{suffix}@example.org"
+	create_for_accept = playspace_client.post(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+		json={"email": accept_email},
+	)
+	assert create_for_accept.status_code == 201
+	invite_token = create_for_accept.json()["invite_url"].rsplit("/", 1)[-1]
+
+	accept_response = playspace_client.post(
+		f"/playspace/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Mgmt Test Manager", "password": SEED_PASSWORD},
+	)
+	assert accept_response.status_code == 200
+	assert accept_response.json()["user"]["account_type"] == "MANAGER"
+
+	# --- List: accepted invite has ACCEPTED status ---
+	list_with_accepted = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_with_accepted.status_code == 200
+	accepted_invite = next(
+		(i for i in list_with_accepted.json() if i["email"] == accept_email),
+		None,
+	)
+	assert accepted_invite is not None
+	assert accepted_invite["status"] == "ACCEPTED"
+	assert accepted_invite["accepted_at"] is not None
+	accepted_invite_id = accepted_invite["id"]
+
+	# --- Revoke accepted invite: 400 ---
+	assert (
+		playspace_client.delete(
+			f"/playspace/manager-invites/{accepted_invite_id}",
+			headers=manager_auth,
+		).status_code
+		== 400
+	)
+
+	# --- Resend accepted invite: 400 ---
+	assert (
+		playspace_client.post(
+			f"/playspace/manager-invites/{accepted_invite_id}/resend",
+			headers=manager_auth,
+		).status_code
+		== 400
+	)
+
+	# --- Role guard: secondary manager (just accepted) cannot use invite mgmt ---
+	secondary_login = playspace_client.post(
+		"/playspace/auth/login",
+		json={"email": accept_email, "password": SEED_PASSWORD},
+	)
+	assert secondary_login.status_code == 200
+	secondary_auth = _bearer_headers(secondary_login.json()["access_token"])
+
+	assert playspace_client.get("/playspace/manager-invites", headers=secondary_auth).status_code == 403
+	assert (
+		playspace_client.delete(
+			f"/playspace/manager-invites/{accepted_invite_id}",
+			headers=secondary_auth,
+		).status_code
+		== 403
+	)
+	assert (
+		playspace_client.post(
+			f"/playspace/manager-invites/{accepted_invite_id}/resend",
+			headers=secondary_auth,
+		).status_code
+		== 403
+	)
+
+	# --- Role guard: auditor cannot access invite management ---
+	auditor_auth = _bearer_headers(_login_auditor(playspace_client, playspace_seed_snapshot.seeded_auditor_email))
+	assert playspace_client.get("/playspace/manager-invites", headers=auditor_auth).status_code == 403
+	assert (
+		playspace_client.post(
+			"/playspace/manager-invites",
+			headers=auditor_auth,
+			json={"email": f"auditor-invite-{suffix}@example.org"},
+		).status_code
+		== 403
+	)
 
 
 def test_manager_dashboard_endpoints(
