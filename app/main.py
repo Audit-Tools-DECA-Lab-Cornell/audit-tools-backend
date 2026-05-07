@@ -28,6 +28,8 @@ origins = [
 	"https://audit-tools-backend.onrender.com",
 	"https://audit-tools-playsafe-frontend.vercel.app",
 	"https://audit-tools-playspace-frontend.vercel.app",
+	"https://audit-tools-playspace-frontend-i45insg2c-cleverhugs.vercel.app",
+	"https://*.vercel.app",
 ]
 
 
