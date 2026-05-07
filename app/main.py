@@ -29,7 +29,7 @@ origins = [
 	"https://audit-tools-playsafe-frontend.vercel.app",
 	"https://audit-tools-playspace-frontend.vercel.app",
 	"https://audit-tools-playspace-frontend-i45insg2c-cleverhugs.vercel.app",
-	"https://.*\.vercel.app",
+	"https://audit-tools-playspace-frontend-d3wdvdalm-cleverhugs.vercel.app",
 ]
 
 
