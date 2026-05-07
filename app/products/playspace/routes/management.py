@@ -29,6 +29,7 @@ from app.products.playspace.schemas import (
 	ProjectCreateRequest,
 	ProjectDetailResponse,
 	ProjectUpdateRequest,
+	SavePlaceReportRequest,
 )
 from app.products.playspace.services import PlayspaceManagementService
 
@@ -134,6 +135,30 @@ async def delete_place(
 	"""Delete a place."""
 
 	await service.delete_place(actor=current_user, place_id=place_id)
+
+
+@router.post("/places/{place_id}/place-reports", status_code=201)
+async def save_place_report(
+	place_id: uuid.UUID,
+	payload: SavePlaceReportRequest,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceManagementService = MANAGEMENT_SERVICE_DEPENDENCY,
+) -> PlaceDetailResponse:
+	"""Save a place report combination to a place."""
+
+	return await service.save_place_report(actor=current_user, place_id=place_id, payload=payload)
+
+
+@router.delete("/places/{place_id}/place-reports/{report_index}")
+async def delete_place_report(
+	place_id: uuid.UUID,
+	report_index: int,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceManagementService = MANAGEMENT_SERVICE_DEPENDENCY,
+) -> PlaceDetailResponse:
+	"""Remove a saved place report by its list index."""
+
+	return await service.delete_place_report(actor=current_user, place_id=place_id, report_index=report_index)
 
 
 @router.post("/auditor-profiles", status_code=201)

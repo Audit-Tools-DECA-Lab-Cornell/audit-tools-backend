@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import Field
 
@@ -95,6 +96,16 @@ class PlaceUpdateRequest(RequestModel):
 	auditor_description: str | None = None
 
 
+class SavedPlaceReportEntry(ApiModel):
+	"""One entry in a place's saved_place_reports list."""
+
+	report_type: Literal["combined", "full_assessment"]
+	audit_id: uuid.UUID | None = None
+	survey_id: uuid.UUID | None = None
+	submission_id: uuid.UUID | None = None
+	created_at: datetime
+
+
 class PlaceDetailResponse(ApiModel):
 	"""Detailed place payload for create/update manager flows."""
 
@@ -114,6 +125,7 @@ class PlaceDetailResponse(ApiModel):
 	end_date: date | None
 	est_auditors: int | None
 	auditor_description: str | None
+	saved_place_reports: list[SavedPlaceReportEntry] = Field(default_factory=list)
 	created_at: datetime
 
 
@@ -232,3 +244,17 @@ class InstrumentActivateRequest(RequestModel):
 	"""Payload to toggle activation status."""
 
 	is_active: bool
+
+
+######################################################################################
+########################### Place Report Schemas #####################################
+######################################################################################
+
+
+class SavePlaceReportRequest(RequestModel):
+	"""Save a place report combination to a place."""
+
+	report_type: Literal["combined", "full_assessment"]
+	audit_id: uuid.UUID | None = None
+	survey_id: uuid.UUID | None = None
+	submission_id: uuid.UUID | None = None

@@ -411,6 +411,9 @@ class Place(Base):
 	end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 	est_auditors: Mapped[int | None] = mapped_column(Integer, nullable=True)
 	auditor_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+	saved_place_reports: Mapped[list[JSONDict]] = mapped_column(
+		JSONB, default=list, server_default="[]", nullable=False
+	)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),

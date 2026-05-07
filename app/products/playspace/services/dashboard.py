@@ -1139,6 +1139,11 @@ class PlayspaceDashboardService:
 		)
 
 		latest_submitted_at = _latest_activity_timestamp(submitted_audits)
+
+		from app.products.playspace.schemas.management import SavedPlaceReportEntry
+
+		saved_reports = [SavedPlaceReportEntry.model_validate(entry) for entry in (place.saved_place_reports or [])]
+
 		return PlaceHistoryResponse(
 			place_id=place.id,
 			place_name=place.name,
@@ -1157,6 +1162,7 @@ class PlayspaceDashboardService:
 			average_submitted_score=_average_submitted_score(submitted_audits),
 			latest_submitted_at=latest_submitted_at,
 			audits=history_rows,
+			saved_place_reports=saved_reports,
 			place_audit_status=rollup["place_audit_status"],
 			place_survey_status=rollup["place_survey_status"],
 			place_audit_count=rollup["place_audit_count"],

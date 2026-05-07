@@ -877,6 +877,62 @@ class PlayspaceAuditSessionsMixin:
 			place=audit.place,
 		)
 
+	async def notify_submit_failure(
+		self,
+		*,
+		actor: CurrentUserContext,
+		audit_id: uuid.UUID,
+	) -> None:
+		"""Send the owning auditor an email when a background offline submit fails.
+
+		Only the auditor who owns the audit may call this endpoint — the mobile
+		app fires it best-effort after the background sync fails, so we enforce
+		auditor-only access and silently swallow email delivery errors to avoid
+		blocking the response.
+		"""
+		import asyncio
+		import logging
+		from app.email_service.send_email import send_audit_submit_failure_email
+
+		_log = logging.getLogger(__name__)
+
+		# Auditor-only: only the owning auditor may request this notification.
+		if actor.role is not CurrentUserRole.AUDITOR:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="Auditor access is required for this endpoint.",
+			)
+
+		audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
+		auditor_profile = audit.auditor_profile
+
+		to_email = auditor_profile.email
+		if not to_email:
+			# No email address on file — nothing to send; return silently.
+			_log.warning(
+				"notify_submit_failure: no email for auditor_profile_id=%s audit_id=%s",
+				auditor_profile.id,
+				audit_id,
+			)
+			return
+
+		place_name = audit.place.name if audit.place is not None else str(audit.place_id)
+		project_name = audit.project.name if audit.project is not None else str(audit.project_id)
+
+		# Fire-and-forget in the default executor so we never block the event loop on
+		# the synchronous Brevo HTTP call.
+		loop = asyncio.get_event_loop()
+		loop.run_in_executor(
+			None,
+			lambda: send_audit_submit_failure_email(
+				to_email=to_email,
+				auditor_name=auditor_profile.full_name,
+				place_name=place_name,
+				audit_code=audit.audit_code,
+				project_name=project_name,
+			),
+		)
+
 	async def _load_accessible_audit(
 		self,
 		*,

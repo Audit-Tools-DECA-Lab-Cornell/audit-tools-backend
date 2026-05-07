@@ -1,18 +1,21 @@
-"""Email delivery helpers for auth workflows — powered by Brevo Transactional API."""
+"""Email delivery helpers — Brevo Transactional API with Gmail SMTP fallback."""
 
 from __future__ import annotations
 
 import hashlib
 import logging
 import os
+import smtplib
 import time
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from dotenv import find_dotenv, load_dotenv
-from app.email_service.templates import credentials_html, invite_html, verification_html
+from app.email_service.templates import credentials_html, invite_html, submit_failure_html, verification_html
 
 
 load_dotenv(find_dotenv())
@@ -48,6 +51,94 @@ def _stable_entity_id(email_type: str, to_email: str) -> str:
 	return hashlib.sha256(raw).hexdigest()[:32]
 
 
+def _send_email_via_smtp(
+	*,
+	to_email: str,
+	bcc: list[str] | None = None,
+	subject: str,
+	body: str,
+	html_body: str | None = None,
+	log_label: str,
+	fallback_url: str,
+	email_type: str,
+) -> bool:
+	"""Send an email via a generic SMTP relay (e.g. Gmail App Password).
+
+	Reads configuration from the following environment variables:
+	SMTP_HOST        — SMTP server hostname (default: smtp.gmail.com)
+	SMTP_PORT        — SMTP port as a string (default: 587)
+	SMTP_USERNAME    — SMTP login username
+	SMTP_PASSWORD    — SMTP login password / App Password
+	SMTP_FROM_EMAIL  — Envelope and From-header address
+	SMTP_USE_TLS     — "true" to use STARTTLS (default: true)
+
+	Returns True on success; logs a warning and returns False when
+	credentials are absent or sending fails.
+	"""
+	smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+	smtp_port_raw = os.getenv("SMTP_PORT", "587").strip()
+	smtp_user = os.getenv("SMTP_USERNAME", "").strip()
+	smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
+	smtp_from = os.getenv("SMTP_FROM_EMAIL", "").strip()
+	use_tls = os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"false", "0", "no"}
+
+	if not smtp_user or not smtp_password or not smtp_from:
+		logger.warning(
+			"SMTP not configured (missing SMTP_USERNAME / SMTP_PASSWORD / SMTP_FROM_EMAIL). %s for %s: %s",
+			log_label,
+			to_email,
+			fallback_url,
+		)
+		return False
+
+	try:
+		smtp_port = int(smtp_port_raw)
+	except ValueError:
+		logger.error("SMTP_PORT is not a valid integer: %r", smtp_port_raw)
+		return False
+
+	# Build a multipart/alternative message so clients can display either
+	# the plain-text or HTML version according to their capabilities.
+	recipients = [to_email] + (bcc or [])
+	message = MIMEMultipart("alternative")
+	message["Subject"] = subject
+	message["From"] = smtp_from
+	message["To"] = to_email
+	# BCC recipients are intentionally omitted from the headers; SMTP RCPT TO
+	# handles delivery to them without exposing their addresses.
+	message.attach(MIMEText(body, "plain", "utf-8"))
+	if html_body:
+		message.attach(MIMEText(html_body, "html", "utf-8"))
+
+	try:
+		t0 = time.monotonic()
+		with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as smtp:
+			smtp.ehlo()
+			if use_tls:
+				smtp.starttls()
+			smtp.login(smtp_user, smtp_password)
+			smtp.sendmail(smtp_from, recipients, message.as_string())
+		elapsed_ms = round((time.monotonic() - t0) * 1000)
+		logger.info(
+			"Email sent via SMTP: type=%s to=%s host=%s elapsed_ms=%d",
+			email_type,
+			to_email,
+			smtp_host,
+			elapsed_ms,
+		)
+		return True
+	except smtplib.SMTPAuthenticationError:
+		logger.error(
+			"SMTP authentication failed for %s@%s — check SMTP_PASSWORD.",
+			smtp_user,
+			smtp_host,
+		)
+		return False
+	except Exception:
+		logger.exception("SMTP send failed: type=%s to=%s host=%s", email_type, to_email, smtp_host)
+		return False
+
+
 def _send_email(
 	*,
 	to_email: str,
@@ -70,8 +161,17 @@ def _send_email(
 	reply_to_email = os.getenv("BREVO_REPLY_TO_EMAIL", sender_email).strip()
 
 	if not api_key or not sender_email:
-		logger.warning("Brevo not configured. %s for %s: %s", log_label, to_email, fallback_url)
-		return False
+		# Brevo not configured — attempt SMTP fallback before giving up.
+		return _send_email_via_smtp(
+			to_email=to_email,
+			bcc=bcc,
+			subject=subject,
+			body=body,
+			html_body=html_body,
+			log_label=log_label,
+			fallback_url=fallback_url,
+			email_type=email_type,
+		)
 
 	payload: dict = {
 		"sender": {"name": sender_name, "email": sender_email},
@@ -261,4 +361,47 @@ def send_auditor_credentials_email(
 		fallback_url="",
 		email_type="auditor_credentials",
 		tags=["onboarding", "credentials", "auditor"],
+	)
+
+
+def send_audit_submit_failure_email(
+	*,
+	to_email: str,
+	auditor_name: str,
+	place_name: str,
+	audit_code: str,
+	project_name: str,
+) -> bool:
+	"""Notify an auditor that their offline-queued audit submission failed.
+
+	Fired by the backend when the mobile app's background sync could not
+	submit the audit automatically. The auditor is directed to resubmit
+	manually from within the Playspace app.
+	"""
+	body = (
+		f"Hello {auditor_name},\n\n"
+		"We were unable to automatically submit your audit after it was queued "
+		"while your device was offline. Your audit data is safely saved on your "
+		"device.\n\n"
+		f"  Place:      {place_name}\n"
+		f"  Project:    {project_name}\n"
+		f"  Audit Code: {audit_code}\n\n"
+		"Please open the Playspace app and submit the audit manually.\n\n"
+		"If the problem persists, contact your manager."
+	)
+	return _send_email(
+		to_email=to_email,
+		subject="Action required: Your audit could not be submitted",
+		body=body,
+		html_body=submit_failure_html(
+			auditor_name=auditor_name,
+			place_name=place_name,
+			audit_code=audit_code,
+			project_name=project_name,
+		),
+		log_label="Audit submit failure",
+		fallback_url="",
+		email_type="audit_submit_failure",
+		tags=["audit", "submit_failure", "auditor"],
+		track_clicks=False,
 	)

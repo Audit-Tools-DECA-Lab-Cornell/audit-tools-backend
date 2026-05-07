@@ -228,6 +228,7 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/audits/{audit_id}"),
 		("PATCH", "/playspace/audits/{audit_id}/draft"),
 		("POST", "/playspace/audits/{audit_id}/submit"),
+		("POST", "/playspace/audits/{audit_id}/notify-submit-failure"),
 		("GET", "/playspace/auditor/me/places"),
 		("GET", "/playspace/auditor/me/audits"),
 		("GET", "/playspace/auditor/me/dashboard-summary"),
@@ -1056,3 +1057,86 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 		headers=auditor_headers,
 	)
 	assert submit_response.status_code == 400
+
+
+def test_notify_submit_failure_endpoint(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""Exercise access-control and happy-path for POST /audits/{id}/notify-submit-failure.
+
+	The email send function is patched so the test does not make real Brevo
+	calls, but the full service path (auth, audit load, auditor guard) is
+	exercised against the live test DB.
+	"""
+
+	suffix = _unique_suffix()
+	manager_token = _login_manager(playspace_client)
+	manager_headers = _bearer_headers(manager_token)
+
+	# --- Create a fresh project / place / auditor and open an audit ---
+	project = _create_project(playspace_client, manager_token, suffix=suffix)
+	place = _create_place(playspace_client, manager_token, project_id=str(project["id"]), suffix=suffix)
+	auditor_email = f"notify-fail-{suffix}@example.org"
+	created_auditor = playspace_client.post(
+		"/playspace/auditor-profiles",
+		headers=manager_headers,
+		json={
+			"email": auditor_email,
+			"full_name": f"Notify Fail Auditor {suffix}",
+			"auditor_code": f"NF-{suffix.upper()}",
+			"country": "New Zealand",
+			"role": "Tester",
+		},
+	)
+	assert created_auditor.status_code == 201
+	auditor_profile_id = created_auditor.json()["id"]
+	temporary_password = created_auditor.json()["temporary_password"]
+
+	auditor_token = _login_auditor(playspace_client, auditor_email, str(temporary_password))
+	auditor_headers = _bearer_headers(auditor_token)
+
+	# Assign auditor to the place so they can open an audit.
+	playspace_client.post(
+		f"/playspace/auditor-profiles/{auditor_profile_id}/assignments",
+		headers=manager_headers,
+		json={"project_id": project["id"], "place_id": place["id"]},
+	)
+
+	access_response = playspace_client.post(
+		f"/playspace/places/{place['id']}/audits/access",
+		headers=auditor_headers,
+		json={"project_id": project["id"]},
+	)
+	assert access_response.status_code == 200
+	audit_id = access_response.json()["audit_id"]
+
+	# --- Happy path: auditor calls the endpoint.
+	# Brevo is not configured in the test environment, so send_audit_submit_failure_email
+	# returns False silently — no network call, no exception raised.
+	notify_response = playspace_client.post(
+		f"/playspace/audits/{audit_id}/notify-submit-failure",
+		headers=auditor_headers,
+	)
+	assert notify_response.status_code == 204
+	assert notify_response.content == b""
+
+	# --- Manager may NOT call this endpoint (auditor-only) ---
+	manager_notify_response = playspace_client.post(
+		f"/playspace/audits/{audit_id}/notify-submit-failure",
+		headers=manager_headers,
+	)
+	assert manager_notify_response.status_code == 403
+
+	# --- Unknown audit ID returns 404 ---
+	missing_notify_response = playspace_client.post(
+		f"/playspace/audits/{uuid.uuid4()}/notify-submit-failure",
+		headers=auditor_headers,
+	)
+	assert missing_notify_response.status_code == 404
+
+	# --- Unauthenticated request returns 401 or 403 ---
+	unauthenticated_response = playspace_client.post(
+		f"/playspace/audits/{audit_id}/notify-submit-failure",
+	)
+	assert unauthenticated_response.status_code in (401, 403)

@@ -550,6 +550,74 @@ def invite_html(
 	)
 
 
+def submit_failure_html(
+	auditor_name: str,
+	place_name: str,
+	audit_code: str,
+	project_name: str,
+) -> str:
+	"""Render the background audit submit-failure notification email."""
+	campaign = "audit_submit_failure"
+
+	body_rows = f"""\
+        <tr>
+          <td class="email-content" style="padding:36px 40px 0 40px;">
+{_paragraph(f"Hello <strong>{_h(auditor_name)}</strong>,", margin="0 0 20px 0")}
+{
+		_paragraph(
+			"We were unable to automatically submit your audit after it was queued while your device was offline. "
+			"The audit data is safely saved on your device. Please open the Playspace app and resubmit manually.",
+			margin="0 0 28px 0",
+		)
+	}
+          </td>
+        </tr>
+{
+		_panel(
+			"Audit Details",
+			[
+				EmailPanelRow("Place", place_name),
+				EmailPanelRow("Project", project_name),
+				EmailPanelRow("Audit Code", audit_code, is_code=True),
+			],
+		)
+	}
+{
+		_notice(
+			"&#9888;&#65039; <strong>Action required:</strong> Open the Playspace app and submit your audit manually. "
+			"Your recorded responses are still on your device and have not been lost."
+		)
+	}
+{
+		_steps(
+			"How to Resubmit",
+			[
+				"Open the <strong>Playspace</strong> app on your device.",
+				"Navigate to the audit listed above in your <strong>In Progress</strong> audits.",
+				"Tap <strong>Submit</strong> to complete the submission.",
+				"Contact your manager if the problem persists.",
+			],
+		)
+	}
+        <tr>
+          <td class="email-content" style="padding:28px 40px 0 40px;">
+{_section_label("Open the App", margin="0 0 16px 0")}
+{_app_links(role="auditor", campaign=campaign)}
+          </td>
+        </tr>"""
+
+	return _render_email(
+		title="Audit Submission Failed",
+		preheader=f"Your audit for {place_name} could not be submitted automatically. Open the app to resubmit.",
+		eyebrow="Playspace",
+		heading="Your Audit Could Not Be Submitted",
+		body_rows=body_rows,
+		platform="Playspace",
+		product="Playspace",
+		footer_note="You received this message because your Playspace account had an audit queued for offline submission that could not be processed automatically.",
+	)
+
+
 def verification_html(verify_url: str) -> str:
 	"""Render the account email-verification email."""
 	campaign = "email_verification"

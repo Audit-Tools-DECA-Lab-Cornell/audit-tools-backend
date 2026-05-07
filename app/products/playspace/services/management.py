@@ -44,6 +44,8 @@ from app.products.playspace.schemas import (
 	ProjectCreateRequest,
 	ProjectDetailResponse,
 	ProjectUpdateRequest,
+	SavedPlaceReportEntry,
+	SavePlaceReportRequest,
 )
 from app.email_service import send_auditor_credentials_email, send_manager_invite_email
 from app.products.playspace.services.privacy import mask_email
@@ -195,6 +197,8 @@ class PlayspaceManagementService:
 	def _serialize_place(place: Place, projects: list[Project]) -> PlaceDetailResponse:
 		"""Serialize a place detail payload."""
 
+		saved_reports = [SavedPlaceReportEntry.model_validate(entry) for entry in (place.saved_place_reports or [])]
+
 		return PlaceDetailResponse(
 			id=place.id,
 			project_ids=[project.id for project in projects],
@@ -212,6 +216,7 @@ class PlayspaceManagementService:
 			end_date=place.end_date,
 			est_auditors=place.est_auditors,
 			auditor_description=place.auditor_description,
+			saved_place_reports=saved_reports,
 			created_at=place.created_at,
 		)
 
@@ -707,6 +712,94 @@ class PlayspaceManagementService:
 				user.account_id = None
 
 		await self._session.commit()
+
+	######################################################################################
+	################################### Place Reports ####################################
+	######################################################################################
+
+	async def save_place_report(
+		self,
+		*,
+		actor: CurrentUserContext,
+		place_id: uuid.UUID,
+		payload: SavePlaceReportRequest,
+	) -> PlaceDetailResponse:
+		"""Append a place report entry to a place's saved_place_reports list."""
+
+		self._require_manager_or_admin(actor)
+		place = await self._get_place(place_id)
+		current_projects = await self._get_projects_for_place(place.id)
+		if not current_projects:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="The place is not linked to any project.",
+			)
+		self._ensure_account_access(actor=actor, account_id=current_projects[0].account_id)
+
+		if payload.report_type == "combined":
+			if payload.audit_id is None or payload.survey_id is None:
+				raise HTTPException(
+					status_code=status.HTTP_400_BAD_REQUEST,
+					detail="Combined reports require both audit_id and survey_id.",
+				)
+		elif payload.report_type == "full_assessment":
+			if payload.submission_id is None:
+				raise HTTPException(
+					status_code=status.HTTP_400_BAD_REQUEST,
+					detail="Full assessment reports require submission_id.",
+				)
+
+		now = datetime.now(timezone.utc)
+		new_entry: dict[str, object] = {
+			"report_type": payload.report_type,
+			"created_at": now.isoformat(),
+		}
+		if payload.report_type == "combined":
+			new_entry["audit_id"] = str(payload.audit_id)
+			new_entry["survey_id"] = str(payload.survey_id)
+		else:
+			new_entry["submission_id"] = str(payload.submission_id)
+
+		existing_reports: list[dict[str, object]] = list(place.saved_place_reports or [])
+		existing_reports.append(new_entry)
+		place.saved_place_reports = existing_reports
+
+		await self._session.commit()
+		await self._session.refresh(place)
+		return self._serialize_place(place, current_projects)
+
+	async def delete_place_report(
+		self,
+		*,
+		actor: CurrentUserContext,
+		place_id: uuid.UUID,
+		report_index: int,
+	) -> PlaceDetailResponse:
+		"""Remove a place report entry by its list index."""
+
+		self._require_manager_or_admin(actor)
+		place = await self._get_place(place_id)
+		current_projects = await self._get_projects_for_place(place.id)
+		if not current_projects:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="The place is not linked to any project.",
+			)
+		self._ensure_account_access(actor=actor, account_id=current_projects[0].account_id)
+
+		existing_reports: list[dict[str, object]] = list(place.saved_place_reports or [])
+		if report_index < 0 or report_index >= len(existing_reports):
+			raise HTTPException(
+				status_code=status.HTTP_404_NOT_FOUND,
+				detail="Report index out of range.",
+			)
+
+		existing_reports.pop(report_index)
+		place.saved_place_reports = existing_reports
+
+		await self._session.commit()
+		await self._session.refresh(place)
+		return self._serialize_place(place, current_projects)
 
 	######################################################################################
 	################################# Manager Invites ####################################

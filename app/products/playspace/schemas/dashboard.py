@@ -15,6 +15,7 @@ from app.products.playspace.schemas.base import (
 	PlaceActivityStatus,
 	ProjectStatus,
 )
+from app.products.playspace.schemas.management import SavedPlaceReportEntry
 
 
 class PlayspacePlaceRollup(TypedDict):
@@ -276,6 +277,7 @@ class PlaceHistoryResponse(ApiModel):
 	average_submitted_score: float | None
 	latest_submitted_at: datetime | None
 	audits: list[PlaceAuditHistoryItemResponse]
+	saved_place_reports: list[SavedPlaceReportEntry] = []
 	place_audit_status: PlaceActivityStatus = "not_started"
 	place_survey_status: PlaceActivityStatus = "not_started"
 	place_audit_count: int = 0

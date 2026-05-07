@@ -96,6 +96,8 @@ from app.products.playspace.schemas.management import (
 	PlaceUpdateRequest,
 	ProjectCreateRequest,
 	ProjectUpdateRequest,
+	SavedPlaceReportEntry,
+	SavePlaceReportRequest,
 )
 from app.products.playspace.schemas.me import (
 	AuditorProfileSelfUpdateRequest,
@@ -187,6 +189,8 @@ __all__ = [
 	"ProjectStatus",
 	"ProjectSummaryResponse",
 	"ProjectUpdateRequest",
+	"SavedPlaceReportEntry",
+	"SavePlaceReportRequest",
 	"RecentActivityResponse",
 	"RequestModel",
 	"ScaleKey",
