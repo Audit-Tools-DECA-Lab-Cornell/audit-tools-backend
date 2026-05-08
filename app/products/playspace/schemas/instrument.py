@@ -137,6 +137,7 @@ class InstrumentQuestionResponse(ApiModel):
 	options: list[InstrumentChoiceOptionResponse] = Field(default_factory=list)
 	required: bool = True
 	display_if: InstrumentQuestionDisplayConditionResponse | None = None
+	notes_prompt: str | None = None
 
 	@model_validator(mode="after")
 	def validate_question_shape(self) -> InstrumentQuestionResponse:

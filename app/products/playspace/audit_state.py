@@ -299,7 +299,10 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 	for section in audit.submission_sections or []:
 		responses: JSONDict = {}
 		for qr in section.question_responses or []:
-			responses[qr.question_key] = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
+			question_payload: JSONDict = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
+			if qr.note is not None:
+				question_payload["question_note"] = qr.note
+			responses[qr.question_key] = question_payload
 		section_data: JSONDict = {"responses": responses}
 		if section.note is not None:
 			section_data["note"] = section.note
@@ -465,10 +468,17 @@ def _upsert_section_normalized(
 			qr_by_key[question_key] = new_qr
 		qr = qr_by_key[question_key]
 
-		# Upsert scale answer rows. Scale values are always plain strings;
-		# coerce to be safe (QuestionResponseValue is a wider union type).
+		# Extract the question-level note before iterating scale answer pairs.
+		# Scale values are always plain strings; coerce to be safe.
+		question_note = scale_answers.get("question_note", None)
+		if "question_note" in scale_answers:
+			qr.note = str(question_note) if question_note is not None else None
+
+		# Upsert scale answer rows.
 		sa_by_key = {sa.scale_key: sa for sa in qr.scale_answers or []}
 		for scale_key, raw_option_key in scale_answers.items():
+			if scale_key == "question_note":
+				continue
 			option_key = str(raw_option_key) if raw_option_key is not None else ""
 			if scale_key in sa_by_key:
 				sa_by_key[scale_key].option_key = option_key

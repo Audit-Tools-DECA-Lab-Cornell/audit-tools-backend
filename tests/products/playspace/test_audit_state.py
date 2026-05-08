@@ -18,7 +18,9 @@ from app.models import (
 	AuditStatus,
 	JSONDict,
 	Place,
+	PlayspaceQuestionResponse,
 	PlayspaceSubmission,
+	PlayspaceSubmissionSection,
 	Project,
 )
 from app.products.playspace.audit_state import (
@@ -483,6 +485,50 @@ def test_apply_draft_patch_merges_checklist_question_payload_into_canonical_aggr
 					"other_details": {
 						"text": "Loose timber offcuts",
 					},
+				}
+			}
+		}
+	}
+
+
+def test_apply_draft_patch_round_trips_question_note_in_normalized_and_json_state() -> None:
+	"""Question-level notes should persist alongside scale answers in both state shapes."""
+
+	audit = _build_audit()
+
+	patch = AuditDraftPatchRequest(
+		sections={
+			"section_a": SectionDraftPatchRequest(
+				responses={
+					"question_a": {
+						"provision": "a_lot",
+						"question_note": "Add more climbable vegetation near the boundary.",
+					}
+				}
+			)
+		}
+	)
+
+	apply_draft_patch_to_relations(audit=audit, patch=patch)
+
+	section = audit.submission_sections[0]
+	assert isinstance(section, PlayspaceSubmissionSection)
+	assert section.section_key == "section_a"
+	assert len(section.question_responses) == 1
+
+	question_response = section.question_responses[0]
+	assert isinstance(question_response, PlayspaceQuestionResponse)
+	assert question_response.question_key == "question_a"
+	assert question_response.note == "Add more climbable vegetation near the boundary."
+	assert [answer.scale_key for answer in question_response.scale_answers] == ["provision"]
+	assert [answer.option_key for answer in question_response.scale_answers] == ["a_lot"]
+
+	assert audit.responses_json["sections"] == {
+		"section_a": {
+			"responses": {
+				"question_a": {
+					"provision": "a_lot",
+					"question_note": "Add more climbable vegetation near the boundary.",
 				}
 			}
 		}
