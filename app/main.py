@@ -26,10 +26,7 @@ origins = [
 	"http://localhost:8000",
 	"http://localhost:8081",
 	"https://audit-tools-backend.onrender.com",
-	"https://audit-tools-playsafe-frontend.vercel.app",
 	"https://audit-tools-playspace-frontend.vercel.app",
-	"https://audit-tools-playspace-frontend-i45insg2c-cleverhugs.vercel.app",
-	"https://audit-tools-playspace-frontend-d3wdvdalm-cleverhugs.vercel.app",
 ]
 
 
@@ -80,6 +77,7 @@ app.add_middleware(
 	CORSMiddleware,
 	allow_origins=origins,
 	allow_credentials=True,
+	allow_origin_regex=r"https://audit-tools-[\w-]+-cleverhugs\.vercel\.app",
 	allow_methods=["*"],
 	allow_headers=["*"],
 )

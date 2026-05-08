@@ -4637,6 +4637,7 @@
             "constructs": ["play_value"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_1",
+            "notes_prompt": "Any comments? Describe one or more recommendations to improve this natural play feature in the playspace:",
             "question_type": "scaled"
           },
           {
@@ -4743,6 +4744,7 @@
             "constructs": ["play_value", "usability"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_2",
+            "notes_prompt": "Any comments? Describe one or more recommendations to improve this natural play feature in the playspace:",
             "question_type": "scaled"
           },
           {
@@ -4880,6 +4882,7 @@
             "constructs": ["play_value"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_3",
+            "notes_prompt": "Any comments? Describe one or more recommendations to improve this natural play feature in the playspace:",
             "question_type": "scaled"
           },
           {
@@ -5017,6 +5020,7 @@
             "constructs": ["play_value"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_4",
+            "notes_prompt": "Any comments? Describe one or more recommendations to improve this natural play feature in the playspace:",
             "question_type": "scaled"
           }
         ],
