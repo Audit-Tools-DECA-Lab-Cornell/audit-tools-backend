@@ -51,6 +51,35 @@ def _stable_entity_id(email_type: str, to_email: str) -> str:
 	return hashlib.sha256(raw).hexdigest()[:32]
 
 
+def _with_admin_notification_bcc(*, to_email: str, bcc: list[str] | None = None) -> list[str] | None:
+	"""Return BCC recipients plus the configured admin notification address.
+
+	``ADMIN_NOTIFICATION_EMAIL`` receives a copy of every transactional email.
+	Duplicates are removed case-insensitively, and the admin address is not added
+	as BCC when it is already the primary recipient.
+	"""
+	admin_notification_email = os.getenv("ADMIN_NOTIFICATION_EMAIL", "").strip()
+	result: list[str] = []
+	seen = {to_email.strip().lower()}
+
+	for addr in bcc or []:
+		cleaned = addr.strip()
+		if not cleaned:
+			continue
+		key = cleaned.lower()
+		if key in seen:
+			continue
+		result.append(cleaned)
+		seen.add(key)
+
+	if admin_notification_email:
+		key = admin_notification_email.lower()
+		if key not in seen:
+			result.append(admin_notification_email)
+
+	return result or None
+
+
 def _send_email_via_smtp(
 	*,
 	to_email: str,
@@ -160,11 +189,13 @@ def _send_email(
 	# but set BREVO_REPLY_TO_EMAIL to a monitored inbox in production.
 	reply_to_email = os.getenv("BREVO_REPLY_TO_EMAIL", sender_email).strip()
 
+	merged_bcc = _with_admin_notification_bcc(to_email=to_email, bcc=bcc)
+
 	if not api_key or not sender_email:
 		# Brevo not configured — attempt SMTP fallback before giving up.
 		return _send_email_via_smtp(
 			to_email=to_email,
-			bcc=bcc,
+			bcc=merged_bcc,
 			subject=subject,
 			body=body,
 			html_body=html_body,
@@ -205,8 +236,8 @@ def _send_email(
 		payload["htmlContent"] = html_body
 	# Only include the BCC key when there are actual addresses — sending bcc: null
 	# is valid JSON but results in a Brevo 400 on some API versions.
-	if bcc:
-		payload["bcc"] = [{"email": addr} for addr in bcc]
+	if merged_bcc:
+		payload["bcc"] = [{"email": addr} for addr in merged_bcc]
 
 	headers = {
 		"accept": "application/json",
@@ -336,8 +367,8 @@ def send_auditor_credentials_email(
 ) -> bool:
 	"""Email a newly created auditor their login credentials.
 
-	Delivers to ``to_email`` (the auditor) and, if configured, a second copy
-	to ``ADMIN_NOTIFICATION_EMAIL``. Returns True only if every send succeeds.
+	Like all transactional emails, this also copies ``ADMIN_NOTIFICATION_EMAIL``
+	when that environment variable is configured.
 	"""
 	body = (
 		f"Hello {full_name},\n\n"
@@ -350,10 +381,8 @@ def send_auditor_credentials_email(
 	)
 
 	product = platform.split(" ")[0]
-	admin_notification_email = os.getenv("ADMIN_NOTIFICATION_EMAIL", "").strip()
 	return _send_email(
 		to_email=to_email,
-		bcc=[admin_notification_email] if admin_notification_email else None,
 		subject=f"Your {product} Auditor Account Credentials",
 		body=body,
 		html_body=credentials_html(full_name, to_email, auditor_code, temporary_password, platform, product),
