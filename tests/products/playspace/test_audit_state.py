@@ -9,6 +9,7 @@ from typing import cast
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import CurrentUserContext, CurrentUserRole
@@ -25,6 +26,7 @@ from app.models import (
 )
 from app.products.playspace.audit_state import (
 	apply_draft_patch_to_relations,
+	build_responses_json_from_relations,
 	get_aggregate_revision,
 	get_execution_mode_value,
 	replace_audit_aggregate,
@@ -509,30 +511,33 @@ def test_apply_draft_patch_round_trips_question_note_in_normalized_and_json_stat
 		}
 	)
 
-	apply_draft_patch_to_relations(audit=audit, patch=patch)
+	with Session() as session:
+		session.add(audit)
 
-	section = audit.submission_sections[0]
-	assert isinstance(section, PlayspaceSubmissionSection)
-	assert section.section_key == "section_a"
-	assert len(section.question_responses) == 1
+		apply_draft_patch_to_relations(audit=audit, patch=patch)
 
-	question_response = section.question_responses[0]
-	assert isinstance(question_response, PlayspaceQuestionResponse)
-	assert question_response.question_key == "question_a"
-	assert question_response.note == "Add more climbable vegetation near the boundary."
-	assert [answer.scale_key for answer in question_response.scale_answers] == ["provision"]
-	assert [answer.option_key for answer in question_response.scale_answers] == ["a_lot"]
+		section = audit.submission_sections[0]
+		assert isinstance(section, PlayspaceSubmissionSection)
+		assert section.section_key == "section_a"
+		assert len(section.question_responses) == 1
 
-	assert audit.responses_json["sections"] == {
-		"section_a": {
-			"responses": {
-				"question_a": {
-					"provision": "a_lot",
-					"question_note": "Add more climbable vegetation near the boundary.",
+		question_response = section.question_responses[0]
+		assert isinstance(question_response, PlayspaceQuestionResponse)
+		assert question_response.question_key == "question_a"
+		assert question_response.note == "Add more climbable vegetation near the boundary."
+		assert [answer.scale_key for answer in question_response.scale_answers] == ["provision"]
+		assert [answer.option_key for answer in question_response.scale_answers] == ["a_lot"]
+
+		assert build_responses_json_from_relations(audit)["sections"] == {
+			"section_a": {
+				"responses": {
+					"question_a": {
+						"provision": "a_lot",
+						"question_note": "Add more climbable vegetation near the boundary.",
+					}
 				}
 			}
 		}
-	}
 
 
 def test_section_state_response_map_preserves_checklist_question_payloads() -> None:

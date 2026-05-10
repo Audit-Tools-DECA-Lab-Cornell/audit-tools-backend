@@ -264,6 +264,8 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/places"),
 		("PATCH", "/playspace/places/{place_id}"),
 		("DELETE", "/playspace/places/{place_id}"),
+		("POST", "/playspace/places/{place_id}/place-reports"),
+		("DELETE", "/playspace/places/{place_id}/place-reports/{report_index}"),
 		("POST", "/playspace/auditor-profiles"),
 		("PATCH", "/playspace/auditor-profiles/{auditor_profile_id}"),
 		("DELETE", "/playspace/auditor-profiles/{auditor_profile_id}"),

@@ -1114,6 +1114,7 @@ def _build_assignments(
 	auditors_by_city: dict[str, list[AuditorSeedContext]] = {}
 	for auditor_context in auditor_contexts:
 		auditors_by_city.setdefault(auditor_context.home_city, []).append(auditor_context)
+	auditor_context_by_id = {auditor_context.profile.id: auditor_context for auditor_context in auditor_contexts}
 
 	project_place_auditor_unique_assignments: set[tuple[str, str, str]] = set()
 	project_auditors_by_project: dict[uuid.UUID, list[AuditorSeedContext]] = {}
@@ -1143,7 +1144,16 @@ def _build_assignments(
 			if not project_auditors:
 				continue
 
-			lead_context = project_auditors[place_index % len(project_auditors)]
+			fixed_demo_contexts = [
+				auditor_context_by_id[auditor_id]
+				for auditor_id in _fixed_demo_auditor_ids_for_place(place_context.place.id)
+				if auditor_id in auditor_context_by_id
+			]
+			lead_context = (
+				fixed_demo_contexts[0]
+				if fixed_demo_contexts
+				else project_auditors[place_index % len(project_auditors)]
+			)
 
 			if (
 				str(project_context.project.id),
@@ -1193,8 +1203,12 @@ def _build_assignments(
 					f"exist in project_place_auditor_unique_assignments: {project_context.project.id, place_context.place.id, lead_context.profile.id in project_place_auditor_unique_assignments}"
 				)
 
-			if randomizer.random() < 0.55 and len(project_auditors) > 1:
-				support_context = project_auditors[(place_index + 1) % len(project_auditors)]
+			if len(fixed_demo_contexts) > 1 or (randomizer.random() < 0.55 and len(project_auditors) > 1):
+				support_context = (
+					fixed_demo_contexts[1]
+					if len(fixed_demo_contexts) > 1
+					else project_auditors[(place_index + 1) % len(project_auditors)]
+				)
 
 				if (
 					str(project_context.project.id),
@@ -1301,6 +1315,18 @@ def _build_assignments(
 					)
 
 	return assignments, execution_modes_by_place_and_auditor
+
+
+def _fixed_demo_auditor_ids_for_place(place_id: uuid.UUID) -> tuple[uuid.UUID, ...]:
+	"""Return the deterministic auditor pairings required by the base demo seed places."""
+
+	if place_id == DEMO_PLACE_RIVERSIDE_ID:
+		return (DEMO_AUDITOR_AKL01_ID, DEMO_AUDITOR_AKL02_ID)
+	if place_id == DEMO_PLACE_KEPLER_ID:
+		return (DEMO_AUDITOR_AKL02_ID,)
+	if place_id == DEMO_PLACE_MATAI_ID:
+		return (DEMO_AUDITOR_CHC01_ID,)
+	return ()
 
 
 def _hydrate_estimated_counts(
