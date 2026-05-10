@@ -1150,9 +1150,7 @@ def _build_assignments(
 				if auditor_id in auditor_context_by_id
 			]
 			lead_context = (
-				fixed_demo_contexts[0]
-				if fixed_demo_contexts
-				else project_auditors[place_index % len(project_auditors)]
+				fixed_demo_contexts[0] if fixed_demo_contexts else project_auditors[place_index % len(project_auditors)]
 			)
 
 			if (
