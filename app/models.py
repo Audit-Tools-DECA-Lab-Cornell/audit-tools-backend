@@ -1017,6 +1017,54 @@ class PlayspaceQuestionResponse(Base):
 		back_populates="question_response",
 		cascade=CASCADE_DELETE_ORPHAN,
 	)
+	checklist_answer: Mapped[PlayspaceChecklistAnswer | None] = relationship(
+		back_populates="question_response",
+		cascade=CASCADE_DELETE_ORPHAN,
+		uselist=False,
+	)
+
+
+class PlayspaceChecklistAnswer(Base):
+	"""One normalized checklist-answer payload within a PlayspaceQuestionResponse."""
+
+	__tablename__ = "playspace_checklist_answers"
+	__table_args__ = (
+		UniqueConstraint(
+			"question_response_id",
+			name="uq_playspace_checklist_answers_question_response",
+		),
+	)
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	question_response_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey(
+			"playspace_question_responses.id",
+			ondelete="CASCADE",
+			name="fk_ps_checklist_answer_question_response",
+		),
+		index=True,
+		nullable=False,
+	)
+	selected_option_keys: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+	other_details: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
+	updated_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		onupdate=func.now(),
+		nullable=False,
+	)
+
+	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="checklist_answer")
 
 
 class PlayspaceScaleAnswer(Base):

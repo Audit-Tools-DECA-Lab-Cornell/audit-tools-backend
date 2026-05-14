@@ -17,9 +17,12 @@ from app.models import (
 	AuditorAssignment,
 	AuditorProfile,
 	AuditStatus,
+	Instrument,
 	JSONDict,
+	PlayspaceChecklistAnswer,
 	Place,
 	PlayspaceQuestionResponse,
+	PlayspaceScaleAnswer,
 	PlayspaceSubmission,
 	PlayspaceSubmissionSection,
 	Project,
@@ -44,7 +47,9 @@ from app.products.playspace.schemas.audit import (
 )
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.services.audit import PlayspaceAuditService
+import app.products.playspace.services.audit_sessions as audit_sessions_module
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
+from app.products.playspace.services.instrument import build_instrument_response_from_row
 
 
 def _build_audit() -> PlayspaceSubmission:
@@ -96,6 +101,64 @@ def _build_auditor_profile() -> AuditorProfile:
 		account_id=uuid.uuid4(),
 		auditor_code="AUD-001",
 		full_name="Auditor One",
+	)
+
+
+def _build_instrument_row(
+	*,
+	instrument_key: str = "pvua_v5_2",
+	instrument_version: str = "5.13",
+	is_active: bool = True,
+) -> Instrument:
+	"""Create an instrument DB row whose content may carry stale embedded metadata."""
+
+	now = datetime.now(timezone.utc)
+	return Instrument(
+		id=uuid.uuid4(),
+		instrument_key=instrument_key,
+		instrument_version=instrument_version,
+		is_active=is_active,
+		content={
+			"en": {
+				"instrument_key": "pvua_v5_2",
+				"instrument_name": "Playspace Play Value and Usability Audit Tool",
+				"instrument_version": "5.2",
+				"current_sheet": "PVUA v5.2_online version",
+				"source_files": [],
+				"preamble": [],
+				"execution_modes": [],
+				"pre_audit_questions": [],
+				"scale_guidance": [],
+				"sections": [
+					{
+						"section_key": "section_a",
+						"title": "Section A",
+						"description": None,
+						"instruction": "Instruction",
+						"notes_prompt": None,
+						"questions": [
+							{
+								"question_key": f"question_{instrument_version}",
+								"mode": "both",
+								"constructs": ["play_value"],
+								"domains": ["loose_parts"],
+								"section_key": "section_a",
+								"prompt": "Checklist question",
+								"question_type": "checklist",
+								"scales": [],
+								"options": [{"key": "cups", "label": "Cups", "description": None}],
+								"required": True,
+								"display_if": None,
+								"notes_prompt": None,
+							}
+						],
+					}
+				],
+				"legal_documents": [],
+			}
+		},
+		created_at=now,
+		updated_at=now,
 	)
 
 
@@ -166,6 +229,8 @@ class _DummySession:
 	def add(self, instance: PlayspaceSubmission) -> None:
 		"""Record one added submission without touching a database."""
 
+		if instance.id is None:
+			instance.id = uuid.uuid4()
 		self.added_audits.append(instance)
 
 	async def execute(self, statement: object) -> object:
@@ -493,6 +558,50 @@ def test_apply_draft_patch_merges_checklist_question_payload_into_canonical_aggr
 	}
 
 
+def test_apply_draft_patch_round_trips_checklist_payload_in_normalized_state() -> None:
+	"""Checklist answers should persist as arrays/objects through normalized tables."""
+
+	audit = _build_audit()
+	patch = AuditDraftPatchRequest(
+		sections={
+			"section_a": SectionDraftPatchRequest(
+				responses={
+					"question_checklist": {
+						"selected_option_keys": ["cups", "buckets", "other"],
+						"other_details": {"text": "Loose timber offcuts"},
+						"question_note": "Auditor saw these loose parts in storage.",
+					}
+				}
+			)
+		}
+	)
+
+	with Session() as session:
+		session.add(audit)
+
+		apply_draft_patch_to_relations(audit=audit, patch=patch)
+
+		section = audit.submission_sections[0]
+		question_response = section.question_responses[0]
+		assert question_response.scale_answers == []
+		assert isinstance(question_response.checklist_answer, PlayspaceChecklistAnswer)
+		assert question_response.checklist_answer.selected_option_keys == ["cups", "buckets", "other"]
+		assert question_response.checklist_answer.other_details == {"text": "Loose timber offcuts"}
+		assert question_response.note == "Auditor saw these loose parts in storage."
+
+		assert build_responses_json_from_relations(audit)["sections"] == {
+			"section_a": {
+				"responses": {
+					"question_checklist": {
+						"selected_option_keys": ["cups", "buckets", "other"],
+						"other_details": {"text": "Loose timber offcuts"},
+						"question_note": "Auditor saw these loose parts in storage.",
+					}
+				}
+			}
+		}
+
+
 def test_apply_draft_patch_round_trips_question_note_in_normalized_and_json_state() -> None:
 	"""Question-level notes should persist alongside scale answers in both state shapes."""
 
@@ -540,6 +649,42 @@ def test_apply_draft_patch_round_trips_question_note_in_normalized_and_json_stat
 		}
 
 
+def test_build_responses_json_normalizes_legacy_stringified_checklist_answers() -> None:
+	"""Legacy normalized rows should be readable when checklist payloads were stored as strings."""
+
+	audit = _build_audit()
+	section = PlayspaceSubmissionSection(submission_id=audit.id, section_key="section_a")
+	question_response = PlayspaceQuestionResponse(section=section, question_key="question_checklist")
+	question_response.scale_answers = [
+		PlayspaceScaleAnswer(
+			question_response=question_response,
+			scale_key="selected_option_keys",
+			option_key="['cups', 'buckets']",
+		),
+		PlayspaceScaleAnswer(
+			question_response=question_response,
+			scale_key="other_details",
+			option_key="{'text': 'Large foam blocks'}",
+		),
+	]
+	section.question_responses = [question_response]
+	audit.submission_sections = [section]
+
+	with Session() as session:
+		session.add(audit)
+
+		assert build_responses_json_from_relations(audit)["sections"] == {
+			"section_a": {
+				"responses": {
+					"question_checklist": {
+						"selected_option_keys": ["cups", "buckets"],
+						"other_details": {"text": "Large foam blocks"},
+					}
+				}
+			}
+		}
+
+
 def test_section_state_response_map_preserves_checklist_question_payloads() -> None:
 	"""Session responses should round-trip checklist answers without dropping nested values."""
 
@@ -568,6 +713,172 @@ def test_section_state_response_map_preserves_checklist_question_payloads() -> N
 			"text": "Large foam blocks",
 		},
 	}
+
+
+def test_section_state_response_map_normalizes_legacy_stringified_checklist_payloads() -> None:
+	"""Session responses should repair stringified checklist payloads saved by older submissions."""
+
+	service = _DummyAuditSessionsService()
+
+	section_map = service._build_section_state_response_map(
+		responses_json={
+			"sections": {
+				"section_a": {
+					"responses": {
+						"question_checklist": {
+							"selected_option_keys": "['cups', 'buckets']",
+							"other_details": "{'text': 'Large foam blocks'}",
+						}
+					}
+				}
+			}
+		}
+	)
+
+	assert section_map["section_a"].responses["question_checklist"] == {
+		"selected_option_keys": ["cups", "buckets"],
+		"other_details": {"text": "Large foam blocks"},
+	}
+
+
+def test_build_instrument_response_from_row_uses_database_metadata() -> None:
+	"""Instrument API responses should trust DB row key/version over stale JSON content metadata."""
+
+	instrument = _build_instrument_row(instrument_key="pvua_v5_2", instrument_version="5.13")
+
+	response = build_instrument_response_from_row(instrument)
+
+	assert response is not None
+	assert response.instrument_key == "pvua_v5_2"
+	assert response.instrument_version == "5.13"
+
+
+def test_create_or_resume_audit_uses_active_instrument_version(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""New submissions should record the active DB instrument version instead of the static fallback."""
+
+	active_instrument = _build_instrument_row(instrument_version="5.13")
+
+	async def fake_get_active_instrument(_session: object, _instrument_key: str) -> Instrument:
+		return active_instrument
+
+	async def fake_get_instrument_version(
+		_session: object,
+		_instrument_key: str,
+		_instrument_version: str,
+	) -> Instrument:
+		return active_instrument
+
+	monkeypatch.setattr(audit_sessions_module, "get_active_instrument", fake_get_active_instrument)
+	monkeypatch.setattr(audit_sessions_module, "get_instrument_version", fake_get_instrument_version)
+
+	service = _DummyAuditService()
+	actor = _build_actor(service._auditor_profile)
+
+	session = asyncio.run(
+		service.create_or_resume_audit(
+			actor=actor,
+			place_id=service._place.id,
+			payload=PlaceAuditAccessRequest(
+				project_id=service._project.id,
+				execution_mode=ExecutionMode.AUDIT,
+			),
+		)
+	)
+
+	assert session.instrument_key == "pvua_v5_2"
+	assert session.instrument_version == "5.13"
+	assert session.instrument.instrument_version == "5.13"
+	assert service._audit is not None
+	assert service._audit.instrument_version == "5.13"
+
+
+def test_audit_session_response_recovers_legacy_misstamped_instrument_version(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Legacy submissions stamped 5.2 should use active metadata when responses only match the active version."""
+
+	stored_instrument = _build_instrument_row(instrument_version="5.2")
+	active_instrument = _build_instrument_row(instrument_version="5.13")
+	audit = _build_service_audit(execution_mode=ExecutionMode.BOTH, revision=2)
+	audit.instrument_key = "pvua_v5_2"
+	audit.instrument_version = "5.2"
+	audit.responses_json = {
+		"schema_version": 1,
+		"revision": 2,
+		"meta": {"execution_mode": "both"},
+		"pre_audit": {},
+		"sections": {
+			"section_a": {
+				"responses": {
+					"question_5.13": {"selected_option_keys": ["cups"]},
+				}
+			}
+		},
+	}
+	service = _DummyAuditService(audit=audit)
+
+	async def fake_get_instrument_version(
+		_session: object,
+		_instrument_key: str,
+		instrument_version: str,
+	) -> Instrument | None:
+		return stored_instrument if instrument_version == "5.2" else None
+
+	async def fake_get_active_instrument(_session: object, _instrument_key: str) -> Instrument:
+		return active_instrument
+
+	monkeypatch.setattr(audit_sessions_module, "get_instrument_version", fake_get_instrument_version)
+	monkeypatch.setattr(audit_sessions_module, "get_active_instrument", fake_get_active_instrument)
+
+	response = asyncio.run(
+		service._build_audit_session_response(
+			audit=audit,
+			project=audit.project,
+			place=audit.place,
+		)
+	)
+
+	assert response.instrument_version == "5.13"
+	assert response.instrument.instrument_version == "5.13"
+
+
+def test_audit_session_response_uses_submission_instrument_version(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Existing submissions should render with their stored instrument version, not the active version."""
+
+	stored_instrument = _build_instrument_row(instrument_version="5.13")
+	active_instrument = _build_instrument_row(instrument_version="5.14")
+	audit = _build_service_audit(execution_mode=ExecutionMode.AUDIT, revision=2)
+	audit.instrument_key = "pvua_v5_2"
+	audit.instrument_version = "5.13"
+	service = _DummyAuditService(audit=audit)
+
+	async def fake_get_instrument_version(
+		_session: object,
+		_instrument_key: str,
+		instrument_version: str,
+	) -> Instrument | None:
+		return stored_instrument if instrument_version == "5.13" else None
+
+	async def fake_get_active_instrument(_session: object, _instrument_key: str) -> Instrument:
+		return active_instrument
+
+	monkeypatch.setattr(audit_sessions_module, "get_instrument_version", fake_get_instrument_version)
+	monkeypatch.setattr(audit_sessions_module, "get_active_instrument", fake_get_active_instrument)
+
+	response = asyncio.run(
+		service._build_audit_session_response(
+			audit=audit,
+			project=audit.project,
+			place=audit.place,
+		)
+	)
+
+	assert response.instrument_version == "5.13"
+	assert response.instrument.instrument_version == "5.13"
 
 
 def test_patch_audit_draft_updates_execution_mode_in_canonical_aggregate() -> None:

@@ -24,6 +24,7 @@ from app.products.playspace.schemas.management import (
 	InstrumentVersionResponse,
 )
 from app.products.playspace.services.instrument import (
+	build_instrument_response_from_row,
 	create_instrument_version,
 	get_active_instrument,
 	list_instrument_versions,
@@ -62,12 +63,10 @@ async def get_active_instrument_by_key(
 	if instrument is None:
 		return get_canonical_instrument_response()
 
-	content = instrument.content
-	localized = content.get(lang) or content.get("en")
-	if localized is None:
+	instrument_response = build_instrument_response_from_row(instrument, lang=lang)
+	if instrument_response is None:
 		return get_canonical_instrument_response()
-
-	return PlayspaceInstrumentResponse.model_validate(localized)
+	return instrument_response
 
 
 @router.get(

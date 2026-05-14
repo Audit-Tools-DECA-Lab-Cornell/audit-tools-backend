@@ -4,6 +4,8 @@ Audit session-focused methods for the Playspace audit service.
 
 from __future__ import annotations
 
+import ast
+import json
 import math
 import uuid
 from datetime import date, datetime, time, timezone
@@ -81,7 +83,11 @@ from app.products.playspace.services._place_rollup import (
 	overall_score_pair,
 	round_score_pair,
 )
-from app.products.playspace.services.instrument import get_active_instrument
+from app.products.playspace.services.instrument import (
+	build_instrument_response_from_row,
+	get_active_instrument,
+	get_instrument_version,
+)
 
 if TYPE_CHECKING:
 	from sqlalchemy.ext.asyncio import AsyncSession
@@ -696,6 +702,12 @@ class PlayspaceAuditSessionsMixin:
 				created_at=now,
 			)
 
+			active_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
+			instrument_key = active_instrument.instrument_key if active_instrument is not None else INSTRUMENT_KEY
+			instrument_version = (
+				active_instrument.instrument_version if active_instrument is not None else INSTRUMENT_VERSION
+			)
+
 			# Create the submission and its context row together so the normalized
 			# draft tables are immediately active once the session commits.
 			audit = PlayspaceSubmission(
@@ -703,8 +715,8 @@ class PlayspaceAuditSessionsMixin:
 				place_id=place.id,
 				auditor_profile_id=auditor_profile.id,
 				audit_code=audit_code,
-				instrument_key=INSTRUMENT_KEY,
-				instrument_version=INSTRUMENT_VERSION,
+				instrument_key=instrument_key,
+				instrument_version=instrument_version,
 				status=AuditStatus.IN_PROGRESS,
 				started_at=now,
 				execution_mode=initial_execution_mode,
@@ -1107,15 +1119,71 @@ class PlayspaceAuditSessionsMixin:
 		)
 
 	async def _resolve_playspace_instrument_for_audit(self, audit: PlayspaceSubmission) -> PlayspaceInstrumentResponse:
-		"""Return the active database instrument when present; otherwise the canonical on-disk JSON."""
+		"""Return the submission's exact instrument version when present, otherwise active/canonical fallback."""
 
 		instrument_key = audit.instrument_key or INSTRUMENT_KEY
-		db_instrument = await get_active_instrument(self._session, instrument_key)
-		if db_instrument is not None:
-			en_content = db_instrument.content.get("en")
-			if isinstance(en_content, dict):
-				return PlayspaceInstrumentResponse.model_validate(en_content)
+		instrument_version = audit.instrument_version
+		stored_instrument = None
+		if instrument_version is not None:
+			stored_instrument = await get_instrument_version(self._session, instrument_key, instrument_version)
+		active_instrument = await get_active_instrument(self._session, instrument_key)
+
+		stored_response = (
+			build_instrument_response_from_row(stored_instrument) if stored_instrument is not None else None
+		)
+		active_response = (
+			build_instrument_response_from_row(active_instrument) if active_instrument is not None else None
+		)
+		if stored_response is not None and active_response is not None:
+			responses_json = build_responses_json_from_relations(audit)
+			stored_match_count = self._count_matching_response_question_keys(
+				instrument=stored_response,
+				responses_json=responses_json,
+			)
+			active_match_count = self._count_matching_response_question_keys(
+				instrument=active_response,
+				responses_json=responses_json,
+			)
+			if active_match_count > stored_match_count:
+				return active_response
+			return stored_response
+		if stored_response is not None:
+			return stored_response
+		if active_response is not None:
+			return active_response
 		return get_canonical_instrument_response()
+
+	@classmethod
+	def _count_matching_response_question_keys(
+		cls,
+		*,
+		instrument: PlayspaceInstrumentResponse,
+		responses_json: dict[str, object],
+	) -> int:
+		"""Count stored response question keys that exist in an instrument definition."""
+
+		response_question_keys = cls._collect_response_question_keys(responses_json)
+		instrument_question_keys = {
+			question.question_key for section in instrument.sections for question in section.questions
+		}
+		return len(response_question_keys.intersection(instrument_question_keys))
+
+	@staticmethod
+	def _collect_response_question_keys(responses_json: dict[str, object]) -> set[str]:
+		"""Collect question keys present in a canonical audit response payload."""
+
+		sections_payload = responses_json.get("sections")
+		if not isinstance(sections_payload, dict):
+			return set()
+		question_keys: set[str] = set()
+		for section_payload in sections_payload.values():
+			if not isinstance(section_payload, dict):
+				continue
+			responses_payload = section_payload.get("responses")
+			if not isinstance(responses_payload, dict):
+				continue
+			question_keys.update(key for key in responses_payload.keys() if isinstance(key, str))
+		return question_keys
 
 	# make it verbose
 	async def _build_audit_session_response(
@@ -1154,8 +1222,8 @@ class PlayspaceAuditSessionsMixin:
 			allowed_execution_modes=allowed_modes,
 			selected_execution_mode=selected_mode,
 			status=audit.status,
-			instrument_key=audit.instrument_key or INSTRUMENT_KEY,
-			instrument_version=audit.instrument_version or INSTRUMENT_VERSION,
+			instrument_key=instrument.instrument_key,
+			instrument_version=instrument.instrument_version,
 			instrument=instrument,
 			schema_version=aggregate.schema_version,
 			revision=aggregate.revision,
@@ -1532,11 +1600,25 @@ class PlayspaceAuditSessionsMixin:
 		for entry_key, entry_value in value.items():
 			if not isinstance(entry_key, str):
 				continue
-			coerced_value = cls._coerce_question_response_value(entry_value)
+			coerced_value = cls._coerce_question_response_entry(entry_key, entry_value)
 			if coerced_value is None and entry_value is not None:
 				continue
 			payload[entry_key] = coerced_value
 		return payload
+
+	@classmethod
+	def _coerce_question_response_entry(
+		cls,
+		key: str,
+		value: object,
+	) -> str | list[str] | dict[str, str] | None:
+		"""Coerce one response entry, including legacy stringified checklist values."""
+
+		if key == "selected_option_keys":
+			return cls._to_string_list(cls._parse_stringified_json_value(value) if isinstance(value, str) else value)
+		if key == "other_details":
+			return cls._to_string_dict(cls._parse_stringified_json_value(value) if isinstance(value, str) else value)
+		return cls._coerce_question_response_value(value)
 
 	@classmethod
 	def _coerce_question_response_value(
@@ -1567,6 +1649,30 @@ class PlayspaceAuditSessionsMixin:
 		if not isinstance(value, list):
 			return []
 		return [entry for entry in value if isinstance(entry, str)]
+
+	@staticmethod
+	def _to_string_dict(value: object) -> dict[str, str]:
+		"""Safely coerce one unknown JSON-like value into a string dictionary."""
+
+		if not isinstance(value, dict):
+			return {}
+		return {key: entry for key, entry in value.items() if isinstance(key, str) and isinstance(entry, str)}
+
+	@staticmethod
+	def _parse_stringified_json_value(value: str) -> object:
+		"""Parse legacy checklist values saved as JSON strings or Python literal strings."""
+
+		trimmed_value = value.strip()
+		if not trimmed_value:
+			return value
+		try:
+			return json.loads(trimmed_value)
+		except json.JSONDecodeError:
+			pass
+		try:
+			return ast.literal_eval(trimmed_value)
+		except (SyntaxError, ValueError):
+			return value
 
 	@staticmethod
 	def _read_optional_string(payload: dict[str, object], key: str) -> str | None:

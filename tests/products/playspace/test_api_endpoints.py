@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 from fastapi.routing import APIRoute
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import AuditorAssignment, AuditStatus, PlayspaceSubmission
 from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
 MANAGER_EMAIL = "amelia.carter@example.org"
@@ -54,6 +58,26 @@ def _login_auditor(client: TestClient, email: str, password: str = SEED_PASSWORD
 	)
 	assert response.status_code == 200
 	return response.json()["access_token"]
+
+
+async def _load_direct_auditor_counts(
+	session_factory: async_sessionmaker[AsyncSession],
+	auditor_profile_id: str,
+) -> tuple[int, int]:
+	"""Return direct DB assignment/submitted-audit counts for one auditor."""
+
+	auditor_id = uuid.UUID(auditor_profile_id)
+	async with session_factory() as session:
+		assignments_result = await session.execute(
+			select(func.count(AuditorAssignment.id)).where(AuditorAssignment.auditor_profile_id == auditor_id)
+		)
+		completed_result = await session.execute(
+			select(func.count(PlayspaceSubmission.id)).where(
+				PlayspaceSubmission.auditor_profile_id == auditor_id,
+				PlayspaceSubmission.status == AuditStatus.SUBMITTED,
+			)
+		)
+	return int(assignments_result.scalar_one() or 0), int(completed_result.scalar_one() or 0)
 
 
 def _signup_and_login_auditor(
@@ -579,6 +603,7 @@ def test_manager_invite_management_endpoints(
 def test_manager_dashboard_endpoints(
 	playspace_client: TestClient,
 	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+	playspace_test_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
 	"""Exercise every manager-facing Playspace dashboard endpoint."""
 
@@ -611,7 +636,19 @@ def test_manager_dashboard_endpoints(
 		headers=headers,
 	)
 	assert auditors_response.status_code == 200
-	assert len(auditors_response.json()) >= 1
+	auditors_payload = auditors_response.json()
+	assert len(auditors_payload) >= 1
+	seeded_auditor = next(
+		auditor for auditor in auditors_payload if auditor["id"] == playspace_seed_snapshot.seeded_auditor_profile_id
+	)
+	expected_assignments, expected_completed = asyncio.run(
+		_load_direct_auditor_counts(
+			playspace_test_session_factory,
+			playspace_seed_snapshot.seeded_auditor_profile_id,
+		)
+	)
+	assert seeded_auditor["assignments_count"] == expected_assignments
+	assert seeded_auditor["completed_audits"] == expected_completed
 
 	places_response = playspace_client.get(
 		f"/playspace/accounts/{account_id}/places",

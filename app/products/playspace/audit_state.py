@@ -10,6 +10,7 @@ the normalized tables as the authoritative write target:
     playspace_audit_sections      — one row per section (holds the section note)
     playspace_question_responses  — one row per answered question within a section
     playspace_scale_answers       — one row per scale answer within a question
+    playspace_checklist_answers   — one JSONB payload per checklist question
 
 Submitted audits use `PlayspaceSubmission.responses_json` as an immutable JSONB
 snapshot written exactly once at submission time.
@@ -21,11 +22,15 @@ the existing seed/scoring paths continue to work without modification.
 
 from __future__ import annotations
 
+import ast
+import json
+
 from sqlalchemy import inspect as sa_inspect
 
 from app.models import (
 	AuditStatus,
 	JSONDict,
+	PlayspaceChecklistAnswer,
 	PlayspacePreSubmissionAnswer,
 	PlayspaceQuestionResponse,
 	PlayspaceScaleAnswer,
@@ -300,6 +305,15 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 		responses: JSONDict = {}
 		for qr in section.question_responses or []:
 			question_payload: JSONDict = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
+			print("question_payload", question_payload)
+			_normalize_legacy_checklist_payload(question_payload)
+			if qr.checklist_answer is not None:
+				selected_option_keys = _read_string_list(qr.checklist_answer.selected_option_keys)
+				if selected_option_keys:
+					question_payload["selected_option_keys"] = selected_option_keys
+				other_details = _read_string_dict(qr.checklist_answer.other_details)
+				if other_details:
+					question_payload["other_details"] = other_details
 			if qr.note is not None:
 				question_payload["question_note"] = qr.note
 			responses[qr.question_key] = question_payload
@@ -474,10 +488,27 @@ def _upsert_section_normalized(
 		if "question_note" in scale_answers:
 			qr.note = str(question_note) if question_note is not None else None
 
+		# Upsert checklist answer payloads separately from scale answer rows.
+		if "selected_option_keys" in scale_answers or "other_details" in scale_answers:
+			selected_option_keys = _read_string_list(scale_answers.get("selected_option_keys"))
+			other_details = _read_string_dict(scale_answers.get("other_details"))
+			if selected_option_keys or other_details:
+				if qr.checklist_answer is None:
+					qr.checklist_answer = PlayspaceChecklistAnswer(
+						question_response_id=qr.id,
+						selected_option_keys=selected_option_keys,
+						other_details=other_details,
+					)
+				else:
+					qr.checklist_answer.selected_option_keys = selected_option_keys
+					qr.checklist_answer.other_details = other_details
+			else:
+				qr.checklist_answer = None
+
 		# Upsert scale answer rows.
 		sa_by_key = {sa.scale_key: sa for sa in qr.scale_answers or []}
 		for scale_key, raw_option_key in scale_answers.items():
-			if scale_key == "question_note":
+			if scale_key in {"question_note", "selected_option_keys", "other_details"}:
 				continue
 			option_key = str(raw_option_key) if raw_option_key is not None else ""
 			if scale_key in sa_by_key:
@@ -606,6 +637,62 @@ def _serialize_sections_request(sections: dict[str, SectionDraftPatchRequest]) -
 
 def _read_json_dict(value: object) -> JSONDict:
 	return dict(value) if isinstance(value, dict) else {}
+
+
+def _normalize_legacy_checklist_payload(payload: JSONDict) -> None:
+	"""Normalize checklist values that older code stored as stringified JSON/Python literals."""
+	print("normalize_legacy_checklist_payload", payload)
+	if "selected_option_keys" in payload:
+		selected_option_keys = _read_string_list(payload.get("selected_option_keys"))
+		if selected_option_keys:
+			payload["selected_option_keys"] = selected_option_keys
+		else:
+			payload.pop("selected_option_keys", None)
+
+	if "other_details" in payload:
+		other_details = _read_string_dict(payload.get("other_details"))
+		if other_details:
+			payload["other_details"] = other_details
+		else:
+			payload.pop("other_details", None)
+
+	print("normalize_legacy_checklist_payload", payload)
+
+
+def _read_string_list(value: object) -> list[str]:
+	"""Return only string entries from an arbitrary JSON-like list."""
+	print("read_string_list", value)
+	if isinstance(value, str):
+		value = _parse_stringified_json_value(value)
+	if not isinstance(value, list):
+		return []
+	return [entry for entry in value if isinstance(entry, str)]
+
+
+def _read_string_dict(value: object) -> JSONDict:
+	"""Return only string-key/string-value pairs from an arbitrary JSON-like dict."""
+
+	if isinstance(value, str):
+		value = _parse_stringified_json_value(value)
+	if not isinstance(value, dict):
+		return {}
+	return {key: entry for key, entry in value.items() if isinstance(key, str) and isinstance(entry, str)}
+
+
+def _parse_stringified_json_value(value: str) -> object:
+	"""Parse legacy checklist values saved as JSON strings or Python literal strings."""
+
+	trimmed_value = value.strip()
+	if not trimmed_value:
+		return value
+	try:
+		return json.loads(trimmed_value)
+	except json.JSONDecodeError:
+		pass
+	try:
+		return ast.literal_eval(trimmed_value)
+	except (SyntaxError, ValueError):
+		return value
 
 
 def _read_positive_int(value: object, *, default: int) -> int:

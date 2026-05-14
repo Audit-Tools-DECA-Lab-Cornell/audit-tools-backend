@@ -293,6 +293,28 @@ class PlayspaceDashboardService:
 
 		self._ensure_manager_scope(actor, account_id)
 
+		assignment_counts_subquery = (
+			select(
+				AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
+				func.count(AuditorAssignment.id).label("assignments_count"),
+			)
+			.group_by(AuditorAssignment.auditor_profile_id)
+			.subquery()
+		)
+		audit_stats_subquery = (
+			select(
+				PlayspaceSubmission.auditor_profile_id.label("auditor_profile_id"),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("completed_audits"),
+				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
+					"last_active_at"
+				),
+			)
+			.group_by(PlayspaceSubmission.auditor_profile_id)
+			.subquery()
+		)
+
 		stmt = (
 			select(
 				AuditorProfile.id.label("id"),
@@ -304,25 +326,20 @@ class PlayspaceDashboardService:
 				AuditorProfile.gender.label("gender"),
 				AuditorProfile.country.label("country"),
 				AuditorProfile.role.label("role"),
-				func.count(distinct(AuditorAssignment.id)).label("assignments_count"),
-				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
-					"last_active_at"
-				),
-				func.count(PlayspaceSubmission.id)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
-				.label("completed_audits"),
+				assignment_counts_subquery.c.assignments_count.label("assignments_count"),
+				audit_stats_subquery.c.completed_audits.label("completed_audits"),
+				audit_stats_subquery.c.last_active_at.label("last_active_at"),
 			)
 			.select_from(AuditorProfile)
 			.where(AuditorProfile.account_id == account_id)
 			.outerjoin(
-				AuditorAssignment,
-				AuditorAssignment.auditor_profile_id == AuditorProfile.id,
+				assignment_counts_subquery,
+				assignment_counts_subquery.c.auditor_profile_id == AuditorProfile.id,
 			)
 			.outerjoin(
-				PlayspaceSubmission,
-				PlayspaceSubmission.auditor_profile_id == AuditorProfile.id,
+				audit_stats_subquery,
+				audit_stats_subquery.c.auditor_profile_id == AuditorProfile.id,
 			)
-			.group_by(AuditorProfile.id)
 			.order_by(func.lower(AuditorProfile.auditor_code).asc())
 			.limit(MAX_PAGE_SIZE)
 		)

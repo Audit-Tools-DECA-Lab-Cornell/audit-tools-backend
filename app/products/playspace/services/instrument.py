@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Instrument
+from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 from app.products.playspace.schemas.management import (
 	InstrumentActivateRequest,
 	InstrumentCreateRequest,
@@ -28,6 +29,41 @@ async def get_active_instrument(
 		.where(Instrument.instrument_key == instrument_key)
 		.where(Instrument.is_active.is_(True))
 		.order_by(Instrument.created_at.desc())
+		.limit(1)
+	)
+	result = await session.execute(stmt)
+	return result.scalar_one_or_none()
+
+
+def build_instrument_response_from_row(
+	instrument: Instrument,
+	*,
+	lang: str = "en",
+) -> PlayspaceInstrumentResponse | None:
+	"""Build a client instrument response using database row metadata as authoritative."""
+
+	localized = instrument.content.get(lang) or instrument.content.get("en")
+	if not isinstance(localized, dict):
+		return None
+
+	payload = dict(localized)
+	payload["instrument_key"] = instrument.instrument_key
+	payload["instrument_version"] = instrument.instrument_version
+	return PlayspaceInstrumentResponse.model_validate(payload)
+
+
+async def get_instrument_version(
+	session: AsyncSession,
+	instrument_key: str,
+	instrument_version: str,
+) -> Instrument | None:
+	"""Fetch one specific instrument version for immutable submission rendering."""
+
+	stmt = (
+		select(Instrument)
+		.where(Instrument.instrument_key == instrument_key)
+		.where(Instrument.instrument_version == instrument_version)
+		.order_by(Instrument.is_active.desc(), Instrument.updated_at.desc())
 		.limit(1)
 	)
 	result = await session.execute(stmt)
