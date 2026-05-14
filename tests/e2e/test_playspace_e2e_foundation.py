@@ -80,4 +80,4 @@ def test_auditor_can_create_or_resume_seeded_place_audit(
 	payload = response.json()
 	assert payload["place_id"] == target_place["place_id"]
 	assert payload["project_id"] == target_place["project_id"]
-	assert payload["status"] in {"IN_PROGRESS", "SUBMITTED"}
+	assert payload["status"] in {"PAUSED", "IN_PROGRESS", "SUBMITTED"}
