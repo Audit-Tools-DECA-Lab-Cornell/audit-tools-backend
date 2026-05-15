@@ -999,6 +999,9 @@ class PlayspaceAuditSessionsMixin:
 				selectinload(PlayspaceSubmission.submission_sections)
 				.selectinload(PlayspaceSubmissionSection.question_responses)
 				.selectinload(PlayspaceQuestionResponse.scale_answers),
+				selectinload(PlayspaceSubmission.submission_sections)
+				.selectinload(PlayspaceSubmissionSection.question_responses)
+				.selectinload(PlayspaceQuestionResponse.checklist_answer),
 			)
 		)
 		audit = result.scalar_one_or_none()
@@ -1035,6 +1038,9 @@ class PlayspaceAuditSessionsMixin:
 				selectinload(PlayspaceSubmission.submission_sections)
 				.selectinload(PlayspaceSubmissionSection.question_responses)
 				.selectinload(PlayspaceQuestionResponse.scale_answers),
+				selectinload(PlayspaceSubmission.submission_sections)
+				.selectinload(PlayspaceSubmissionSection.question_responses)
+				.selectinload(PlayspaceQuestionResponse.checklist_answer),
 			)
 		)
 		return result.scalar_one_or_none()
