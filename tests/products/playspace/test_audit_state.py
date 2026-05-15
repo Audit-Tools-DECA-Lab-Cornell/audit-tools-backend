@@ -696,7 +696,7 @@ def test_section_state_response_map_preserves_checklist_question_payloads() -> N
 				"section_a": {
 					"responses": {
 						"question_checklist": {
-							"selected_option_keys": ["cups", "buckets"],
+							"selected_option_keys": ["cups", "buckets", "other"],
 							"other_details": {
 								"text": "Large foam blocks",
 							},
@@ -708,7 +708,7 @@ def test_section_state_response_map_preserves_checklist_question_payloads() -> N
 	)
 
 	assert section_map["section_a"].responses["question_checklist"] == {
-		"selected_option_keys": ["cups", "buckets"],
+		"selected_option_keys": ["cups", "buckets", "other"],
 		"other_details": {
 			"text": "Large foam blocks",
 		},
@@ -726,7 +726,7 @@ def test_section_state_response_map_normalizes_legacy_stringified_checklist_payl
 				"section_a": {
 					"responses": {
 						"question_checklist": {
-							"selected_option_keys": "['cups', 'buckets']",
+							"selected_option_keys": "['cups', 'buckets', 'other']",
 							"other_details": "{'text': 'Large foam blocks'}",
 						}
 					}
@@ -736,7 +736,7 @@ def test_section_state_response_map_normalizes_legacy_stringified_checklist_payl
 	)
 
 	assert section_map["section_a"].responses["question_checklist"] == {
-		"selected_option_keys": ["cups", "buckets"],
+		"selected_option_keys": ["cups", "buckets", "other"],
 		"other_details": {"text": "Large foam blocks"},
 	}
 

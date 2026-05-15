@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from app.core.actors import CurrentUserContext
 from app.products.playspace.routes.dependencies import (
@@ -84,7 +84,12 @@ async def submit_audit(
 	return await service.submit_audit(actor=current_user, audit_id=audit_id, payload=payload)
 
 
-@router.post("/audits/{audit_id}/notify-submit-failure", status_code=204)
+@router.post(
+	"/audits/{audit_id}/notify-submit-failure",
+	status_code=204,
+	response_class=Response,
+	response_model=None,
+)
 async def notify_submit_failure(
 	audit_id: uuid.UUID,
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,

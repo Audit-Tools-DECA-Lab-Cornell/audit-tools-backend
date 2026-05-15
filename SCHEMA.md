@@ -229,25 +229,25 @@ Shared audit shell record used by YEE and retained for compatibility.
 
 Playspace-only submission root. Scope is selected with **`execution_mode`**: `audit`, `survey`, or `both` (instrument enum); `both` counts toward both audit- and survey-axis place rollups.
 
-| Column                                          | Notes                                             |
-| ----------------------------------------------- | ------------------------------------------------- |
-| `id`                                            | UUID primary key                                  |
-| `project_id` / `place_id`                       | FK pair to `project_places`                       |
-| `auditor_profile_id`                            | FK → `auditor_profiles`                           |
-| `audit_code`                                    | Stable public-facing submission identifier        |
+| Column                                          | Notes                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| `id`                                            | UUID primary key                                              |
+| `project_id` / `place_id`                       | FK pair to `project_places`                                   |
+| `auditor_profile_id`                            | FK → `auditor_profiles`                                       |
+| `audit_code`                                    | Stable public-facing submission identifier                    |
 | `instrument_key` / `instrument_version`         | Instrument key/version active when the submission was created |
-| `execution_mode`                                | `audit`, `survey`, or `both` (nullable until set) |
-| `draft_progress_percent`                        | Draft progress projection for list surfaces       |
-| `status`                                        | `IN_PROGRESS`, `PAUSED`, or `SUBMITTED`           |
-| `summary_score`                                 | Legacy compact summary retained for compatibility |
-| `audit_play_value_score`                        | Submission-level audit partition PV total         |
-| `audit_usability_score`                         | Submission-level audit partition usability total  |
-| `survey_play_value_score`                       | Submission-level survey partition PV total        |
-| `survey_usability_score`                        | Submission-level survey partition usability total |
-| `responses_json`                                | Canonical aggregate payload                       |
-| `scores_json`                                   | Compatibility cache plus scored partitions        |
-| `started_at` / `submitted_at` / `total_minutes` | Submission lifecycle metadata                     |
-| `created_at` / `updated_at`                     |                                                   |
+| `execution_mode`                                | `audit`, `survey`, or `both` (nullable until set)             |
+| `draft_progress_percent`                        | Draft progress projection for list surfaces                   |
+| `status`                                        | `IN_PROGRESS`, `PAUSED`, or `SUBMITTED`                       |
+| `summary_score`                                 | Legacy compact summary retained for compatibility             |
+| `audit_play_value_score`                        | Submission-level audit partition PV total                     |
+| `audit_usability_score`                         | Submission-level audit partition usability total              |
+| `survey_play_value_score`                       | Submission-level survey partition PV total                    |
+| `survey_usability_score`                        | Submission-level survey partition usability total             |
+| `responses_json`                                | Canonical aggregate payload                                   |
+| `scores_json`                                   | Compatibility cache plus scored partitions                    |
+| `started_at` / `submitted_at` / `total_minutes` | Submission lifecycle metadata                                 |
+| `created_at` / `updated_at`                     |                                                               |
 
 **Current uniqueness rule:** one Playspace submission per `(project_id, place_id, auditor_profile_id)`.
 
@@ -309,13 +309,13 @@ One row per audit section with section-level note state.
 
 One row per question within a section.
 
-| Column                      | Notes                                |
-| --------------------------- | ------------------------------------ |
-| `id`                        | UUID primary key                     |
-| `section_id`                | FK → `playspace_submission_sections` |
-| `question_key`              |                                      |
+| Column                      | Notes                                   |
+| --------------------------- | --------------------------------------- |
+| `id`                        | UUID primary key                        |
+| `section_id`                | FK → `playspace_submission_sections`    |
+| `question_key`              |                                         |
 | `note`                      | Nullable question-level auditor comment |
-| `created_at` / `updated_at` |                                      |
+| `created_at` / `updated_at` |                                         |
 
 **Unique constraint:** `(section_id, question_key)`
 
@@ -341,13 +341,13 @@ One row per answered scale inside a question response.
 
 One row per checklist-style question response. This table stores the array/object payload that cannot safely fit in `playspace_scale_answers`.
 
-| Column                 | Notes                                                    |
-| ---------------------- | -------------------------------------------------------- |
-| `id`                   | UUID primary key                                         |
-| `question_response_id` | FK → `playspace_question_responses`, unique one-to-one   |
-| `selected_option_keys` | JSONB array of selected checklist option keys            |
-| `other_details`        | JSONB object for optional checklist free text, e.g. text |
-| `created_at` / `updated_at` |                                                   |
+| Column                      | Notes                                                    |
+| --------------------------- | -------------------------------------------------------- |
+| `id`                        | UUID primary key                                         |
+| `question_response_id`      | FK → `playspace_question_responses`, unique one-to-one   |
+| `selected_option_keys`      | JSONB array of selected checklist option keys            |
+| `other_details`             | JSONB object for optional checklist free text, e.g. text |
+| `created_at` / `updated_at` |                                                          |
 
 **Unique constraint:** `(question_response_id)`
 

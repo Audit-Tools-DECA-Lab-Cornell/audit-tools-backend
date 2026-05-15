@@ -305,7 +305,6 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 		responses: JSONDict = {}
 		for qr in section.question_responses or []:
 			question_payload: JSONDict = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
-			print("question_payload", question_payload)
 			_normalize_legacy_checklist_payload(question_payload)
 			if qr.checklist_answer is not None:
 				selected_option_keys = _read_string_list(qr.checklist_answer.selected_option_keys)
@@ -641,7 +640,7 @@ def _read_json_dict(value: object) -> JSONDict:
 
 def _normalize_legacy_checklist_payload(payload: JSONDict) -> None:
 	"""Normalize checklist values that older code stored as stringified JSON/Python literals."""
-	print("normalize_legacy_checklist_payload", payload)
+	selected_option_keys: list[str] = []
 	if "selected_option_keys" in payload:
 		selected_option_keys = _read_string_list(payload.get("selected_option_keys"))
 		if selected_option_keys:
@@ -656,12 +655,9 @@ def _normalize_legacy_checklist_payload(payload: JSONDict) -> None:
 		else:
 			payload.pop("other_details", None)
 
-	print("normalize_legacy_checklist_payload", payload)
-
 
 def _read_string_list(value: object) -> list[str]:
 	"""Return only string entries from an arbitrary JSON-like list."""
-	print("read_string_list", value)
 	if isinstance(value, str):
 		value = _parse_stringified_json_value(value)
 	if not isinstance(value, list):
