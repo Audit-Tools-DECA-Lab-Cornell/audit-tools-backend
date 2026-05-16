@@ -17,9 +17,13 @@ from typing import Any
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from dotenv import find_dotenv, load_dotenv
+
 from alembic import context
 from app.database import ProductKey, normalize_postgres_sqlalchemy_url
 from app.models import Base
+
+load_dotenv(find_dotenv())
 
 config = context.config
 
@@ -72,16 +76,23 @@ def _resolve_environment() -> Environment:
 	"""
 	Resolve the target environment for this migration run.
 
+	Resolution order: ``-x environment=...``, then ``ENVIRONMENT`` from ``.env``,
+	then ``development``.
+
 	Usage:
-	  alembic -x product=yee environment=production upgrade head
-	  alembic -x product=playspace environment=production upgrade head
+	  alembic -x product=playspace -x environment=test upgrade head
+	  alembic -x product=yee -x environment=production upgrade head
 	"""
 
 	x_args = context.get_x_argument(as_dictionary=True)
-	environment = x_args.get("environment", Environment.DEVELOPMENT.value)
-	if environment not in (Environment.DEVELOPMENT.value, Environment.PRODUCTION.value):
-		allowed = ", ".join([e.value for e in Environment])
-		raise ValueError(f"Invalid environment '{environment}'. Expected one of: {allowed}.")
+	raw_environment = x_args.get("environment", Environment.DEVELOPMENT.value) or os.getenv(
+		"ENVIRONMENT", Environment.DEVELOPMENT.value
+	)
+	environment = raw_environment.strip().lower()
+	allowed = {item.value for item in Environment}
+	if environment not in allowed:
+		allowed_values = ", ".join(sorted(allowed))
+		raise ValueError(f"Invalid environment '{raw_environment}'. Expected one of: {allowed_values}.")
 	return Environment(environment)
 
 

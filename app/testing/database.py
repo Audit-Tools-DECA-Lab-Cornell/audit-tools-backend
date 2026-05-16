@@ -98,7 +98,9 @@ def run_playspace_migrations() -> None:
 	"""Run Alembic migrations for the Playspace product database."""
 
 	alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
-	alembic_config.cmd_opts = argparse.Namespace(x=[f"product={ProductKey.PLAYSPACE.value}"])
+	alembic_config.cmd_opts = argparse.Namespace(
+		x=[f"product={ProductKey.PLAYSPACE.value}", "environment=test"],
+	)
 	command.upgrade(alembic_config, "head")
 
 

@@ -122,7 +122,9 @@ def _upgrade_playspace_test_database(engine: AsyncEngine) -> None:
 
 	asyncio.run(_reset_playspace_test_database(engine))
 	alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
-	alembic_config.cmd_opts = argparse.Namespace(x=["product=playspace"])
+	alembic_config.cmd_opts = argparse.Namespace(
+		x=["product=playspace", "environment=test"],
+	)
 	command.upgrade(alembic_config, "head")
 
 
