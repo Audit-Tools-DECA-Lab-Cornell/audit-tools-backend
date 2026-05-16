@@ -41,9 +41,11 @@ from app.models import (
 from app.products.playspace.schemas.audit import (
 	AuditAggregateWriteRequest,
 	AuditDraftPatchRequest,
+	AuditMetaPatchRequest,
 	PreAuditPatchRequest,
 	SectionDraftPatchRequest,
 )
+from app.products.playspace.schemas.instrument import ExecutionMode
 
 CURRENT_AUDIT_SCHEMA_VERSION = 1
 
@@ -350,6 +352,34 @@ def _apply_patch_normalized(audit: PlayspaceSubmission, patch: AuditDraftPatchRe
 	# --- sections ---
 	for section_key, section_patch in patch.sections.items():
 		_upsert_section_normalized(audit, section_key, section_patch)
+
+
+def _aggregate_request_from_responses_payload(payload: JSONDict) -> AuditAggregateWriteRequest:
+	"""Convert one canonical responses_json payload into a typed aggregate write request."""
+
+	meta_raw = _read_json_dict(payload.get("meta"))
+	execution_mode_raw = meta_raw.get("execution_mode")
+	execution_mode: ExecutionMode | None = None
+	if isinstance(execution_mode_raw, str) and execution_mode_raw.strip():
+		execution_mode = ExecutionMode(execution_mode_raw.strip())
+
+	pre_audit_raw = _read_json_dict(payload.get("pre_audit"))
+	pre_audit = PreAuditPatchRequest.model_validate(pre_audit_raw) if pre_audit_raw else None
+
+	sections: dict[str, SectionDraftPatchRequest] = {}
+	for section_key, section_value in _read_json_dict(payload.get("sections")).items():
+		section_dict = _read_json_dict(section_value)
+		sections[section_key] = SectionDraftPatchRequest.model_validate(section_dict)
+
+	return AuditAggregateWriteRequest(
+		schema_version=_read_positive_int(
+			payload.get("schema_version"),
+			default=CURRENT_AUDIT_SCHEMA_VERSION,
+		),
+		meta=AuditMetaPatchRequest(execution_mode=execution_mode),
+		pre_audit=pre_audit,
+		sections=sections,
+	)
 
 
 def _replace_normalized(audit: PlayspaceSubmission, aggregate: AuditAggregateWriteRequest) -> None:

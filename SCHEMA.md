@@ -395,7 +395,7 @@ Checklist compatibility note: versions before `20260514_0010` could store checkl
 
 ## 5. Legacy Checklist Data Migration
 
-Migration `20260514_0010_add_checklist_answers.py` adds the normalized checklist table for new draft saves. It does **not** rewrite historical rows automatically, so it is safe to deploy without blocking reads/writes.
+The normalized checklist table (`playspace_checklist_answers`) is created in `0001_initial_schema.py`. It does **not** rewrite historical rows automatically, so it is safe to deploy without blocking reads/writes.
 
 Recommended no-impact cleanup path:
 

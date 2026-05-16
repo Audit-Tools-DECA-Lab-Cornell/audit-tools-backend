@@ -30,6 +30,7 @@ INSTRUMENT_VERSION = "5.2"
 INSTRUMENT_NAME = "Playspace Play Value and Usability Audit Tool"
 
 _INSTRUMENT_PATH = Path(__file__).parent / "instruments" / "pvua_v5_2.instrument.json"
+_ACTIVE_INSTRUMENT_PATH = Path(__file__).parent / "instruments" / f"{INSTRUMENT_KEY}.active.instrument.json"
 
 
 @lru_cache(maxsize=1)
@@ -37,15 +38,7 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 	"""Load the backend-owned canonical Playspace instrument JSON."""
 
 	with _INSTRUMENT_PATH.open("r", encoding="utf-8") as instrument_file:
-		payload = json.load(instrument_file)
-
-	if not isinstance(payload, dict):
-		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
-
-	if "instrument_key" not in payload and isinstance(payload.get("en"), dict):
-		payload = payload.get("en")
-		if not isinstance(payload, dict):
-			raise ValueError("Expected the localized Playspace instrument payload to be a JSON object.")
+		payload = _unwrap_localized_instrument_payload(json.load(instrument_file))
 
 	instrument_key = payload.get("instrument_key")
 	instrument_version = payload.get("instrument_version")
@@ -57,8 +50,44 @@ def get_canonical_instrument_payload() -> dict[str, Any]:
 	return dict(payload)
 
 
+def _unwrap_localized_instrument_payload(payload: object) -> dict[str, Any]:
+	"""Return the inner instrument object when the file uses a locale wrapper."""
+
+	if not isinstance(payload, dict):
+		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
+
+	if "instrument_key" not in payload and isinstance(payload.get("en"), dict):
+		inner = payload.get("en")
+		if not isinstance(inner, dict):
+			raise ValueError("Expected the localized Playspace instrument payload to be a JSON object.")
+		return dict(inner)
+
+	return dict(payload)
+
+
+@lru_cache(maxsize=1)
+def get_active_instrument_payload() -> dict[str, Any]:
+	"""Load the on-disk active Playspace instrument JSON (includes checklist follow-ups)."""
+
+	with _ACTIVE_INSTRUMENT_PATH.open("r", encoding="utf-8") as instrument_file:
+		payload = _unwrap_localized_instrument_payload(json.load(instrument_file))
+
+	instrument_key = payload.get("instrument_key")
+	if instrument_key != INSTRUMENT_KEY:
+		raise ValueError(f"Active Playspace instrument payload metadata does not match {INSTRUMENT_KEY!r}.")
+
+	return payload
+
+
 @lru_cache(maxsize=1)
 def get_canonical_instrument_response() -> PlayspaceInstrumentResponse:
 	"""Return the validated typed Playspace instrument response model."""
 
 	return PlayspaceInstrumentResponse.model_validate(get_canonical_instrument_payload())
+
+
+@lru_cache(maxsize=1)
+def get_active_instrument_response() -> PlayspaceInstrumentResponse:
+	"""Return the validated active Playspace instrument (used for seeding and runtime when DB is empty)."""
+
+	return PlayspaceInstrumentResponse.model_validate(get_active_instrument_payload())

@@ -1,8 +1,14 @@
 """Initial schema — full current state.
 
 Single migration that creates every table from scratch. Run against a clean
-(empty) database. To reset: drop + recreate the public schema, then
-``alembic -x product=<yee|playspace> upgrade head``.
+(empty) database:
+
+    alembic -x product=<yee|playspace> upgrade head
+
+Databases that were already migrated through the pre-squash revision chain
+(through ``20260514_0010``) must be **stamped**, not upgraded:
+
+    alembic -x product=<yee|playspace> stamp 0001
 
 Revision ID: 0001
 Revises:
@@ -163,7 +169,7 @@ def upgrade() -> None:
 	op.create_table(
 		"auditor_profiles",
 		sa.Column("id", sa.UUID(), nullable=False),
-		sa.Column("account_id", sa.UUID(), nullable=False),
+		sa.Column("account_id", sa.UUID(), nullable=True),
 		sa.Column("user_id", sa.UUID(), nullable=True),
 		sa.Column("auditor_code", sa.String(length=50), nullable=False),
 		sa.Column("email", sa.String(length=320), nullable=True),
@@ -172,6 +178,10 @@ def upgrade() -> None:
 		sa.Column("gender", sa.String(length=80), nullable=True),
 		sa.Column("country", sa.String(length=120), nullable=True),
 		sa.Column("role", sa.String(length=120), nullable=True),
+		sa.Column("phone", sa.String(length=50), nullable=True),
+		sa.Column("city", sa.String(length=120), nullable=True),
+		sa.Column("province", sa.String(length=120), nullable=True),
+		sa.Column("terms_accepted_at", sa.DateTime(timezone=True), nullable=True),
 		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.ForeignKeyConstraint(
 			["account_id"],
@@ -200,6 +210,24 @@ def upgrade() -> None:
 		unique=True,
 	)
 	op.create_index(op.f("ix_auditor_profiles_auditor_profiles_email"), "auditor_profiles", ["email"], unique=True)
+
+	# ── auditor_access_requests ─────────────────────────────────────────────
+	op.create_table(
+		"auditor_access_requests",
+		sa.Column("id", sa.UUID(), nullable=False),
+		sa.Column("name", sa.String(length=200), nullable=False),
+		sa.Column("email", sa.String(length=320), nullable=False),
+		sa.Column("manager_email", sa.String(length=320), nullable=False),
+		sa.Column("status", sa.String(length=20), server_default="pending", nullable=False),
+		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+		sa.PrimaryKeyConstraint("id", name=op.f("pk_auditor_access_requests")),
+	)
+	op.create_index(
+		op.f("ix_auditor_access_requests_email"),
+		"auditor_access_requests",
+		["email"],
+		unique=False,
+	)
 
 	# ── auditor_invites ─────────────────────────────────────────────────────
 	op.create_table(
@@ -315,6 +343,12 @@ def upgrade() -> None:
 		sa.Column("end_date", sa.Date(), nullable=True),
 		sa.Column("est_auditors", sa.Integer(), nullable=True),
 		sa.Column("auditor_description", sa.Text(), nullable=True),
+		sa.Column(
+			"saved_place_reports",
+			postgresql.JSONB(astext_type=sa.Text()),
+			server_default="[]",
+			nullable=False,
+		),
 		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.PrimaryKeyConstraint("id", name=op.f("pk_places")),
 	)
@@ -424,6 +458,71 @@ def upgrade() -> None:
 		["project_id"],
 		unique=False,
 	)
+
+	# ── audits ───────────────────────────────────────────────────────────────
+	op.create_table(
+		"audits",
+		sa.Column("id", sa.UUID(), nullable=False),
+		sa.Column("project_id", sa.UUID(), nullable=False),
+		sa.Column("place_id", sa.UUID(), nullable=False),
+		sa.Column("auditor_profile_id", sa.UUID(), nullable=False),
+		sa.Column("audit_code", sa.String(length=120), nullable=False),
+		sa.Column("instrument_key", sa.String(length=80), nullable=True),
+		sa.Column("instrument_version", sa.String(length=40), nullable=True),
+		sa.Column(
+			"status",
+			postgresql.ENUM(AuditStatus, name="shared_audit_status", create_type=False),
+			nullable=False,
+		),
+		sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+		sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
+		sa.Column("total_minutes", sa.Integer(), nullable=True),
+		sa.Column("summary_score", sa.Float(), nullable=True),
+		sa.Column("responses_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+		sa.Column("scores_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+		sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+		sa.ForeignKeyConstraint(
+			["auditor_profile_id"],
+			["auditor_profiles.id"],
+			name=op.f("fk_audits_auditor_profile_id_auditor_profiles"),
+			ondelete="CASCADE",
+		),
+		sa.ForeignKeyConstraint(
+			["place_id"],
+			["places.id"],
+			name=op.f("fk_audits_place_id_places"),
+			ondelete="CASCADE",
+		),
+		sa.ForeignKeyConstraint(
+			["project_id"],
+			["projects.id"],
+			name=op.f("fk_audits_project_id_projects"),
+			ondelete="CASCADE",
+		),
+		sa.ForeignKeyConstraint(
+			["project_id", "place_id"],
+			["project_places.project_id", "project_places.place_id"],
+			name="fk_audits_project_place_pair",
+			ondelete="CASCADE",
+		),
+		sa.PrimaryKeyConstraint("id", name=op.f("pk_audits")),
+		sa.UniqueConstraint(
+			"project_id",
+			"place_id",
+			"auditor_profile_id",
+			name="uq_audits_project_place_auditor",
+		),
+	)
+	op.create_index(op.f("ix_audits_audits_audit_code"), "audits", ["audit_code"], unique=True)
+	op.create_index(
+		op.f("ix_audits_audits_auditor_profile_id"),
+		"audits",
+		["auditor_profile_id"],
+		unique=False,
+	)
+	op.create_index(op.f("ix_audits_audits_place_id"), "audits", ["place_id"], unique=False)
+	op.create_index(op.f("ix_audits_audits_project_id"), "audits", ["project_id"], unique=False)
 
 	# ── playspace_submissions ────────────────────────────────────────────────
 	op.create_table(
@@ -566,7 +665,7 @@ def upgrade() -> None:
 		"playspace_submission_sections",
 		sa.Column("id", sa.UUID(), nullable=False),
 		sa.Column("submission_id", sa.UUID(), nullable=False),
-		sa.Column("section_key", sa.String(length=120), nullable=False),
+		sa.Column("section_key", sa.String(length=255), nullable=False),
 		sa.Column("note", sa.Text(), nullable=True),
 		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -591,7 +690,8 @@ def upgrade() -> None:
 		"playspace_question_responses",
 		sa.Column("id", sa.UUID(), nullable=False),
 		sa.Column("section_id", sa.UUID(), nullable=False),
-		sa.Column("question_key", sa.String(length=120), nullable=False),
+		sa.Column("question_key", sa.String(length=255), nullable=False),
+		sa.Column("note", sa.Text(), nullable=True),
 		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.ForeignKeyConstraint(
@@ -615,8 +715,8 @@ def upgrade() -> None:
 		"playspace_scale_answers",
 		sa.Column("id", sa.UUID(), nullable=False),
 		sa.Column("question_response_id", sa.UUID(), nullable=False),
-		sa.Column("scale_key", sa.String(length=40), nullable=False),
-		sa.Column("option_key", sa.String(length=80), nullable=False),
+		sa.Column("scale_key", sa.String(length=255), nullable=False),
+		sa.Column("option_key", sa.String(length=255), nullable=False),
 		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
 		sa.ForeignKeyConstraint(
@@ -635,8 +735,44 @@ def upgrade() -> None:
 		unique=False,
 	)
 
+	# ── playspace_checklist_answers ──────────────────────────────────────────
+	op.create_table(
+		"playspace_checklist_answers",
+		sa.Column("id", sa.UUID(), nullable=False),
+		sa.Column("question_response_id", sa.UUID(), nullable=False),
+		sa.Column(
+			"selected_option_keys",
+			postgresql.JSONB(astext_type=sa.Text()),
+			server_default=sa.text("'[]'::jsonb"),
+			nullable=False,
+		),
+		sa.Column(
+			"other_details",
+			postgresql.JSONB(astext_type=sa.Text()),
+			server_default=sa.text("'{}'::jsonb"),
+			nullable=False,
+		),
+		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+		sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+		sa.ForeignKeyConstraint(
+			["question_response_id"],
+			["playspace_question_responses.id"],
+			name="fk_ps_checklist_answer_question_response",
+			ondelete="CASCADE",
+		),
+		sa.PrimaryKeyConstraint("id"),
+		sa.UniqueConstraint("question_response_id", name="uq_playspace_checklist_answers_question_response"),
+	)
+	op.create_index(
+		op.f("ix_playspace_checklist_answers_question_response_id"),
+		"playspace_checklist_answers",
+		["question_response_id"],
+		unique=False,
+	)
+
 
 def downgrade() -> None:
+	op.drop_table("playspace_checklist_answers")
 	op.drop_table("playspace_scale_answers")
 	op.drop_table("playspace_question_responses")
 	op.drop_table("playspace_submission_sections")
@@ -650,6 +786,8 @@ def downgrade() -> None:
 	op.drop_table("places")
 	op.drop_table("manager_invites")
 	op.drop_table("auditor_invites")
+	op.drop_index(op.f("ix_auditor_access_requests_email"), table_name="auditor_access_requests")
+	op.drop_table("auditor_access_requests")
 	op.drop_table("auditor_profiles")
 	op.drop_table("manager_profiles")
 	op.drop_table("notifications")

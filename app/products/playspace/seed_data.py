@@ -50,6 +50,9 @@ from app.models import (
 )
 from app.products.playspace.audit_state import (
 	CURRENT_AUDIT_SCHEMA_VERSION,
+	_aggregate_request_from_responses_payload,
+	_normalize_responses_payload,
+	_replace_normalized,
 	build_responses_json_from_relations,
 	set_draft_progress_percent,
 	set_execution_mode_value,
@@ -57,7 +60,8 @@ from app.products.playspace.audit_state import (
 from app.products.playspace.instrument import (
 	INSTRUMENT_KEY,
 	INSTRUMENT_VERSION,
-	get_canonical_instrument_payload,
+	get_active_instrument_payload,
+	get_active_instrument_response,
 )
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import (
@@ -70,7 +74,7 @@ from app.products.playspace.scoring_metadata import (
 	ScoringScale,
 	ScoringScaleOption,
 	ScoringSection,
-	get_scoring_sections,
+	build_scoring_sections_from_instrument,
 )
 
 T = TypeVar("T")
@@ -493,7 +497,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		instrument_key=INSTRUMENT_KEY,
 		instrument_version=INSTRUMENT_VERSION,
 		is_active=True,
-		content={"en": get_canonical_instrument_payload()},
+		content={"en": get_active_instrument_payload()},
 		created_at=BASE_ADMIN_CREATED_AT + timedelta(minutes=5),
 	)
 
@@ -1736,7 +1740,12 @@ def _build_audit_record(
 			execution_mode=execution_mode.value,
 		)
 		submitted_audit.responses_json = build_responses_json_from_relations(submitted_audit)
-		calculated_scores = score_audit_for_audit(audit=submitted_audit, include_maximums=True)
+		seed_instrument = get_active_instrument_response()
+		calculated_scores = score_audit_for_audit(
+			audit=submitted_audit,
+			include_maximums=True,
+			instrument=seed_instrument,
+		)
 		submitted_audit.scores_json = calculated_scores
 		audit_partition = calculated_scores.get("audit") if _execution_mode_includes_audit(execution_mode) else None
 		survey_partition = calculated_scores.get("survey") if _execution_mode_includes_survey(execution_mode) else None
@@ -1816,8 +1825,9 @@ def _build_audit_record(
 		audit=draft_audit,
 		execution_mode=execution_mode.value,
 	)
-	draft_audit.responses_json = build_responses_json_from_relations(draft_audit)
-	progress = build_audit_progress_for_audit(audit=draft_audit)
+	_attach_draft_normalized_relations(audit=draft_audit, responses_json=responses_json)
+	seed_instrument = get_active_instrument_response()
+	progress = build_audit_progress_for_audit(audit=draft_audit, instrument=seed_instrument)
 	draft_progress_percent = _progress_percent(progress=progress)
 	draft_audit.scores_json = {
 		"draft_progress_percent": draft_progress_percent,
@@ -1825,6 +1835,31 @@ def _build_audit_record(
 	}
 	set_draft_progress_percent(audit=draft_audit, draft_progress_percent=draft_progress_percent)
 	return draft_audit
+
+
+def _get_seed_scoring_sections() -> list[ScoringSection]:
+	"""Return scoring metadata from the active instrument (includes checklist follow-ups)."""
+
+	return build_scoring_sections_from_instrument(get_active_instrument_response())
+
+
+def _attach_draft_normalized_relations(
+	*,
+	audit: PlayspaceSubmission,
+	responses_json: SeedJson,
+) -> None:
+	"""Attach normalized draft child rows on the submission before DB insert.
+
+	Uses the same ``_replace_normalized`` path as production draft saves so checklist
+	answers land in ``playspace_checklist_answers`` and cascade with the submission.
+	"""
+
+	if audit.status == AuditStatus.SUBMITTED:
+		return
+
+	payload = _normalize_responses_payload(responses_json)
+	aggregate = _aggregate_request_from_responses_payload(payload)
+	_replace_normalized(audit, aggregate)
 
 
 def _build_responses_json(
@@ -1850,7 +1885,7 @@ def _build_responses_json(
 	)
 	visible_sections = [
 		section
-		for section in get_scoring_sections()
+		for section in _get_seed_scoring_sections()
 		if len(_visible_questions_for_mode(section=section, execution_mode=execution_mode)) > 0
 	]
 
@@ -1894,15 +1929,30 @@ def _build_responses_json(
 				continue
 
 			if question.question_type == "checklist":
-				should_answer = counts_toward_completion or target_completion_ratio >= 1.0 or randomizer.random() < 0.35
+				checklist_seed_chance = 0.75 if execution_mode in {ExecutionMode.AUDIT, ExecutionMode.BOTH} else 0.35
+				should_answer = (
+					counts_toward_completion
+					or target_completion_ratio >= 1.0
+					or randomizer.random() < checklist_seed_chance
+				)
 				if not should_answer:
 					continue
 				checklist_answers = _build_checklist_answers(
 					question=question,
+					place_name=place_context.place.name,
 					randomizer=randomizer,
 				)
 				if checklist_answers:
-					section_responses[question.question_key] = checklist_answers
+					question_payload = dict(checklist_answers)
+					question_note = _maybe_build_question_note(
+						question=question,
+						place_name=place_context.place.name,
+						focus_terms=place_context.project_context.blueprint.focus_terms,
+						randomizer=randomizer,
+					)
+					if question_note is not None:
+						question_payload["question_note"] = question_note
+					section_responses[question.question_key] = question_payload
 					if counts_toward_completion:
 						answered_required_count += 1
 						remaining_required_questions -= 1
@@ -1914,15 +1964,58 @@ def _build_responses_json(
 			if not should_answer_scaled:
 				continue
 
-			section_responses[question.question_key] = _build_question_answers(
+			question_payload = _build_question_answers(
 				question=question,
 				quality_bias=quality_bias,
 				usage_bias=usage_bias,
 				randomizer=randomizer,
+				unlock_checklists=_question_unlocks_checklist_followups(
+					section=section,
+					question_key=question.question_key,
+				),
 			)
+			question_note = _maybe_build_question_note(
+				question=question,
+				place_name=place_context.place.name,
+				focus_terms=place_context.project_context.blueprint.focus_terms,
+				randomizer=randomizer,
+			)
+			if question_note is not None:
+				question_payload["question_note"] = question_note
+			section_responses[question.question_key] = question_payload
 			if counts_toward_completion:
 				answered_required_count += 1
 				remaining_required_questions -= 1
+
+		# Second pass: parents answered in-order above may unlock checklist follow-ups.
+		for question in visible_questions:
+			if question.question_type != "checklist" or question.question_key in section_responses:
+				continue
+			if not _is_question_visible_for_seed(
+				question=question,
+				section_responses=section_responses,
+			):
+				continue
+			checklist_seed_chance = 0.75 if execution_mode in {ExecutionMode.AUDIT, ExecutionMode.BOTH} else 0.35
+			if target_completion_ratio < 1.0 and randomizer.random() >= checklist_seed_chance:
+				continue
+			checklist_answers = _build_checklist_answers(
+				question=question,
+				place_name=place_context.place.name,
+				randomizer=randomizer,
+			)
+			if not checklist_answers:
+				continue
+			question_payload = dict(checklist_answers)
+			question_note = _maybe_build_question_note(
+				question=question,
+				place_name=place_context.place.name,
+				focus_terms=place_context.project_context.blueprint.focus_terms,
+				randomizer=randomizer,
+			)
+			if question_note is not None:
+				question_payload["question_note"] = question_note
+			section_responses[question.question_key] = question_payload
 
 		if section_responses:
 			required_visible_question_count = sum(
@@ -1959,18 +2052,21 @@ def _build_question_answers(
 	quality_bias: float,
 	usage_bias: float,
 	randomizer: Random,
-) -> dict[str, str]:
+	unlock_checklists: bool = False,
+) -> SeedJson:
 	"""Build one valid per-question response object using the scoring metadata itself."""
 
 	provision_scale = next(scale for scale in question.scales if scale.key == "provision")
 	provision_target = _bounded_bias((quality_bias * 0.7) + (usage_bias * 0.3))
+	if unlock_checklists:
+		provision_target = _bounded_bias(provision_target + 0.35)
 	provision_option = _pick_option_for_scale(
 		scale=provision_scale,
 		target_bias=provision_target,
 		randomizer=randomizer,
 		not_applicable_weight=0.0,
 	)
-	answers = {"provision": provision_option.key}
+	answers: SeedJson = {"provision": provision_option.key}
 	if not provision_option.allows_follow_up_scales:
 		return answers
 
@@ -1989,28 +2085,95 @@ def _build_question_answers(
 	return answers
 
 
+_CHECKLIST_OTHER_TEXT_TEMPLATES: tuple[str, ...] = (
+	"Extra {item} stored near the loose-parts area at {place}",
+	"Auditor-added example: {item} kept in the on-site storage bin",
+	"Additional {item} available on request from staff at {place}",
+	"Loose {item} not listed above but observed during the visit",
+)
+
+
 def _build_checklist_answers(
 	*,
 	question: ScoringQuestion,
+	place_name: str,
 	randomizer: Random,
 ) -> SeedJson:
-	"""Build a simple optional checklist response payload for one follow-up question."""
+	"""Build a checklist response payload using selected_option_keys and other_details."""
 
 	option_keys = [option.key for option in question.options]
 	if len(option_keys) == 0:
 		return {}
 
+	has_other_option = "other" in option_keys
+	selectable_keys = [key for key in option_keys if key != "other"] or option_keys
 	max_selected = min(3, len(option_keys))
 	selected_count = randomizer.randint(1, max_selected)
-	selected_option_keys = randomizer.sample(option_keys, selected_count)
+	selected_option_keys = randomizer.sample(selectable_keys, min(selected_count, len(selectable_keys)))
+
+	if has_other_option and randomizer.random() < 0.42:
+		if "other" not in selected_option_keys:
+			if len(selected_option_keys) >= max_selected:
+				replace_index = randomizer.randrange(len(selected_option_keys))
+				selected_option_keys[replace_index] = "other"
+			else:
+				selected_option_keys.append("other")
+
 	payload: SeedJson = {
 		"selected_option_keys": selected_option_keys,
 	}
 	if "other" in selected_option_keys:
 		payload["other_details"] = {
-			"text": "Additional seeded example",
+			"text": _build_checklist_other_text(
+				question=question,
+				place_name=place_name,
+				selected_option_keys=selected_option_keys,
+				randomizer=randomizer,
+			),
 		}
 	return payload
+
+
+def _build_checklist_other_text(
+	*,
+	question: ScoringQuestion,
+	place_name: str,
+	selected_option_keys: list[str],
+	randomizer: Random,
+) -> str:
+	"""Build free-text for the checklist Other option (auditor-supplied items)."""
+
+	label_by_key = {option.key: option.label for option in question.options}
+	known_labels = [
+		label_by_key[key]
+		for key in selected_option_keys
+		if key != "other" and key in label_by_key and label_by_key[key].strip()
+	]
+	item_label = known_labels[0] if known_labels else "loose parts"
+	template = randomizer.choice(_CHECKLIST_OTHER_TEXT_TEMPLATES)
+	return template.format(item=item_label.lower(), place=place_name)
+
+
+def _maybe_build_question_note(
+	*,
+	question: ScoringQuestion,
+	place_name: str,
+	focus_terms: tuple[str, ...],
+	randomizer: Random,
+) -> str | None:
+	"""Return an optional per-question note when the instrument defines notes_prompt."""
+
+	if question.notes_prompt is None or not question.notes_prompt.strip():
+		return None
+	if randomizer.random() >= 0.62:
+		return None
+
+	focus_index = sum(ord(character) for character in question.question_key) % len(focus_terms)
+	focus_label = focus_terms[focus_index]
+	return (
+		f"Seeded auditor note for {question.question_key} at {place_name}: "
+		f"recommend strengthening {focus_label} based on field observations."
+	)
 
 
 def _pick_option_for_scale(
@@ -2342,11 +2505,12 @@ def _validate_submitted_seed_audit(
 	if not _read_seed_json_dict(responses_json.get("sections")):
 		raise ValueError(f"Submitted seeded submission {audit.id} has empty section responses.")
 
-	progress = build_audit_progress_for_audit(audit=audit)
+	seed_instrument = get_active_instrument_response()
+	progress = build_audit_progress_for_audit(audit=audit, instrument=seed_instrument)
 	if not progress.ready_to_submit:
 		raise ValueError(f"Submitted seeded submission {audit.id} is not ready to submit.")
 
-	calculated_scores = score_audit_for_audit(audit=audit, include_maximums=True)
+	calculated_scores = score_audit_for_audit(audit=audit, include_maximums=True, instrument=seed_instrument)
 	if not calculated_scores:
 		raise ValueError(f"Submitted seeded submission {audit.id} has empty calculated scores.")
 	if audit.scores_json != calculated_scores:
@@ -2397,7 +2561,7 @@ def _validate_draft_seed_audit(*, audit: PlayspaceSubmission, responses_json: Se
 		raise ValueError(f"Draft seeded submission {audit.id} should not have submitted_at.")
 	if not _read_seed_json_dict(responses_json.get("sections")):
 		raise ValueError(f"Draft seeded submission {audit.id} should contain partial section responses.")
-	progress = build_audit_progress_for_audit(audit=audit)
+	progress = build_audit_progress_for_audit(audit=audit, instrument=get_active_instrument_response())
 	if progress.ready_to_submit:
 		raise ValueError(f"Draft seeded submission {audit.id} should not be ready to submit.")
 	expected_progress_percent = _progress_percent(progress=progress)
@@ -2490,6 +2654,21 @@ def _visible_questions_for_mode(
 	if mode_value == "both":
 		return list(section.questions)
 	return [question for question in section.questions if question.mode == "both" or question.mode == mode_value]
+
+
+def _question_unlocks_checklist_followups(
+	*,
+	section: ScoringSection,
+	question_key: str,
+) -> bool:
+	"""Return True when answering this scaled question can reveal checklist follow-ups."""
+
+	return any(
+		follow_up.question_type == "checklist"
+		and follow_up.display_if is not None
+		and follow_up.display_if.question_key == question_key
+		for follow_up in section.questions
+	)
 
 
 def _is_question_visible_for_seed(
