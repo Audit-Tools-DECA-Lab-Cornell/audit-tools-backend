@@ -930,6 +930,8 @@ class PlayspaceAuditSessionsMixin:
 
 		place_name = audit.place.name if audit.place is not None else str(audit.place_id)
 		project_name = audit.project.name if audit.project is not None else str(audit.project_id)
+		auditor_name = auditor_profile.full_name
+		audit_code = audit.audit_code
 
 		# Fire-and-forget in the default executor so we never block the event loop on
 		# the synchronous Brevo HTTP call.
@@ -938,9 +940,9 @@ class PlayspaceAuditSessionsMixin:
 			None,
 			lambda: send_audit_submit_failure_email(
 				to_email=to_email,
-				auditor_name=auditor_profile.full_name,
+				auditor_name=auditor_name,
 				place_name=place_name,
-				audit_code=audit.audit_code,
+				audit_code=audit_code,
 				project_name=project_name,
 			),
 		)

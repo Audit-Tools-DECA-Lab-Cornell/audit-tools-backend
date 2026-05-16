@@ -177,16 +177,18 @@ class User(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account | None] = relationship(back_populates="users")
-	manager_profile: Mapped[ManagerProfile | None] = relationship(back_populates="user", uselist=False)
-	auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False)
+	account: Mapped[Account | None] = relationship(back_populates="users", lazy="raise")
+	manager_profile: Mapped[ManagerProfile | None] = relationship(back_populates="user", uselist=False, lazy="raise")
+	auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False, lazy="raise")
 	notifications: Mapped[list[Notification]] = relationship(
 		back_populates="user",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	created_projects: Mapped[list[Project]] = relationship(
 		back_populates="created_by_user",
 		foreign_keys="Project.created_by_user_id",
+		lazy="raise",
 	)
 
 
@@ -225,7 +227,7 @@ class Notification(Base):
 		index=True,
 	)
 
-	user: Mapped[User] = relationship(back_populates="notifications")
+	user: Mapped[User] = relationship(back_populates="notifications", lazy="raise")
 
 	def __repr__(self) -> str:
 		return (
@@ -256,18 +258,21 @@ class Account(Base):
 		nullable=False,
 	)
 
-	users: Mapped[list[User]] = relationship(back_populates="account")
+	users: Mapped[list[User]] = relationship(back_populates="account", lazy="raise")
 	manager_profiles: Mapped[list[ManagerProfile]] = relationship(
 		back_populates="account",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	projects: Mapped[list[Project]] = relationship(
 		back_populates="account",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	auditor_profiles: Mapped[list[AuditorProfile]] = relationship(
 		back_populates="account",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 
@@ -314,8 +319,8 @@ class ManagerProfile(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account] = relationship(back_populates="manager_profiles")
-	user: Mapped[User | None] = relationship(back_populates="manager_profile")
+	account: Mapped[Account] = relationship(back_populates="manager_profiles", lazy="raise")
+	user: Mapped[User | None] = relationship(back_populates="manager_profile", lazy="raise")
 
 
 class Project(Base):
@@ -354,29 +359,35 @@ class Project(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account] = relationship(back_populates="projects")
+	account: Mapped[Account] = relationship(back_populates="projects", lazy="raise")
 	created_by_user: Mapped[User] = relationship(
 		back_populates="created_projects",
 		foreign_keys=[created_by_user_id],
+		lazy="raise",
 	)
 	project_place_links: Mapped[list[ProjectPlace]] = relationship(
 		back_populates="project",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	places: Mapped[list[Place]] = relationship(
 		secondary="project_places",
 		back_populates="projects",
 		overlaps="project_place_links,place,project,project_place_links",
+		lazy="raise",
 	)
 	assignments: Mapped[list[AuditorAssignment]] = relationship(
 		back_populates="project",
+		lazy="raise",
 	)
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="project",
+		lazy="raise",
 	)
 	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="project",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 	@property
@@ -423,23 +434,28 @@ class Place(Base):
 	project_place_links: Mapped[list[ProjectPlace]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	projects: Mapped[list[Project]] = relationship(
 		secondary="project_places",
 		back_populates="places",
 		overlaps="project_place_links,project,place,project_place_links",
+		lazy="raise",
 	)
 	assignments: Mapped[list[AuditorAssignment]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 	@property
@@ -476,10 +492,12 @@ class ProjectPlace(Base):
 	project: Mapped[Project] = relationship(
 		back_populates="project_place_links",
 		overlaps="places,projects",
+		lazy="raise",
 	)
 	place: Mapped[Place] = relationship(
 		back_populates="project_place_links",
 		overlaps="places,projects",
+		lazy="raise",
 	)
 
 
@@ -523,23 +541,27 @@ class AuditorProfile(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account] = relationship(back_populates="auditor_profiles")
-	user: Mapped[User | None] = relationship(back_populates="auditor_profile")
+	account: Mapped[Account] = relationship(back_populates="auditor_profiles", lazy="raise")
+	user: Mapped[User | None] = relationship(back_populates="auditor_profile", lazy="raise")
 	assignments: Mapped[list[AuditorAssignment]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	invites: Mapped[list[AuditorInvite]] = relationship(
 		back_populates="auditor",
 		passive_deletes=True,
+		lazy="raise",
 	)
 
 
@@ -571,9 +593,9 @@ class AuditorInvite(Base):
 	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-	account: Mapped[Account] = relationship()
-	invited_by_user: Mapped[User] = relationship()
-	auditor: Mapped[AuditorProfile | None] = relationship(back_populates="invites")
+	account: Mapped[Account] = relationship(lazy="raise")
+	invited_by_user: Mapped[User] = relationship(lazy="raise")
+	auditor: Mapped[AuditorProfile | None] = relationship(back_populates="invites", lazy="raise")
 
 
 class ManagerInvite(Base):
@@ -604,9 +626,9 @@ class ManagerInvite(Base):
 	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-	account: Mapped[Account] = relationship()
-	invited_by_user: Mapped[User] = relationship(foreign_keys=[invited_by_user_id])
-	accepted_by_user: Mapped[User | None] = relationship(foreign_keys=[accepted_by_user_id])
+	account: Mapped[Account] = relationship(lazy="raise")
+	invited_by_user: Mapped[User] = relationship(foreign_keys=[invited_by_user_id], lazy="raise")
+	accepted_by_user: Mapped[User | None] = relationship(foreign_keys=[accepted_by_user_id], lazy="raise")
 
 
 class AuditorAssignment(Base):
@@ -663,9 +685,9 @@ class AuditorAssignment(Base):
 		nullable=False,
 	)
 
-	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments")
-	project: Mapped[Project | None] = relationship(back_populates="assignments")
-	place: Mapped[Place] = relationship(back_populates="assignments")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments", lazy="raise")
+	project: Mapped[Project | None] = relationship(back_populates="assignments", lazy="raise")
+	place: Mapped[Place] = relationship(back_populates="assignments", lazy="raise")
 
 	@property
 	def auditor_id(self) -> uuid.UUID:
@@ -750,9 +772,9 @@ class Audit(Base):
 		nullable=False,
 	)
 
-	project: Mapped[Project] = relationship(back_populates="audits")
-	place: Mapped[Place] = relationship(back_populates="audits")
-	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits")
+	project: Mapped[Project] = relationship(back_populates="audits", lazy="raise")
+	place: Mapped[Place] = relationship(back_populates="audits", lazy="raise")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits", lazy="raise")
 
 	@property
 	def auditor_id(self) -> uuid.UUID:
@@ -836,9 +858,9 @@ class PlayspaceSubmission(Base):
 		nullable=False,
 	)
 
-	project: Mapped[Project] = relationship(back_populates="playspace_submissions")
-	place: Mapped[Place] = relationship(back_populates="playspace_submissions")
-	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="playspace_submissions")
+	project: Mapped[Project] = relationship(back_populates="playspace_submissions", lazy="raise")
+	place: Mapped[Place] = relationship(back_populates="playspace_submissions", lazy="raise")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="playspace_submissions", lazy="raise")
 
 	# Normalized draft-session tables. These are the live write path for
 	# in-progress audits; the JSONB fields above become the immutable snapshot
@@ -847,14 +869,17 @@ class PlayspaceSubmission(Base):
 		back_populates="submission",
 		cascade=CASCADE_DELETE_ORPHAN,
 		uselist=False,
+		lazy="raise",
 	)
 	pre_submission_answers: Mapped[list[PlayspacePreSubmissionAnswer]] = relationship(
 		back_populates="submission",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	submission_sections: Mapped[list[PlayspaceSubmissionSection]] = relationship(
 		back_populates="submission",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 	@property
@@ -888,7 +913,7 @@ class PlayspaceSubmissionContext(Base):
 		nullable=False,
 	)
 
-	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_context")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_context", lazy="raise")
 
 
 class PlayspacePreSubmissionAnswer(Base):
@@ -924,7 +949,7 @@ class PlayspacePreSubmissionAnswer(Base):
 		nullable=False,
 	)
 
-	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="pre_submission_answers")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="pre_submission_answers", lazy="raise")
 
 
 class PlayspaceSubmissionSection(Base):
@@ -964,10 +989,11 @@ class PlayspaceSubmissionSection(Base):
 		nullable=False,
 	)
 
-	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_sections")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_sections", lazy="raise")
 	question_responses: Mapped[list[PlayspaceQuestionResponse]] = relationship(
 		back_populates="section",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 
@@ -1012,15 +1038,17 @@ class PlayspaceQuestionResponse(Base):
 		nullable=False,
 	)
 
-	section: Mapped[PlayspaceSubmissionSection] = relationship(back_populates="question_responses")
+	section: Mapped[PlayspaceSubmissionSection] = relationship(back_populates="question_responses", lazy="raise")
 	scale_answers: Mapped[list[PlayspaceScaleAnswer]] = relationship(
 		back_populates="question_response",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	checklist_answer: Mapped[PlayspaceChecklistAnswer | None] = relationship(
 		back_populates="question_response",
 		cascade=CASCADE_DELETE_ORPHAN,
 		uselist=False,
+		lazy="raise",
 	)
 
 
@@ -1064,7 +1092,7 @@ class PlayspaceChecklistAnswer(Base):
 		nullable=False,
 	)
 
-	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="checklist_answer")
+	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="checklist_answer", lazy="raise")
 
 
 class PlayspaceScaleAnswer(Base):
@@ -1108,7 +1136,7 @@ class PlayspaceScaleAnswer(Base):
 		nullable=False,
 	)
 
-	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="scale_answers")
+	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="scale_answers", lazy="raise")
 
 
 class YeeAuditSubmission(Base):
@@ -1133,8 +1161,8 @@ class YeeAuditSubmission(Base):
 	section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	total_score: Mapped[int] = mapped_column(nullable=False)
 
-	auditor: Mapped[AuditorProfile] = relationship()
-	place: Mapped[Place] = relationship()
+	auditor: Mapped[AuditorProfile] = relationship(lazy="raise")
+	place: Mapped[Place] = relationship(lazy="raise")
 
 
 class AuditorAccessRequest(Base):

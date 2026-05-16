@@ -9,14 +9,16 @@ through `-x product=yee` or `-x product=playspace`.
 from __future__ import annotations
 
 import asyncio
+from enum import Enum
 from logging.config import fileConfig
+import os
 from typing import Any
 
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from alembic import context
-from app.database import ProductKey, get_database_url, normalize_postgres_sqlalchemy_url
+from app.database import ProductKey, normalize_postgres_sqlalchemy_url
 from app.models import Base
 
 config = context.config
@@ -27,17 +29,73 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+class Environment(str, Enum):
+	"""The target environment for this migration run."""
+
+	TEST = "test"
+	DEVELOPMENT = "development"
+	PRODUCTION = "production"
+
+
+def _resolve_raw_database_url(product: ProductKey, environment: Environment) -> str:
+	"""Resolve one product database URL from environment variables or defaults."""
+
+	env_suffix = "YEE" if product is ProductKey.YEE else "PLAYSPACE"
+	match environment:
+		case Environment.TEST:
+			env_prefix = "TEST"
+		case Environment.DEVELOPMENT:
+			env_prefix = "DEV"
+		case Environment.PRODUCTION:
+			env_prefix = "PROD"
+
+	env_keys = [f"{env_prefix}_DATABASE_URL_{env_suffix}", f"DATABASE_URL_{env_suffix}"]
+
+	for env_key in env_keys:
+		raw_value = os.getenv(env_key)
+		if raw_value is None:
+			continue
+		normalized = raw_value.strip()
+		if normalized:
+			return normalized
+
+	if product is ProductKey.YEE:
+		legacy_url = os.getenv("DATABASE_URL")
+		if legacy_url and legacy_url.strip():
+			return legacy_url.strip()
+
+	default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
+	return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
+
+
+def _resolve_environment() -> Environment:
+	"""
+	Resolve the target environment for this migration run.
+
+	Usage:
+	  alembic -x product=yee environment=production upgrade head
+	  alembic -x product=playspace environment=production upgrade head
+	"""
+
+	x_args = context.get_x_argument(as_dictionary=True)
+	environment = x_args.get("environment", Environment.DEVELOPMENT.value)
+	if environment not in (Environment.DEVELOPMENT.value, Environment.PRODUCTION.value):
+		allowed = ", ".join([e.value for e in Environment])
+		raise ValueError(f"Invalid environment '{environment}'. Expected one of: {allowed}.")
+	return Environment(environment)
+
+
 def _resolve_product_key() -> ProductKey:
 	"""
 	Resolve the target product database for this migration run.
 
 	Usage:
-	  alembic -x product=yee upgrade head
-	  alembic -x product=playspace upgrade head
+	  alembic -x product=yee environment=production upgrade head
+	  alembic -x product=playspace environment=production upgrade head
 	"""
 
 	x_args = context.get_x_argument(as_dictionary=True)
-	raw_product = x_args.get("product", ProductKey.YEE.value)
+	raw_product = x_args.get("product", ProductKey.PLAYSPACE.value)
 	normalized = raw_product.strip().lower()
 	try:
 		return ProductKey(normalized)
@@ -46,14 +104,14 @@ def _resolve_product_key() -> ProductKey:
 		raise ValueError(f"Invalid product '{raw_product}'. Expected one of: {allowed}.") from err
 
 
-def _set_sqlalchemy_url(product: ProductKey) -> str:
+def _set_sqlalchemy_url(product: ProductKey, environment: Environment) -> str:
 	"""
 	Ensure Alembic uses the same database URL as the application.
 
 	Alembic requires this value even when we override engine creation below.
 	"""
 
-	raw_url = get_database_url(product)
+	raw_url = _resolve_raw_database_url(product, environment)
 	config.set_main_option("sqlalchemy.url", raw_url)
 	return raw_url
 
@@ -66,7 +124,8 @@ def run_migrations_offline() -> None:
 	"""
 
 	product = _resolve_product_key()
-	_set_sqlalchemy_url(product)
+	environment = _resolve_environment()
+	_set_sqlalchemy_url(product, environment)
 	url = config.get_main_option("sqlalchemy.url")
 	context.configure(
 		url=url,
@@ -102,7 +161,8 @@ async def run_migrations_online() -> None:
 	"""Run migrations in 'online' mode using an async engine."""
 
 	product = _resolve_product_key()
-	raw_url = _set_sqlalchemy_url(product)
+	environment = _resolve_environment()
+	raw_url = _set_sqlalchemy_url(product, environment)
 	normalized_url, connect_args = normalize_postgres_sqlalchemy_url(raw_url)
 
 	connectable: AsyncEngine = create_async_engine(
