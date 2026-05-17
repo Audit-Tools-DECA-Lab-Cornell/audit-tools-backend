@@ -47,13 +47,13 @@ def _resolve_raw_database_url(product: ProductKey, environment: Environment) -> 
 	env_suffix = "YEE" if product is ProductKey.YEE else "PLAYSPACE"
 	match environment:
 		case Environment.TEST:
-			env_prefix = "TEST"
+			env_prefix = "TEST_"
 		case Environment.DEVELOPMENT:
-			env_prefix = "DEV"
+			env_prefix = "DEV_"
 		case Environment.PRODUCTION:
-			env_prefix = "PROD"
+			env_prefix = ""
 
-	env_keys = [f"{env_prefix}_DATABASE_URL_{env_suffix}", f"DATABASE_URL_{env_suffix}"]
+	env_keys = [f"{env_prefix}DATABASE_URL_{env_suffix}", f"DATABASE_URL_{env_suffix}"]
 
 	for env_key in env_keys:
 		raw_value = os.getenv(env_key)
