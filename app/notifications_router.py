@@ -5,8 +5,6 @@ Routes are mounted under the ``/playspace`` prefix in ``main.py`` so paths match
 ``get_async_session_playspace`` and bearer auth for the Playspace product.
 """
 
-from __future__ import annotations
-
 import logging
 from uuid import UUID
 

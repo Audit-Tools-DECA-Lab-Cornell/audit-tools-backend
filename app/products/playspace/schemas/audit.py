@@ -72,12 +72,14 @@ class AuditMetaPatchRequest(RequestModel):
 	"""Mutable execution metadata stored with a Playspace audit draft."""
 
 	execution_mode: ExecutionMode | None = None
+	final_comments: str | None = None
 
 
 class AuditMetaResponse(ApiModel):
 	"""Typed execution metadata returned with an audit session."""
 
 	execution_mode: ExecutionMode | None
+	final_comments: str | None = None
 
 
 class PreAuditPatchRequest(RequestModel):

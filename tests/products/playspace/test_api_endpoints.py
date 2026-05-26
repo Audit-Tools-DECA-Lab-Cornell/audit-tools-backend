@@ -1038,7 +1038,10 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 		headers=auditor_headers,
 		json={
 			"expected_revision": audit_session["revision"],
-			"meta": {"execution_mode": "survey"},
+			"meta": {
+				"execution_mode": "survey",
+				"final_comments": "Surfaces were busiest near the swings at closing time.",
+			},
 			"pre_audit": {"season": "summer"},
 		},
 	)
@@ -1063,7 +1066,10 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 			"expected_revision": patch_draft_response.json()["revision"],
 			"aggregate": {
 				"schema_version": 1,
-				"meta": {"execution_mode": "both"},
+				"meta": {
+					"execution_mode": "both",
+					"final_comments": "Visibility was best from the north path after sunset.",
+				},
 				"pre_audit": {
 					"place_size": "medium",
 					"current_users_0_5": "none",
@@ -1090,6 +1096,14 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 	assert refreshed_audit_response.status_code == 200
 	assert refreshed_audit_response.json()["revision"] == 3
 	assert refreshed_audit_response.json()["aggregate"]["meta"]["execution_mode"] == "both"
+	assert (
+		refreshed_audit_response.json()["aggregate"]["meta"]["final_comments"]
+		== "Visibility was best from the north path after sunset."
+	)
+	assert (
+		refreshed_audit_response.json()["meta"]["final_comments"]
+		== "Visibility was best from the north path after sunset."
+	)
 
 	submit_response = playspace_client.post(
 		f"/playspace/audits/{audit_id}/submit",

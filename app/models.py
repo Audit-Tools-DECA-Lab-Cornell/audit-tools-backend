@@ -898,6 +898,7 @@ class PlayspaceSubmissionContext(Base):
 		primary_key=True,
 	)
 	execution_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+	final_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
 	draft_progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
 	schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
 	revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

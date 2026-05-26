@@ -36,6 +36,7 @@ from app.products.playspace.audit_state import (
 	get_aggregate_schema_version,
 	get_draft_progress_percent,
 	get_execution_mode_value,
+	get_final_comments_value,
 	replace_audit_aggregate,
 	set_aggregate_revision,
 	set_draft_progress_percent,
@@ -1209,7 +1210,10 @@ class PlayspaceAuditSessionsMixin:
 
 		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
 		progress = build_audit_progress_for_audit(audit=audit, instrument=instrument)
-		meta = AuditMetaResponse(execution_mode=self._parse_execution_mode(get_execution_mode_value(audit)))
+		meta = AuditMetaResponse(
+			execution_mode=self._parse_execution_mode(get_execution_mode_value(audit)),
+			final_comments=get_final_comments_value(audit),
+		)
 
 		pre_audit = self._build_pre_audit_response(responses_json=responses_json)
 		sections = self._build_section_state_response_map(responses_json=responses_json)
@@ -1320,7 +1324,10 @@ class PlayspaceAuditSessionsMixin:
 		return AuditAggregateResponse(
 			schema_version=get_aggregate_schema_version(audit),
 			revision=get_aggregate_revision(audit),
-			meta=AuditMetaResponse(execution_mode=self._parse_execution_mode(get_execution_mode_value(audit))),
+			meta=AuditMetaResponse(
+				execution_mode=self._parse_execution_mode(get_execution_mode_value(audit)),
+				final_comments=get_final_comments_value(audit),
+			),
 			pre_audit=self._build_pre_audit_response(responses_json=responses_json),
 			sections=self._build_section_state_response_map(responses_json=responses_json),
 		)

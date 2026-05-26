@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth_security import generate_access_token, hash_password
 from app.limiter import limiter
+from app.main import app
 from app.models import AccountType, Notification, NotificationType, User
 from app.notification_service import NotificationService
 from tests.products.playspace.test_api_endpoints import (
@@ -40,6 +41,17 @@ def _run_async(
 			return await coro(session)
 
 	return asyncio.run(_inner())
+
+
+def test_openapi_schema_includes_notification_mark_read_route() -> None:
+	app.openapi_schema = None
+	with TestClient(app) as client:
+		openapi_response = client.get("/openapi.json")
+		redoc_response = client.get("/redoc")
+
+	assert openapi_response.status_code == 200
+	assert "/playspace/api/notifications/{notification_id}/read" in openapi_response.json()["paths"]
+	assert redoc_response.status_code == 200
 
 
 async def _insert_user(

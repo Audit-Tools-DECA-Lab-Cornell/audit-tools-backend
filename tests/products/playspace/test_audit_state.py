@@ -649,6 +649,27 @@ def test_apply_draft_patch_round_trips_question_note_in_normalized_and_json_stat
 		}
 
 
+def test_apply_draft_patch_round_trips_final_comments_in_normalized_and_json_state() -> None:
+	"""Audit-level final comments should persist through normalized state reconstruction."""
+
+	audit = _build_audit()
+
+	patch = AuditDraftPatchRequest(
+		meta=AuditMetaPatchRequest(final_comments="Watch drainage near the north entry after heavy rain."),
+	)
+
+	with Session() as session:
+		session.add(audit)
+
+		apply_draft_patch_to_relations(audit=audit, patch=patch)
+
+		assert audit.submission_context is not None
+		assert audit.submission_context.final_comments == "Watch drainage near the north entry after heavy rain."
+		assert build_responses_json_from_relations(audit)["meta"] == {
+			"final_comments": "Watch drainage near the north entry after heavy rain."
+		}
+
+
 def test_build_responses_json_normalizes_legacy_stringified_checklist_answers() -> None:
 	"""Legacy normalized rows should be readable when checklist payloads were stored as strings."""
 
@@ -905,6 +926,43 @@ def test_patch_audit_draft_updates_execution_mode_in_canonical_aggregate() -> No
 	assert response.revision == 3
 	assert get_execution_mode_value(audit) == ExecutionMode.SURVEY.value
 	assert audit.responses_json["meta"] == {"execution_mode": ExecutionMode.SURVEY.value}
+
+
+def test_patch_audit_draft_updates_final_comments_in_canonical_aggregate() -> None:
+	"""Draft-save flow should persist audit-level final comments in canonical state."""
+
+	audit = _build_service_audit(
+		execution_mode=ExecutionMode.AUDIT,
+		revision=2,
+	)
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+
+	response = asyncio.run(
+		service.patch_audit_draft(
+			actor=actor,
+			audit_id=audit.id,
+			payload=AuditDraftPatchRequest(
+				expected_revision=2,
+				meta=AuditMetaPatchRequest(final_comments="Observed heavy wear around the south entrance."),
+			),
+		)
+	)
+
+	assert response.revision == 3
+	assert audit.responses_json["meta"] == {
+		"execution_mode": ExecutionMode.AUDIT.value,
+		"final_comments": "Observed heavy wear around the south entrance.",
+	}
+
+	session_response = asyncio.run(
+		service._build_audit_session_response(
+			audit=audit,
+			project=audit.project,
+			place=audit.place,
+		)
+	)
+	assert session_response.meta.final_comments == "Observed heavy wear around the south entrance."
 
 
 def test_create_or_resume_audit_keeps_existing_draft_execution_mode() -> None:
