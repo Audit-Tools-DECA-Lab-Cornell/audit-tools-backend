@@ -1062,3 +1062,125 @@ def test_ensure_not_submitted_raises_without_debug_output(
 
 	assert exc_info.value.status_code == 409
 	assert capsys.readouterr().out == ""
+
+
+def _build_pristine_service_audit(*, started_at: datetime, revision: int = 1) -> PlayspaceSubmission:
+	"""Create a pristine in-progress audit anchored at one explicit access-time timestamp."""
+
+	audit = _build_service_audit(revision=revision)
+	audit.started_at = started_at
+	# Pristine: no execution_mode, no pre_audit content, no section content.
+	audit.responses_json = {
+		"schema_version": 1,
+		"revision": revision,
+		"meta": {},
+		"pre_audit": {},
+		"sections": {},
+	}
+	audit.execution_mode = None
+	return audit
+
+
+def test_patch_audit_draft_accepts_later_started_at_on_pristine_audit() -> None:
+	"""A pristine audit should accept a later mobile execute-time started_at."""
+
+	access_time = datetime(2026, 5, 26, 10, 0, 0, tzinfo=timezone.utc)
+	execute_time = datetime(2026, 5, 26, 10, 3, 30, tzinfo=timezone.utc)
+	audit = _build_pristine_service_audit(started_at=access_time, revision=2)
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+
+	response = asyncio.run(
+		service.patch_audit_draft(
+			actor=actor,
+			audit_id=audit.id,
+			payload=AuditDraftPatchRequest(
+				expected_revision=2,
+				started_at=execute_time,
+			),
+		)
+	)
+
+	assert response.revision == 3
+	assert audit.started_at == execute_time
+
+
+def test_patch_audit_draft_rejects_started_at_when_audit_has_progress() -> None:
+	"""Audits that already have content must not accept a started_at correction."""
+
+	access_time = datetime(2026, 5, 26, 10, 0, 0, tzinfo=timezone.utc)
+	execute_time = datetime(2026, 5, 26, 10, 5, 0, tzinfo=timezone.utc)
+	audit = _build_pristine_service_audit(started_at=access_time, revision=2)
+	# Mark the audit as no longer pristine — execution mode has been chosen.
+	set_execution_mode_value(audit=audit, execution_mode=ExecutionMode.AUDIT.value)
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+
+	with pytest.raises(HTTPException) as exc_info:
+		asyncio.run(
+			service.patch_audit_draft(
+				actor=actor,
+				audit_id=audit.id,
+				payload=AuditDraftPatchRequest(
+					expected_revision=2,
+					started_at=execute_time,
+				),
+			)
+		)
+
+	assert exc_info.value.status_code == 400
+	assert audit.started_at == access_time
+
+
+def test_patch_audit_draft_rejects_earlier_started_at() -> None:
+	"""A correction earlier than the server's current placeholder must be rejected."""
+
+	access_time = datetime(2026, 5, 26, 10, 0, 0, tzinfo=timezone.utc)
+	earlier_time = datetime(2026, 5, 26, 9, 55, 0, tzinfo=timezone.utc)
+	audit = _build_pristine_service_audit(started_at=access_time, revision=2)
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+
+	with pytest.raises(HTTPException) as exc_info:
+		asyncio.run(
+			service.patch_audit_draft(
+				actor=actor,
+				audit_id=audit.id,
+				payload=AuditDraftPatchRequest(
+					expected_revision=2,
+					started_at=earlier_time,
+				),
+			)
+		)
+
+	assert exc_info.value.status_code == 400
+	assert audit.started_at == access_time
+
+
+def test_submit_total_minutes_uses_corrected_started_at() -> None:
+	"""After a started_at correction lands on the audit, elapsed_minutes uses the new value."""
+
+	access_time = datetime(2026, 5, 26, 10, 0, 0, tzinfo=timezone.utc)
+	execute_time = datetime(2026, 5, 26, 10, 4, 0, tzinfo=timezone.utc)
+	submitted_at = datetime(2026, 5, 26, 10, 30, 0, tzinfo=timezone.utc)
+	audit = _build_pristine_service_audit(started_at=access_time, revision=2)
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+
+	asyncio.run(
+		service.patch_audit_draft(
+			actor=actor,
+			audit_id=audit.id,
+			payload=AuditDraftPatchRequest(
+				expected_revision=2,
+				started_at=execute_time,
+			),
+		)
+	)
+
+	# Mirror submit_audit's elapsed_minutes formula directly against the corrected value.
+	elapsed_minutes = int((submitted_at - audit.started_at).total_seconds() // 60)
+	# 30 min (access→submit) would round to 30; 4 min execute→submit window leaves 26 min.
+	assert elapsed_minutes == 26
+	# Sanity check: the original access-time window would have produced 30.
+	assert int((submitted_at - access_time).total_seconds() // 60) == 30

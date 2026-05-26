@@ -793,6 +793,12 @@ class PlayspaceAuditSessionsMixin:
 			detail="The requested execution mode is not valid for this audit.",
 		)
 
+		if payload.started_at is not None:
+			self._apply_pristine_started_at_correction(
+				audit=audit,
+				new_started_at=payload.started_at,
+			)
+
 		if payload.aggregate is not None:
 			aggregate_mode = payload.aggregate.meta.execution_mode if payload.aggregate.meta is not None else None
 			self._ensure_mode_allowed(
@@ -1312,6 +1318,77 @@ class PlayspaceAuditSessionsMixin:
 				status_code=status.HTTP_409_CONFLICT,
 				detail=("The submitted audit aggregate schema is not supported by this server."),
 			)
+
+	def _apply_pristine_started_at_correction(
+		self,
+		*,
+		audit: PlayspaceSubmission,
+		new_started_at: datetime,
+	) -> None:
+		"""Update audit.started_at to the mobile execute-time stamp.
+
+		Only honored when the audit is still pristine on the server and the
+		new timestamp is strictly later than the current placeholder. Mirrors
+		mobile canStampLocalAuditStart() in store-sync-core.ts.
+		"""
+
+		# Normalize to a timezone-aware UTC datetime for monotonic comparison.
+		if new_started_at.tzinfo is None:
+			candidate = new_started_at.replace(tzinfo=timezone.utc)
+		else:
+			candidate = new_started_at.astimezone(timezone.utc)
+
+		current = audit.started_at
+		if current is not None and current.tzinfo is None:
+			current = current.replace(tzinfo=timezone.utc)
+
+		if current is not None and candidate <= current:
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="A later started_at correction is required.",
+			)
+
+		if not self._is_audit_pristine(audit=audit):
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="started_at can only be corrected while the audit is pristine.",
+			)
+
+		audit.started_at = candidate
+
+	def _is_audit_pristine(self, *, audit: PlayspaceSubmission) -> bool:
+		"""Return True when no execution mode, pre-audit, or section content exists."""
+
+		if get_execution_mode_value(audit) is not None:
+			return False
+		if get_final_comments_value(audit) is not None:
+			return False
+
+		draft_progress = get_draft_progress_percent(audit)
+		if draft_progress is not None and draft_progress > 0:
+			return False
+
+		payload = build_responses_json_from_relations(audit)
+		pre_audit_value = payload.get("pre_audit")
+		if isinstance(pre_audit_value, dict):
+			for value in pre_audit_value.values():
+				if value is None or value == "" or value == []:
+					continue
+				return False
+
+		sections_value = payload.get("sections")
+		if isinstance(sections_value, dict):
+			for section_value in sections_value.values():
+				if not isinstance(section_value, dict):
+					continue
+				note = section_value.get("note")
+				if isinstance(note, str) and note.strip():
+					return False
+				responses = section_value.get("responses")
+				if isinstance(responses, dict) and len(responses) > 0:
+					return False
+
+		return True
 
 	def _build_audit_aggregate_response(
 		self,

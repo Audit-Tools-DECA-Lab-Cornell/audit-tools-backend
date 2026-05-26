@@ -181,6 +181,8 @@ class AuditDraftPatchRequest(RequestModel):
 	meta: AuditMetaPatchRequest | None = None
 	pre_audit: PreAuditPatchRequest | None = None
 	sections: dict[str, SectionDraftPatchRequest] = Field(default_factory=dict)
+	# Mobile-supplied execute-time started_at correction.
+	started_at: datetime | None = None
 
 
 class AuditDraftSaveResponse(ApiModel):
