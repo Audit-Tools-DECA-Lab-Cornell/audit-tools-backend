@@ -1,5 +1,10 @@
 import asyncio
+from typing import cast
+from unittest.mock import create_autospec
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.actors import CurrentUserContext, CurrentUserRole
 from app.products.playspace.routes import instrument as instrument_routes
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 
@@ -33,6 +38,22 @@ def _build_instrument_response(version: str, section_title: str) -> PlayspaceIns
 	)
 
 
+def _build_current_user_context() -> CurrentUserContext:
+	"""Create a typed current-user context for route unit tests."""
+
+	return CurrentUserContext(
+		role=CurrentUserRole.ADMIN,
+		account_id=None,
+		auditor_code=None,
+	)
+
+
+def _build_async_session() -> AsyncSession:
+	"""Create a typed async-session stub for route unit tests."""
+
+	return cast(AsyncSession, create_autospec(AsyncSession, instance=True))
+
+
 def test_get_instrument_metadata_prefers_active_instrument(monkeypatch) -> None:
 	"""`/playspace/instrument` should surface the latest active DB-backed instrument."""
 
@@ -63,8 +84,8 @@ def test_get_instrument_metadata_prefers_active_instrument(monkeypatch) -> None:
 	response = asyncio.run(
 		instrument_routes.get_instrument_metadata(
 			lang="en",
-			current_user=object(),
-			session=object(),
+			current_user=_build_current_user_context(),
+			session=_build_async_session(),
 		)
 	)
 
@@ -103,8 +124,8 @@ def test_get_instrument_metadata_falls_back_to_canonical_when_active_payload_inv
 	response = asyncio.run(
 		instrument_routes.get_instrument_metadata(
 			lang="en",
-			current_user=object(),
-			session=object(),
+			current_user=_build_current_user_context(),
+			session=_build_async_session(),
 		)
 	)
 
