@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest
@@ -32,6 +33,7 @@ from app.models import (
 	User,
 	YeeAuditSubmission,
 )
+from app.yee_scoring import score_yee_responses
 
 router: APIRouter = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -54,7 +56,37 @@ class AuditListItem(BaseModel):
 	date: str
 	submitted_at: str | None = None
 	score: int
+	total_raw_score: int = 0
+	total_weighted_score: int = 0
+	domain_weights: dict[str, int] = Field(default_factory=dict)
 	status: str
+
+
+class DashboardScoreResult(BaseModel):
+	total_score: int
+	section_scores: dict[str, int]
+	category_scores: dict[str, int]
+	matched_scored_answers: int
+
+
+class ManagerAuditEditState(BaseModel):
+	audit_id: str
+	submission_id: str | None = None
+	place_id: str
+	place_name: str | None = None
+	auditor_id: str
+	auditor_generated_id: str | None = None
+	submitted_at: str | None = None
+	participant_info: dict[str, Any] = Field(default_factory=dict)
+	responses: dict[str, Any] = Field(default_factory=dict)
+	score: DashboardScoreResult
+
+
+class ManagerAuditEditRequest(BaseModel):
+	submission_id: str | None = None
+	participant_info: dict[str, Any] = Field(default_factory=dict)
+	responses: dict[str, Any] = Field(default_factory=dict)
+	resubmit: bool = False
 
 
 class DashboardOverviewResponse(BaseModel):
@@ -122,6 +154,13 @@ class ProjectDetailResponse(BaseModel):
 	description: str
 	status: str
 	organization: str
+	place_types: list[str]
+	start_date: str | None = None
+	end_date: str | None = None
+	estimated_places: int | None = None
+	auditor_population_types: list[str]
+	auditor_inclusion_exclusion_criteria: str
+	auditor_notes: str
 	total_places: int
 	total_audits: int
 	submitted_audits: int
@@ -154,27 +193,63 @@ class ApproveUserRequest(BaseModel):
 class CreateProjectRequest(BaseModel):
 	name: str = Field(..., min_length=1, max_length=200)
 	description: str | None = Field(default=None, max_length=2000)
+	place_types: list[str] = Field(default_factory=list)
+	start_date: date | None = None
+	end_date: date | None = None
+	estimated_places: int | None = Field(default=None, ge=0)
+	auditor_population_types: list[str] = Field(default_factory=list)
+	auditor_inclusion_exclusion_criteria: str | None = Field(default=None, max_length=2000)
+	auditor_notes: str | None = Field(default=None, max_length=2000)
 
 
 class UpdateProjectRequest(BaseModel):
 	name: str = Field(..., min_length=1, max_length=200)
 	description: str | None = Field(default=None, max_length=2000)
+	place_types: list[str] = Field(default_factory=list)
+	start_date: date | None = None
+	end_date: date | None = None
+	estimated_places: int | None = Field(default=None, ge=0)
+	auditor_population_types: list[str] = Field(default_factory=list)
+	auditor_inclusion_exclusion_criteria: str | None = Field(default=None, max_length=2000)
+	auditor_notes: str | None = Field(default=None, max_length=2000)
 
 
 class CreatePlaceRequest(BaseModel):
 	project_id: uuid.UUID
 	name: str = Field(..., min_length=1, max_length=200)
 	address: str = Field(..., min_length=1, max_length=500)
-	postal_code: str = Field(..., min_length=1, max_length=32)
-	notes: str | None = Field(default=None, max_length=2000)
+	city: str | None = Field(default=None, max_length=120)
+	province: str | None = Field(default=None, max_length=120)
+	country: str | None = Field(default=None, max_length=120)
+	postal_code: str | None = Field(default=None, max_length=32)
+	place_type: str | None = Field(default=None, max_length=100)
+	start_date: date | None = None
+	end_date: date | None = None
+	estimated_auditors: int | None = Field(default=None, ge=0)
+	auditor_population_types: list[str] = Field(default_factory=list)
+	auditor_inclusion_exclusion_criteria: str | None = Field(default=None, max_length=2000)
+	auditor_notes: str | None = Field(default=None, max_length=2000)
+	lat: float | None = None
+	lng: float | None = None
 
 
 class UpdatePlaceRequest(BaseModel):
 	project_id: uuid.UUID
 	name: str = Field(..., min_length=1, max_length=200)
 	address: str = Field(..., min_length=1, max_length=500)
-	postal_code: str = Field(..., min_length=1, max_length=32)
-	notes: str | None = Field(default=None, max_length=2000)
+	city: str | None = Field(default=None, max_length=120)
+	province: str | None = Field(default=None, max_length=120)
+	country: str | None = Field(default=None, max_length=120)
+	postal_code: str | None = Field(default=None, max_length=32)
+	place_type: str | None = Field(default=None, max_length=100)
+	start_date: date | None = None
+	end_date: date | None = None
+	estimated_auditors: int | None = Field(default=None, ge=0)
+	auditor_population_types: list[str] = Field(default_factory=list)
+	auditor_inclusion_exclusion_criteria: str | None = Field(default=None, max_length=2000)
+	auditor_notes: str | None = Field(default=None, max_length=2000)
+	lat: float | None = None
+	lng: float | None = None
 
 
 class CreateAuditorInviteRequest(BaseModel):
@@ -235,6 +310,7 @@ class PlaceComparisonAuditItem(BaseModel):
 	date: str
 	total_raw_score: int
 	total_weighted_score: int
+	domain_weights: dict[str, int]
 	raw_domain_scores: dict[str, int]
 	weighted_domain_scores: dict[str, int]
 
@@ -251,7 +327,19 @@ class PlaceDetailResponse(BaseModel):
 	id: str
 	name: str
 	address: str
+	city: str
+	province: str
+	country: str
 	postal_code: str | None = None
+	place_type: str
+	start_date: str | None = None
+	end_date: str | None = None
+	estimated_auditors: int | None = None
+	auditor_population_types: list[str]
+	auditor_inclusion_exclusion_criteria: str
+	auditor_notes: str
+	lat: float | None = None
+	lng: float | None = None
 	notes: str
 	status: str
 	project_id: str
@@ -366,12 +454,72 @@ def _manager_project_ids_subquery(user: User):
 
 
 def _manager_invited_auditor_ids_subquery(user: User):
-	return select(Auditor.id).where(Auditor.account_id == _manager_account_id(user)).distinct()
+	if user.account_type == AccountType.ADMIN:
+		return select(Auditor.id).distinct()
+	return (
+		select(AuditorInvite.auditor_id)
+		.where(
+			AuditorInvite.invited_by_user_id == user.id,
+			AuditorInvite.auditor_id.is_not(None),
+		)
+		.distinct()
+	)
 
 
 def _extract_score(scores_json: dict[str, object]) -> int:
 	score = scores_json.get("total_score")
 	return score if isinstance(score, int) else 0
+
+
+def _normalize_text_list(values: list[str]) -> list[str]:
+	normalized: list[str] = []
+	seen: set[str] = set()
+	for value in values:
+		candidate = value.strip()
+		if not candidate:
+			continue
+		key = candidate.casefold()
+		if key in seen:
+			continue
+		seen.add(key)
+		normalized.append(candidate)
+	return normalized
+
+
+def _serialize_auditor_profile(
+	population_types: list[str],
+	inclusion_exclusion_criteria: str | None,
+	notes: str | None,
+) -> str | None:
+	payload = {
+		"population_types": _normalize_text_list(population_types),
+		"inclusion_exclusion_criteria": inclusion_exclusion_criteria.strip()
+		if inclusion_exclusion_criteria and inclusion_exclusion_criteria.strip()
+		else "",
+		"notes": notes.strip() if notes and notes.strip() else "",
+	}
+	if not payload["population_types"] and not payload["inclusion_exclusion_criteria"] and not payload["notes"]:
+		return None
+	return json.dumps(payload)
+
+
+def _deserialize_auditor_profile(value: str | None) -> tuple[list[str], str, str]:
+	if value is None or not value.strip():
+		return [], "", ""
+	try:
+		payload = json.loads(value)
+	except json.JSONDecodeError:
+		return [], "", value.strip()
+	if not isinstance(payload, dict):
+		return [], "", value.strip()
+	population_types = payload.get("population_types")
+	inclusion_exclusion_criteria = payload.get("inclusion_exclusion_criteria")
+	notes = payload.get("notes")
+	return (
+		_normalize_text_list(population_types if isinstance(population_types, list) else []),
+		inclusion_exclusion_criteria.strip() if isinstance(inclusion_exclusion_criteria, str) else "",
+		notes.strip() if isinstance(notes, str) else "",
+	)
 
 
 REPORT_DOMAIN_ORDER = (
@@ -438,6 +586,70 @@ def _build_submission_scores(
 	return raw_domain_scores, weighted_domain_scores, total_weighted_score
 
 
+def _decode_audit_participant_payload(audit: Audit) -> tuple[dict[str, Any], dict[str, Any]]:
+	raw_payload = audit.responses_json if isinstance(audit.responses_json, dict) else {}
+	participant_info = raw_payload.get("participant_info")
+	responses = raw_payload.get("responses")
+	if isinstance(participant_info, dict) and isinstance(responses, dict):
+		return participant_info, responses
+	return {}, raw_payload if isinstance(raw_payload, dict) else {}
+
+
+def _dashboard_score_result(score: dict[str, Any]) -> DashboardScoreResult:
+	return DashboardScoreResult(
+		total_score=int(score.get("total_score", 0)),
+		section_scores={str(key): int(value) for key, value in dict(score.get("section_scores", {})).items()},
+		category_scores={str(key): int(value) for key, value in dict(score.get("category_scores", {})).items()},
+		matched_scored_answers=int(score.get("matched_scored_answers", 0)),
+	)
+
+
+async def _repair_missing_yee_submission(
+	session: AsyncSession,
+	*,
+	audit: Audit,
+	place: Place,
+	auditor: Auditor,
+) -> YeeAuditSubmission | None:
+	if audit.status != AuditStatus.SUBMITTED:
+		return None
+
+	participant_info, responses = _decode_audit_participant_payload(audit)
+	if not responses:
+		return None
+
+	if not participant_info:
+		participant_info = {
+			"auditor_id": _display_auditor_code(auditor.auditor_code),
+			"place_id": str(place.id),
+			"place_name": place.name,
+			"audit_date": audit.submitted_at.date().isoformat() if audit.submitted_at else None,
+			"start_time": "",
+			"finish_time": "",
+			"total_minutes": audit.total_minutes or 0,
+			"visit_frequency": "",
+			"season": "",
+			"weather": "",
+			"domain_weights": _empty_domain_scores(),
+			"comments": "",
+			"section_comments": _empty_domain_scores(),
+		}
+
+	score = score_yee_responses(responses)
+	submission = YeeAuditSubmission(
+		auditor_id=audit.auditor_profile_id,
+		place_id=audit.place_id,
+		submitted_at=audit.submitted_at or datetime.now(timezone.utc),
+		participant_info_json=participant_info,
+		responses_json=responses,
+		section_scores_json=score["section_scores"],
+		total_score=score["total_score"],
+	)
+	session.add(submission)
+	await session.flush()
+	return submission
+
+
 def _flatten_responses(responses: dict[str, Any]) -> dict[str, str]:
 	flat: dict[str, str] = {}
 	for key, value in responses.items():
@@ -486,6 +698,7 @@ async def _fetch_place_comparison_groups(
 				"audits": [],
 			},
 		)
+		weights = _extract_domain_weights(submission.participant_info_json)
 		raw_domain_scores, weighted_domain_scores, total_weighted_score = _build_submission_scores(
 			submission.section_scores_json,
 			submission.participant_info_json,
@@ -501,6 +714,7 @@ async def _fetch_place_comparison_groups(
 				date=_format_timestamp(submission.submitted_at),
 				total_raw_score=submission.total_score,
 				total_weighted_score=total_weighted_score,
+				domain_weights=weights,
 				raw_domain_scores=raw_domain_scores,
 				weighted_domain_scores=weighted_domain_scores,
 			)
@@ -588,7 +802,17 @@ async def _fetch_audits(
 ) -> list[AuditListItem]:
 	submission_alias = aliased(YeeAuditSubmission)
 	stmt = (
-		select(Audit, Project, Place, Auditor.auditor_code, submission_alias.id, submission_alias.submitted_at)
+		select(
+			Audit,
+			Project,
+			Place,
+			Auditor,
+			submission_alias.id,
+			submission_alias.submitted_at,
+			submission_alias.total_score,
+			submission_alias.participant_info_json,
+			submission_alias.section_scores_json,
+		)
 		.join(Project, Audit.project_id == Project.id)
 		.join(Place, Audit.place_id == Place.id)
 		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
@@ -604,25 +828,95 @@ async def _fetch_audits(
 	project_scope = _project_scope_filter(user)
 	if project_scope is not None:
 		stmt = stmt.where(project_scope)
+	if user.account_type != AccountType.ADMIN:
+		stmt = stmt.where(Audit.auditor_profile_id.in_(_manager_invited_auditor_ids_subquery(user)))
 	if limit is not None:
 		stmt = stmt.limit(limit)
 	rows = (await session.execute(stmt)).all()
-	return [
-		AuditListItem(
-			id=str(audit.id),
-			submission_id=str(submission_id) if submission_id is not None else None,
-			project_id=str(project.id),
-			project_name=project.name,
-			place_id=str(place.id),
-			place=place.name,
-			auditor=_display_auditor_code(auditor_code),
-			date=_format_timestamp(audit.submitted_at or audit.started_at),
-			submitted_at=submitted_at.isoformat() if submitted_at is not None else None,
-			score=_extract_score(audit.scores_json),
-			status="Submitted" if audit.status == AuditStatus.SUBMITTED else "Draft",
+	items: list[AuditListItem] = []
+	needs_commit = False
+	for (
+		audit,
+		project,
+		place,
+		auditor,
+		submission_id,
+		submitted_at,
+		submission_total_score,
+		submission_participant_info,
+		submission_section_scores,
+	) in rows:
+		resolved_submission_id = submission_id
+		resolved_submitted_at = submitted_at
+		resolved_total_raw_score = (
+			submission_total_score if isinstance(submission_total_score, int) else _extract_score(audit.scores_json)
 		)
-		for audit, project, place, auditor_code, submission_id, submitted_at in rows
-	]
+		resolved_total_weighted_score = 0
+		resolved_domain_weights = _empty_domain_scores()
+
+		if audit.status == AuditStatus.SUBMITTED and resolved_submission_id is None:
+			repaired_submission = await _repair_missing_yee_submission(
+				session,
+				audit=audit,
+				place=place,
+				auditor=auditor,
+			)
+			if repaired_submission is not None:
+				needs_commit = True
+				resolved_submission_id = repaired_submission.id
+				resolved_submitted_at = repaired_submission.submitted_at
+				resolved_total_raw_score = repaired_submission.total_score
+				submission_participant_info = repaired_submission.participant_info_json
+				submission_section_scores = repaired_submission.section_scores_json
+
+		if isinstance(submission_participant_info, dict) and isinstance(submission_section_scores, dict):
+			_, weighted_domain_scores, resolved_total_weighted_score = _build_submission_scores(
+				submission_section_scores,
+				submission_participant_info,
+			)
+			resolved_domain_weights = _extract_domain_weights(submission_participant_info)
+			resolved_total_weighted_score = sum(weighted_domain_scores.values())
+
+		items.append(
+			AuditListItem(
+				id=str(audit.id),
+				submission_id=str(resolved_submission_id) if resolved_submission_id is not None else None,
+				project_id=str(project.id),
+				project_name=project.name,
+				place_id=str(place.id),
+				place=place.name,
+				auditor=_display_auditor_code(auditor.auditor_code),
+				date=_format_timestamp(audit.submitted_at or audit.started_at),
+				submitted_at=resolved_submitted_at.isoformat() if resolved_submitted_at is not None else None,
+				score=resolved_total_raw_score,
+				total_raw_score=resolved_total_raw_score,
+				total_weighted_score=resolved_total_weighted_score,
+				domain_weights=resolved_domain_weights,
+				status="Submitted" if audit.status == AuditStatus.SUBMITTED else "Draft",
+			)
+		)
+
+	if needs_commit:
+		await session.commit()
+
+	deduped: dict[tuple[str, str, str], AuditListItem] = {}
+	for item in items:
+		key = (item.project_id, item.place_id, item.auditor)
+		current = deduped.get(key)
+		if current is None:
+			deduped[key] = item
+			continue
+		current_rank = 2 if current.status == "Submitted" else 1
+		next_rank = 2 if item.status == "Submitted" else 1
+		if next_rank > current_rank:
+			deduped[key] = item
+			continue
+		if next_rank == current_rank:
+			current_time = current.submitted_at or current.date
+			next_time = item.submitted_at or item.date
+			if next_time > current_time:
+				deduped[key] = item
+	return list(deduped.values())
 
 
 async def _fetch_projects(session: AsyncSession, user: User) -> list[ProjectListItem]:
@@ -698,7 +992,7 @@ async def _fetch_places(session: AsyncSession, user: User) -> list[PlaceListItem
 			project_id=str(project_id),
 			project=project_name,
 			organization=organization_name,
-			address=place.address,
+			address=place.address or "",
 			postal_code=place.postal_code,
 			assigned_auditors=assigned_auditors_by_place.get(place.id, []),
 			audits=int(audits),
@@ -752,6 +1046,9 @@ async def _fetch_project_detail(
 	project_id: uuid.UUID,
 ) -> ProjectDetailResponse:
 	project, organization_name = await _get_scoped_project(session, user, project_id)
+	auditor_population_types, auditor_inclusion_exclusion_criteria, auditor_notes = _deserialize_auditor_profile(
+		project.auditor_description
+	)
 
 	last_audit = func.max(Audit.submitted_at)
 	audit_count = func.count(Audit.id)
@@ -768,7 +1065,7 @@ async def _fetch_project_detail(
 		ProjectPlaceItem(
 			id=str(place.id),
 			name=place.name,
-			address=place.address,
+			address=place.address or "",
 			audits=int(audits),
 			last_audit=_format_timestamp(last_submitted_at),
 			status="Needs review" if int(audits) == 0 else "Up to date",
@@ -847,6 +1144,13 @@ async def _fetch_project_detail(
 		description=project.description or "No project summary has been added yet.",
 		status="Planning" if project.start_date is None else "Active",
 		organization=organization_name,
+		place_types=project.place_types or [],
+		start_date=project.start_date.isoformat() if project.start_date else None,
+		end_date=project.end_date.isoformat() if project.end_date else None,
+		estimated_places=project.est_places,
+		auditor_population_types=auditor_population_types,
+		auditor_inclusion_exclusion_criteria=auditor_inclusion_exclusion_criteria,
+		auditor_notes=auditor_notes,
 		total_places=len(places),
 		total_audits=sum(place.audits for place in places),
 		submitted_audits=submitted_audits,
@@ -863,6 +1167,9 @@ async def _fetch_place_detail(
 	place_id: uuid.UUID,
 ) -> PlaceDetailResponse:
 	place, project = await _get_scoped_place(session, user, place_id)
+	auditor_population_types, auditor_inclusion_exclusion_criteria, auditor_notes = _deserialize_auditor_profile(
+		place.auditor_description
+	)
 
 	comparisons = await _fetch_place_comparison_groups(session, user)
 	comparison_group = next((group for group in comparisons if group.place_id == str(place.id)), None)
@@ -928,8 +1235,20 @@ async def _fetch_place_detail(
 		id=str(place.id),
 		name=place.name,
 		address=place.address or "",
+		city=place.city or "",
+		province=place.province or "",
+		country=place.country or "",
 		postal_code=place.postal_code,
-		notes=place.notes or "No additional place notes have been added yet.",
+		place_type=place.place_type or "",
+		start_date=place.start_date.isoformat() if place.start_date else None,
+		end_date=place.end_date.isoformat() if place.end_date else None,
+		estimated_auditors=place.est_auditors,
+		auditor_population_types=auditor_population_types,
+		auditor_inclusion_exclusion_criteria=auditor_inclusion_exclusion_criteria,
+		auditor_notes=auditor_notes,
+		lat=place.lat,
+		lng=place.lng,
+		notes=auditor_notes or "No additional place notes have been added yet.",
 		status="Needs review" if submitted_count == 0 else "Up to date",
 		project_id=str(project.id),
 		project_name=project.name,
@@ -1039,7 +1358,7 @@ async def _fetch_users(session: AsyncSession) -> list[UserListItem]:
 			approved=user.approved,
 			email_verified=user.email_verified,
 			profile_completed=user.profile_completed,
-			contact_info=user.email if user.account_type == AccountType.MANAGER else "",
+			contact_info="",
 			project_assignments=", ".join(project_names_by_user.get(user.id, [])) or "None",
 		)
 		for user, account_name in rows
@@ -1260,6 +1579,189 @@ async def list_audits(
 	return await _fetch_audits(session, user)
 
 
+@router.get("/audits/{audit_id}/edit", response_model=ManagerAuditEditState)
+async def get_manager_audit_edit_state(
+	audit_id: uuid.UUID,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerAuditEditState:
+	_require_manager_or_admin(user)
+
+	stmt = (
+		select(Audit, Project, Place, Auditor, YeeAuditSubmission)
+		.join(Project, Audit.project_id == Project.id)
+		.join(Place, Audit.place_id == Place.id)
+		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
+		.outerjoin(
+			YeeAuditSubmission,
+			and_(
+				YeeAuditSubmission.auditor_id == Audit.auditor_profile_id,
+				YeeAuditSubmission.place_id == Audit.place_id,
+			),
+		)
+		.where(Audit.id == audit_id)
+	)
+	row = (await session.execute(stmt)).first()
+	if row is None:
+		raise HTTPException(status_code=404, detail="Audit not found.")
+
+	audit, project, place, auditor, submission = row
+	if user.account_type != AccountType.ADMIN and project.account_id != _manager_account_id(user):
+		raise HTTPException(status_code=403, detail="You do not have access to this audit.")
+
+	if submission is None and audit.status == AuditStatus.SUBMITTED:
+		submission = await _repair_missing_yee_submission(session, audit=audit, place=place, auditor=auditor)
+		if submission is not None:
+			await session.commit()
+
+	if submission is not None:
+		score = score_yee_responses(submission.responses_json)
+		return ManagerAuditEditState(
+			audit_id=str(audit.id),
+			submission_id=str(submission.id),
+			place_id=str(place.id),
+			place_name=place.name,
+			auditor_id=str(auditor.id),
+			auditor_generated_id=_display_auditor_code(auditor.auditor_code),
+			submitted_at=submission.submitted_at.isoformat(),
+			participant_info=submission.participant_info_json,
+			responses=submission.responses_json,
+			score=_dashboard_score_result(score),
+		)
+
+	participant_info, responses = _decode_audit_participant_payload(audit)
+	score = score_yee_responses(responses) if responses else {
+		"total_score": _extract_score(audit.scores_json),
+		"section_scores": {},
+		"category_scores": {},
+		"matched_scored_answers": 0,
+	}
+	if not participant_info:
+		participant_info = {
+			"auditor_id": _display_auditor_code(auditor.auditor_code),
+			"place_id": str(place.id),
+			"place_name": place.name,
+			"audit_date": audit.submitted_at.date().isoformat() if audit.submitted_at else None,
+			"start_time": "",
+			"finish_time": "",
+			"total_minutes": audit.total_minutes or 0,
+			"visit_frequency": "",
+			"season": "",
+			"weather": "",
+			"domain_weights": {},
+			"comments": "",
+			"section_comments": {},
+		}
+	return ManagerAuditEditState(
+		audit_id=str(audit.id),
+		submission_id=None,
+		place_id=str(place.id),
+		place_name=place.name,
+		auditor_id=str(auditor.id),
+		auditor_generated_id=_display_auditor_code(auditor.auditor_code),
+		submitted_at=audit.submitted_at.isoformat() if audit.submitted_at is not None else None,
+		participant_info=participant_info,
+		responses=responses,
+		score=_dashboard_score_result(score),
+	)
+
+
+@router.patch("/audits/{audit_id}/edit", response_model=ManagerAuditEditState)
+async def update_manager_audit_edit_state(
+	audit_id: uuid.UUID,
+	payload: ManagerAuditEditRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerAuditEditState:
+	_require_manager_or_admin(user)
+
+	stmt = (
+		select(Audit, Project, Place, Auditor, YeeAuditSubmission)
+		.join(Project, Audit.project_id == Project.id)
+		.join(Place, Audit.place_id == Place.id)
+		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
+		.outerjoin(
+			YeeAuditSubmission,
+			and_(
+				YeeAuditSubmission.auditor_id == Audit.auditor_profile_id,
+				YeeAuditSubmission.place_id == Audit.place_id,
+			),
+		)
+		.where(Audit.id == audit_id)
+	)
+	row = (await session.execute(stmt)).first()
+	if row is None:
+		raise HTTPException(status_code=404, detail="Audit not found.")
+
+	audit, project, place, auditor, submission = row
+	if user.account_type != AccountType.ADMIN and project.account_id != _manager_account_id(user):
+		raise HTTPException(status_code=403, detail="You do not have access to this audit.")
+
+	if payload.submission_id:
+		target_submission = await session.get(YeeAuditSubmission, uuid.UUID(payload.submission_id))
+		if target_submission is None:
+			raise HTTPException(status_code=404, detail="YEE submission not found for this audit.")
+		if target_submission.place_id != audit.place_id or target_submission.auditor_id != audit.auditor_profile_id:
+			raise HTTPException(status_code=400, detail="Submission does not belong to the selected audit.")
+		submission = target_submission
+
+	score = score_yee_responses(payload.responses)
+	submitted_at = (
+		datetime.now(timezone.utc)
+		if payload.resubmit
+		else submission.submitted_at
+		if submission is not None
+		else audit.submitted_at or datetime.now(timezone.utc)
+	)
+
+	audit.status = AuditStatus.SUBMITTED
+	audit.submitted_at = submitted_at
+	audit.total_minutes = int(payload.participant_info.get("total_minutes") or 0) if payload.participant_info else None
+	audit.responses_json = payload.responses
+	audit.summary_score = float(score["total_score"])
+	audit.scores_json = {
+		"total_score": score["total_score"],
+		"section_scores": score["section_scores"],
+		"category_scores": score["category_scores"],
+		"matched_scored_answers": score["matched_scored_answers"],
+	}
+
+	if submission is None:
+		submission = YeeAuditSubmission(
+			auditor_id=audit.auditor_profile_id,
+			place_id=audit.place_id,
+			submitted_at=submitted_at,
+			participant_info_json=payload.participant_info,
+			responses_json=payload.responses,
+			section_scores_json=score["section_scores"],
+			total_score=score["total_score"],
+		)
+		session.add(submission)
+	else:
+		submission.submitted_at = submitted_at
+		submission.participant_info_json = payload.participant_info
+		submission.responses_json = payload.responses
+		submission.section_scores_json = score["section_scores"]
+		submission.total_score = score["total_score"]
+
+	await session.commit()
+	await session.refresh(audit)
+	await session.refresh(submission)
+
+	return ManagerAuditEditState(
+		audit_id=str(audit.id),
+		submission_id=str(submission.id),
+		place_id=str(place.id),
+		place_name=place.name,
+		auditor_id=str(auditor.id),
+		auditor_generated_id=_display_auditor_code(auditor.auditor_code),
+		submitted_at=submission.submitted_at.isoformat(),
+		participant_info=submission.participant_info_json,
+		responses=submission.responses_json,
+		score=_dashboard_score_result(score),
+	)
+
+
 @router.get("/users", response_model=list[UserListItem])
 async def list_users(
 	user: User = Depends(get_current_user),
@@ -1373,7 +1875,15 @@ async def create_project(
 		created_by_user_id=user.id,
 		name=payload.name.strip(),
 		overview=payload.description.strip() if payload.description and payload.description.strip() else None,
-		place_types=[],
+		place_types=_normalize_text_list(payload.place_types),
+		start_date=payload.start_date,
+		end_date=payload.end_date,
+		est_places=payload.estimated_places,
+		auditor_description=_serialize_auditor_profile(
+			payload.auditor_population_types,
+			payload.auditor_inclusion_exclusion_criteria,
+			payload.auditor_notes,
+		),
 	)
 	session.add(project)
 	await session.commit()
@@ -1409,6 +1919,15 @@ async def update_project(
 
 	project.name = payload.name.strip()
 	project.description = payload.description.strip() if payload.description and payload.description.strip() else None
+	project.place_types = _normalize_text_list(payload.place_types)
+	project.start_date = payload.start_date
+	project.end_date = payload.end_date
+	project.est_places = payload.estimated_places
+	project.auditor_description = _serialize_auditor_profile(
+		payload.auditor_population_types,
+		payload.auditor_inclusion_exclusion_criteria,
+		payload.auditor_notes,
+	)
 	await session.commit()
 
 	place_total = int(
@@ -1450,9 +1969,22 @@ async def create_place(
 
 	place = Place(
 		name=payload.name.strip(),
-		city=payload.address.strip(),
-		postal_code=payload.postal_code.strip(),
-		auditor_description=payload.notes.strip() if payload.notes and payload.notes.strip() else None,
+		address=payload.address.strip(),
+		city=payload.city.strip() if payload.city and payload.city.strip() else None,
+		province=payload.province.strip() if payload.province and payload.province.strip() else None,
+		country=payload.country.strip() if payload.country and payload.country.strip() else None,
+		postal_code=payload.postal_code.strip() if payload.postal_code and payload.postal_code.strip() else None,
+		place_type=payload.place_type.strip() if payload.place_type and payload.place_type.strip() else None,
+		start_date=payload.start_date,
+		end_date=payload.end_date,
+		est_auditors=payload.estimated_auditors,
+		auditor_description=_serialize_auditor_profile(
+			payload.auditor_population_types,
+			payload.auditor_inclusion_exclusion_criteria,
+			payload.auditor_notes,
+		),
+		lat=payload.lat,
+		lng=payload.lng,
 	)
 	session.add(place)
 	await session.flush()
@@ -1506,8 +2038,21 @@ async def update_place(
 
 	place.name = payload.name.strip()
 	place.address = payload.address.strip()
-	place.postal_code = payload.postal_code.strip()
-	place.notes = payload.notes.strip() if payload.notes and payload.notes.strip() else None
+	place.city = payload.city.strip() if payload.city and payload.city.strip() else None
+	place.province = payload.province.strip() if payload.province and payload.province.strip() else None
+	place.country = payload.country.strip() if payload.country and payload.country.strip() else None
+	place.postal_code = payload.postal_code.strip() if payload.postal_code and payload.postal_code.strip() else None
+	place.place_type = payload.place_type.strip() if payload.place_type and payload.place_type.strip() else None
+	place.start_date = payload.start_date
+	place.end_date = payload.end_date
+	place.est_auditors = payload.estimated_auditors
+	place.auditor_description = _serialize_auditor_profile(
+		payload.auditor_population_types,
+		payload.auditor_inclusion_exclusion_criteria,
+		payload.auditor_notes,
+	)
+	place.lat = payload.lat
+	place.lng = payload.lng
 	if current_link.project_id != target_project.id:
 		current_link.project_id = target_project.id
 	await session.commit()
@@ -1717,7 +2262,7 @@ async def list_my_places(
 			id=str(place.id),
 			name=place.name,
 			project=project_name,
-			address=place.address,
+			address=place.address or "",
 			audits=int(audits),
 		)
 		for place, project_name, audits in rows
