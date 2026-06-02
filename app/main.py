@@ -25,6 +25,7 @@ origins = [
 	"http://localhost:3000",
 	"http://localhost:8000",
 	"http://localhost:8081",
+	"https://audit-tools-yee-frontend.vercel.app",
 	"https://audit-tools-backend.onrender.com",
 	"https://audit-tools-playspace-frontend.vercel.app",
 ]
