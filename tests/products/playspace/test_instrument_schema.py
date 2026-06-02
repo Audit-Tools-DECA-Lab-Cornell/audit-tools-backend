@@ -74,3 +74,17 @@ def test_instrument_schema_rejects_legacy_quantity_keys() -> None:
 
 	with pytest.raises(ValidationError):
 		PlayspaceInstrumentResponse.model_validate(payload)
+
+
+def test_instrument_schema_accepts_optional_question_notes_prompts() -> None:
+	"""Questions may define their own optional notes prompt without affecting shape validation."""
+
+	payload = deepcopy(get_canonical_instrument_payload())
+	first_question = payload["sections"][12]["questions"][0]
+	first_question["notes_prompt"] = "Any comments? Describe recommendations related to this item."
+
+	parsed = PlayspaceInstrumentResponse.model_validate(payload)
+	question = parsed.sections[12].questions[0]
+
+	assert question.question_key == "q_13_1"
+	assert question.notes_prompt == "Any comments? Describe recommendations related to this item."

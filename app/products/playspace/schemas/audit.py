@@ -72,12 +72,14 @@ class AuditMetaPatchRequest(RequestModel):
 	"""Mutable execution metadata stored with a Playspace audit draft."""
 
 	execution_mode: ExecutionMode | None = None
+	final_comments: str | None = None
 
 
 class AuditMetaResponse(ApiModel):
 	"""Typed execution metadata returned with an audit session."""
 
 	execution_mode: ExecutionMode | None
+	final_comments: str | None = None
 
 
 class PreAuditPatchRequest(RequestModel):
@@ -179,6 +181,8 @@ class AuditDraftPatchRequest(RequestModel):
 	meta: AuditMetaPatchRequest | None = None
 	pre_audit: PreAuditPatchRequest | None = None
 	sections: dict[str, SectionDraftPatchRequest] = Field(default_factory=dict)
+	# Mobile-supplied execute-time started_at correction.
+	started_at: datetime | None = None
 
 
 class AuditDraftSaveResponse(ApiModel):
@@ -243,7 +247,6 @@ class AuditorPlaceResponse(ApiModel):
 	lat: float | None
 	lng: float | None
 	audit_id: uuid.UUID | None
-	execution_mode: ExecutionMode | None = None
 	started_at: datetime | None
 	submitted_at: datetime | None
 	due_date: datetime | None = None

@@ -177,16 +177,18 @@ class User(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account | None] = relationship(back_populates="users")
-	manager_profile: Mapped[ManagerProfile | None] = relationship(back_populates="user", uselist=False)
-	auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False)
+	account: Mapped[Account | None] = relationship(back_populates="users", lazy="raise")
+	manager_profile: Mapped[ManagerProfile | None] = relationship(back_populates="user", uselist=False, lazy="raise")
+	auditor_profile: Mapped[AuditorProfile | None] = relationship(back_populates="user", uselist=False, lazy="raise")
 	notifications: Mapped[list[Notification]] = relationship(
 		back_populates="user",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	created_projects: Mapped[list[Project]] = relationship(
 		back_populates="created_by_user",
 		foreign_keys="Project.created_by_user_id",
+		lazy="raise",
 	)
 
 
@@ -225,7 +227,7 @@ class Notification(Base):
 		index=True,
 	)
 
-	user: Mapped[User] = relationship(back_populates="notifications")
+	user: Mapped[User] = relationship(back_populates="notifications", lazy="raise")
 
 	def __repr__(self) -> str:
 		return (
@@ -256,18 +258,21 @@ class Account(Base):
 		nullable=False,
 	)
 
-	users: Mapped[list[User]] = relationship(back_populates="account")
+	users: Mapped[list[User]] = relationship(back_populates="account", lazy="raise")
 	manager_profiles: Mapped[list[ManagerProfile]] = relationship(
 		back_populates="account",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	projects: Mapped[list[Project]] = relationship(
 		back_populates="account",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	auditor_profiles: Mapped[list[AuditorProfile]] = relationship(
 		back_populates="account",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 
@@ -314,8 +319,8 @@ class ManagerProfile(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account] = relationship(back_populates="manager_profiles")
-	user: Mapped[User | None] = relationship(back_populates="manager_profile")
+	account: Mapped[Account] = relationship(back_populates="manager_profiles", lazy="raise")
+	user: Mapped[User | None] = relationship(back_populates="manager_profile", lazy="raise")
 
 
 class Project(Base):
@@ -354,29 +359,35 @@ class Project(Base):
 		nullable=False,
 	)
 
-	account: Mapped[Account] = relationship(back_populates="projects")
+	account: Mapped[Account] = relationship(back_populates="projects", lazy="raise")
 	created_by_user: Mapped[User] = relationship(
 		back_populates="created_projects",
 		foreign_keys=[created_by_user_id],
+		lazy="raise",
 	)
 	project_place_links: Mapped[list[ProjectPlace]] = relationship(
 		back_populates="project",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	places: Mapped[list[Place]] = relationship(
 		secondary="project_places",
 		back_populates="projects",
 		overlaps="project_place_links,place,project,project_place_links",
+		lazy="raise",
 	)
 	assignments: Mapped[list[AuditorAssignment]] = relationship(
 		back_populates="project",
+		lazy="raise",
 	)
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="project",
+		lazy="raise",
 	)
 	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="project",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 	@property
@@ -411,6 +422,9 @@ class Place(Base):
 	end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 	est_auditors: Mapped[int | None] = mapped_column(Integer, nullable=True)
 	auditor_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+	saved_place_reports: Mapped[list[JSONDict]] = mapped_column(
+		JSONB, default=list, server_default="[]", nullable=False
+	)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
@@ -420,23 +434,28 @@ class Place(Base):
 	project_place_links: Mapped[list[ProjectPlace]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	projects: Mapped[list[Project]] = relationship(
 		secondary="project_places",
 		back_populates="places",
 		overlaps="project_place_links,project,place,project_place_links",
+		lazy="raise",
 	)
 	assignments: Mapped[list[AuditorAssignment]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="place",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 	@property
@@ -473,10 +492,12 @@ class ProjectPlace(Base):
 	project: Mapped[Project] = relationship(
 		back_populates="project_place_links",
 		overlaps="places,projects",
+		lazy="raise",
 	)
 	place: Mapped[Place] = relationship(
 		back_populates="project_place_links",
 		overlaps="places,projects",
+		lazy="raise",
 	)
 
 
@@ -490,11 +511,12 @@ class AuditorProfile(Base):
 		primary_key=True,
 		default=uuid.uuid4,
 	)
-	account_id: Mapped[uuid.UUID] = mapped_column(
+	# Nullable: set to NULL when a manager removes the auditor from their account (soft unlink).
+	account_id: Mapped[uuid.UUID | None] = mapped_column(
 		UUID(as_uuid=True),
 		ForeignKey("accounts.id", ondelete="CASCADE"),
 		index=True,
-		nullable=False,
+		nullable=True,
 	)
 	user_id: Mapped[uuid.UUID | None] = mapped_column(
 		UUID(as_uuid=True),
@@ -505,33 +527,41 @@ class AuditorProfile(Base):
 	auditor_code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
 	email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
 	full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+	phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	age_range: Mapped[str | None] = mapped_column(String(80), nullable=True)
 	gender: Mapped[str | None] = mapped_column(String(80), nullable=True)
+	city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+	province: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	country: Mapped[str | None] = mapped_column(String(120), nullable=True)
 	role: Mapped[str | None] = mapped_column(String(120), nullable=True)
+	terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
 		nullable=False,
 	)
 
-	account: Mapped[Account] = relationship(back_populates="auditor_profiles")
-	user: Mapped[User | None] = relationship(back_populates="auditor_profile")
+	account: Mapped[Account] = relationship(back_populates="auditor_profiles", lazy="raise")
+	user: Mapped[User | None] = relationship(back_populates="auditor_profile", lazy="raise")
 	assignments: Mapped[list[AuditorAssignment]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	audits: Mapped[list[Audit]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	playspace_submissions: Mapped[list[PlayspaceSubmission]] = relationship(
 		back_populates="auditor_profile",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	invites: Mapped[list[AuditorInvite]] = relationship(
 		back_populates="auditor",
 		passive_deletes=True,
+		lazy="raise",
 	)
 
 
@@ -563,9 +593,9 @@ class AuditorInvite(Base):
 	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-	account: Mapped[Account] = relationship()
-	invited_by_user: Mapped[User] = relationship()
-	auditor: Mapped[AuditorProfile | None] = relationship(back_populates="invites")
+	account: Mapped[Account] = relationship(lazy="raise")
+	invited_by_user: Mapped[User] = relationship(lazy="raise")
+	auditor: Mapped[AuditorProfile | None] = relationship(back_populates="invites", lazy="raise")
 
 
 class ManagerInvite(Base):
@@ -596,9 +626,9 @@ class ManagerInvite(Base):
 	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-	account: Mapped[Account] = relationship()
-	invited_by_user: Mapped[User] = relationship(foreign_keys=[invited_by_user_id])
-	accepted_by_user: Mapped[User | None] = relationship(foreign_keys=[accepted_by_user_id])
+	account: Mapped[Account] = relationship(lazy="raise")
+	invited_by_user: Mapped[User] = relationship(foreign_keys=[invited_by_user_id], lazy="raise")
+	accepted_by_user: Mapped[User | None] = relationship(foreign_keys=[accepted_by_user_id], lazy="raise")
 
 
 class AuditorAssignment(Base):
@@ -655,9 +685,9 @@ class AuditorAssignment(Base):
 		nullable=False,
 	)
 
-	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments")
-	project: Mapped[Project | None] = relationship(back_populates="assignments")
-	place: Mapped[Place] = relationship(back_populates="assignments")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="assignments", lazy="raise")
+	project: Mapped[Project | None] = relationship(back_populates="assignments", lazy="raise")
+	place: Mapped[Place] = relationship(back_populates="assignments", lazy="raise")
 
 	@property
 	def auditor_id(self) -> uuid.UUID:
@@ -742,9 +772,9 @@ class Audit(Base):
 		nullable=False,
 	)
 
-	project: Mapped[Project] = relationship(back_populates="audits")
-	place: Mapped[Place] = relationship(back_populates="audits")
-	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits")
+	project: Mapped[Project] = relationship(back_populates="audits", lazy="raise")
+	place: Mapped[Place] = relationship(back_populates="audits", lazy="raise")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="audits", lazy="raise")
 
 	@property
 	def auditor_id(self) -> uuid.UUID:
@@ -828,9 +858,9 @@ class PlayspaceSubmission(Base):
 		nullable=False,
 	)
 
-	project: Mapped[Project] = relationship(back_populates="playspace_submissions")
-	place: Mapped[Place] = relationship(back_populates="playspace_submissions")
-	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="playspace_submissions")
+	project: Mapped[Project] = relationship(back_populates="playspace_submissions", lazy="raise")
+	place: Mapped[Place] = relationship(back_populates="playspace_submissions", lazy="raise")
+	auditor_profile: Mapped[AuditorProfile] = relationship(back_populates="playspace_submissions", lazy="raise")
 
 	# Normalized draft-session tables. These are the live write path for
 	# in-progress audits; the JSONB fields above become the immutable snapshot
@@ -839,14 +869,17 @@ class PlayspaceSubmission(Base):
 		back_populates="submission",
 		cascade=CASCADE_DELETE_ORPHAN,
 		uselist=False,
+		lazy="raise",
 	)
 	pre_submission_answers: Mapped[list[PlayspacePreSubmissionAnswer]] = relationship(
 		back_populates="submission",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 	submission_sections: Mapped[list[PlayspaceSubmissionSection]] = relationship(
 		back_populates="submission",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 	@property
@@ -865,6 +898,7 @@ class PlayspaceSubmissionContext(Base):
 		primary_key=True,
 	)
 	execution_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+	final_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
 	draft_progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
 	schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
 	revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
@@ -880,7 +914,7 @@ class PlayspaceSubmissionContext(Base):
 		nullable=False,
 	)
 
-	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_context")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_context", lazy="raise")
 
 
 class PlayspacePreSubmissionAnswer(Base):
@@ -916,7 +950,7 @@ class PlayspacePreSubmissionAnswer(Base):
 		nullable=False,
 	)
 
-	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="pre_submission_answers")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="pre_submission_answers", lazy="raise")
 
 
 class PlayspaceSubmissionSection(Base):
@@ -956,10 +990,11 @@ class PlayspaceSubmissionSection(Base):
 		nullable=False,
 	)
 
-	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_sections")
+	submission: Mapped[PlayspaceSubmission] = relationship(back_populates="submission_sections", lazy="raise")
 	question_responses: Mapped[list[PlayspaceQuestionResponse]] = relationship(
 		back_populates="section",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
 
 
@@ -991,6 +1026,7 @@ class PlayspaceQuestionResponse(Base):
 		nullable=False,
 	)
 	question_key: Mapped[str] = mapped_column(String(120), nullable=False)
+	note: Mapped[str | None] = mapped_column(Text, nullable=True)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
@@ -1003,11 +1039,61 @@ class PlayspaceQuestionResponse(Base):
 		nullable=False,
 	)
 
-	section: Mapped[PlayspaceSubmissionSection] = relationship(back_populates="question_responses")
+	section: Mapped[PlayspaceSubmissionSection] = relationship(back_populates="question_responses", lazy="raise")
 	scale_answers: Mapped[list[PlayspaceScaleAnswer]] = relationship(
 		back_populates="question_response",
 		cascade=CASCADE_DELETE_ORPHAN,
+		lazy="raise",
 	)
+	checklist_answer: Mapped[PlayspaceChecklistAnswer | None] = relationship(
+		back_populates="question_response",
+		cascade=CASCADE_DELETE_ORPHAN,
+		uselist=False,
+		lazy="raise",
+	)
+
+
+class PlayspaceChecklistAnswer(Base):
+	"""One normalized checklist-answer payload within a PlayspaceQuestionResponse."""
+
+	__tablename__ = "playspace_checklist_answers"
+	__table_args__ = (
+		UniqueConstraint(
+			"question_response_id",
+			name="uq_playspace_checklist_answers_question_response",
+		),
+	)
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	question_response_id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey(
+			"playspace_question_responses.id",
+			ondelete="CASCADE",
+			name="fk_ps_checklist_answer_question_response",
+		),
+		index=True,
+		nullable=False,
+	)
+	selected_option_keys: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+	other_details: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
+	updated_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		onupdate=func.now(),
+		nullable=False,
+	)
+
+	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="checklist_answer", lazy="raise")
 
 
 class PlayspaceScaleAnswer(Base):
@@ -1051,7 +1137,7 @@ class PlayspaceScaleAnswer(Base):
 		nullable=False,
 	)
 
-	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="scale_answers")
+	question_response: Mapped[PlayspaceQuestionResponse] = relationship(back_populates="scale_answers", lazy="raise")
 
 
 class YeeAuditSubmission(Base):
@@ -1076,8 +1162,34 @@ class YeeAuditSubmission(Base):
 	section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	total_score: Mapped[int] = mapped_column(nullable=False)
 
-	auditor: Mapped[AuditorProfile] = relationship()
-	place: Mapped[Place] = relationship()
+	auditor: Mapped[AuditorProfile] = relationship(lazy="raise")
+	place: Mapped[Place] = relationship(lazy="raise")
+
+
+class AuditorAccessRequest(Base):
+	"""Self-initiated access request from an auditor awaiting manager approval."""
+
+	__tablename__ = "auditor_access_requests"
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	name: Mapped[str] = mapped_column(String(200), nullable=False)
+	email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+	manager_email: Mapped[str] = mapped_column(String(320), nullable=False)
+	status: Mapped[str] = mapped_column(
+		String(20),
+		nullable=False,
+		default="pending",
+		server_default="pending",
+	)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
 
 
 # Compatibility aliases for the YEE router code.

@@ -44,7 +44,7 @@ async def get_admin_overview(
 @router.get("/accounts")
 async def list_admin_accounts(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	account_types: list[str] | None = Query(default=None, alias="account_type"),
@@ -66,7 +66,7 @@ async def list_admin_accounts(
 @router.get("/projects")
 async def list_admin_projects(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
@@ -88,7 +88,7 @@ async def list_admin_projects(
 @router.get("/places")
 async def list_admin_places(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
@@ -116,14 +116,16 @@ async def list_admin_places(
 @router.get("/auditors")
 async def list_admin_auditors(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	place_ids: list[uuid.UUID] | None = Query(default=None, alias="place_id"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
 ) -> PaginatedResponse[AdminAuditorRowResponse]:
-	"""Return global auditor rows."""
+	"""Return global auditor rows, optionally filtered by manager account, project, or place."""
 
 	return await service.list_auditors(
 		actor=current_user,
@@ -132,23 +134,26 @@ async def list_admin_auditors(
 		search=search,
 		sort=sort,
 		account_ids=account_ids,
+		project_ids=project_ids,
+		place_ids=place_ids,
 	)
 
 
 @router.get("/audits")
 async def list_admin_audits(
 	page: int = Query(default=1, ge=1),
-	page_size: int = Query(default=10, ge=1, le=100),
+	page_size: int = Query(default=10, ge=1, le=500),
 	search: str | None = Query(default=None),
 	sort: str | None = Query(default=None),
 	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
 	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
 	auditor_ids: list[uuid.UUID] | None = Query(default=None, alias="auditor_id"),
+	place_ids: list[uuid.UUID] | None = Query(default=None, alias="place_id"),
 	statuses: list[str] | None = Query(default=None, alias="status"),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
 	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
 ) -> PaginatedResponse[AdminAuditRowResponse]:
-	"""Return global audit rows."""
+	"""Return global audit rows, optionally filtered by project, account, auditor, place, or status."""
 
 	return await service.list_audits(
 		actor=current_user,
@@ -159,6 +164,7 @@ async def list_admin_audits(
 		project_ids=project_ids,
 		account_ids=account_ids,
 		auditor_ids=auditor_ids,
+		place_ids=place_ids,
 		statuses=statuses,
 	)
 

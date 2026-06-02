@@ -35,6 +35,7 @@ from app.models import (
 	Instrument,
 	ManagerProfile,
 	Place,
+	PlayspaceChecklistAnswer,
 	PlayspacePreSubmissionAnswer,
 	PlayspaceQuestionResponse,
 	PlayspaceScaleAnswer,
@@ -104,6 +105,7 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
 	"""Remove existing shared-core records before inserting fresh deterministic data."""
 
 	for model in (
+		PlayspaceChecklistAnswer,
 		PlayspaceScaleAnswer,
 		PlayspaceQuestionResponse,
 		PlayspaceSubmissionSection,

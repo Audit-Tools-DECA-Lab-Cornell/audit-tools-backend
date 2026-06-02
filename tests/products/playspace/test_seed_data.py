@@ -6,9 +6,12 @@ from app.models import (
 	Account,
 	AccountType,
 	Audit,
+	AuditStatus,
 	AuditorAssignment,
 	AuditorProfile,
 	ManagerProfile,
+	PlayspaceChecklistAnswer,
+	PlayspaceSubmission,
 	Project,
 	ProjectPlace,
 	User,
@@ -109,3 +112,33 @@ def test_build_playspace_seed_entities_include_project_place_links_and_pair_scop
 	assert len(project_place_links) > 0
 	assert all(assignment.project_id is not None for assignment in assignments)
 	assert all(audit.project_id is not None for audit in audits)
+
+
+def test_build_playspace_seed_entities_attach_checklist_answers_for_drafts() -> None:
+	"""Draft seed rows should attach checklist selections for cascade insert."""
+
+	entities = build_playspace_seed_entities()
+	draft_audits = [
+		entity
+		for entity in entities
+		if isinstance(entity, PlayspaceSubmission) and entity.status in {AuditStatus.IN_PROGRESS, AuditStatus.PAUSED}
+	]
+	assert draft_audits
+
+	found_checklist_answer = False
+	for audit in draft_audits:
+		for section in audit.submission_sections or []:
+			for question_response in section.question_responses or []:
+				checklist_answer = question_response.checklist_answer
+				if not isinstance(checklist_answer, PlayspaceChecklistAnswer):
+					continue
+				found_checklist_answer = True
+				assert question_response.scale_answers == []
+				assert isinstance(checklist_answer.selected_option_keys, list)
+				assert len(checklist_answer.selected_option_keys) > 0
+				if "other" in checklist_answer.selected_option_keys:
+					other_text = checklist_answer.other_details.get("text")
+					assert isinstance(other_text, str)
+					assert other_text.strip()
+
+	assert found_checklist_answer

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actors import CurrentUserContext
 from app.products.playspace.instrument import (
 	get_canonical_instrument_response,
+	INSTRUMENT_KEY,
 )
 from app.products.playspace.routes.dependencies import (
 	CURRENT_USER_DEPENDENCY,
@@ -24,6 +25,7 @@ from app.products.playspace.schemas.management import (
 	InstrumentVersionResponse,
 )
 from app.products.playspace.services.instrument import (
+	build_instrument_response_from_row,
 	create_instrument_version,
 	get_active_instrument,
 	list_instrument_versions,
@@ -33,14 +35,38 @@ from app.products.playspace.services.instrument import (
 router = APIRouter(tags=["playspace-instrument"])
 
 
+async def _resolve_active_or_canonical_instrument(
+	*,
+	session: AsyncSession,
+	instrument_key: str,
+	lang: str,
+) -> PlayspaceInstrumentResponse:
+	"""Return the active DB-backed instrument, falling back to the canonical file."""
+
+	instrument = await get_active_instrument(session, instrument_key)
+	if instrument is None:
+		return get_canonical_instrument_response()
+
+	instrument_response = build_instrument_response_from_row(instrument, lang=lang)
+	if instrument_response is None:
+		return get_canonical_instrument_response()
+	return instrument_response
+
+
 @router.get("/instrument")
 async def get_instrument_metadata(
+	lang: str = Query("en", description="Language code for the returned instrument."),
 	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session: AsyncSession = SESSION_DEPENDENCY,
 ) -> PlayspaceInstrumentResponse:
-	"""Return the canonical Playspace instrument contract."""
+	"""Return the latest active Playspace instrument contract."""
 
 	_ = current_user
-	return get_canonical_instrument_response()
+	return await _resolve_active_or_canonical_instrument(
+		session=session,
+		instrument_key=INSTRUMENT_KEY,
+		lang=lang,
+	)
 
 
 @router.get(
@@ -58,16 +84,11 @@ async def get_active_instrument_by_key(
 	Falls back to the static canonical payload when no database record exists.
 	"""
 
-	instrument = await get_active_instrument(session, instrument_key)
-	if instrument is None:
-		return get_canonical_instrument_response()
-
-	content = instrument.content
-	localized = content.get(lang) or content.get("en")
-	if localized is None:
-		return get_canonical_instrument_response()
-
-	return PlayspaceInstrumentResponse.model_validate(localized)
+	return await _resolve_active_or_canonical_instrument(
+		session=session,
+		instrument_key=instrument_key,
+		lang=lang,
+	)
 
 
 @router.get(

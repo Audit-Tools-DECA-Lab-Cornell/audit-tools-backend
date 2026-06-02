@@ -68,6 +68,7 @@ class AdminPlaceRowResponse(ApiModel):
 	city: str | None
 	province: str | None
 	country: str | None
+	place_type: str | None
 	audits_completed: int
 	average_score: float | None
 	last_audited_at: datetime | None
@@ -81,10 +82,14 @@ class AdminPlaceRowResponse(ApiModel):
 
 
 class AdminAuditorRowResponse(ApiModel):
-	"""Global auditor row with privacy-safe identity fields."""
+	"""Global auditor row with privacy-safe identity fields.
+
+	``account_id`` is ``None`` for auditors that have been removed from their
+	manager account (soft-unlinked) but whose records are still retained.
+	"""
 
 	auditor_profile_id: uuid.UUID
-	account_id: uuid.UUID
+	account_id: uuid.UUID | None
 	auditor_code: str
 	email_masked: str | None
 	assignments_count: int

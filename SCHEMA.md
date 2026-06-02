@@ -17,7 +17,8 @@ Intentionally split into: shared core tables · Playspace-specific normalized au
 - [Playspace Normalized Draft Tables](#2-playspace-normalized-draft-tables)
 - [Current Score Model](#3-current-playspace-score-model)
 - [Dual-Storage Boundary](#4-dual-storage-boundary)
-- [Not In The Current Schema](#5-not-in-the-current-schema)
+- [Legacy Checklist Data Migration](#5-legacy-checklist-data-migration)
+- [Not In The Current Schema](#6-not-in-the-current-schema)
 
 ---
 
@@ -228,26 +229,29 @@ Shared audit shell record used by YEE and retained for compatibility.
 
 Playspace-only submission root. Scope is selected with **`execution_mode`**: `audit`, `survey`, or `both` (instrument enum); `both` counts toward both audit- and survey-axis place rollups.
 
-| Column                                          | Notes                                             |
-| ----------------------------------------------- | ------------------------------------------------- |
-| `id`                                            | UUID primary key                                  |
-| `project_id` / `place_id`                       | FK pair to `project_places`                       |
-| `auditor_profile_id`                            | FK → `auditor_profiles`                           |
-| `audit_code`                                    | Stable public-facing submission identifier        |
-| `execution_mode`                                | `audit`, `survey`, or `both` (nullable until set) |
-| `draft_progress_percent`                        | Draft progress projection for list surfaces       |
-| `status`                                        | `IN_PROGRESS`, `PAUSED`, or `SUBMITTED`           |
-| `summary_score`                                 | Legacy compact summary retained for compatibility |
-| `audit_play_value_score`                        | Submission-level audit partition PV total         |
-| `audit_usability_score`                         | Submission-level audit partition usability total  |
-| `survey_play_value_score`                       | Submission-level survey partition PV total        |
-| `survey_usability_score`                        | Submission-level survey partition usability total |
-| `responses_json`                                | Canonical aggregate payload                       |
-| `scores_json`                                   | Compatibility cache plus scored partitions        |
-| `started_at` / `submitted_at` / `total_minutes` | Submission lifecycle metadata                     |
-| `created_at` / `updated_at`                     |                                                   |
+| Column                                          | Notes                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| `id`                                            | UUID primary key                                              |
+| `project_id` / `place_id`                       | FK pair to `project_places`                                   |
+| `auditor_profile_id`                            | FK → `auditor_profiles`                                       |
+| `audit_code`                                    | Stable public-facing submission identifier                    |
+| `instrument_key` / `instrument_version`         | Instrument key/version active when the submission was created |
+| `execution_mode`                                | `audit`, `survey`, or `both` (nullable until set)             |
+| `draft_progress_percent`                        | Draft progress projection for list surfaces                   |
+| `status`                                        | `IN_PROGRESS`, `PAUSED`, or `SUBMITTED`                       |
+| `summary_score`                                 | Legacy compact summary retained for compatibility             |
+| `audit_play_value_score`                        | Submission-level audit partition PV total                     |
+| `audit_usability_score`                         | Submission-level audit partition usability total              |
+| `survey_play_value_score`                       | Submission-level survey partition PV total                    |
+| `survey_usability_score`                        | Submission-level survey partition usability total             |
+| `responses_json`                                | Canonical aggregate payload                                   |
+| `scores_json`                                   | Compatibility cache plus scored partitions                    |
+| `started_at` / `submitted_at` / `total_minutes` | Submission lifecycle metadata                                 |
+| `created_at` / `updated_at`                     |                                                               |
 
 **Current uniqueness rule:** one Playspace submission per `(project_id, place_id, auditor_profile_id)`.
+
+**Instrument version rule:** new submissions are stamped with the active `instruments` row for `pvua_v5_2` at creation time. Audit-session responses resolve the stored `(instrument_key, instrument_version)` first so historical submissions render/export against the version they used, not whichever version is active later. The database row metadata is authoritative; response builders override stale `content.en.instrument_version` values when a row was uploaded with mismatched embedded metadata. For legacy rows incorrectly stamped as `5.2`, the response builder compares stored response question keys against the stored-version instrument and active instrument, then uses the active instrument only when it covers more of the actual stored responses.
 
 ---
 
@@ -305,12 +309,13 @@ One row per audit section with section-level note state.
 
 One row per question within a section.
 
-| Column                      | Notes                                |
-| --------------------------- | ------------------------------------ |
-| `id`                        | UUID primary key                     |
-| `section_id`                | FK → `playspace_submission_sections` |
-| `question_key`              |                                      |
-| `created_at` / `updated_at` |                                      |
+| Column                      | Notes                                   |
+| --------------------------- | --------------------------------------- |
+| `id`                        | UUID primary key                        |
+| `section_id`                | FK → `playspace_submission_sections`    |
+| `question_key`              |                                         |
+| `note`                      | Nullable question-level auditor comment |
+| `created_at` / `updated_at` |                                         |
 
 **Unique constraint:** `(section_id, question_key)`
 
@@ -329,6 +334,24 @@ One row per answered scale inside a question response.
 | `created_at` / `updated_at` |                                     |
 
 **Unique constraint:** `(question_response_id, scale_key)`
+
+---
+
+### `playspace_checklist_answers`
+
+One row per checklist-style question response. This table stores the array/object payload that cannot safely fit in `playspace_scale_answers`.
+
+| Column                      | Notes                                                    |
+| --------------------------- | -------------------------------------------------------- |
+| `id`                        | UUID primary key                                         |
+| `question_response_id`      | FK → `playspace_question_responses`, unique one-to-one   |
+| `selected_option_keys`      | JSONB array of selected checklist option keys            |
+| `other_details`             | JSONB object for optional checklist free text, e.g. text |
+| `created_at` / `updated_at` |                                                          |
+
+**Unique constraint:** `(question_response_id)`
+
+**Runtime payload shape:** API responses still expose checklist answers as `selected_option_keys: string[]` plus optional `other_details: { text: string }` inside the question response payload. Mobile and frontend clients should continue using that shape rather than depending on this table directly.
 
 ---
 
@@ -356,7 +379,9 @@ These totals are returned in: audit session responses · assigned-place summarie
 | Draft / in-session | Normalized tables above          | Fast per-question upserts; no race conditions         |
 | Post-submission    | JSONB on `playspace_submissions` | Immutable snapshot; single-row reads; no JOINs needed |
 
-`audit_state.py` currently writes the draft state to `responses_json` (JSONB). Migrating drafts to the normalized tables is a planned next step. Until that migration is complete, the normalized tables exist in the schema with the correct FK wiring but are not yet populated by the runtime.
+`audit_state.py` is the source-of-truth bridge for this boundary. Draft saves write normalized rows; submission builds the immutable `playspace_submissions.responses_json` snapshot from those rows exactly once. Submitted audit reads use the JSONB snapshot, while draft reads rebuild the same API shape from normalized relations.
+
+Checklist compatibility note: versions before `20260514_0010` could store checklist payload keys such as `selected_option_keys` and `other_details` as malformed `playspace_scale_answers` strings. The read path normalizes those recoverable stringified values back into the client-facing checklist shape.
 
 ---
 
@@ -368,7 +393,24 @@ These totals are returned in: audit session responses · assigned-place summarie
 
 ---
 
-## 5. Not In The Current Schema
+## 5. Legacy Checklist Data Migration
+
+The normalized checklist table (`playspace_checklist_answers`) is created in `0001_initial_schema.py`. It does **not** rewrite historical rows automatically, so it is safe to deploy without blocking reads/writes.
+
+Recommended no-impact cleanup path:
+
+1. **Deploy code + schema first.** Run `alembic -x product=playspace upgrade head`. Leave the legacy read-normalization code enabled.
+2. **Measure recoverable legacy data.** In a read-only query, count `playspace_scale_answers` rows where `scale_key IN ('selected_option_keys', 'other_details')` and inspect whether `option_key` contains parseable JSON/Python-list strings. Also sample submitted `playspace_submissions.responses_json` for checklist keys stored as strings.
+3. **Backfill in small batches.** For each recoverable normalized question response, insert or update one `playspace_checklist_answers` row from the parsed `selected_option_keys` / `other_details`, then delete only the legacy malformed `playspace_scale_answers` rows for those two keys. Keep this script idempotent and log skipped/unparseable rows.
+4. **Repair mis-stamped instrument versions.** Before removing compatibility, identify submitted rows with `instrument_version='5.2'` whose stored response question keys match the active/versioned 5.13 instrument better than the 5.2 instrument. Update those rows to the correct `instrument_version` in small batches after spot-checking rendered audit details and reports.
+5. **Rebuild submitted snapshots only when needed.** Historical submitted audits display through response normalization even without rewriting `responses_json`. If permanent cleanup is desired, update only checklist fields inside `responses_json` from stringified values to arrays/objects in batched transactions, preserving all other snapshot data unchanged.
+6. **Verify before removing compatibility.** Confirm zero remaining malformed rows, zero stringified checklist keys in submitted snapshots, and no mis-stamped instrument versions, run audit detail/report export smoke tests, then remove `_normalize_legacy_checklist_payload()`, the checklist-specific string parsing, and the response-key instrument fallback in a later PR.
+
+This path avoids downtime because new writes use the new table immediately, existing reads remain compatible during the backfill, and cleanup can be paused or rolled back before compatibility code is removed.
+
+---
+
+## 6. Not In The Current Schema
 
 The following are **not** current backend tables:
 

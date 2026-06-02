@@ -289,105 +289,18 @@ class PlayspaceDashboardService:
 		return project, place
 
 	async def list_auditors(self, actor: CurrentUserContext, account_id: uuid.UUID) -> list[AuditorSummaryResponse]:
-		"""Return all auditors in the system that the manager has not assigned to any projects."""
+		"""Return all auditors belonging to the given manager account."""
 
 		self._ensure_manager_scope(actor, account_id)
-		result = await self._session.execute(select(AuditorProfile))
-		auditor_profiles = result.scalars().all()
-		auditor_profile_ids = [profile.id for profile in auditor_profiles]
-		assignment_counts_subquery = (
-			select(
-				AuditorProfile.id.label("id"),
-				AuditorProfile.account_id.label("account_id"),
-				AuditorProfile.auditor_code.label("auditor_code"),
-				AuditorProfile.full_name.label("full_name"),
-				AuditorProfile.email.label("email"),
-				AuditorProfile.age_range.label("age_range"),
-				AuditorProfile.gender.label("gender"),
-				AuditorProfile.country.label("country"),
-				AuditorProfile.role.label("role"),
-				func.count(AuditorAssignment.id).label("assignments_count"),
-				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
-					"last_active_at"
-				),
-				func.count(PlayspaceSubmission.id)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
-				.label("completed_audits"),
-			)
-			.select_from(AuditorProfile)
-			.outerjoin(
-				AuditorAssignment,
-				AuditorAssignment.auditor_profile_id.in_(auditor_profile_ids),
-			)
-			.outerjoin(
-				PlayspaceSubmission,
-				PlayspaceSubmission.auditor_profile_id == AuditorProfile.id,
-			)
-			.group_by(AuditorProfile.id)
-			.subquery()
-		)
-		stmt = (
-			select(
-				AuditorProfile.id.label("id"),
-				AuditorProfile.account_id.label("account_id"),
-				AuditorProfile.auditor_code.label("auditor_code"),
-				AuditorProfile.full_name.label("full_name"),
-				AuditorProfile.email.label("email"),
-				AuditorProfile.age_range.label("age_range"),
-				AuditorProfile.gender.label("gender"),
-				AuditorProfile.country.label("country"),
-				AuditorProfile.role.label("role"),
-				assignment_counts_subquery.c.assignments_count.label("assignments_count"),
-				assignment_counts_subquery.c.last_active_at.label("last_active_at"),
-				assignment_counts_subquery.c.completed_audits.label("completed_audits"),
-			)
-			.join(
-				assignment_counts_subquery,
-				assignment_counts_subquery.c.id == AuditorProfile.id,
-			)
-			.order_by(func.lower(AuditorProfile.auditor_code).asc())
-			.limit(MAX_PAGE_SIZE)
-		)
-
-		result = await self._session.execute(stmt)
-		rows = result.all()
-
-		return [
-			AuditorSummaryResponse(
-				id=row.id,
-				account_id=row.account_id,
-				auditor_code=row.auditor_code,
-				full_name=row.full_name,
-				email=row.email,
-				age_range=row.age_range,
-				gender=row.gender,
-				country=row.country,
-				role=row.role,
-				assignments_count=int(row.assignments_count or 0),
-				completed_audits=int(row.completed_audits or 0),
-				last_active_at=row.last_active_at,
-			)
-			for row in rows
-		]
-
-	async def _get_account_auditor_summaries_db(
-		self,
-		account_id: uuid.UUID,
-	) -> list[AuditorSummaryResponse]:
-		"""Fetch manager-facing auditor summaries for a real account."""
 
 		assignment_counts_subquery = (
 			select(
 				AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
 				func.count(AuditorAssignment.id).label("assignments_count"),
 			)
-			.select_from(AuditorAssignment)
-			.join(Project, AuditorAssignment.project_id == Project.id)
-			.where(Project.account_id == account_id)
 			.group_by(AuditorAssignment.auditor_profile_id)
 			.subquery()
 		)
-
 		audit_stats_subquery = (
 			select(
 				PlayspaceSubmission.auditor_profile_id.label("auditor_profile_id"),
@@ -398,9 +311,6 @@ class PlayspaceDashboardService:
 					"last_active_at"
 				),
 			)
-			.select_from(PlayspaceSubmission)
-			.join(Project, PlayspaceSubmission.project_id == Project.id)
-			.where(Project.account_id == account_id)
 			.group_by(PlayspaceSubmission.auditor_profile_id)
 			.subquery()
 		)
@@ -420,7 +330,9 @@ class PlayspaceDashboardService:
 				audit_stats_subquery.c.completed_audits.label("completed_audits"),
 				audit_stats_subquery.c.last_active_at.label("last_active_at"),
 			)
-			.join(
+			.select_from(AuditorProfile)
+			.where(AuditorProfile.account_id == account_id)
+			.outerjoin(
 				assignment_counts_subquery,
 				assignment_counts_subquery.c.auditor_profile_id == AuditorProfile.id,
 			)
@@ -429,7 +341,9 @@ class PlayspaceDashboardService:
 				audit_stats_subquery.c.auditor_profile_id == AuditorProfile.id,
 			)
 			.order_by(func.lower(AuditorProfile.auditor_code).asc())
+			.limit(MAX_PAGE_SIZE)
 		)
+
 		result = await self._session.execute(stmt)
 		rows = result.all()
 
@@ -464,7 +378,7 @@ class PlayspaceDashboardService:
 		)
 
 		manager_profiles = await self.list_manager_profiles(actor=actor, account_id=account_id)
-		auditors = await self._get_account_auditor_summaries_db(account_id=account_id)
+		auditors = await self.list_auditors(actor=actor, account_id=account_id)
 		total_projects_result = await self._session.execute(
 			select(func.count(Project.id)).where(Project.account_id == account_id)
 		)
@@ -704,16 +618,6 @@ class PlayspaceDashboardService:
 			for row in result.all()
 		]
 
-	async def list_account_auditors(
-		self,
-		actor: CurrentUserContext,
-		account_id: uuid.UUID,
-	) -> list[AuditorSummaryResponse]:
-		"""Return manager-facing auditor summaries for the requested account."""
-
-		self._ensure_manager_scope(actor, account_id)
-		return await self._get_account_auditor_summaries_db(account_id=account_id)
-
 	async def list_account_places(
 		self,
 		*,
@@ -881,6 +785,7 @@ class PlayspaceDashboardService:
 		sort: str | None = None,
 		project_ids: list[uuid.UUID] | None = None,
 		auditor_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
 		statuses: list[str] | None = None,
 	) -> ManagerAuditsListResponse:
 		"""Return paginated manager audit rows with SQL-backed filtering."""
@@ -890,6 +795,7 @@ class PlayspaceDashboardService:
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
 		normalized_auditor_ids = auditor_ids or []
+		normalized_place_ids = place_ids or []
 		normalized_statuses = {
 			raw_status for raw_status in (statuses or []) if raw_status in {"IN_PROGRESS", "PAUSED", "SUBMITTED"}
 		}
@@ -938,6 +844,9 @@ class PlayspaceDashboardService:
 
 		if normalized_auditor_ids:
 			filtered_rows_query = filtered_rows_query.where(AuditorProfile.id.in_(normalized_auditor_ids))
+
+		if normalized_place_ids:
+			filtered_rows_query = filtered_rows_query.where(Place.id.in_(normalized_place_ids))
 
 		if normalized_statuses:
 			filtered_rows_query = filtered_rows_query.where(PlayspaceSubmission.status.in_(normalized_statuses))
@@ -1247,6 +1156,11 @@ class PlayspaceDashboardService:
 		)
 
 		latest_submitted_at = _latest_activity_timestamp(submitted_audits)
+
+		from app.products.playspace.schemas.management import SavedPlaceReportEntry
+
+		saved_reports = [SavedPlaceReportEntry.model_validate(entry) for entry in (place.saved_place_reports or [])]
+
 		return PlaceHistoryResponse(
 			place_id=place.id,
 			place_name=place.name,
@@ -1265,6 +1179,7 @@ class PlayspaceDashboardService:
 			average_submitted_score=_average_submitted_score(submitted_audits),
 			latest_submitted_at=latest_submitted_at,
 			audits=history_rows,
+			saved_place_reports=saved_reports,
 			place_audit_status=rollup["place_audit_status"],
 			place_survey_status=rollup["place_survey_status"],
 			place_audit_count=rollup["place_audit_count"],

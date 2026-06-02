@@ -69,6 +69,7 @@ class ScoringQuestion:
 	question_type: str
 	required: bool
 	display_if: ScoringDisplayCondition | None
+	notes_prompt: str | None = None
 	options: list[ScoringChoiceOption] = field(default_factory=list)
 	scales: list[ScoringScale] = field(default_factory=list)
 
@@ -127,6 +128,7 @@ def _build_scoring_question(question: InstrumentQuestionResponse) -> ScoringQues
 		question_type=question.question_type.value,
 		required=question.required,
 		display_if=_build_display_condition(question.display_if),
+		notes_prompt=question.notes_prompt,
 		options=[_build_choice_option(option) for option in question.options],
 		scales=[
 			ScoringScale(

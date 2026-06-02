@@ -10,6 +10,7 @@ the normalized tables as the authoritative write target:
     playspace_audit_sections      — one row per section (holds the section note)
     playspace_question_responses  — one row per answered question within a section
     playspace_scale_answers       — one row per scale answer within a question
+    playspace_checklist_answers   — one JSONB payload per checklist question
 
 Submitted audits use `PlayspaceSubmission.responses_json` as an immutable JSONB
 snapshot written exactly once at submission time.
@@ -21,11 +22,15 @@ the existing seed/scoring paths continue to work without modification.
 
 from __future__ import annotations
 
+import ast
+import json
+
 from sqlalchemy import inspect as sa_inspect
 
 from app.models import (
 	AuditStatus,
 	JSONDict,
+	PlayspaceChecklistAnswer,
 	PlayspacePreSubmissionAnswer,
 	PlayspaceQuestionResponse,
 	PlayspaceScaleAnswer,
@@ -36,9 +41,11 @@ from app.models import (
 from app.products.playspace.schemas.audit import (
 	AuditAggregateWriteRequest,
 	AuditDraftPatchRequest,
+	AuditMetaPatchRequest,
 	PreAuditPatchRequest,
 	SectionDraftPatchRequest,
 )
+from app.products.playspace.schemas.instrument import ExecutionMode
 
 CURRENT_AUDIT_SCHEMA_VERSION = 1
 
@@ -114,6 +121,17 @@ def get_execution_mode_value(audit: PlayspaceSubmission) -> str | None:
 	return raw if isinstance(raw, str) and raw.strip() else None
 
 
+def get_final_comments_value(audit: PlayspaceSubmission) -> str | None:
+	"""Return the audit-level final comments string, or None when not yet provided."""
+
+	if _use_normalized(audit):
+		ctx = audit.submission_context
+		return _normalize_optional_text(ctx.final_comments) if ctx is not None else None
+
+	meta = _read_json_dict(build_responses_json_from_relations(audit).get("meta"))
+	return _normalize_optional_text(meta.get("final_comments"))
+
+
 def get_draft_progress_percent(audit: PlayspaceSubmission) -> float | None:
 	"""Return the stored draft completion percentage, or None for submitted audits."""
 
@@ -174,6 +192,27 @@ def set_execution_mode_value(audit: PlayspaceSubmission, execution_mode: str | N
 	audit.responses_json = responses
 
 
+def set_final_comments_value(audit: PlayspaceSubmission, final_comments: str | None) -> None:
+	"""Persist audit-level final comments to the context row (or JSONB fallback)."""
+
+	normalized_comments = _normalize_optional_text(final_comments)
+
+	if _use_normalized(audit):
+		ctx = _get_or_create_context(audit)
+		ctx.final_comments = normalized_comments
+		return
+
+	# JSONB path (seed / submitted audits).
+	responses = _normalize_responses_payload(audit.responses_json)
+	meta = dict(_read_json_dict(responses.get("meta")))
+	if normalized_comments is None:
+		meta.pop("final_comments", None)
+	else:
+		meta["final_comments"] = normalized_comments
+	responses["meta"] = meta
+	audit.responses_json = responses
+
+
 def set_draft_progress_percent(audit: PlayspaceSubmission, draft_progress_percent: float | None) -> None:
 	"""Persist the draft completion percentage to the context row (or JSONB fallback)."""
 
@@ -226,6 +265,8 @@ def apply_draft_patch_to_relations(audit: PlayspaceSubmission, patch: AuditDraft
 			audit=audit,
 			execution_mode=(patch.meta.execution_mode.value if patch.meta.execution_mode is not None else None),
 		)
+	if patch.meta is not None and "final_comments" in patch.meta.model_fields_set:
+		set_final_comments_value(audit=audit, final_comments=patch.meta.final_comments)
 
 	next_payload = _normalize_responses_payload(audit.responses_json)
 	if patch.pre_audit is not None:
@@ -276,10 +317,13 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 	schema_version = ctx.schema_version if ctx is not None else CURRENT_AUDIT_SCHEMA_VERSION
 	revision = ctx.revision if ctx is not None else 0
 	execution_mode = ctx.execution_mode if ctx is not None else None
+	final_comments = ctx.final_comments if ctx is not None else None
 
 	meta: JSONDict = {}
 	if execution_mode is not None:
 		meta["execution_mode"] = execution_mode
+	if final_comments is not None and final_comments.strip():
+		meta["final_comments"] = final_comments.strip()
 
 	# Pre-audit: group multi-select fields into lists; single-select as scalar.
 	pre_audit: JSONDict = {}
@@ -299,7 +343,18 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 	for section in audit.submission_sections or []:
 		responses: JSONDict = {}
 		for qr in section.question_responses or []:
-			responses[qr.question_key] = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
+			question_payload: JSONDict = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
+			_normalize_legacy_checklist_payload(question_payload)
+			if qr.checklist_answer is not None:
+				selected_option_keys = _read_string_list(qr.checklist_answer.selected_option_keys)
+				if selected_option_keys:
+					question_payload["selected_option_keys"] = selected_option_keys
+				other_details = _read_string_dict(qr.checklist_answer.other_details)
+				if other_details:
+					question_payload["other_details"] = other_details
+			if qr.note is not None:
+				question_payload["question_note"] = qr.note
+			responses[qr.question_key] = question_payload
 		section_data: JSONDict = {"responses": responses}
 		if section.note is not None:
 			section_data["note"] = section.note
@@ -320,12 +375,15 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 def _apply_patch_normalized(audit: PlayspaceSubmission, patch: AuditDraftPatchRequest) -> None:
 	"""Apply one draft patch to the normalized ORM relations in place."""
 
-	# --- execution mode ---
-	if patch.meta is not None and "execution_mode" in patch.meta.model_fields_set:
-		new_mode = patch.meta.execution_mode.value if patch.meta.execution_mode is not None else None
-		audit.execution_mode = new_mode
+	# --- execution metadata ---
+	if patch.meta is not None:
 		ctx = _get_or_create_context(audit)
-		ctx.execution_mode = new_mode
+		if "execution_mode" in patch.meta.model_fields_set:
+			new_mode = patch.meta.execution_mode.value if patch.meta.execution_mode is not None else None
+			audit.execution_mode = new_mode
+			ctx.execution_mode = new_mode
+		if "final_comments" in patch.meta.model_fields_set:
+			ctx.final_comments = _normalize_optional_text(patch.meta.final_comments)
 
 	# --- pre-audit ---
 	if patch.pre_audit is not None:
@@ -334,6 +392,35 @@ def _apply_patch_normalized(audit: PlayspaceSubmission, patch: AuditDraftPatchRe
 	# --- sections ---
 	for section_key, section_patch in patch.sections.items():
 		_upsert_section_normalized(audit, section_key, section_patch)
+
+
+def _aggregate_request_from_responses_payload(payload: JSONDict) -> AuditAggregateWriteRequest:
+	"""Convert one canonical responses_json payload into a typed aggregate write request."""
+
+	meta_raw = _read_json_dict(payload.get("meta"))
+	execution_mode_raw = meta_raw.get("execution_mode")
+	final_comments = _normalize_optional_text(meta_raw.get("final_comments"))
+	execution_mode: ExecutionMode | None = None
+	if isinstance(execution_mode_raw, str) and execution_mode_raw.strip():
+		execution_mode = ExecutionMode(execution_mode_raw.strip())
+
+	pre_audit_raw = _read_json_dict(payload.get("pre_audit"))
+	pre_audit = PreAuditPatchRequest.model_validate(pre_audit_raw) if pre_audit_raw else None
+
+	sections: dict[str, SectionDraftPatchRequest] = {}
+	for section_key, section_value in _read_json_dict(payload.get("sections")).items():
+		section_dict = _read_json_dict(section_value)
+		sections[section_key] = SectionDraftPatchRequest.model_validate(section_dict)
+
+	return AuditAggregateWriteRequest(
+		schema_version=_read_positive_int(
+			payload.get("schema_version"),
+			default=CURRENT_AUDIT_SCHEMA_VERSION,
+		),
+		meta=AuditMetaPatchRequest(execution_mode=execution_mode, final_comments=final_comments),
+		pre_audit=pre_audit,
+		sections=sections,
+	)
 
 
 def _replace_normalized(audit: PlayspaceSubmission, aggregate: AuditAggregateWriteRequest) -> None:
@@ -345,6 +432,7 @@ def _replace_normalized(audit: PlayspaceSubmission, aggregate: AuditAggregateWri
 		mode = aggregate.meta.execution_mode
 		ctx.execution_mode = mode.value if mode is not None else None
 		audit.execution_mode = ctx.execution_mode
+		ctx.final_comments = _normalize_optional_text(aggregate.meta.final_comments)
 	if aggregate.schema_version is not None:
 		ctx.schema_version = aggregate.schema_version
 
@@ -465,10 +553,34 @@ def _upsert_section_normalized(
 			qr_by_key[question_key] = new_qr
 		qr = qr_by_key[question_key]
 
-		# Upsert scale answer rows. Scale values are always plain strings;
-		# coerce to be safe (QuestionResponseValue is a wider union type).
+		# Extract the question-level note before iterating scale answer pairs.
+		# Scale values are always plain strings; coerce to be safe.
+		question_note = scale_answers.get("question_note", None)
+		if "question_note" in scale_answers:
+			qr.note = str(question_note) if question_note is not None else None
+
+		# Upsert checklist answer payloads separately from scale answer rows.
+		if "selected_option_keys" in scale_answers or "other_details" in scale_answers:
+			selected_option_keys = _read_string_list(scale_answers.get("selected_option_keys"))
+			other_details = _read_string_dict(scale_answers.get("other_details"))
+			if selected_option_keys or other_details:
+				if qr.checklist_answer is None:
+					qr.checklist_answer = PlayspaceChecklistAnswer(
+						question_response_id=qr.id,
+						selected_option_keys=selected_option_keys,
+						other_details=other_details,
+					)
+				else:
+					qr.checklist_answer.selected_option_keys = selected_option_keys
+					qr.checklist_answer.other_details = other_details
+			else:
+				qr.checklist_answer = None
+
+		# Upsert scale answer rows.
 		sa_by_key = {sa.scale_key: sa for sa in qr.scale_answers or []}
 		for scale_key, raw_option_key in scale_answers.items():
+			if scale_key in {"question_note", "selected_option_keys", "other_details"}:
+				continue
 			option_key = str(raw_option_key) if raw_option_key is not None else ""
 			if scale_key in sa_by_key:
 				sa_by_key[scale_key].option_key = option_key
@@ -555,12 +667,16 @@ def _merge_section_into_payload(
 def _serialize_meta_request(meta: object) -> JSONDict:
 	if not isinstance(meta, object) or meta is None:
 		return {}
+	payload: JSONDict = {}
 	execution_mode = getattr(meta, "execution_mode", None)
 	if isinstance(execution_mode, str):
-		return {"execution_mode": execution_mode}
-	if execution_mode is not None and hasattr(execution_mode, "value"):
-		return {"execution_mode": str(execution_mode.value)}
-	return {}
+		payload["execution_mode"] = execution_mode
+	elif execution_mode is not None and hasattr(execution_mode, "value"):
+		payload["execution_mode"] = str(execution_mode.value)
+	final_comments = _normalize_optional_text(getattr(meta, "final_comments", None))
+	if final_comments is not None:
+		payload["final_comments"] = final_comments
+	return payload
 
 
 def _serialize_pre_audit_request(pre_audit: object) -> JSONDict:
@@ -591,11 +707,71 @@ def _serialize_sections_request(sections: dict[str, SectionDraftPatchRequest]) -
 	}
 
 
+def _normalize_optional_text(value: object) -> str | None:
+	if not isinstance(value, str):
+		return None
+	trimmed_value = value.strip()
+	return trimmed_value if trimmed_value else None
+
+
 # ── low-level primitives ──────────────────────────────────────────────────────
 
 
 def _read_json_dict(value: object) -> JSONDict:
 	return dict(value) if isinstance(value, dict) else {}
+
+
+def _normalize_legacy_checklist_payload(payload: JSONDict) -> None:
+	"""Normalize checklist values that older code stored as stringified JSON/Python literals."""
+	selected_option_keys: list[str] = []
+	if "selected_option_keys" in payload:
+		selected_option_keys = _read_string_list(payload.get("selected_option_keys"))
+		if selected_option_keys:
+			payload["selected_option_keys"] = selected_option_keys
+		else:
+			payload.pop("selected_option_keys", None)
+
+	if "other_details" in payload:
+		other_details = _read_string_dict(payload.get("other_details"))
+		if other_details:
+			payload["other_details"] = other_details
+		else:
+			payload.pop("other_details", None)
+
+
+def _read_string_list(value: object) -> list[str]:
+	"""Return only string entries from an arbitrary JSON-like list."""
+	if isinstance(value, str):
+		value = _parse_stringified_json_value(value)
+	if not isinstance(value, list):
+		return []
+	return [entry for entry in value if isinstance(entry, str)]
+
+
+def _read_string_dict(value: object) -> JSONDict:
+	"""Return only string-key/string-value pairs from an arbitrary JSON-like dict."""
+
+	if isinstance(value, str):
+		value = _parse_stringified_json_value(value)
+	if not isinstance(value, dict):
+		return {}
+	return {key: entry for key, entry in value.items() if isinstance(key, str) and isinstance(entry, str)}
+
+
+def _parse_stringified_json_value(value: str) -> object:
+	"""Parse legacy checklist values saved as JSON strings or Python literal strings."""
+
+	trimmed_value = value.strip()
+	if not trimmed_value:
+		return value
+	try:
+		return json.loads(trimmed_value)
+	except json.JSONDecodeError:
+		pass
+	try:
+		return ast.literal_eval(trimmed_value)
+	except (SyntaxError, ValueError):
+		return value
 
 
 def _read_positive_int(value: object, *, default: int) -> int:

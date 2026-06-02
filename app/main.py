@@ -26,12 +26,12 @@ def _resolve_cors_origins() -> list[str]:
 
 	default_origins = [
 		"http://localhost:3000",
-		"http://localhost:8000",
-		"http://localhost:8081",
-		"https://audit-tools-backend.onrender.com",
-		"https://audit-tools-playsafe-frontend.vercel.app",
-		"https://audit-tools-playspace-frontend.vercel.app",
-	]
+	  "http://localhost:8000",
+	  "http://localhost:8081",
+  	"https://audit-tools-yee-frontend.vercel.app" ,
+  	"https://audit-tools-backend.onrender.com",
+	  "https://audit-tools-playspace-frontend.vercel.app",
+  ]
 	configured_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
 	if not configured_origins:
 		return default_origins
@@ -90,6 +90,7 @@ app.add_middleware(
 	CORSMiddleware,
 	allow_origins=origins,
 	allow_credentials=True,
+	allow_origin_regex=r"https://audit-tools-[\w-]+-cleverhugs\.vercel\.app",
 	allow_methods=["*"],
 	allow_headers=["*"],
 )

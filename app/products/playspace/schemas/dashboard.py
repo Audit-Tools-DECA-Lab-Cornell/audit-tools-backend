@@ -15,6 +15,7 @@ from app.products.playspace.schemas.base import (
 	PlaceActivityStatus,
 	ProjectStatus,
 )
+from app.products.playspace.schemas.management import SavedPlaceReportEntry
 
 
 class PlayspacePlaceRollup(TypedDict):
@@ -136,7 +137,7 @@ class AuditorSummaryResponse(ApiModel):
 	"""Manager-facing auditor summary."""
 
 	id: uuid.UUID
-	account_id: uuid.UUID
+	account_id: uuid.UUID | None
 	auditor_code: str
 	full_name: str
 	email: str | None
@@ -276,6 +277,7 @@ class PlaceHistoryResponse(ApiModel):
 	average_submitted_score: float | None
 	latest_submitted_at: datetime | None
 	audits: list[PlaceAuditHistoryItemResponse]
+	saved_place_reports: list[SavedPlaceReportEntry] = []
 	place_audit_status: PlaceActivityStatus = "not_started"
 	place_survey_status: PlaceActivityStatus = "not_started"
 	place_audit_count: int = 0

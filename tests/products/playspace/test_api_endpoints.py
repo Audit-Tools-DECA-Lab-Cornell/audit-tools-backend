@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 from fastapi.routing import APIRoute
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import AuditorAssignment, AuditStatus, PlayspaceSubmission
 from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
 MANAGER_EMAIL = "amelia.carter@example.org"
@@ -45,15 +49,35 @@ def _login_admin(client: TestClient) -> str:
 	return response.json()["access_token"]
 
 
-def _login_auditor(client: TestClient, email: str) -> str:
+def _login_auditor(client: TestClient, email: str, password: str = SEED_PASSWORD) -> str:
 	"""Login an auditor account and return a bearer token."""
 
 	response = client.post(
 		"/playspace/auth/login",
-		json={"email": email, "password": SEED_PASSWORD},
+		json={"email": email, "password": password},
 	)
 	assert response.status_code == 200
 	return response.json()["access_token"]
+
+
+async def _load_direct_auditor_counts(
+	session_factory: async_sessionmaker[AsyncSession],
+	auditor_profile_id: str,
+) -> tuple[int, int]:
+	"""Return direct DB assignment/submitted-audit counts for one auditor."""
+
+	auditor_id = uuid.UUID(auditor_profile_id)
+	async with session_factory() as session:
+		assignments_result = await session.execute(
+			select(func.count(AuditorAssignment.id)).where(AuditorAssignment.auditor_profile_id == auditor_id)
+		)
+		completed_result = await session.execute(
+			select(func.count(PlayspaceSubmission.id)).where(
+				PlayspaceSubmission.auditor_profile_id == auditor_id,
+				PlayspaceSubmission.status == AuditStatus.SUBMITTED,
+			)
+		)
+	return int(assignments_result.scalar_one() or 0), int(completed_result.scalar_one() or 0)
 
 
 def _signup_and_login_auditor(
@@ -178,7 +202,10 @@ def _create_auditor_profile(
 		},
 	)
 	assert response.status_code == 201
-	return response.json()
+	payload = response.json()
+	assert payload["temporary_password"]
+	assert payload["temporary_password"] != SEED_PASSWORD
+	return payload
 
 
 def test_playspace_route_inventory_matches_expected_surface() -> None:
@@ -191,10 +218,15 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/auth/complete-profile"),
 		("GET", "/playspace/auth/verify-email"),
 		("POST", "/playspace/auth/resend-verification"),
+		("POST", "/playspace/auth/request-access"),
 		("GET", "/playspace/auth/invite/{token}"),
 		("POST", "/playspace/auth/invite/{token}/accept"),
-		("POST", "/playspace/auth/manager-invites"),
+		("GET", "/playspace/auth/manager-invites/{token}"),
 		("POST", "/playspace/auth/manager-invites/{token}/accept"),
+		("POST", "/playspace/manager-invites"),
+		("GET", "/playspace/manager-invites"),
+		("DELETE", "/playspace/manager-invites/{invite_id}"),
+		("POST", "/playspace/manager-invites/{invite_id}/resend"),
 		("GET", "/playspace/accounts/{account_id}"),
 		("GET", "/playspace/accounts/{account_id}/manager-profiles"),
 		("GET", "/playspace/accounts/{account_id}/projects"),
@@ -220,6 +252,7 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/audits/{audit_id}"),
 		("PATCH", "/playspace/audits/{audit_id}/draft"),
 		("POST", "/playspace/audits/{audit_id}/submit"),
+		("POST", "/playspace/audits/{audit_id}/notify-submit-failure"),
 		("GET", "/playspace/auditor/me/places"),
 		("GET", "/playspace/auditor/me/audits"),
 		("GET", "/playspace/auditor/me/dashboard-summary"),
@@ -241,6 +274,12 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("PATCH", "/playspace/admin/instruments/{instrument_id}"),
 		("GET", "/playspace/me"),
 		("GET", "/playspace/me/auditor-profile"),
+		("PATCH", "/playspace/me/auditor-profile"),
+		("GET", "/playspace/me/manager-profile"),
+		("PATCH", "/playspace/me/manager-profile"),
+		("POST", "/playspace/me/change-password"),
+		("POST", "/playspace/me/complete-onboarding"),
+		("POST", "/playspace/me/complete-manager-onboarding"),
 		("GET", "/playspace/instrument"),
 		("PATCH", "/playspace/accounts/{account_id}"),
 		("POST", "/playspace/projects"),
@@ -249,6 +288,8 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/places"),
 		("PATCH", "/playspace/places/{place_id}"),
 		("DELETE", "/playspace/places/{place_id}"),
+		("POST", "/playspace/places/{place_id}/place-reports"),
+		("DELETE", "/playspace/places/{place_id}/place-reports/{report_index}"),
 		("POST", "/playspace/auditor-profiles"),
 		("PATCH", "/playspace/auditor-profiles/{auditor_profile_id}"),
 		("DELETE", "/playspace/auditor-profiles/{auditor_profile_id}"),
@@ -319,7 +360,7 @@ def test_auth_self_service_and_instrument_endpoints(
 
 	secondary_manager_email = f"secondary-manager-{_unique_suffix()}@example.org"
 	create_manager_invite_response = playspace_client.post(
-		"/playspace/auth/manager-invites",
+		"/playspace/manager-invites",
 		headers=manager_auth_headers,
 		json={"email": secondary_manager_email},
 	)
@@ -337,7 +378,7 @@ def test_auth_self_service_and_instrument_endpoints(
 	secondary_manager_token = accept_manager_invite_response.json()["access_token"]
 
 	secondary_invite_attempt_response = playspace_client.post(
-		"/playspace/auth/manager-invites",
+		"/playspace/manager-invites",
 		headers=_bearer_headers(secondary_manager_token),
 		json={"email": f"blocked-secondary-{_unique_suffix()}@example.org"},
 	)
@@ -388,9 +429,181 @@ def test_auth_self_service_and_instrument_endpoints(
 	assert len(instrument_response.json()["sections"]) > 0
 
 
+def test_manager_invite_management_endpoints(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""Exercise the manager invite list, revoke, and resend endpoints.
+
+	Covers:
+	- Primary manager can list, create, resend, and revoke invites.
+	- PENDING / ACCEPTED status is correctly derived.
+	- Revoke returns 204; double-revoke returns 404.
+	- Revoke and resend on an accepted invite return 400.
+	- Secondary managers and auditors are denied access (403).
+	"""
+
+	manager_token = _login_manager(playspace_client)
+	manager_auth = _bearer_headers(manager_token)
+	suffix = _unique_suffix()
+
+	# --- List: endpoint is accessible and returns a list ---
+	list_initial_response = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_initial_response.status_code == 200
+	assert isinstance(list_initial_response.json(), list)
+
+	# --- Create an invite so we have something to manage ---
+	invite_email = f"mgmt-invite-{suffix}@example.org"
+	create_response = playspace_client.post(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+		json={"email": invite_email},
+	)
+	assert create_response.status_code == 201
+	created = create_response.json()
+	assert created["email"] == invite_email
+	assert created["status"] == "PENDING"
+
+	# --- List: the new invite appears with PENDING status ---
+	list_response = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_response.status_code == 200
+	invite_list = list_response.json()
+	matching = [i for i in invite_list if i["email"] == invite_email]
+	assert len(matching) == 1
+	invite_id = matching[0]["id"]
+	assert matching[0]["status"] == "PENDING"
+	assert matching[0]["accepted_at"] is None
+
+	# --- Resend: regenerates token without changing status ---
+	resend_response = playspace_client.post(
+		f"/playspace/manager-invites/{invite_id}/resend",
+		headers=manager_auth,
+	)
+	assert resend_response.status_code == 200
+	resent = resend_response.json()
+	assert resent["id"] == invite_id
+	assert resent["email"] == invite_email
+	assert resent["status"] == "PENDING"
+
+	# --- Revoke: deletes the invite and returns 204 ---
+	revoke_response = playspace_client.delete(
+		f"/playspace/manager-invites/{invite_id}",
+		headers=manager_auth,
+	)
+	assert revoke_response.status_code == 204
+
+	# --- List: invite is no longer present ---
+	list_after_revoke = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_after_revoke.status_code == 200
+	assert not any(i["id"] == invite_id for i in list_after_revoke.json())
+
+	# --- Revoke again: returns 404 ---
+	double_revoke_response = playspace_client.delete(
+		f"/playspace/manager-invites/{invite_id}",
+		headers=manager_auth,
+	)
+	assert double_revoke_response.status_code == 404
+
+	# --- Accept an invite so we can test the accepted-state guards ---
+	accept_email = f"mgmt-accept-{suffix}@example.org"
+	create_for_accept = playspace_client.post(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+		json={"email": accept_email},
+	)
+	assert create_for_accept.status_code == 201
+	invite_token = create_for_accept.json()["invite_url"].rsplit("/", 1)[-1]
+
+	accept_response = playspace_client.post(
+		f"/playspace/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Mgmt Test Manager", "password": SEED_PASSWORD},
+	)
+	assert accept_response.status_code == 200
+	assert accept_response.json()["user"]["account_type"] == "MANAGER"
+
+	# --- List: accepted invite has ACCEPTED status ---
+	list_with_accepted = playspace_client.get(
+		"/playspace/manager-invites",
+		headers=manager_auth,
+	)
+	assert list_with_accepted.status_code == 200
+	accepted_invite = next(
+		(i for i in list_with_accepted.json() if i["email"] == accept_email),
+		None,
+	)
+	assert accepted_invite is not None
+	assert accepted_invite["status"] == "ACCEPTED"
+	assert accepted_invite["accepted_at"] is not None
+	accepted_invite_id = accepted_invite["id"]
+
+	# --- Revoke accepted invite: 400 ---
+	assert (
+		playspace_client.delete(
+			f"/playspace/manager-invites/{accepted_invite_id}",
+			headers=manager_auth,
+		).status_code
+		== 400
+	)
+
+	# --- Resend accepted invite: 400 ---
+	assert (
+		playspace_client.post(
+			f"/playspace/manager-invites/{accepted_invite_id}/resend",
+			headers=manager_auth,
+		).status_code
+		== 400
+	)
+
+	# --- Role guard: secondary manager (just accepted) cannot use invite mgmt ---
+	secondary_login = playspace_client.post(
+		"/playspace/auth/login",
+		json={"email": accept_email, "password": SEED_PASSWORD},
+	)
+	assert secondary_login.status_code == 200
+	secondary_auth = _bearer_headers(secondary_login.json()["access_token"])
+
+	assert playspace_client.get("/playspace/manager-invites", headers=secondary_auth).status_code == 403
+	assert (
+		playspace_client.delete(
+			f"/playspace/manager-invites/{accepted_invite_id}",
+			headers=secondary_auth,
+		).status_code
+		== 403
+	)
+	assert (
+		playspace_client.post(
+			f"/playspace/manager-invites/{accepted_invite_id}/resend",
+			headers=secondary_auth,
+		).status_code
+		== 403
+	)
+
+	# --- Role guard: auditor cannot access invite management ---
+	auditor_auth = _bearer_headers(_login_auditor(playspace_client, playspace_seed_snapshot.seeded_auditor_email))
+	assert playspace_client.get("/playspace/manager-invites", headers=auditor_auth).status_code == 403
+	assert (
+		playspace_client.post(
+			"/playspace/manager-invites",
+			headers=auditor_auth,
+			json={"email": f"auditor-invite-{suffix}@example.org"},
+		).status_code
+		== 403
+	)
+
+
 def test_manager_dashboard_endpoints(
 	playspace_client: TestClient,
 	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+	playspace_test_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
 	"""Exercise every manager-facing Playspace dashboard endpoint."""
 
@@ -423,7 +636,19 @@ def test_manager_dashboard_endpoints(
 		headers=headers,
 	)
 	assert auditors_response.status_code == 200
-	assert len(auditors_response.json()) >= 1
+	auditors_payload = auditors_response.json()
+	assert len(auditors_payload) >= 1
+	seeded_auditor = next(
+		auditor for auditor in auditors_payload if auditor["id"] == playspace_seed_snapshot.seeded_auditor_profile_id
+	)
+	expected_assignments, expected_completed = asyncio.run(
+		_load_direct_auditor_counts(
+			playspace_test_session_factory,
+			playspace_seed_snapshot.seeded_auditor_profile_id,
+		)
+	)
+	assert seeded_auditor["assignments_count"] == expected_assignments
+	assert seeded_auditor["completed_audits"] == expected_completed
 
 	places_response = playspace_client.get(
 		f"/playspace/accounts/{account_id}/places",
@@ -757,10 +982,20 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 		},
 	)
 	assert assignment_response.status_code == 201
-	auditor_profile_id = assignment_response.json()["id"]
+	created_auditor = assignment_response.json()
+	auditor_profile_id = created_auditor["id"]
+	temporary_password = created_auditor["temporary_password"]
+	assert temporary_password
+	assert temporary_password != SEED_PASSWORD
 
-	# Auditor account is created with the shared seed password.
-	auditor_token = _login_auditor(playspace_client, auditor_email)
+	seed_password_response = playspace_client.post(
+		"/playspace/auth/login",
+		json={"email": auditor_email, "password": SEED_PASSWORD},
+	)
+	assert seed_password_response.status_code == 401
+
+	# Auditor account is created with a one-time random temporary password.
+	auditor_token = _login_auditor(playspace_client, auditor_email, str(temporary_password))
 	auditor_headers = _bearer_headers(auditor_token)
 
 	assign_to_place_response = playspace_client.post(
@@ -803,7 +1038,10 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 		headers=auditor_headers,
 		json={
 			"expected_revision": audit_session["revision"],
-			"meta": {"execution_mode": "survey"},
+			"meta": {
+				"execution_mode": "survey",
+				"final_comments": "Surfaces were busiest near the swings at closing time.",
+			},
 			"pre_audit": {"season": "summer"},
 		},
 	)
@@ -828,7 +1066,10 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 			"expected_revision": patch_draft_response.json()["revision"],
 			"aggregate": {
 				"schema_version": 1,
-				"meta": {"execution_mode": "both"},
+				"meta": {
+					"execution_mode": "both",
+					"final_comments": "Visibility was best from the north path after sunset.",
+				},
 				"pre_audit": {
 					"place_size": "medium",
 					"current_users_0_5": "none",
@@ -855,9 +1096,100 @@ def test_audit_execution_endpoints_cover_access_read_patch_and_submit(
 	assert refreshed_audit_response.status_code == 200
 	assert refreshed_audit_response.json()["revision"] == 3
 	assert refreshed_audit_response.json()["aggregate"]["meta"]["execution_mode"] == "both"
+	assert (
+		refreshed_audit_response.json()["aggregate"]["meta"]["final_comments"]
+		== "Visibility was best from the north path after sunset."
+	)
+	assert (
+		refreshed_audit_response.json()["meta"]["final_comments"]
+		== "Visibility was best from the north path after sunset."
+	)
 
 	submit_response = playspace_client.post(
 		f"/playspace/audits/{audit_id}/submit",
 		headers=auditor_headers,
 	)
 	assert submit_response.status_code == 400
+
+
+def test_notify_submit_failure_endpoint(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""Exercise access-control and happy-path for POST /audits/{id}/notify-submit-failure.
+
+	The email send function is patched so the test does not make real Brevo
+	calls, but the full service path (auth, audit load, auditor guard) is
+	exercised against the live test DB.
+	"""
+
+	suffix = _unique_suffix()
+	manager_token = _login_manager(playspace_client)
+	manager_headers = _bearer_headers(manager_token)
+
+	# --- Create a fresh project / place / auditor and open an audit ---
+	project = _create_project(playspace_client, manager_token, suffix=suffix)
+	place = _create_place(playspace_client, manager_token, project_id=str(project["id"]), suffix=suffix)
+	auditor_email = f"notify-fail-{suffix}@example.org"
+	created_auditor = playspace_client.post(
+		"/playspace/auditor-profiles",
+		headers=manager_headers,
+		json={
+			"email": auditor_email,
+			"full_name": f"Notify Fail Auditor {suffix}",
+			"auditor_code": f"NF-{suffix.upper()}",
+			"country": "New Zealand",
+			"role": "Tester",
+		},
+	)
+	assert created_auditor.status_code == 201
+	auditor_profile_id = created_auditor.json()["id"]
+	temporary_password = created_auditor.json()["temporary_password"]
+
+	auditor_token = _login_auditor(playspace_client, auditor_email, str(temporary_password))
+	auditor_headers = _bearer_headers(auditor_token)
+
+	# Assign auditor to the place so they can open an audit.
+	playspace_client.post(
+		f"/playspace/auditor-profiles/{auditor_profile_id}/assignments",
+		headers=manager_headers,
+		json={"project_id": project["id"], "place_id": place["id"]},
+	)
+
+	access_response = playspace_client.post(
+		f"/playspace/places/{place['id']}/audits/access",
+		headers=auditor_headers,
+		json={"project_id": project["id"]},
+	)
+	assert access_response.status_code == 200
+	audit_id = access_response.json()["audit_id"]
+
+	# --- Happy path: auditor calls the endpoint.
+	# Brevo is not configured in the test environment, so send_audit_submit_failure_email
+	# returns False silently — no network call, no exception raised.
+	notify_response = playspace_client.post(
+		f"/playspace/audits/{audit_id}/notify-submit-failure",
+		headers=auditor_headers,
+	)
+	assert notify_response.status_code == 204
+	assert notify_response.content == b""
+
+	# --- Manager may NOT call this endpoint (auditor-only) ---
+	manager_notify_response = playspace_client.post(
+		f"/playspace/audits/{audit_id}/notify-submit-failure",
+		headers=manager_headers,
+	)
+	assert manager_notify_response.status_code == 403
+
+	# --- Unknown audit ID returns 404 ---
+	missing_notify_response = playspace_client.post(
+		f"/playspace/audits/{uuid.uuid4()}/notify-submit-failure",
+		headers=auditor_headers,
+	)
+	assert missing_notify_response.status_code == 404
+
+	# --- Unauthenticated request returns 401 or 403 ---
+	unauthenticated_response = playspace_client.post(
+		f"/playspace/audits/{audit_id}/notify-submit-failure",
+	)
+	assert unauthenticated_response.status_code in (401, 403)

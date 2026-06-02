@@ -106,7 +106,7 @@ Thin layer responsible only for request handling. Does not contain business logi
 | Module | Responsibilities |
 |---|---|
 | `audit.py` | Root service composition and shared helpers |
-| `audit_sessions.py` | Auditor/mobile access, draft, submit, list, and session response logic |
+| `audit_sessions.py` | Auditor/mobile access, draft, submit, list, instrument-version stamping, and session response logic |
 | `audit_assignments.py` | Assignment creation, update, and list behavior |
 | `dashboard.py` | Manager/dashboard-oriented response building |
 | `profile.py` | Current-account and auditor-profile service helpers |
@@ -141,9 +141,12 @@ Defines the backend contract consumed by the mobile client.
 
 This file is the boundary between **mobile draft payloads** and the **normalized database model**.
 
+- Preserve the submission's stored instrument key/version when building session responses
 - Apply draft patches into normalized child rows
 - Rebuild compatibility JSON caches from relations
 - Read/write execution mode and draft progress
+- Store scaled answers in `playspace_scale_answers` and checklist answers in `playspace_checklist_answers`
+- Normalize recoverable legacy checklist strings until historical malformed data is backfilled
 - Synchronize child collections without violating natural unique constraints
 
 ---

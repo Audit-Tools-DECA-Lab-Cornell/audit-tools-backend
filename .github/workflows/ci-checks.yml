@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.12"
   TEST_DATABASE_URL_YEE: ${{ secrets.TEST_DATABASE_URL_YEE }}
   TEST_DATABASE_URL_PLAYSPACE: ${{ secrets.TEST_DATABASE_URL_PLAYSPACE }}
   AUTH_TOKEN_SECRET_KEY: ${{ secrets.AUTH_TOKEN_SECRET_KEY }}
@@ -76,6 +76,11 @@ jobs:
   test:
     name: "🧪 Pytest"
     runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: test
+      ALLOW_TEST_DB_RESET: "true"
+      TEST_DATABASE_URL_PLAYSPACE: ${{ secrets.TEST_DATABASE_URL_PLAYSPACE }}
+      TEST_DATABASE_URL_YEE: ${{ secrets.TEST_DATABASE_URL_YEE }}
     timeout-minutes: 30
     needs: [ruff-lint, ruff-format]
     steps:
