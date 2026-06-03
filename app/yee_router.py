@@ -376,7 +376,7 @@ async def save_yee_draft(
 	existing_audit.total_minutes = (
 		int(payload.participant_info.get("total_minutes") or 0) if payload.participant_info else None
 	)
-	existing_audit.summary_score = float(score["total_score"])
+	existing_audit.summary_score = float(int(score["total_score"]))
 	existing_audit.responses_json = _encode_draft_payload(payload.participant_info, payload.responses)
 	existing_audit.scores_json = {
 		"total_score": score["total_score"],
@@ -459,7 +459,7 @@ async def submit_yee_audit(
 		"category_scores": score["category_scores"],
 		"matched_scored_answers": score["matched_scored_answers"],
 	}
-	audit.summary_score = float(score["total_score"])
+	audit.summary_score = float(int(score["total_score"]))
 
 	submission = YeeAuditSubmission(
 		auditor_id=auditor.id,

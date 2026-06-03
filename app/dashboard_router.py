@@ -234,9 +234,9 @@ class PlaceComparisonAuditItem(BaseModel):
 	project_name: str
 	date: str
 	total_raw_score: int
-	total_weighted_score: int
+	total_weighted_score: float
 	raw_domain_scores: dict[str, int]
-	weighted_domain_scores: dict[str, int]
+	weighted_domain_scores: dict[str, float]
 
 
 class PlaceComparisonGroup(BaseModel):
@@ -286,14 +286,14 @@ class RawDataExportRow(BaseModel):
 	raw_experience_of_space: int
 	raw_aesthetics_and_care: int
 	raw_use_and_usability: int
-	weighted_access: int
-	weighted_activity_spaces: int
-	weighted_amenities: int
-	weighted_experience_of_space: int
-	weighted_aesthetics_and_care: int
-	weighted_use_and_usability: int
+	weighted_access: float
+	weighted_activity_spaces: float
+	weighted_amenities: float
+	weighted_experience_of_space: float
+	weighted_aesthetics_and_care: float
+	weighted_use_and_usability: float
 	total_raw_score: int
-	total_weighted_score: int
+	total_weighted_score: float
 	domain_weights: dict[str, int]
 	responses: dict[str, str]
 
@@ -383,9 +383,35 @@ REPORT_DOMAIN_ORDER = (
 	"useAndUsability",
 )
 
+REPORT_DOMAIN_SCORE_MAXIMUMS: dict[str, int] = {
+	"access": 14,
+	"activitySpaces": 26,
+	"amenities": 23,
+	"experienceOfSpace": 20,
+	"aestheticsAndCare": 24,
+	"useAndUsability": 18,
+}
+
+REPORT_DOMAIN_ITEM_COUNTS: dict[str, int] = {
+	"access": 8,
+	"activitySpaces": 16,
+	"amenities": 13,
+	"experienceOfSpace": 10,
+	"aestheticsAndCare": 14,
+	"useAndUsability": 10,
+}
+
 
 def _empty_domain_scores() -> dict[str, int]:
 	return {domain: 0 for domain in REPORT_DOMAIN_ORDER}
+
+
+def _round_2(value: float) -> float:
+	return round(value + 1e-9, 2)
+
+
+def _empty_weighted_domain_scores() -> dict[str, float]:
+	return {domain: 0.0 for domain in REPORT_DOMAIN_ORDER}
 
 
 def _section_to_domain(section_name: str) -> str | None:
@@ -424,7 +450,7 @@ def _extract_domain_weights(participant_info: dict[str, Any]) -> dict[str, int]:
 def _build_submission_scores(
 	section_scores: dict[str, Any],
 	participant_info: dict[str, Any],
-) -> tuple[dict[str, int], dict[str, int], int]:
+) -> tuple[dict[str, int], dict[str, float], float]:
 	raw_domain_scores = _empty_domain_scores()
 	for section_name, score in section_scores.items():
 		domain = _section_to_domain(section_name)
@@ -433,8 +459,22 @@ def _build_submission_scores(
 		raw_domain_scores[domain] += score
 
 	weights = _extract_domain_weights(participant_info)
-	weighted_domain_scores = {domain: raw_domain_scores[domain] * weights[domain] for domain in REPORT_DOMAIN_ORDER}
-	total_weighted_score = sum(weighted_domain_scores.values())
+	total_weight_sum = sum(weights.values())
+	if total_weight_sum <= 0:
+		return raw_domain_scores, _empty_weighted_domain_scores(), 0.0
+
+	normalized_weights = {
+		domain: _round_2(weights[domain] / total_weight_sum)
+		for domain in REPORT_DOMAIN_ORDER
+	}
+	weighted_domain_scores = {
+		domain: _round_2(
+			normalized_weights[domain]
+			* (raw_domain_scores[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain])
+		)
+		for domain in REPORT_DOMAIN_ORDER
+	}
+	total_weighted_score = _round_2(sum(weighted_domain_scores.values()))
 	return raw_domain_scores, weighted_domain_scores, total_weighted_score
 
 
