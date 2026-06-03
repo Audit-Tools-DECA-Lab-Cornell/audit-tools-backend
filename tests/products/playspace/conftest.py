@@ -40,7 +40,7 @@ from app.main import app
 from app.models import AuditorProfile
 from app.seed import (
 	_build_playspace_entities,
-	_clear_shared_tables,
+	_clear_product_tables,
 	_insert_seed_entities,
 )
 
@@ -76,7 +76,7 @@ async def _reseed_playspace_database(
 	"""Clear and reseed the dedicated Playspace test database."""
 
 	async with session_factory() as session:
-		await _clear_shared_tables(session)
+		await _clear_product_tables(session, ProductKey.PLAYSPACE)
 		await _insert_seed_entities(session, _build_playspace_entities())
 		await session.commit()
 
@@ -125,7 +125,7 @@ def _upgrade_playspace_test_database(engine: AsyncEngine) -> None:
 	alembic_config.cmd_opts = argparse.Namespace(
 		x=["product=playspace", "environment=test"],
 	)
-	command.upgrade(alembic_config, "head")
+	command.upgrade(alembic_config, "playspace@head")
 
 
 async def _load_seed_snapshot(

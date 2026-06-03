@@ -28,22 +28,27 @@ from app.models import (
 	Account,
 	AccountType,
 	Audit,
+	AuditorAccessRequest,
 	AuditorAssignment,
 	AuditorInvite,
 	AuditorProfile,
 	AuditStatus,
 	Instrument,
+	ManagerInvite,
 	ManagerProfile,
+	Notification,
 	Place,
 	PlayspaceChecklistAnswer,
 	PlayspacePreSubmissionAnswer,
 	PlayspaceQuestionResponse,
 	PlayspaceScaleAnswer,
+	PlayspaceSubmissionContext,
 	PlayspaceSubmissionSection,
 	PlayspaceSubmission,
 	Project,
 	ProjectPlace,
 	User,
+	YeeAuditSubmission,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
 
@@ -76,6 +81,8 @@ YEE_AUDITOR_ACCOUNT_01_ID = uuid.UUID("cccccccc-cccc-4ccc-8ccc-ccccccccccc1")
 YEE_AUDITOR_ACCOUNT_02_ID = uuid.UUID("cccccccc-cccc-4ccc-8ccc-ccccccccccc2")
 YEE_AUDITOR_ACCOUNT_03_ID = uuid.UUID("cccccccc-cccc-4ccc-8ccc-ccccccccccc3")
 
+YEE_INSTRUMENT_ID = uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1")
+
 YEE_AUDIT_HUB_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1")
 YEE_AUDIT_PLAZA_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2")
 YEE_AUDIT_LIBRARY_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3")
@@ -100,8 +107,35 @@ def _demo_password_hash() -> str:
 	return hash_password("DemoPass123!")
 
 
-async def _clear_shared_tables(session: AsyncSession) -> None:
-	"""Remove existing shared-core records before inserting fresh deterministic data."""
+async def _clear_core_tables(session: AsyncSession) -> None:
+	"""Remove shared-core records (child rows first) before fresh deterministic data.
+
+	Only touches tables that exist in BOTH product databases. Product-specific
+	tables are cleared by their own helpers so this is safe to run against either
+	database after that product's tables have been cleared.
+	"""
+
+	for model in (
+		Notification,
+		Audit,
+		AuditorAssignment,
+		AuditorInvite,
+		ManagerInvite,
+		AuditorAccessRequest,
+		ProjectPlace,
+		ManagerProfile,
+		Project,
+		AuditorProfile,
+		Place,
+		Instrument,
+		Account,
+		User,
+	):
+		await session.execute(delete(model))
+
+
+async def _clear_playspace_tables(session: AsyncSession) -> None:
+	"""Remove Playspace-only records (child rows first). Playspace database only."""
 
 	for model in (
 		PlayspaceChecklistAnswer,
@@ -109,20 +143,30 @@ async def _clear_shared_tables(session: AsyncSession) -> None:
 		PlayspaceQuestionResponse,
 		PlayspaceSubmissionSection,
 		PlayspacePreSubmissionAnswer,
+		PlayspaceSubmissionContext,
 		PlayspaceSubmission,
-		Instrument,
-		# Audit,
-		AuditorAssignment,
-		ProjectPlace,
-		Place,
-		Project,
-		ManagerProfile,
-		AuditorInvite,
-		AuditorProfile,
-		Account,
-		User,
 	):
 		await session.execute(delete(model))
+
+
+async def _clear_yee_tables(session: AsyncSession) -> None:
+	"""Remove YEE-only records. YEE database only."""
+
+	await session.execute(delete(YeeAuditSubmission))
+
+
+async def _clear_product_tables(session: AsyncSession, product: ProductKey) -> None:
+	"""Clear one product database: its product-specific tables, then shared core.
+
+	This never references the other product's tables, so it is safe to run against
+	a database where those tables do not physically exist.
+	"""
+
+	if product is ProductKey.PLAYSPACE:
+		await _clear_playspace_tables(session)
+	else:
+		await _clear_yee_tables(session)
+	await _clear_core_tables(session)
 
 
 def _run_product_upgrade(product: ProductKey) -> None:
@@ -130,7 +174,9 @@ def _run_product_upgrade(product: ProductKey) -> None:
 
 	alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
 	alembic_config.cmd_opts = argparse.Namespace(x=[f"product={product.value}"])
-	command.upgrade(alembic_config, "head")
+	# Each product has its own Alembic branch head (label == product value), so the
+	# generic "head" is ambiguous; target the product-scoped branch head explicitly.
+	command.upgrade(alembic_config, f"{product.value}@head")
 
 
 async def _upgrade_product_database(product: ProductKey) -> None:
@@ -189,6 +235,18 @@ def _build_yee_entities() -> list[object]:
 	"""Create deterministic YEE ORM objects for seeding."""
 
 	instrument_metadata = build_yee_source_metadata()
+
+	# Source-of-truth instrument row so the YEE database mirrors Playspace: the
+	# active instrument lives in the `instruments` table, and audits stamp the
+	# matching (instrument_key, instrument_version) at creation time.
+	canonical_instrument = Instrument(
+		id=YEE_INSTRUMENT_ID,
+		instrument_key=str(instrument_metadata["instrument_key"]),
+		instrument_version=str(instrument_metadata["instrument_version"]),
+		is_active=True,
+		content={"en": instrument_metadata},
+		created_at=_utc_datetime("2026-02-20T08:30:00Z"),
+	)
 
 	manager_account = Account(
 		id=DEMO_ACCOUNT_ID,
@@ -668,6 +726,7 @@ def _build_yee_entities() -> list[object]:
 	]
 
 	return [
+		canonical_instrument,
 		*users,
 		manager_account,
 		*manager_profiles,
@@ -690,7 +749,7 @@ async def _seed_product(product: ProductKey, *, skip_migrate: bool = False) -> d
 	entities = _build_playspace_entities() if product is ProductKey.PLAYSPACE else _build_yee_entities()
 
 	async with session_factory() as session:
-		await _clear_shared_tables(session)
+		await _clear_product_tables(session, product)
 		await _insert_seed_entities(session, entities)
 		await session.commit()
 
