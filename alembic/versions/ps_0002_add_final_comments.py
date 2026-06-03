@@ -1,7 +1,9 @@
 """Add final comments to Playspace submission contexts.
 
-Revision ID: 0002
-Revises: 0001
+On the ``playspace`` branch (formerly the linear ``0002`` revision).
+
+Revision ID: ps_0002
+Revises: ps_0001
 Create Date: 2026-05-26
 
 """
@@ -12,8 +14,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "0002"
-down_revision = "0001"
+revision = "ps_0002"
+down_revision = "ps_0001"
 branch_labels = None
 depends_on = None
 

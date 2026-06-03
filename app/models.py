@@ -1231,3 +1231,49 @@ class Instrument(Base):
 
 	def __repr__(self) -> str:
 		return f"<Instrument(id='{self.id}', key='{self.instrument_key}', version='{self.instrument_version}')>"
+
+
+######################################################################################
+############################# Product Table Ownership ################################
+######################################################################################
+#
+# YEE and Playspace share most of the schema (the "core" tables above), but each
+# product owns a few tables the other database must never receive. This registry is
+# the single source of truth for that ownership. It is consumed by:
+#   - ``alembic/env.py`` (``include_name``) so autogenerate only diffs the tables
+#     that belong to the product currently being migrated, and
+#   - ``app/seed.py`` so seeding clears only the tables that physically exist in the
+#     product database being seeded.
+#
+# Physical creation of these tables is controlled by per-product Alembic branches
+# (``playspace`` and ``yee``); see ``alembic/versions/``.
+
+# Tables that live ONLY in the Playspace database.
+PLAYSPACE_ONLY_TABLE_NAMES: frozenset[str] = frozenset(
+	{
+		"playspace_submissions",
+		"playspace_submission_contexts",
+		"playspace_pre_submission_answers",
+		"playspace_submission_sections",
+		"playspace_question_responses",
+		"playspace_scale_answers",
+		"playspace_checklist_answers",
+	}
+)
+
+# Tables that live ONLY in the YEE database.
+YEE_ONLY_TABLE_NAMES: frozenset[str] = frozenset({"yee_audit_submissions"})
+
+
+def table_belongs_to_product(table_name: str, product_value: str) -> bool:
+	"""Return whether a table should physically exist in one product's database.
+
+	Any table not explicitly registered as product-specific is treated as shared
+	core and belongs to both products.
+	"""
+
+	if table_name in PLAYSPACE_ONLY_TABLE_NAMES:
+		return product_value == "playspace"
+	if table_name in YEE_ONLY_TABLE_NAMES:
+		return product_value == "yee"
+	return True

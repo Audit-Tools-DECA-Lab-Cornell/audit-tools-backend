@@ -188,8 +188,16 @@ tests/products/playspace/
 
 ### `alembic/`
 
-- Schema migration history
-- Product-specific migrations selected via `-x product=...`
+- Branched schema migration history: a shared `core` base (`0001`) with a
+  `playspace` branch (`ps_*`) and a `yee` branch (`yee_*`) descending from it.
+- Each database advances only along its own branch, so product-only tables
+  (`playspace_*`, `yee_audit_submissions`) never leak into the other database.
+- Target the product branch head: `alembic -x product=yee upgrade yee@head`
+  (or `playspace@head`).
+- `env.py` filters `Base.metadata` per product via `include_name` (backed by the
+  ownership registry in `app/models.py`) so autogenerate only diffs the tables
+  that belong to the product being migrated.
+- See `docs/deployment.md` for the one-time stamp/cutover procedure.
 
 ---
 

@@ -21,7 +21,7 @@ from dotenv import find_dotenv, load_dotenv
 
 from alembic import context
 from app.database import ProductKey, normalize_postgres_sqlalchemy_url
-from app.models import Base
+from app.models import Base, table_belongs_to_product
 
 load_dotenv(find_dotenv())
 
@@ -115,6 +115,23 @@ def _resolve_product_key() -> ProductKey:
 		raise ValueError(f"Invalid product '{raw_product}'. Expected one of: {allowed}.") from err
 
 
+def _make_include_name(product: ProductKey):
+	"""Build an Alembic ``include_name`` filter scoped to one product's tables.
+
+	This keeps autogenerate from proposing to create/drop the *other* product's
+	tables when diffing the shared ``Base.metadata`` against a single physical
+	database. Physical table creation is still driven by per-product migration
+	branches; this filter only governs which tables Alembic compares.
+	"""
+
+	def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
+		if type_ == "table" and name is not None:
+			return table_belongs_to_product(name, product.value)
+		return True
+
+	return include_name
+
+
 def _set_sqlalchemy_url(product: ProductKey, environment: Environment) -> str:
 	"""
 	Ensure Alembic uses the same database URL as the application.
@@ -144,13 +161,14 @@ def run_migrations_offline() -> None:
 		literal_binds=True,
 		dialect_opts={"paramstyle": "named"},
 		compare_type=True,
+		include_name=_make_include_name(product),
 	)
 
 	with context.begin_transaction():
 		context.run_migrations()
 
 
-def _do_run_migrations(connection: Any) -> None:
+def _do_run_migrations(connection: Any, product: ProductKey) -> None:
 	"""
 	Configure the migration context and run migrations.
 
@@ -162,6 +180,7 @@ def _do_run_migrations(connection: Any) -> None:
 		connection=connection,
 		target_metadata=target_metadata,
 		compare_type=True,
+		include_name=_make_include_name(product),
 	)
 
 	with context.begin_transaction():
@@ -183,7 +202,7 @@ async def run_migrations_online() -> None:
 	)
 
 	async with connectable.connect() as connection:
-		await connection.run_sync(_do_run_migrations)
+		await connection.run_sync(_do_run_migrations, product)
 
 	await connectable.dispose()
 
