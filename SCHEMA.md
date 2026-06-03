@@ -9,6 +9,27 @@
 
 Intentionally split into: shared core tables · Playspace-specific normalized audit tables · compatibility caches.
 
+### Database & migration layout
+
+There are **two independent product databases** (YEE and Playspace) selected via
+`-x product=yee|playspace`. They share the **core** tables but each owns a few
+tables the other database never receives:
+
+| Scope | Tables | Lives in |
+| ----- | ------ | -------- |
+| Shared core | `accounts`, `users`, `notifications`, `manager_profiles`, `auditor_profiles`, `auditor_access_requests`, `auditor_invites`, `manager_invites`, `places`, `projects`, `project_places`, `auditor_assignments`, `audits`, `instruments` | Both |
+| Playspace-only | `playspace_submissions`, `playspace_submission_contexts`, `playspace_pre_submission_answers`, `playspace_submission_sections`, `playspace_question_responses`, `playspace_scale_answers`, `playspace_checklist_answers` | Playspace |
+| YEE-only | `yee_audit_submissions` | YEE |
+
+This isolation is enforced by **branched Alembic history**: a shared `core` base
+(`0001`) with a `playspace` branch (`ps_*`) and a `yee` branch (`yee_*`)
+descending from it. Each database advances only along its own branch
+(`alembic -x product=yee upgrade yee@head` / `... playspace upgrade playspace@head`),
+and `alembic/env.py` filters `Base.metadata` per product (via the ownership
+registry in `app/models.py`) so autogenerate only diffs the active product's
+tables. Ownership of a table is the single source of truth in
+`PLAYSPACE_ONLY_TABLE_NAMES` / `YEE_ONLY_TABLE_NAMES` in `app/models.py`.
+
 ---
 
 ## Table of Contents
@@ -225,6 +246,25 @@ Shared audit shell record used by YEE and retained for compatibility.
 
 ---
 
+### `yee_audit_submissions`
+
+YEE-only submission record (created on the `yee` Alembic branch; **exists in the
+YEE database only**). Decoupled from the shared `audits` shell so the YEE
+execution flow can evolve independently.
+
+| Column                   | Notes                                                       |
+| ------------------------ | ----------------------------------------------------------- |
+| `id`                     | UUID primary key                                            |
+| `auditor_id`             | FK → `auditor_profiles` (`ON DELETE RESTRICT`)              |
+| `place_id`               | FK → `places` (`ON DELETE CASCADE`)                         |
+| `submitted_at`           | Defaults to `now()`                                         |
+| `participant_info_json`  | JSONB participant metadata                                  |
+| `responses_json`         | JSONB response payload                                      |
+| `section_scores_json`    | JSONB per-section scores                                    |
+| `total_score`            | Integer total                                               |
+
+---
+
 ### `playspace_submissions`
 
 Playspace-only submission root. Scope is selected with **`execution_mode`**: `audit`, `survey`, or `both` (instrument enum); `both` counts toward both audit- and survey-axis place rollups.
@@ -395,11 +435,11 @@ Checklist compatibility note: versions before `20260514_0010` could store checkl
 
 ## 5. Legacy Checklist Data Migration
 
-The normalized checklist table (`playspace_checklist_answers`) is created in `0001_initial_schema.py`. It does **not** rewrite historical rows automatically, so it is safe to deploy without blocking reads/writes.
+The normalized checklist table (`playspace_checklist_answers`) is created on the Playspace branch in `ps_0001_playspace_tables.py` (formerly part of the squashed `0001_initial_schema.py`). It does **not** rewrite historical rows automatically, so it is safe to deploy without blocking reads/writes.
 
 Recommended no-impact cleanup path:
 
-1. **Deploy code + schema first.** Run `alembic -x product=playspace upgrade head`. Leave the legacy read-normalization code enabled.
+1. **Deploy code + schema first.** Run `alembic -x product=playspace upgrade playspace@head`. Leave the legacy read-normalization code enabled.
 2. **Measure recoverable legacy data.** In a read-only query, count `playspace_scale_answers` rows where `scale_key IN ('selected_option_keys', 'other_details')` and inspect whether `option_key` contains parseable JSON/Python-list strings. Also sample submitted `playspace_submissions.responses_json` for checklist keys stored as strings.
 3. **Backfill in small batches.** For each recoverable normalized question response, insert or update one `playspace_checklist_answers` row from the parsed `selected_option_keys` / `other_details`, then delete only the legacy malformed `playspace_scale_answers` rows for those two keys. Keep this script idempotent and log skipped/unparseable rows.
 4. **Repair mis-stamped instrument versions.** Before removing compatibility, identify submitted rows with `instrument_version='5.2'` whose stored response question keys match the active/versioned 5.13 instrument better than the 5.2 instrument. Update those rows to the correct `instrument_version` in small batches after spot-checking rendered audit details and reports.
