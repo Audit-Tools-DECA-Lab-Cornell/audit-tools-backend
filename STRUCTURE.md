@@ -174,17 +174,24 @@ Route
 
 ### `tests/`
 
-Playspace-specific tests live under:
+Product-specific tests live under:
 
 ```
 tests/products/playspace/
+tests/products/yee/
 ```
+
+Each product suite builds its own database from that product's Alembic branch
+(`playspace@head` / `yee@head`) against a dedicated test DB
+(`TEST_DATABASE_URL_PLAYSPACE` / `TEST_DATABASE_URL_YEE`) and skips when the URL
+is not configured.
 
 | Test area |
 |---|
-| Audit state normalization regressions |
+| Audit state normalization regressions (Playspace) |
 | Scoring behavior |
 | Service-level contract tests |
+| YEE auditor flow: instrument · audit-state · draft · submit · list/detail |
 
 ### `alembic/`
 
