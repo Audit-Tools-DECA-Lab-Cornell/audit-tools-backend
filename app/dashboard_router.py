@@ -463,15 +463,9 @@ def _build_submission_scores(
 	if total_weight_sum <= 0:
 		return raw_domain_scores, _empty_weighted_domain_scores(), 0.0
 
-	normalized_weights = {
-		domain: _round_2(weights[domain] / total_weight_sum)
-		for domain in REPORT_DOMAIN_ORDER
-	}
+	normalized_weights = {domain: _round_2(weights[domain] / total_weight_sum) for domain in REPORT_DOMAIN_ORDER}
 	weighted_domain_scores = {
-		domain: _round_2(
-			normalized_weights[domain]
-			* (raw_domain_scores[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain])
-		)
+		domain: _round_2(normalized_weights[domain] * (raw_domain_scores[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
 		for domain in REPORT_DOMAIN_ORDER
 	}
 	total_weighted_score = _round_2(sum(weighted_domain_scores.values()))
