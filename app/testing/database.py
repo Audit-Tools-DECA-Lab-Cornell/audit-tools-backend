@@ -105,7 +105,7 @@ def run_playspace_migrations() -> None:
 
 
 async def seed_playspace_database(session_factory: async_sessionmaker[AsyncSession]) -> None:
-	"""Clear shared rows and insert deterministic Playspace E2E seed entities."""
+	"""Clear Playspace-scoped tables and insert deterministic Playspace E2E seed entities."""
 
 	async with session_factory() as session:
 		await _clear_product_tables(session, ProductKey.PLAYSPACE)
