@@ -231,6 +231,8 @@ class InstrumentVersionResponse(ApiModel):
 	content: dict[str, object]
 	created_at: datetime
 	updated_at: datetime
+	submission_count: int = 0
+	can_delete: bool = True
 
 
 class InstrumentCreateRequest(RequestModel):

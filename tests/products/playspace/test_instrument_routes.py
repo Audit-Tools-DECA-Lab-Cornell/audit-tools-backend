@@ -141,9 +141,9 @@ def test_admin_delete_instrument_deletes_inactive_version(monkeypatch) -> None:
 
 	instrument_id = uuid.uuid4()
 
-	async def fake_delete_instrument_version(_session: object, row_id: uuid.UUID) -> bool:
+	async def fake_delete_instrument_version(_session: object, row_id: uuid.UUID) -> str:
 		assert row_id == instrument_id
-		return True
+		return "deleted"
 
 	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
 
@@ -161,8 +161,8 @@ def test_admin_delete_instrument_deletes_inactive_version(monkeypatch) -> None:
 def test_admin_delete_instrument_rejects_active_version(monkeypatch) -> None:
 	"""Active instrument versions are protected from deletion."""
 
-	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> bool:
-		return False
+	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> str:
+		return "active"
 
 	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
 
@@ -178,11 +178,32 @@ def test_admin_delete_instrument_rejects_active_version(monkeypatch) -> None:
 	assert exc_info.value.status_code == 409
 
 
+def test_admin_delete_instrument_rejects_versions_referenced_by_audits(monkeypatch) -> None:
+	"""Inactive published versions referenced by submissions cannot be deleted."""
+
+	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> str:
+		return "in_use"
+
+	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
+
+	with pytest.raises(instrument_routes.HTTPException) as exc_info:
+		asyncio.run(
+			instrument_routes.admin_delete_instrument(
+				instrument_id=uuid.uuid4(),
+				current_user=_build_current_user_context(),
+				session=_build_async_session(),
+			)
+		)
+
+	assert exc_info.value.status_code == 409
+	assert "referenced by audits" in exc_info.value.detail
+
+
 def test_admin_delete_instrument_returns_404_for_missing_version(monkeypatch) -> None:
 	"""Missing instrument IDs surface as 404 responses."""
 
-	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> None:
-		return None
+	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> str:
+		return "not_found"
 
 	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
 

@@ -26,9 +26,11 @@ from app.products.playspace.schemas.management import (
 )
 from app.products.playspace.services.instrument import (
 	build_instrument_response_from_row,
+	can_delete_instrument_version,
 	create_instrument_version,
 	delete_instrument_version,
 	get_active_instrument,
+	get_submission_counts_by_version,
 	list_instrument_versions,
 	update_instrument_status,
 )
@@ -105,7 +107,20 @@ async def admin_list_instruments(
 
 	_ = current_user
 	rows = await list_instrument_versions(session, instrument_key)
-	return [InstrumentVersionResponse.model_validate(row) for row in rows]
+	submission_counts = await get_submission_counts_by_version(session, instrument_key)
+	return [
+		InstrumentVersionResponse.model_validate(row).model_copy(
+			update={
+				"submission_count": submission_counts.get(row.instrument_version, 0),
+				"can_delete": can_delete_instrument_version(
+					is_active=row.is_active,
+					parent_instrument_id=row.parent_instrument_id,
+					submission_count=submission_counts.get(row.instrument_version, 0),
+				),
+			}
+		)
+		for row in rows
+	]
 
 
 @router.post(
@@ -166,15 +181,20 @@ async def admin_delete_instrument(
 	"""Delete an inactive instrument version (admin only)."""
 
 	_ = current_user
-	deleted = await delete_instrument_version(session, instrument_id)
-	if deleted is None:
+	delete_result = await delete_instrument_version(session, instrument_id)
+	if delete_result == "not_found":
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,
 			detail="Instrument not found",
 		)
-	if deleted is False:
+	if delete_result == "active":
 		raise HTTPException(
 			status_code=status.HTTP_409_CONFLICT,
 			detail="Active instrument versions cannot be deleted",
+		)
+	if delete_result == "in_use":
+		raise HTTPException(
+			status_code=status.HTTP_409_CONFLICT,
+			detail="Instrument versions referenced by audits cannot be deleted",
 		)
 	return Response(status_code=status.HTTP_204_NO_CONTENT)
