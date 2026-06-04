@@ -174,22 +174,37 @@ Route
 
 ### `tests/`
 
-Playspace-specific tests live under:
+Product-specific tests live under:
 
 ```
 tests/products/playspace/
+tests/products/yee/
 ```
+
+Each product suite builds its own database from that product's Alembic branch
+(`playspace@head` / `yee@head`) against a dedicated test DB
+(`TEST_DATABASE_URL_PLAYSPACE` / `TEST_DATABASE_URL_YEE`) and skips when the URL
+is not configured.
 
 | Test area |
 |---|
-| Audit state normalization regressions |
+| Audit state normalization regressions (Playspace) |
 | Scoring behavior |
 | Service-level contract tests |
+| YEE auditor flow: instrument · audit-state · draft · submit · list/detail |
 
 ### `alembic/`
 
-- Schema migration history
-- Product-specific migrations selected via `-x product=...`
+- Branched schema migration history: a shared `core` base (`0001`) with a
+  `playspace` branch (`ps_*`) and a `yee` branch (`yee_*`) descending from it.
+- Each database advances only along its own branch, so product-only tables
+  (`playspace_*`, `yee_audit_submissions`) never leak into the other database.
+- Target the product branch head: `alembic -x product=yee upgrade yee@head`
+  (or `playspace@head`).
+- `env.py` filters `Base.metadata` per product via `include_name` (backed by the
+  ownership registry in `app/models.py`) so autogenerate only diffs the tables
+  that belong to the product being migrated.
+- See `docs/deployment.md` for the one-time stamp/cutover procedure.
 
 ---
 

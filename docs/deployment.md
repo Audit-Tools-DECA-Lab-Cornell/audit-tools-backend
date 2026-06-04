@@ -63,13 +63,41 @@ Optional but important in production:
 
 ## Migration Runbook
 
-The backend migration history is product-scoped. You must run Alembic once per
-database:
+The backend migration history is product-scoped **and branched**. A shared
+`core` base revision (`0001`) holds the tables common to both products, and two
+branches descend from it:
+
+- `playspace` branch — Playspace-only tables (`playspace_*`)
+- `yee` branch — YEE-only tables (`yee_audit_submissions`)
+
+Each physical database only ever advances along its own branch, so the YEE
+database never receives `playspace_*` tables and the Playspace database never
+receives `yee_*` tables. Target the product branch head (not the bare `head`,
+which is ambiguous with two heads):
 
 ```bash
-alembic -x product=yee upgrade head
-alembic -x product=playspace upgrade head
+alembic -x product=yee upgrade yee@head
+alembic -x product=playspace upgrade playspace@head
 ```
+
+### One-time cutover from the pre-branch history
+
+If a database was previously migrated under the old single linear history
+(through the squashed `0002`), re-point it onto the branched revision IDs with a
+**stamp** — this changes only the `alembic_version` bookkeeping and runs **no
+DDL**, so existing data is untouched:
+
+```bash
+# Playspace PRODUCTION (real data — stamp only, never re-run DDL):
+alembic -x product=playspace -x environment=production stamp --purge playspace@head
+
+# YEE is reset-friendly (seed data only): drop/recreate the schema and rebuild:
+alembic -x product=yee -x environment=development upgrade yee@head
+```
+
+After stamping, `alembic -x product=playspace ... current` should report
+`ps_0002 (head)`, and future Playspace changes are normal additive migrations on
+the `playspace` branch.
 
 Important notes:
 
@@ -97,8 +125,8 @@ schema exists.
 
 1. Provision both PostgreSQL databases
 2. Set all backend environment variables
-3. Run `alembic -x product=yee upgrade head`
-4. Run `alembic -x product=playspace upgrade head`
+3. Run `alembic -x product=yee upgrade yee@head`
+4. Run `alembic -x product=playspace upgrade playspace@head`
 5. Start the backend service
 6. Verify `/health`
 7. Verify one YEE auth flow and one Playspace auth flow

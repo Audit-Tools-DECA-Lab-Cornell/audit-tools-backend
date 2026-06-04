@@ -103,11 +103,13 @@ AUTH_EMAIL_VERIFY_TTL_HOURS=24
 AUTH_VERIFY_URL_TEMPLATE=http://localhost:3000/verify-email?token={token}
 ```
 
-4. Apply migrations to both product databases:
+4. Apply migrations to both product databases. Each product has its own Alembic
+   branch (`yee` / `playspace`) sharing a common `core` base, so target the
+   product-scoped branch head rather than the bare `head`:
 
 ```bash
-alembic -x product=yee upgrade head
-alembic -x product=playspace upgrade head
+alembic -x product=yee upgrade yee@head
+alembic -x product=playspace upgrade playspace@head
 ```
 
 5. Seed demo data when needed:
@@ -193,8 +195,8 @@ TEST_DATABASE_URL_PLAYSPACE=postgresql://... ./.venv/bin/pytest tests/products/p
 Recommended release sequence:
 
 1. Deploy code
-2. Run `alembic -x product=yee upgrade head`
-3. Run `alembic -x product=playspace upgrade head`
+2. Run `alembic -x product=yee upgrade yee@head`
+3. Run `alembic -x product=playspace upgrade playspace@head`
 4. Verify `/health`, auth, and one product-specific flow per namespace
 
 ## Documentation Map

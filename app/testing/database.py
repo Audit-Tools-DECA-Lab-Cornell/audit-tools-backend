@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.database import ProductKey, normalize_postgres_sqlalchemy_url
-from app.seed import _build_playspace_entities, _clear_shared_tables, _insert_seed_entities
+from app.seed import _build_playspace_entities, _clear_product_tables, _insert_seed_entities
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -101,14 +101,14 @@ def run_playspace_migrations() -> None:
 	alembic_config.cmd_opts = argparse.Namespace(
 		x=[f"product={ProductKey.PLAYSPACE.value}", "environment=test"],
 	)
-	command.upgrade(alembic_config, "head")
+	command.upgrade(alembic_config, f"{ProductKey.PLAYSPACE.value}@head")
 
 
 async def seed_playspace_database(session_factory: async_sessionmaker[AsyncSession]) -> None:
-	"""Clear shared rows and insert deterministic Playspace E2E seed entities."""
+	"""Clear Playspace-scoped tables and insert deterministic Playspace E2E seed entities."""
 
 	async with session_factory() as session:
-		await _clear_shared_tables(session)
+		await _clear_product_tables(session, ProductKey.PLAYSPACE)
 		await _insert_seed_entities(session, _build_playspace_entities())
 		await session.commit()
 

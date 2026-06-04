@@ -21,7 +21,7 @@ from dotenv import find_dotenv, load_dotenv
 
 from alembic import context
 from app.database import ProductKey, normalize_postgres_sqlalchemy_url
-from app.models import Base
+from app.models import Base, table_belongs_to_product
 
 load_dotenv(find_dotenv())
 
@@ -132,6 +132,44 @@ def _resolve_product_key() -> ProductKey:
 		raise ValueError(f"Invalid product '{raw_product}'. Expected one of: {allowed}.") from err
 
 
+def _make_include_name(product: ProductKey):
+	"""Build an Alembic ``include_name`` filter scoped to one product's tables.
+
+	This governs objects discovered during **database reflection** — it keeps
+	autogenerate from proposing to drop the *other* product's tables if they ever
+	exist in the physical database. It does NOT suppress tables that exist only in
+	``target_metadata`` (those never appear during reflection); ``include_object``
+	below handles that ``create_table`` case.
+	"""
+
+	def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
+		if type_ == "table" and name is not None:
+			return table_belongs_to_product(name, product.value)
+		return True
+
+	return include_name
+
+
+def _make_include_object(product: ProductKey):
+	"""Build an Alembic ``include_object`` filter scoped to one product's tables.
+
+	Unlike ``include_name`` (reflection-only), this hook is consulted for objects
+	present in ``target_metadata`` as well, so it suppresses ``create_table`` ops
+	for the *other* product's metadata-only tables (e.g. ``playspace_*`` when
+	autogenerating against the YEE database). Physical table creation remains
+	driven by the per-product migration branches.
+	"""
+
+	def include_object(object_: Any, name: str | None, type_: str, reflected: bool, compare_to: Any) -> bool:
+		if type_ == "table":
+			table_name = name if name is not None else getattr(object_, "name", None)
+			if table_name is not None:
+				return table_belongs_to_product(str(table_name), product.value)
+		return True
+
+	return include_object
+
+
 def _set_sqlalchemy_url(product: ProductKey, environment: Environment) -> str:
 	"""
 	Ensure Alembic uses the same database URL as the application.
@@ -161,13 +199,15 @@ def run_migrations_offline() -> None:
 		literal_binds=True,
 		dialect_opts={"paramstyle": "named"},
 		compare_type=True,
+		include_name=_make_include_name(product),
+		include_object=_make_include_object(product),
 	)
 
 	with context.begin_transaction():
 		context.run_migrations()
 
 
-def _do_run_migrations(connection: Any) -> None:
+def _do_run_migrations(connection: Any, product: ProductKey) -> None:
 	"""
 	Configure the migration context and run migrations.
 
@@ -179,6 +219,8 @@ def _do_run_migrations(connection: Any) -> None:
 		connection=connection,
 		target_metadata=target_metadata,
 		compare_type=True,
+		include_name=_make_include_name(product),
+		include_object=_make_include_object(product),
 	)
 
 	with context.begin_transaction():
@@ -200,7 +242,7 @@ async def run_migrations_online() -> None:
 	)
 
 	async with connectable.connect() as connection:
-		await connection.run_sync(_do_run_migrations)
+		await connection.run_sync(_do_run_migrations, product)
 
 	await connectable.dispose()
 

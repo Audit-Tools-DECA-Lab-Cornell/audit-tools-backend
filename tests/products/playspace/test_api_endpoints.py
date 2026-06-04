@@ -272,6 +272,7 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/admin/instruments"),
 		("GET", "/playspace/instruments/active/{instrument_key}"),
 		("PATCH", "/playspace/admin/instruments/{instrument_id}"),
+		("DELETE", "/playspace/admin/instruments/{instrument_id}"),
 		("GET", "/playspace/me"),
 		("GET", "/playspace/me/auditor-profile"),
 		("PATCH", "/playspace/me/auditor-profile"),
@@ -740,6 +741,45 @@ def test_admin_dashboard_endpoints(
 	system_response = playspace_client.get("/playspace/admin/system", headers=headers)
 	assert system_response.status_code == 200
 	assert system_response.json()["instrument_key"] == "pvua_v5_2"
+
+	instruments_response = playspace_client.get("/playspace/admin/instruments", headers=headers)
+	assert instruments_response.status_code == 200
+	active_instrument = next(item for item in instruments_response.json() if item["is_active"])
+
+	active_delete_response = playspace_client.delete(
+		f"/playspace/admin/instruments/{active_instrument['id']}",
+		headers=headers,
+	)
+	assert active_delete_response.status_code == 409
+
+	draft_payload = {
+		"instrument_key": active_instrument["instrument_key"],
+		"instrument_version": f"delete-test-{uuid.uuid4().hex[:8]}",
+		"parent_instrument_id": active_instrument["id"],
+		"content": active_instrument["content"],
+	}
+	create_draft_response = playspace_client.post(
+		"/playspace/admin/instruments",
+		params={"activate": "false"},
+		json=draft_payload,
+		headers=headers,
+	)
+	assert create_draft_response.status_code == 201
+	created_draft = create_draft_response.json()
+	assert created_draft["parent_instrument_id"] == active_instrument["id"]
+	draft_id = created_draft["id"]
+
+	delete_draft_response = playspace_client.delete(
+		f"/playspace/admin/instruments/{draft_id}",
+		headers=headers,
+	)
+	assert delete_draft_response.status_code == 204
+
+	deleted_draft_response = playspace_client.delete(
+		f"/playspace/admin/instruments/{draft_id}",
+		headers=headers,
+	)
+	assert deleted_draft_response.status_code == 404
 
 
 def test_auditor_dashboard_endpoints(

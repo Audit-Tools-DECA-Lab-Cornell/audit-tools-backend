@@ -8,4 +8,4 @@ if [ -f "$FLAG" ]; then
   exit 0
 fi
 touch "$FLAG"
-printf '{"decision":"block","reason":"Caliber agent config sync is not set up on this machine. Tell the user: This project uses Caliber to keep agent configs in sync — it is not set up yet. Want me to run /setup-caliber? (~30 seconds)"}'
+printf '{"systemMessage":"Caliber agent config sync is not set up on this machine. Run /setup-caliber (~30s) to enable automatic agent-config syncing."}'
