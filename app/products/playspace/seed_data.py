@@ -496,6 +496,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 	canonical_instrument = Instrument(
 		instrument_key=INSTRUMENT_KEY,
 		instrument_version=INSTRUMENT_VERSION,
+		parent_instrument_id=None,
 		is_active=True,
 		content={"en": get_active_instrument_payload()},
 		created_at=BASE_ADMIN_CREATED_AT + timedelta(minutes=5),

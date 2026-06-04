@@ -243,6 +243,7 @@ def _build_yee_entities() -> list[object]:
 		id=YEE_INSTRUMENT_ID,
 		instrument_key=str(instrument_metadata["instrument_key"]),
 		instrument_version=str(instrument_metadata["instrument_version"]),
+		parent_instrument_id=None,
 		is_active=True,
 		content={"en": instrument_metadata},
 		created_at=_utc_datetime("2026-02-20T08:30:00Z"),

@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.seed import YEE_PLACE_PLAZA_ID
+from app.models import Instrument
+from app.seed import YEE_PLACE_PLAZA_ID, _build_yee_entities
 
 # Matches the deterministic YEE seed (see app/seed.py).
 SEED_AUDITOR_EMAIL = "auditor-demo-1@yee.local"
@@ -123,3 +124,15 @@ def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient
 	state = yee_client.get(f"{place_path}/audit-state", headers=headers)
 	assert state.status_code == 200, state.text
 	assert state.json()["status"] == "SUBMITTED"
+
+
+def test_build_yee_entities_instrument_is_active_root_version() -> None:
+	"""The seeded YEE instrument is the active root of version history."""
+
+	entities = _build_yee_entities()
+	instruments = [entity for entity in entities if isinstance(entity, Instrument)]
+
+	assert len(instruments) == 1
+	seed_instrument = instruments[0]
+	assert seed_instrument.is_active is True
+	assert seed_instrument.parent_instrument_id is None

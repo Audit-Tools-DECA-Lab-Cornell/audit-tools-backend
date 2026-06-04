@@ -12,11 +12,24 @@ from app.models import (
 	ManagerProfile,
 	PlayspaceChecklistAnswer,
 	PlayspaceSubmission,
+	Instrument,
 	Project,
 	ProjectPlace,
 	User,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
+
+
+def test_build_playspace_seed_entities_instrument_is_active_root_version() -> None:
+	"""The seeded Playspace instrument is the active root of version history."""
+
+	entities = build_playspace_seed_entities()
+	instruments = [entity for entity in entities if isinstance(entity, Instrument)]
+
+	assert len(instruments) == 1
+	seed_instrument = instruments[0]
+	assert seed_instrument.is_active is True
+	assert seed_instrument.parent_instrument_id is None
 
 
 def test_build_playspace_seed_entities_includes_admin_and_multiple_manager_accounts() -> None:
