@@ -221,6 +221,24 @@ Assignments grant project-level or project-place-level access to an auditor.
 
 ---
 
+### `instruments`
+
+Shared instrument-version table used by both products. Playspace admins manage PVUA versions through `/playspace/admin/instruments`; YEE seeds its canonical source-material instrument into the same shared table shape.
+
+| Column                 | Notes                                                                 |
+| ---------------------- | --------------------------------------------------------------------- |
+| `id`                   | UUID primary key                                                      |
+| `instrument_key`       | Product/instrument family key (`pvua_v5_2`, YEE source key, etc.)     |
+| `instrument_version`   | Version label shown in admin/version history surfaces                 |
+| `parent_instrument_id` | Nullable self-FK → `instruments.id` with `ON DELETE SET NULL`         |
+| `is_active`            | Active version for the instrument key                                 |
+| `content`              | JSONB instrument payload                                              |
+| `created_at`           |                                                                     |
+| `updated_at`           |                                                                     |
+| `activated_at`         | Nullable timestamp for the active transition                          |
+
+Active seed instruments are root versions (`parent_instrument_id = NULL`). Draft versions created from an existing version store that parent id while inactive; activating a draft clears the parent id. Deleting an inactive parent leaves child drafts as root versions because the self-FK uses `ON DELETE SET NULL`. Active versions are protected from deletion by the service layer.
+
 ### `audits`
 
 Shared audit shell record used by YEE and retained for compatibility.

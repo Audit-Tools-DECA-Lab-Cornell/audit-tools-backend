@@ -1215,6 +1215,11 @@ class Instrument(Base):
 	)
 	instrument_key: Mapped[str] = mapped_column(String(255), nullable=False)
 	instrument_version: Mapped[str] = mapped_column(String(50), nullable=False)
+	parent_instrument_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("instruments.id", ondelete="SET NULL"),
+		nullable=True,
+	)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
