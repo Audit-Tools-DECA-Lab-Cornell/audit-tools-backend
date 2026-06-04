@@ -1,6 +1,9 @@
 import asyncio
+import uuid
 from typing import cast
 from unittest.mock import create_autospec
+
+import pytest
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -131,3 +134,65 @@ def test_get_instrument_metadata_falls_back_to_canonical_when_active_payload_inv
 
 	assert response.instrument_version == "5.2"
 	assert response.sections[0].title == "Canonical Section"
+
+
+def test_admin_delete_instrument_deletes_inactive_version(monkeypatch) -> None:
+	"""Inactive instrument versions can be removed from version history."""
+
+	instrument_id = uuid.uuid4()
+
+	async def fake_delete_instrument_version(_session: object, row_id: uuid.UUID) -> bool:
+		assert row_id == instrument_id
+		return True
+
+	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
+
+	response = asyncio.run(
+		instrument_routes.admin_delete_instrument(
+			instrument_id=instrument_id,
+			current_user=_build_current_user_context(),
+			session=_build_async_session(),
+		)
+	)
+
+	assert response.status_code == 204
+
+
+def test_admin_delete_instrument_rejects_active_version(monkeypatch) -> None:
+	"""Active instrument versions are protected from deletion."""
+
+	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> bool:
+		return False
+
+	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
+
+	with pytest.raises(instrument_routes.HTTPException) as exc_info:
+		asyncio.run(
+			instrument_routes.admin_delete_instrument(
+				instrument_id=uuid.uuid4(),
+				current_user=_build_current_user_context(),
+				session=_build_async_session(),
+			)
+		)
+
+	assert exc_info.value.status_code == 409
+
+
+def test_admin_delete_instrument_returns_404_for_missing_version(monkeypatch) -> None:
+	"""Missing instrument IDs surface as 404 responses."""
+
+	async def fake_delete_instrument_version(_session: object, _row_id: uuid.UUID) -> None:
+		return None
+
+	monkeypatch.setattr(instrument_routes, "delete_instrument_version", fake_delete_instrument_version)
+
+	with pytest.raises(instrument_routes.HTTPException) as exc_info:
+		asyncio.run(
+			instrument_routes.admin_delete_instrument(
+				instrument_id=uuid.uuid4(),
+				current_user=_build_current_user_context(),
+				session=_build_async_session(),
+			)
+		)
+
+	assert exc_info.value.status_code == 404
