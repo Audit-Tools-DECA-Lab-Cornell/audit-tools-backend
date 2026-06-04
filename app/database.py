@@ -31,6 +31,13 @@ class ProductKey(str, Enum):
 	PLAYSPACE = "playspace"
 
 
+def _is_production_like_environment() -> bool:
+	"""Detect hosted production-style environments where silent DB fallback is risky."""
+
+	environment = (os.getenv("ENVIRONMENT") or "").strip().lower()
+	return environment == "production" or os.getenv("RENDER") == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
+
+
 def _resolve_raw_database_url(product: ProductKey) -> str:
 	"""Resolve one product database URL from environment variables or defaults."""
 
@@ -47,8 +54,15 @@ def _resolve_raw_database_url(product: ProductKey) -> str:
 
 	if product is ProductKey.YEE:
 		legacy_url = os.getenv("DATABASE_URL")
-		if legacy_url and legacy_url.strip():
+		if legacy_url and legacy_url.strip() and not _is_production_like_environment():
 			return legacy_url.strip()
+
+	if _is_production_like_environment():
+		expected_key = f"DATABASE_URL_{env_suffix}"
+		raise RuntimeError(
+			f"Missing required environment variable {expected_key}. "
+			"Production deployments must provide explicit product database URLs for YEE and Playspace."
+		)
 
 	default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
 	return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"

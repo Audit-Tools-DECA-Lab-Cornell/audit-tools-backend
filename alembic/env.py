@@ -41,6 +41,16 @@ class Environment(str, Enum):
 	PRODUCTION = "production"
 
 
+def _is_production_like_environment(environment: Environment) -> bool:
+	"""Detect hosted production-style environments where silent DB fallback is risky."""
+
+	return (
+		environment is Environment.PRODUCTION
+		or os.getenv("RENDER") == "true"
+		or bool(os.getenv("RENDER_SERVICE_ID"))
+	)
+
+
 def _resolve_raw_database_url(product: ProductKey, environment: Environment) -> str:
 	"""Resolve one product database URL from environment variables or defaults."""
 
@@ -65,8 +75,15 @@ def _resolve_raw_database_url(product: ProductKey, environment: Environment) -> 
 
 	if product is ProductKey.YEE:
 		legacy_url = os.getenv("DATABASE_URL")
-		if legacy_url and legacy_url.strip():
+		if legacy_url and legacy_url.strip() and not _is_production_like_environment(environment):
 			return legacy_url.strip()
+
+	if _is_production_like_environment(environment):
+		expected_key = f"DATABASE_URL_{env_suffix}"
+		raise RuntimeError(
+			f"Missing required environment variable {expected_key}. "
+			"Production migration runs must target explicit product database URLs."
+		)
 
 	default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
 	return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
