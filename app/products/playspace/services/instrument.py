@@ -96,13 +96,19 @@ async def create_instrument_version(
 	session: AsyncSession,
 	data: InstrumentCreateRequest,
 	activate: bool = True,
-) -> Instrument:
+) -> Instrument | None:
 	"""
 	Create a new instrument version.
 
 	When *activate* is True, all other versions for the same key are
 	deactivated in the same transaction.
 	"""
+
+	parent_instrument: Instrument | None = None
+	if data.parent_instrument_id is not None:
+		parent_instrument = await get_instrument_by_id(session, data.parent_instrument_id)
+		if parent_instrument is None or parent_instrument.instrument_key != data.instrument_key:
+			return None
 
 	if activate:
 		await session.execute(
@@ -114,6 +120,7 @@ async def create_instrument_version(
 	new_instrument = Instrument(
 		instrument_key=data.instrument_key,
 		instrument_version=data.instrument_version,
+		parent_instrument_id=None if activate else parent_instrument.id if parent_instrument is not None else None,
 		is_active=activate,
 		content=data.content,
 	)
@@ -143,7 +150,27 @@ async def update_instrument_status(
 		)
 
 	instrument.is_active = data.is_active
+	if data.is_active:
+		instrument.parent_instrument_id = None
 	instrument.updated_at = datetime.now(timezone.utc)
 	await session.commit()
 	await session.refresh(instrument)
 	return instrument
+
+
+async def delete_instrument_version(
+	session: AsyncSession,
+	instrument_id: UUID,
+) -> bool | None:
+	"""Delete an inactive instrument version. Returns False when the version is active."""
+
+	instrument = await get_instrument_by_id(session, instrument_id)
+	if instrument is None:
+		return None
+
+	if instrument.is_active:
+		return False
+
+	await session.delete(instrument)
+	await session.commit()
+	return True

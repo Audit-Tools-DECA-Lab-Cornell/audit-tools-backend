@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.actors import CurrentUserContext
@@ -27,6 +27,7 @@ from app.products.playspace.schemas.management import (
 from app.products.playspace.services.instrument import (
 	build_instrument_response_from_row,
 	create_instrument_version,
+	delete_instrument_version,
 	get_active_instrument,
 	list_instrument_versions,
 	update_instrument_status,
@@ -122,6 +123,11 @@ async def admin_create_instrument(
 
 	_ = current_user
 	row = await create_instrument_version(session, data, activate)
+	if row is None:
+		raise HTTPException(
+			status_code=status.HTTP_404_NOT_FOUND,
+			detail="Parent instrument not found",
+		)
 	return InstrumentVersionResponse.model_validate(row)
 
 
@@ -145,3 +151,30 @@ async def admin_update_instrument(
 			detail="Instrument not found",
 		)
 	return InstrumentVersionResponse.model_validate(row)
+
+
+@router.delete(
+	"/admin/instruments/{instrument_id}",
+	status_code=status.HTTP_204_NO_CONTENT,
+	response_class=Response,
+)
+async def admin_delete_instrument(
+	instrument_id: UUID,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session: AsyncSession = SESSION_DEPENDENCY,
+) -> Response:
+	"""Delete an inactive instrument version (admin only)."""
+
+	_ = current_user
+	deleted = await delete_instrument_version(session, instrument_id)
+	if deleted is None:
+		raise HTTPException(
+			status_code=status.HTTP_404_NOT_FOUND,
+			detail="Instrument not found",
+		)
+	if deleted is False:
+		raise HTTPException(
+			status_code=status.HTTP_409_CONFLICT,
+			detail="Active instrument versions cannot be deleted",
+		)
+	return Response(status_code=status.HTTP_204_NO_CONTENT)

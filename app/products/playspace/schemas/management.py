@@ -226,6 +226,7 @@ class InstrumentVersionResponse(ApiModel):
 	id: uuid.UUID
 	instrument_key: str
 	instrument_version: str
+	parent_instrument_id: uuid.UUID | None = None
 	is_active: bool
 	content: dict[str, object]
 	created_at: datetime
@@ -237,6 +238,7 @@ class InstrumentCreateRequest(RequestModel):
 
 	instrument_key: str
 	instrument_version: str
+	parent_instrument_id: uuid.UUID | None = None
 	content: dict[str, object]
 
 
