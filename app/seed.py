@@ -51,6 +51,7 @@ from app.models import (
 	YeeAuditSubmission,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
+from app.yee_scoring import get_yee_instrument_data
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -726,10 +727,21 @@ def _build_yee_entities() -> list[object]:
 		),
 	]
 
+	active_yee_instrument = Instrument(
+		id=uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"),
+		instrument_key="yee",
+		instrument_version=str(get_yee_instrument_data().get("version", "1")),
+		is_active=True,
+		content=get_yee_instrument_data(),
+		created_at=_utc_datetime("2026-02-20T07:55:00Z"),
+		updated_at=_utc_datetime("2026-02-20T07:55:00Z"),
+	)
+
 	return [
 		canonical_instrument,
 		*users,
 		manager_account,
+		active_yee_instrument,
 		*manager_profiles,
 		*auditor_profiles,
 		*projects,

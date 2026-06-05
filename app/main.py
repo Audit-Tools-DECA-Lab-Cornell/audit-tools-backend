@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,15 +21,26 @@ from app.products.playspace.routes import router as playspace_router
 from app.products.yee.routes import router as yee_shared_router
 from app.yee_router import router as yee_router
 
-# cors
-origins = [
-	"http://localhost:3000",
-	"http://localhost:8000",
-	"http://localhost:8081",
-	"https://audit-tools-yee-frontend.vercel.app",
-	"https://audit-tools-backend.onrender.com",
-	"https://audit-tools-playspace-frontend.vercel.app",
-]
+def _resolve_cors_origins() -> list[str]:
+	"""Resolve allowed browser origins for local and deployed frontends."""
+
+	default_origins = [
+		"http://localhost:3000",
+		"http://localhost:8000",
+		"http://localhost:8081",
+		"https://audit-tools-backend.onrender.com",
+		"https://audit-tools-playsafe-frontend.vercel.app",
+		"https://audit-tools-playspace-frontend.vercel.app",
+	]
+	configured_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+	if not configured_origins:
+		return default_origins
+
+	extra_origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
+	return list(dict.fromkeys([*default_origins, *extra_origins]))
+
+
+origins = _resolve_cors_origins()
 
 
 @asynccontextmanager
