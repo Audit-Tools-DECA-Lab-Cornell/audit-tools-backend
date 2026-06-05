@@ -149,6 +149,10 @@ class AdminProjectExportRecord(ApiModel):
 	audits_completed: int
 	average_pv_score: float | None
 	average_u_score: float | None
+	audit_mean_pv: float | None = None
+	audit_mean_u: float | None = None
+	survey_mean_pv: float | None = None
+	survey_mean_u: float | None = None
 
 
 class AdminProjectsExportResponse(ApiModel):
@@ -166,6 +170,9 @@ class AdminPlaceExportRecord(ApiModel):
 	place_id: uuid.UUID
 	project_id: uuid.UUID
 	project_name: str
+	project_overview: str | None = None
+	project_start_date: date | None = None
+	project_end_date: date | None = None
 	account_id: uuid.UUID
 	account_name: str
 	name: str
@@ -228,3 +235,44 @@ class AdminAuditsExportResponse(ApiModel):
 	generated_at: datetime
 	record_count: int
 	records: list[AdminAuditExportRecord]
+
+
+class AdminAuditorExportRecord(ApiModel):
+	"""Single auditor row for bundle exports. Admin sees auditor_code only - no PII."""
+
+	auditor_profile_id: uuid.UUID
+	account_id: uuid.UUID | None
+	account_name: str | None
+	auditor_code: str
+	assignments_count: int
+	completed_audits: int
+	last_active_at: datetime | None
+
+
+class AdminProjectsExportBundle(ApiModel):
+	"""Relational export bundle rooted at a set of projects.
+
+	Contains the project rows plus all descendant places, auditors, and audits
+	so the recipient can re-join the sheets by foreign-key id columns.
+	"""
+
+	generated_at: datetime
+	scope: str
+	projects: list[AdminProjectExportRecord]
+	places: list[AdminPlaceExportRecord]
+	auditors: list[AdminAuditorExportRecord]
+	audits: list[AdminAuditExportRecord]
+
+
+class AdminPlacesExportBundle(ApiModel):
+	"""Relational export bundle rooted at a set of places.
+
+	Contains the place rows (with project description fields) plus all descendant
+	auditors and audits so the recipient can re-join by foreign-key id columns.
+	"""
+
+	generated_at: datetime
+	scope: str
+	places: list[AdminPlaceExportRecord]
+	auditors: list[AdminAuditorExportRecord]
+	audits: list[AdminAuditExportRecord]
