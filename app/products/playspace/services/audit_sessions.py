@@ -130,7 +130,7 @@ def _derive_place_axis_status(
 	"""Derive the activity status for one place axis from a single auditor submission.
 
 	Because playspace_submissions has a unique constraint on (project_id, place_id,
-	auditor_profile_id), each auditor has at most one submission per place — no
+	auditor_profile_id), each auditor has at most one submission per place - no
 	rollup across multiple submissions is needed.
 
 	@param axis_included Whether this submission's execution mode covers the axis.
@@ -216,7 +216,7 @@ class PlayspaceAuditSessionsMixin:
 		safe_page_size = max(1, min(page_size, 100))
 		offset = max(page - 1, 0) * safe_page_size
 
-		# Single LEFT JOIN — assignments drive the result set; submission columns
+		# Single LEFT JOIN - assignments drive the result set; submission columns
 		# are null when the auditor has not yet started a session for the place.
 		query = (
 			select(
@@ -904,7 +904,7 @@ class PlayspaceAuditSessionsMixin:
 	) -> None:
 		"""Send the owning auditor an email when a background offline submit fails.
 
-		Only the auditor who owns the audit may call this endpoint — the mobile
+		Only the auditor who owns the audit may call this endpoint - the mobile
 		app fires it best-effort after the background sync fails, so we enforce
 		auditor-only access and silently swallow email delivery errors to avoid
 		blocking the response.
@@ -927,7 +927,7 @@ class PlayspaceAuditSessionsMixin:
 
 		to_email = auditor_profile.email
 		if not to_email:
-			# No email address on file — nothing to send; return silently.
+			# No email address on file - nothing to send; return silently.
 			_log.warning(
 				"notify_submit_failure: no email for auditor_profile_id=%s audit_id=%s",
 				auditor_profile.id,
@@ -1412,7 +1412,7 @@ class PlayspaceAuditSessionsMixin:
 	async def _refresh_draft_cache_fields(self, *, audit: PlayspaceSubmission) -> None:
 		"""Rebuild cached progress projections.
 
-		Does NOT write responses_json — for drafts the normalized tables are the
+		Does NOT write responses_json - for drafts the normalized tables are the
 		source of truth. responses_json is written only at submission time.
 		"""
 

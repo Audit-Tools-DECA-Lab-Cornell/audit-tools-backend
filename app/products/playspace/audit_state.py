@@ -5,12 +5,12 @@ Storage strategy
 Draft audits (IN_PROGRESS / PAUSED) that are live in a SQLAlchemy session use
 the normalized tables as the authoritative write target:
 
-    playspace_audit_contexts      — execution_mode, progress %, schema_version, revision
-    playspace_pre_audit_answers   — one row per selected pre-audit field value
-    playspace_audit_sections      — one row per section (holds the section note)
-    playspace_question_responses  — one row per answered question within a section
-    playspace_scale_answers       — one row per scale answer within a question
-    playspace_checklist_answers   — one JSONB payload per checklist question
+    playspace_audit_contexts      - execution_mode, progress %, schema_version, revision
+    playspace_pre_audit_answers   - one row per selected pre-audit field value
+    playspace_audit_sections      - one row per section (holds the section note)
+    playspace_question_responses  - one row per answered question within a section
+    playspace_scale_answers       - one row per scale answer within a question
+    playspace_checklist_answers   - one JSONB payload per checklist question
 
 Submitted audits use `PlayspaceSubmission.responses_json` as an immutable JSONB
 snapshot written exactly once at submission time.
