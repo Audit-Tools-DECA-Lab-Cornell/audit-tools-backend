@@ -7670,7 +7670,7 @@
           },
           {
             "mode": "audit",
-            "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**—creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
+            "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**-creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
             "scales": [
               {
                 "key": "provision",
@@ -8870,7 +8870,7 @@
             "question_type": "scaled"
           }
         ],
-        "description": "**Sensory Qualities & Regulation:** evaluates how well a space supports diverse sensory experiences that can enhance engagement, comfort, and well‑being. Considers the presence of visual, auditory, olfactory, and tactile elements that create interest and stimulation—such as color accents, varied textures, sounds, pleasant smells, and interactive features. It also assesses whether the environment may introduce negative sensory experiences or is supportive of varying sensory needs such as opportunities for sensory retreat or reduced stimulation.",
+        "description": "**Sensory Qualities & Regulation:** evaluates how well a space supports diverse sensory experiences that can enhance engagement, comfort, and well‑being. Considers the presence of visual, auditory, olfactory, and tactile elements that create interest and stimulation-such as color accents, varied textures, sounds, pleasant smells, and interactive features. It also assesses whether the environment may introduce negative sensory experiences or is supportive of varying sensory needs such as opportunities for sensory retreat or reduced stimulation.",
         "instruction": "Read each statement and answer the questions. This playspace...",
         "section_key": "section_20_sensory_qualities_regulation",
         "notes_prompt": "Any comments? Describe one or more recommendations to improve the sensory qualitites of this playspace:"
