@@ -236,18 +236,20 @@ def _build_yee_entities() -> list[object]:
 	"""Create deterministic YEE ORM objects for seeding."""
 
 	instrument_metadata = build_yee_source_metadata()
+	yee_instrument_content = get_yee_instrument_data()
 
 	# Source-of-truth instrument row so the YEE database mirrors Playspace: the
 	# active instrument lives in the `instruments` table, and audits stamp the
 	# matching (instrument_key, instrument_version) at creation time.
 	canonical_instrument = Instrument(
 		id=YEE_INSTRUMENT_ID,
-		instrument_key=str(instrument_metadata["instrument_key"]),
-		instrument_version=str(instrument_metadata["instrument_version"]),
+		instrument_key="yee",
+		instrument_version=str(yee_instrument_content.get("version", "1")),
 		parent_instrument_id=None,
 		is_active=True,
-		content={"en": instrument_metadata},
-		created_at=_utc_datetime("2026-02-20T08:30:00Z"),
+		content=yee_instrument_content,
+		created_at=_utc_datetime("2026-02-20T07:55:00Z"),
+		updated_at=_utc_datetime("2026-02-20T07:55:00Z"),
 	)
 
 	manager_account = Account(
@@ -727,21 +729,10 @@ def _build_yee_entities() -> list[object]:
 		),
 	]
 
-	active_yee_instrument = Instrument(
-		id=uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"),
-		instrument_key="yee",
-		instrument_version=str(get_yee_instrument_data().get("version", "1")),
-		is_active=True,
-		content=get_yee_instrument_data(),
-		created_at=_utc_datetime("2026-02-20T07:55:00Z"),
-		updated_at=_utc_datetime("2026-02-20T07:55:00Z"),
-	)
-
 	return [
 		canonical_instrument,
 		*users,
 		manager_account,
-		active_yee_instrument,
 		*manager_profiles,
 		*auditor_profiles,
 		*projects,
