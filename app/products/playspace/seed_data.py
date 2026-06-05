@@ -189,7 +189,7 @@ class AuditorBlueprint:
 class AuditorSeedContext:
 	"""Bundle the ORM entities and home metro for one auditor.
 
-	Auditors no longer have their own Account — each auditor's profile and user
+	Auditors no longer have their own Account - each auditor's profile and user
 	are owned by a manager's Account, resolved at seed-build time based on the
 	auditor's home city.
 	"""
@@ -555,7 +555,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		secondary_account_id=SECONDARY_MANAGER_ACCOUNT_ID,
 	)
 
-	# Auditors no longer have their own Account — only manager and admin accounts exist.
+	# Auditors no longer have their own Account - only manager and admin accounts exist.
 	accounts = [
 		admin_account,
 		primary_manager_account,
@@ -699,7 +699,7 @@ def _build_user_entities(
 	"""Create one auth User per profile, plus one per admin account.
 
 	Accounts are organisational workspaces. Auditors no longer have their own
-	Account — each auditor User receives the manager's ``account_id``.
+	Account - each auditor User receives the manager's ``account_id``.
 	- ADMIN accounts: one User per account (no profile table exists for admins).
 	- MANAGER accounts: one User per ManagerProfile using the profile's email.
 	- AUDITOR: one User per AuditorProfile; account_id = manager's Account.id.
@@ -1493,7 +1493,7 @@ def _build_fixed_base_audits_for_riverside(
 		randomizer=randomizer,
 		status=AuditStatus.IN_PROGRESS,
 		quality_bias=0.62,
-		draft_ratio=0.43,
+		draft_ratio=0.75,
 	)
 	return [*submitted_audit, *draft_audit]
 
@@ -1638,7 +1638,7 @@ def _build_generated_audits_for_place(
 	if not should_add_draft:
 		return audits
 
-	# One audit per (project, place, auditor) — do not assign a second draft row to an
+	# One audit per (project, place, auditor) - do not assign a second draft row to an
 	# auditor who already has a submitted audit for this place.
 	submitted_auditor_ids = set(historical_author_ids)
 	draft_candidates = [aid for aid in author_ids if aid not in submitted_auditor_ids]

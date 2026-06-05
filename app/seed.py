@@ -259,7 +259,7 @@ def _build_yee_entities() -> list[object]:
 	)
 
 	users = [
-		# Primary manager — Dr. Farah Khan (linked to YEE_MANAGER_PROFILE_PRIMARY_ID)
+		# Primary manager - Dr. Farah Khan (linked to YEE_MANAGER_PROFILE_PRIMARY_ID)
 		User(
 			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd1"),
 			email="farah.khan@example.org",
@@ -276,7 +276,7 @@ def _build_yee_entities() -> list[object]:
 			profile_completed_at=_utc_datetime("2026-02-20T08:10:00Z"),
 			created_at=_utc_datetime("2026-02-20T08:00:00Z"),
 		),
-		# Secondary manager — Jordan Alvarez (linked to YEE_MANAGER_PROFILE_SECONDARY_ID)
+		# Secondary manager - Jordan Alvarez (linked to YEE_MANAGER_PROFILE_SECONDARY_ID)
 		User(
 			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd6"),
 			email="jordan.alvarez@example.org",
