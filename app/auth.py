@@ -789,7 +789,6 @@ async def signup(
 			account = Account(
 				name=account_name,
 				email=email,
-				password_hash=password_hash,
 				account_type=AccountType.MANAGER,
 			)
 			session.add(account)
@@ -819,7 +818,6 @@ async def signup(
 			account = Account(
 				name=account_name,
 				email=email,
-				password_hash=password_hash,
 				account_type=AccountType.MANAGER,
 			)
 			session.add(account)
