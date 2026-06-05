@@ -628,6 +628,22 @@ def _build_verify_url(*, request: FastAPIRequest, token: str) -> str:
 	if template:
 		return template.format(token=token)
 
+	frontend_origin = (
+		request.headers.get("x-frontend-origin", "").strip()
+		or request.headers.get("origin", "").strip()
+		or request.headers.get("referer", "").strip()
+	)
+	if frontend_origin:
+		base = frontend_origin.rstrip("/")
+		if "/verify-email" in base:
+			base = base.split("/verify-email", 1)[0]
+		elif "/signup" in base:
+			base = base.split("/signup", 1)[0]
+		elif "/login" in base:
+			base = base.split("/login", 1)[0]
+		query = urlencode({"token": token})
+		return f"{base}/verify-email?{query}"
+
 	product_prefix = "/playspace" if request.url.path.startswith("/playspace/") else "/yee"
 	base = str(request.base_url).rstrip("/")
 	query = urlencode({"token": token})
@@ -895,8 +911,6 @@ async def verify_email(
 
 	user.email_verified = True
 	user.email_verified_at = datetime.now(timezone.utc)
-	user.email_verification_token_hash = None
-	user.email_verification_sent_at = None
 	user.failed_login_attempts = 0
 	await session.commit()
 
