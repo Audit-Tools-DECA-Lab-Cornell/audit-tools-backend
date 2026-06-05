@@ -16,9 +16,12 @@ from app.products.playspace.routes.dependencies import (
 from app.products.playspace.schemas import (
 	AccountDetailResponse,
 	AuditorSummaryResponse,
+	ManagerAuditsExportResponse,
 	ManagerAuditsListResponse,
+	ManagerPlacesExportBundle,
 	ManagerPlacesListResponse,
 	ManagerProfileResponse,
+	ManagerProjectsExportBundle,
 	PlaceAuditHistoryItemResponse,
 	PlaceHistoryResponse,
 	PlaceSummaryResponse,
@@ -135,6 +138,93 @@ async def list_account_audits(
 		auditor_ids=auditor_ids,
 		place_ids=place_ids,
 		statuses=statuses,
+	)
+
+
+# ── Manager Bulk Export Endpoints ──────────────────────────────────────────────
+
+
+@router.get("/accounts/{account_id}/export/projects/bundle")
+async def export_account_projects_bundle(
+	account_id: uuid.UUID,
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> ManagerProjectsExportBundle:
+	"""Export a relational bundle rooted at the scoped project set, scoped to the manager's account."""
+
+	return await service.export_account_projects_bundle(
+		actor=current_user,
+		account_id=account_id,
+		search=search,
+		project_ids=project_ids,
+	)
+
+
+@router.get("/accounts/{account_id}/export/places/bundle")
+async def export_account_places_bundle(
+	account_id: uuid.UUID,
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	place_ids: list[uuid.UUID] | None = Query(default=None, alias="place_id"),
+	audit_statuses: list[str] | None = Query(default=None, alias="audit_status"),
+	survey_statuses: list[str] | None = Query(default=None, alias="survey_status"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> ManagerPlacesExportBundle:
+	"""Export a relational bundle rooted at the scoped place set, scoped to the manager's account."""
+
+	return await service.export_account_places_bundle(
+		actor=current_user,
+		account_id=account_id,
+		search=search,
+		project_ids=project_ids,
+		place_ids=place_ids,
+		audit_statuses=audit_statuses,
+		survey_statuses=survey_statuses,
+	)
+
+
+@router.get("/accounts/{account_id}/export/audits")
+async def export_account_audits(
+	account_id: uuid.UUID,
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	auditor_ids: list[uuid.UUID] | None = Query(default=None, alias="auditor_id"),
+	place_ids: list[uuid.UUID] | None = Query(default=None, alias="place_id"),
+	statuses: list[str] | None = Query(default=None, alias="status"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> ManagerAuditsExportResponse:
+	"""Export all matching audits with full auditor identity, scoped to the manager's account."""
+
+	return await service.export_account_audits(
+		actor=current_user,
+		account_id=account_id,
+		search=search,
+		project_ids=project_ids,
+		auditor_ids=auditor_ids,
+		place_ids=place_ids,
+		statuses=statuses,
+	)
+
+
+@router.get("/accounts/{account_id}/export/reports")
+async def export_account_reports(
+	account_id: uuid.UUID,
+	search: str | None = Query(default=None),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceDashboardService = DASHBOARD_SERVICE_DEPENDENCY,
+) -> ManagerAuditsExportResponse:
+	"""Export all submitted audit reports with full auditor identity, scoped to the manager's account."""
+
+	return await service.export_account_reports(
+		actor=current_user,
+		account_id=account_id,
+		search=search,
+		project_ids=project_ids,
 	)
 
 
