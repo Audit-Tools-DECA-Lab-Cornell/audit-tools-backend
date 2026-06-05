@@ -233,6 +233,10 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/accounts/{account_id}/auditors"),
 		("GET", "/playspace/accounts/{account_id}/places"),
 		("GET", "/playspace/accounts/{account_id}/audits"),
+		("GET", "/playspace/accounts/{account_id}/export/projects/bundle"),
+		("GET", "/playspace/accounts/{account_id}/export/places/bundle"),
+		("GET", "/playspace/accounts/{account_id}/export/audits"),
+		("GET", "/playspace/accounts/{account_id}/export/reports"),
 		("GET", "/playspace/projects/{project_id}"),
 		("GET", "/playspace/projects/{project_id}/stats"),
 		("GET", "/playspace/projects/{project_id}/places"),
@@ -264,7 +268,9 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/admin/audits"),
 		("GET", "/playspace/admin/export/reports"),
 		("GET", "/playspace/admin/export/projects"),
+		("GET", "/playspace/admin/export/projects/bundle"),
 		("GET", "/playspace/admin/export/places"),
+		("GET", "/playspace/admin/export/places/bundle"),
 		("GET", "/playspace/admin/export/audits"),
 		("GET", "/playspace/admin/system"),
 		("GET", "/playspace/admin/instruments"),
@@ -298,9 +304,60 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/api/notifications/unread/count"),
 		("POST", "/playspace/api/notifications/read-all"),
 		("POST", "/playspace/api/notifications/{notification_id}/read"),
+		("POST", "/playspace/exports/notify-ready"),
 	}
 
 	assert _route_inventory() == expected_routes
+
+
+def test_export_notify_ready_requires_manager_or_admin(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""The export completion-email endpoint is manager/admin only and best-effort.
+
+	Email delivery is unconfigured in tests, so the underlying send is a no-op
+	that never raises; the endpoint should still return 204 for authorized roles,
+	reject unauthenticated callers, and validate the payload shape.
+	"""
+
+	del playspace_seed_snapshot  # Seeded accounts are loaded via the login helpers.
+
+	payload = {
+		"entity": "projects",
+		"format": "xlsx",
+		"audit_count": 42,
+		"combined_report_count": 3,
+		"had_failures": True,
+	}
+
+	admin_token = _login_admin(playspace_client)
+	admin_response = playspace_client.post(
+		"/playspace/exports/notify-ready",
+		headers=_bearer_headers(admin_token),
+		json=payload,
+	)
+	assert admin_response.status_code == 204
+
+	manager_token = _login_manager(playspace_client)
+	manager_response = playspace_client.post(
+		"/playspace/exports/notify-ready",
+		headers=_bearer_headers(manager_token),
+		json={"entity": "audits", "format": "json", "audit_count": 1},
+	)
+	assert manager_response.status_code == 204
+
+	# Unauthenticated callers are rejected before any work happens.
+	unauth_response = playspace_client.post("/playspace/exports/notify-ready", json=payload)
+	assert unauth_response.status_code in {401, 403}
+
+	# An out-of-range enum value fails request validation.
+	invalid_response = playspace_client.post(
+		"/playspace/exports/notify-ready",
+		headers=_bearer_headers(admin_token),
+		json={"entity": "everything", "format": "xlsx", "audit_count": 1},
+	)
+	assert invalid_response.status_code == 422
 
 
 def test_auth_self_service_and_instrument_endpoints(
@@ -782,6 +839,167 @@ def test_admin_dashboard_endpoints(
 	assert deleted_draft_response.status_code == 404
 
 
+def test_admin_export_bundles(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""Admin project/place export bundles carry the full descendant hierarchy."""
+
+	admin_token = _login_admin(playspace_client)
+	headers = _bearer_headers(admin_token)
+	project_id = playspace_seed_snapshot.urban_project_id
+	place_id = playspace_seed_snapshot.riverside_place_id
+
+	# ── Project bundle (Export selected → scoped to one project) ────────────────
+	project_bundle_response = playspace_client.get(
+		"/playspace/admin/export/projects/bundle",
+		headers=headers,
+		params={"project_id": project_id},
+	)
+	assert project_bundle_response.status_code == 200
+	project_bundle = project_bundle_response.json()
+	# B1 regression: the bundle includes descendant places/auditors/audits, not just
+	# the parent project row with aggregate counts.
+	assert len(project_bundle["projects"]) == 1
+	assert project_bundle["projects"][0]["project_id"] == project_id
+	assert len(project_bundle["places"]) >= 1
+	assert len(project_bundle["audits"]) >= 1
+	assert all(place["project_id"] == project_id for place in project_bundle["places"])
+	assert all(audit["project_id"] == project_id for audit in project_bundle["audits"])
+
+	# B2 regression: the project record exposes the split per-mode means and the
+	# overall pair, matching the dashboard's overall_score_pair.
+	project_record = project_bundle["projects"][0]
+	assert "audit_mean_pv" in project_record
+	assert "survey_mean_pv" in project_record
+	assert "average_pv_score" in project_record
+
+	# Privacy: admin auditor export is code-only - no email/PII columns.
+	if project_bundle["auditors"]:
+		auditor_record = project_bundle["auditors"][0]
+		assert "auditor_code" in auditor_record
+		assert "email" not in auditor_record
+		assert "full_name" not in auditor_record
+
+	# ── Audit export: raw audit exports include submitted audits only.
+	audit_export_response = playspace_client.get(
+		"/playspace/admin/export/audits",
+		headers=headers,
+		params={"status": "PAUSED"},
+	)
+	assert audit_export_response.status_code == 200
+	audit_export_payload = audit_export_response.json()
+	assert audit_export_payload["entity"] == "audits"
+	assert len(audit_export_payload["records"]) >= 1
+	assert all(record["status"] == "SUBMITTED" for record in audit_export_payload["records"])
+
+	# ── Place bundle (Export selected → scoped to one place) ────────────────────
+	place_bundle_response = playspace_client.get(
+		"/playspace/admin/export/places/bundle",
+		headers=headers,
+		params={"place_id": place_id},
+	)
+	assert place_bundle_response.status_code == 200
+	place_bundle = place_bundle_response.json()
+	assert len(place_bundle["places"]) >= 1
+	assert all(place["place_id"] == place_id for place in place_bundle["places"])
+	# Project-description fields are joined onto the place rows.
+	assert "project_overview" in place_bundle["places"][0]
+	assert "project_name" in place_bundle["places"][0]
+	# Submissions at the place are present.
+	assert all(audit["place_id"] == place_id for audit in place_bundle["audits"])
+
+
+def test_manager_export_bundles(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""Manager export bundles are account-scoped and include full auditor identity."""
+
+	manager_token = _login_manager(playspace_client)
+	headers = _bearer_headers(manager_token)
+	account_id = playspace_seed_snapshot.manager_account_id
+	project_id = playspace_seed_snapshot.urban_project_id
+
+	# ── Scope: another account → 403 ────────────────────────────────────────────
+	other_account_id = str(uuid.uuid4())
+	cross_account_response = playspace_client.get(
+		f"/playspace/accounts/{other_account_id}/export/projects/bundle",
+		headers=headers,
+	)
+	assert cross_account_response.status_code == 403
+
+	# ── Scope: admin token rejected on the manager surface ──────────────────────
+	admin_headers = _bearer_headers(_login_admin(playspace_client))
+	admin_on_manager_response = playspace_client.get(
+		f"/playspace/accounts/{account_id}/export/projects/bundle",
+		headers=admin_headers,
+	)
+	assert admin_on_manager_response.status_code == 403
+
+	# ── Scope: auditor token rejected ───────────────────────────────────────────
+	auditor_headers = _bearer_headers(_login_auditor(playspace_client, playspace_seed_snapshot.seeded_auditor_email))
+	auditor_response = playspace_client.get(
+		f"/playspace/accounts/{account_id}/export/projects/bundle",
+		headers=auditor_headers,
+	)
+	assert auditor_response.status_code == 403
+
+	# ── Depth: project bundle carries descendant places/auditors/audits ─────────
+	project_bundle_response = playspace_client.get(
+		f"/playspace/accounts/{account_id}/export/projects/bundle",
+		headers=headers,
+	)
+	assert project_bundle_response.status_code == 200
+	project_bundle = project_bundle_response.json()
+	assert len(project_bundle["projects"]) >= 1
+	assert len(project_bundle["places"]) >= 1
+	assert len(project_bundle["audits"]) >= 1
+
+	# Identity: auditor/audit records carry the full profile (manager requirement),
+	# and account columns are absent (always the manager's own account).
+	assert project_bundle["audits"][0]["auditor_full_name"] is not None
+	assert "auditor_email" in project_bundle["audits"][0]
+	if project_bundle["auditors"]:
+		manager_auditor = project_bundle["auditors"][0]
+		assert "full_name" in manager_auditor
+		assert "email" in manager_auditor
+		assert "account_id" not in manager_auditor
+
+	# ── Audit export: raw audit exports include submitted audits only.
+	audit_export_response = playspace_client.get(
+		f"/playspace/accounts/{account_id}/export/audits",
+		headers=headers,
+		params={"status": "PAUSED"},
+	)
+	assert audit_export_response.status_code == 200
+	audit_export_payload = audit_export_response.json()
+	assert audit_export_payload["entity"] == "audits"
+	assert len(audit_export_payload["records"]) >= 1
+	assert all(record["status"] == "SUBMITTED" for record in audit_export_payload["records"])
+
+	# ── Reports: SUBMITTED-only ─────────────────────────────────────────────────
+	reports_response = playspace_client.get(
+		f"/playspace/accounts/{account_id}/export/reports",
+		headers=headers,
+	)
+	assert reports_response.status_code == 200
+	reports_payload = reports_response.json()
+	assert reports_payload["entity"] == "reports"
+	assert all(record["status"] == "SUBMITTED" for record in reports_payload["records"])
+
+	# ── Selection precedence: explicit project_id scopes the bundle ─────────────
+	selected_bundle_response = playspace_client.get(
+		f"/playspace/accounts/{account_id}/export/projects/bundle",
+		headers=headers,
+		params={"project_id": project_id},
+	)
+	assert selected_bundle_response.status_code == 200
+	selected_bundle = selected_bundle_response.json()
+	assert len(selected_bundle["projects"]) == 1
+	assert selected_bundle["projects"][0]["project_id"] == project_id
+
+
 def test_auditor_dashboard_endpoints(
 	playspace_client: TestClient,
 	playspace_seed_snapshot: PlayspaceSeedSnapshot,
@@ -1206,7 +1424,7 @@ def test_notify_submit_failure_endpoint(
 
 	# --- Happy path: auditor calls the endpoint.
 	# Brevo is not configured in the test environment, so send_audit_submit_failure_email
-	# returns False silently — no network call, no exception raised.
+	# returns False silently - no network call, no exception raised.
 	notify_response = playspace_client.post(
 		f"/playspace/audits/{audit_id}/notify-submit-failure",
 		headers=auditor_headers,

@@ -1111,7 +1111,7 @@ def test_patch_audit_draft_rejects_started_at_when_audit_has_progress() -> None:
 	access_time = datetime(2026, 5, 26, 10, 0, 0, tzinfo=timezone.utc)
 	execute_time = datetime(2026, 5, 26, 10, 5, 0, tzinfo=timezone.utc)
 	audit = _build_pristine_service_audit(started_at=access_time, revision=2)
-	# Mark the audit as no longer pristine — execution mode has been chosen.
+	# Mark the audit as no longer pristine - execution mode has been chosen.
 	set_execution_mode_value(audit=audit, execution_mode=ExecutionMode.AUDIT.value)
 	service = _DummyAuditService(audit=audit)
 	actor = _build_actor(audit.auditor_profile)
