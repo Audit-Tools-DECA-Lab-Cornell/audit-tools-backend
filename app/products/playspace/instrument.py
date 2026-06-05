@@ -5,12 +5,12 @@ The ``app/products/playspace/instruments/`` directory is updated from the
 ``instruments`` table by ``scripts/sync_canonical_instruments_from_db.py`` (see
 ``sync-playspace-instruments`` GitHub workflow). Expected layout:
 
-* ``pvua_v5_2.instrument.json`` — best row for the legacy anchor (``INSTRUMENT_KEY`` /
+* ``pvua_v5_2.instrument.json`` - best row for the legacy anchor (``INSTRUMENT_KEY`` /
   ``INSTRUMENT_VERSION``), used as the server fallback when the database has no
   active copy.
-* ``<instrument_key>.active.instrument.json`` — the row with ``is_active`` for that
+* ``<instrument_key>.active.instrument.json`` - the row with ``is_active`` for that
   key (``created_at`` tie-break, matching ``get_active_instrument``).
-* ``<instrument_key>__v<version>.instrument.json`` — one export per
+* ``<instrument_key>__v<version>.instrument.json`` - one export per
   ``(instrument_key, instrument_version)`` pair (winner chosen when many rows
   share a pair: active first, then newest ``updated_at``).
 """

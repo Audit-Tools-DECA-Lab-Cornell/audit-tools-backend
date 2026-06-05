@@ -256,7 +256,7 @@ async def update_instrument_status(
 	if data.is_active:
 		# Promoting a draft (a branch with a parent) mints a fresh publication number
 		# one above the highest existing publication. Reactivating an existing
-		# publication — a rollback — keeps its original number unchanged.
+		# publication - a rollback - keeps its original number unchanged.
 		if instrument.parent_instrument_id is not None:
 			published_versions = [
 				row.instrument_version
