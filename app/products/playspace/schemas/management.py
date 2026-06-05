@@ -132,12 +132,12 @@ class PlaceDetailResponse(ApiModel):
 class AuditorProfileCreateRequest(RequestModel):
 	"""Create one auditor User + profile under a manager's account.
 
-	``account_id`` is only required when the caller is an admin — managers
+	``account_id`` is only required when the caller is an admin - managers
 	automatically use their own account.
 
 	``auditor_code`` is optional. When omitted the backend auto-generates a
-	code in the format ``AUD-{ORG}-{YY}-{NNNNNNNN}`` using the account name
-	and a DB-side count of existing codes for the same org/year prefix.
+	code in the format ``AUD-{ORG}-{YY}-{NNNNNNNN}`` (word initials when the
+	account name has no punctuation; otherwise all alphanumeric characters).
 	"""
 
 	account_id: uuid.UUID | None = None
@@ -202,9 +202,9 @@ class ManagerInviteListItemResponse(ApiModel):
 	"""One invite row returned by the list and resend endpoints.
 
 	``status`` is server-derived:
-	- ``ACCEPTED``  — invite has been accepted.
-	- ``EXPIRED``   — invite has expired without being accepted.
-	- ``PENDING``   — invite is still valid and awaiting acceptance.
+	- ``ACCEPTED``  - invite has been accepted.
+	- ``EXPIRED``   - invite has expired without being accepted.
+	- ``PENDING``   - invite is still valid and awaiting acceptance.
 	"""
 
 	id: uuid.UUID

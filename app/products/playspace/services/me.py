@@ -29,7 +29,7 @@ class PlayspaceMeService:
 	) -> tuple[str, str, str, str | None, uuid.UUID]:
 		"""Resolve the logged-in user's display name, email, account type, org name, and account ID.
 
-		Returns profile-level data — the person's own name and email — not the
+		Returns profile-level data - the person's own name and email - not the
 		organisational Account record.
 
 		Returns a tuple of ``(name, email, account_type_value, organization, account_id)``.
