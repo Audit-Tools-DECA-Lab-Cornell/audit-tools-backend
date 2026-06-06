@@ -449,6 +449,25 @@ class PlayspaceManagementService:
 		await self._session.commit()
 		return self._serialize_place(place, projects)
 
+	async def get_place(
+		self,
+		*,
+		actor: CurrentUserContext,
+		place_id: uuid.UUID,
+	) -> PlaceDetailResponse:
+		"""Get full place detail including joined project fields."""
+
+		self._require_manager_or_admin(actor)
+		place = await self._get_place(place_id)
+		current_projects = await self._get_projects_for_place(place.id)
+		if not current_projects:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="The place is not linked to any project.",
+			)
+		self._ensure_account_access(actor=actor, account_id=current_projects[0].account_id)
+		return self._serialize_place(place, current_projects)
+
 	async def update_place(
 		self,
 		*,
