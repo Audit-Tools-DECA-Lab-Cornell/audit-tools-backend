@@ -240,7 +240,7 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/projects/{project_id}"),
 		("GET", "/playspace/projects/{project_id}/stats"),
 		("GET", "/playspace/projects/{project_id}/places"),
-		('GET', "/playspace/places/{place_id}"),
+		("GET", "/playspace/places/{place_id}"),
 		("GET", "/playspace/places/{place_id}/audits"),
 		("GET", "/playspace/places/{place_id}/history"),
 		("GET", "/playspace/auditor-profiles/{auditor_profile_id}/assignments"),
