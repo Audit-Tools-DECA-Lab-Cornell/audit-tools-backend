@@ -31,9 +31,11 @@ from app.products.playspace.instrument import (
 	INSTRUMENT_VERSION,
 	get_canonical_instrument_payload,
 )
+from app.products.playspace.constants import MAX_EXPORT_SIZE
 from app.products.playspace.schemas import PaginatedResponse, PlayspacePlaceRollup
 from app.products.playspace.schemas.admin import (
 	AdminAccountRowResponse,
+	AdminAuditorExportRecord,
 	AdminAuditorRowResponse,
 	AdminAuditExportRecord,
 	AdminAuditRowResponse,
@@ -41,9 +43,11 @@ from app.products.playspace.schemas.admin import (
 	AdminOverviewResponse,
 	AdminPlaceExportRecord,
 	AdminPlaceRowResponse,
+	AdminPlacesExportBundle,
 	AdminPlacesExportResponse,
 	AdminProjectExportRecord,
 	AdminProjectRowResponse,
+	AdminProjectsExportBundle,
 	AdminProjectsExportResponse,
 	AdminSystemResponse,
 )
@@ -58,7 +62,6 @@ from app.products.playspace.services.privacy import mask_email
 
 DEFAULT_PAGE_SIZE = 10
 MAX_PAGE_SIZE = 500
-MAX_EXPORT_SIZE = 10_000
 
 
 def _round_score(value: float | None) -> float | None:
@@ -991,6 +994,7 @@ class PlayspaceAdminService:
 		actor: CurrentUserContext,
 		search: str | None = None,
 		account_ids: list[uuid.UUID] | None = None,
+		project_ids: list[uuid.UUID] | None = None,
 	) -> AdminProjectsExportResponse:
 		"""Return all matching project records for bulk export (capped at MAX_EXPORT_SIZE)."""
 
@@ -998,6 +1002,7 @@ class PlayspaceAdminService:
 
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_account_ids = account_ids or []
+		normalized_project_ids = project_ids or []
 
 		places_count_subquery = (
 			select(
@@ -1023,23 +1028,30 @@ class PlayspaceAdminService:
 			.group_by(project_assignment_scope.c.project_id)
 			.subquery()
 		)
+		submitted_filter = PlayspaceSubmission.status == AuditStatus.SUBMITTED
+		audit_scores_present = and_(
+			PlayspaceSubmission.audit_play_value_score.is_not(None),
+			PlayspaceSubmission.audit_usability_score.is_not(None),
+		)
+		survey_scores_present = and_(
+			PlayspaceSubmission.survey_play_value_score.is_not(None),
+			PlayspaceSubmission.survey_usability_score.is_not(None),
+		)
 		audit_stats_subquery = (
 			select(
 				PlayspaceSubmission.project_id.label("project_id"),
-				func.count(PlayspaceSubmission.id)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
-				.label("audits_completed"),
+				func.count(PlayspaceSubmission.id).filter(submitted_filter).label("audits_completed"),
 				func.avg(PlayspaceSubmission.audit_play_value_score)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.filter(submitted_filter, audit_scores_present)
 				.label("avg_audit_pv"),
 				func.avg(PlayspaceSubmission.audit_usability_score)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.filter(submitted_filter, audit_scores_present)
 				.label("avg_audit_u"),
 				func.avg(PlayspaceSubmission.survey_play_value_score)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.filter(submitted_filter, survey_scores_present)
 				.label("avg_survey_pv"),
 				func.avg(PlayspaceSubmission.survey_usability_score)
-				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.filter(submitted_filter, survey_scores_present)
 				.label("avg_survey_u"),
 			)
 			.select_from(PlayspaceSubmission)
@@ -1080,6 +1092,9 @@ class PlayspaceAdminService:
 		if normalized_account_ids:
 			export_query = export_query.where(Account.id.in_(normalized_account_ids))
 
+		if normalized_project_ids:
+			export_query = export_query.where(Project.id.in_(normalized_project_ids))
+
 		rows_result = await self._session.execute(export_query.limit(MAX_EXPORT_SIZE))
 		rows = rows_result.all()
 
@@ -1090,27 +1105,38 @@ class PlayspaceAdminService:
 				return float(raw_value)
 			return None
 
-		def _avg_score(pv_raw: object, u_raw: object) -> tuple[float | None, float | None]:
-			return _round_score(_coerce_score(pv_raw)), _round_score(_coerce_score(u_raw))
-
-		records = [
-			AdminProjectExportRecord(
-				project_id=row.project_id,
-				account_id=row.account_id,
-				account_name=row.account_name,
-				name=row.name,
-				overview=row.overview,
-				start_date=row.start_date,
-				end_date=row.end_date,
-				place_types=list(row.place_types or []),
-				places_count=int(row.places_count or 0),
-				auditors_count=int(row.auditors_count or 0),
-				audits_completed=int(row.audits_completed or 0),
-				average_pv_score=_avg_score(row.avg_audit_pv, row.avg_audit_u)[0],
-				average_u_score=_avg_score(row.avg_audit_pv, row.avg_audit_u)[1],
+		records = []
+		for row in rows:
+			_audit_pair = round_score_pair(
+				_coerce_score(row.avg_audit_pv),
+				_coerce_score(row.avg_audit_u),
 			)
-			for row in rows
-		]
+			_survey_pair = round_score_pair(
+				_coerce_score(row.avg_survey_pv),
+				_coerce_score(row.avg_survey_u),
+			)
+			_overall = overall_score_pair(_audit_pair, _survey_pair)
+			records.append(
+				AdminProjectExportRecord(
+					project_id=row.project_id,
+					account_id=row.account_id,
+					account_name=row.account_name,
+					name=row.name,
+					overview=row.overview,
+					start_date=row.start_date,
+					end_date=row.end_date,
+					place_types=list(row.place_types or []),
+					places_count=int(row.places_count or 0),
+					auditors_count=int(row.auditors_count or 0),
+					audits_completed=int(row.audits_completed or 0),
+					average_pv_score=_overall.pv if _overall is not None else None,
+					average_u_score=_overall.u if _overall is not None else None,
+					audit_mean_pv=_audit_pair.pv if _audit_pair is not None else None,
+					audit_mean_u=_audit_pair.u if _audit_pair is not None else None,
+					survey_mean_pv=_survey_pair.pv if _survey_pair is not None else None,
+					survey_mean_u=_survey_pair.u if _survey_pair is not None else None,
+				)
+			)
 
 		return AdminProjectsExportResponse(
 			generated_at=datetime.now(timezone.utc),
@@ -1125,6 +1151,7 @@ class PlayspaceAdminService:
 		search: str | None = None,
 		account_ids: list[uuid.UUID] | None = None,
 		project_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
 		audit_statuses: list[str] | None = None,
 		survey_statuses: list[str] | None = None,
 	) -> AdminPlacesExportResponse:
@@ -1135,6 +1162,7 @@ class PlayspaceAdminService:
 		valid_axis_statuses = {"not_started", "in_progress", "submitted"}
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_project_ids = project_ids or []
+		normalized_place_ids = place_ids or []
 		normalized_account_ids = account_ids or []
 		normalized_audit_statuses = {
 			raw_status for raw_status in (audit_statuses or []) if raw_status in valid_axis_statuses
@@ -1175,6 +1203,9 @@ class PlayspaceAdminService:
 				Place.id.label("place_id"),
 				Project.id.label("project_id"),
 				Project.name.label("project_name"),
+				Project.overview.label("project_overview"),
+				Project.start_date.label("project_start_date"),
+				Project.end_date.label("project_end_date"),
 				Account.id.label("account_id"),
 				Account.name.label("account_name"),
 				Place.name.label("name"),
@@ -1220,6 +1251,9 @@ class PlayspaceAdminService:
 				Place.id,
 				Project.id,
 				Project.name,
+				Project.overview,
+				Project.start_date,
+				Project.end_date,
 				Account.id,
 				Account.name,
 				Place.name,
@@ -1250,6 +1284,8 @@ class PlayspaceAdminService:
 			)
 		if normalized_project_ids:
 			filtered_rows_query = filtered_rows_query.where(Project.id.in_(normalized_project_ids))
+		if normalized_place_ids:
+			filtered_rows_query = filtered_rows_query.where(Place.id.in_(normalized_place_ids))
 		if normalized_account_ids:
 			filtered_rows_query = filtered_rows_query.where(Account.id.in_(normalized_account_ids))
 
@@ -1276,6 +1312,9 @@ class PlayspaceAdminService:
 				place_id=row.place_id,
 				project_id=row.project_id,
 				project_name=row.project_name,
+				project_overview=row.project_overview,
+				project_start_date=row.project_start_date,
+				project_end_date=row.project_end_date,
 				account_id=row.account_id,
 				account_name=row.account_name,
 				name=row.name,
@@ -1314,18 +1353,18 @@ class PlayspaceAdminService:
 		search: str | None = None,
 		account_ids: list[uuid.UUID] | None = None,
 		project_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
 		statuses: list[str] | None = None,
+		entity: str = "audits",
 	) -> AdminAuditsExportResponse:
-		"""Return all matching audit records for bulk export (capped at MAX_EXPORT_SIZE)."""
+		"""Return submitted audit records for bulk export (capped at MAX_EXPORT_SIZE)."""
 
 		self._require_admin(actor)
 
 		normalized_search = search.strip() if search is not None and search.strip() else None
 		normalized_account_ids = account_ids or []
 		normalized_project_ids = project_ids or []
-		normalized_statuses = {
-			raw_value for raw_value in (statuses or []) if raw_value in {"IN_PROGRESS", "PAUSED", "SUBMITTED"}
-		}
+		normalized_place_ids = place_ids or []
 
 		export_query = (
 			select(
@@ -1378,8 +1417,10 @@ class PlayspaceAdminService:
 		if normalized_project_ids:
 			export_query = export_query.where(Project.id.in_(normalized_project_ids))
 
-		if normalized_statuses:
-			export_query = export_query.where(PlayspaceSubmission.status.in_(normalized_statuses))
+		if normalized_place_ids:
+			export_query = export_query.where(Place.id.in_(normalized_place_ids))
+
+		export_query = export_query.where(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
 
 		rows_result = await self._session.execute(export_query.limit(MAX_EXPORT_SIZE))
 		rows = rows_result.all()
@@ -1408,7 +1449,7 @@ class PlayspaceAdminService:
 			for row in rows
 		]
 
-		entity_label = "reports" if normalized_statuses == {"SUBMITTED"} else "audits"
+		entity_label = entity if entity in {"audits", "reports"} else "audits"
 		return AdminAuditsExportResponse(
 			entity=entity_label,
 			generated_at=datetime.now(timezone.utc),
@@ -1432,6 +1473,194 @@ class PlayspaceAdminService:
 			account_ids=account_ids,
 			project_ids=project_ids,
 			statuses=["SUBMITTED"],
+			entity="reports",
+		)
+
+	async def _export_auditors_scoped(
+		self,
+		*,
+		project_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
+	) -> list[AdminAuditorExportRecord]:
+		"""Return distinct auditors assigned to the given projects or places (code only, no PII)."""
+
+		if not project_ids and not place_ids:
+			return []
+
+		assignment_filter_clauses = []
+		if project_ids:
+			assignment_filter_clauses.append(AuditorAssignment.project_id.in_(project_ids))
+		if place_ids:
+			assignment_filter_clauses.append(AuditorAssignment.place_id.in_(place_ids))
+
+		in_scope_subquery = (
+			select(AuditorAssignment.auditor_profile_id).where(or_(*assignment_filter_clauses)).distinct().subquery()
+		)
+
+		assignment_counts_subquery = (
+			select(
+				AuditorAssignment.auditor_profile_id.label("auditor_profile_id"),
+				func.count(AuditorAssignment.id).label("assignments_count"),
+			)
+			.group_by(AuditorAssignment.auditor_profile_id)
+			.subquery()
+		)
+		audit_stats_subquery = (
+			select(
+				PlayspaceSubmission.auditor_profile_id.label("auditor_profile_id"),
+				func.count(PlayspaceSubmission.id)
+				.filter(PlayspaceSubmission.status == AuditStatus.SUBMITTED)
+				.label("completed_audits"),
+				func.max(func.coalesce(PlayspaceSubmission.submitted_at, PlayspaceSubmission.started_at)).label(
+					"last_active_at"
+				),
+			)
+			.group_by(PlayspaceSubmission.auditor_profile_id)
+			.subquery()
+		)
+
+		query = (
+			select(
+				AuditorProfile.id.label("auditor_profile_id"),
+				AuditorProfile.account_id.label("account_id"),
+				Account.name.label("account_name"),
+				AuditorProfile.auditor_code.label("auditor_code"),
+				assignment_counts_subquery.c.assignments_count.label("assignments_count"),
+				audit_stats_subquery.c.completed_audits.label("completed_audits"),
+				audit_stats_subquery.c.last_active_at.label("last_active_at"),
+			)
+			.select_from(AuditorProfile)
+			.outerjoin(Account, AuditorProfile.account_id == Account.id)
+			.outerjoin(
+				assignment_counts_subquery,
+				assignment_counts_subquery.c.auditor_profile_id == AuditorProfile.id,
+			)
+			.outerjoin(
+				audit_stats_subquery,
+				audit_stats_subquery.c.auditor_profile_id == AuditorProfile.id,
+			)
+			.where(AuditorProfile.id.in_(select(in_scope_subquery.c.auditor_profile_id)))
+			.order_by(AuditorProfile.auditor_code.asc())
+			.limit(MAX_EXPORT_SIZE)
+		)
+
+		result = await self._session.execute(query)
+		return [
+			AdminAuditorExportRecord(
+				auditor_profile_id=row.auditor_profile_id,
+				account_id=row.account_id,
+				account_name=row.account_name,
+				auditor_code=row.auditor_code,
+				assignments_count=int(row.assignments_count or 0),
+				completed_audits=int(row.completed_audits or 0),
+				last_active_at=row.last_active_at,
+			)
+			for row in result.all()
+		]
+
+	async def export_projects_bundle(
+		self,
+		*,
+		actor: CurrentUserContext,
+		search: str | None = None,
+		account_ids: list[uuid.UUID] | None = None,
+		project_ids: list[uuid.UUID] | None = None,
+	) -> AdminProjectsExportBundle:
+		"""Return a relational export bundle rooted at the scoped project set.
+
+		If explicit project_ids are provided they define the scope (Export selected).
+		Otherwise the search/account_ids filters define the scope (Export all filtered).
+		"""
+
+		self._require_admin(actor)
+		normalized_project_ids = project_ids or []
+
+		if normalized_project_ids:
+			scoped_ids = normalized_project_ids
+			scope = f"selected:{len(scoped_ids)} projects"
+		else:
+			initial = await self.export_projects(actor=actor, search=search, account_ids=account_ids)
+			scoped_ids = [r.project_id for r in initial.records]
+			scope = f"filtered:{len(scoped_ids)} projects"
+
+		if not scoped_ids:
+			return AdminProjectsExportBundle(
+				generated_at=datetime.now(timezone.utc),
+				scope=scope,
+				projects=[],
+				places=[],
+				auditors=[],
+				audits=[],
+			)
+
+		projects_result = await self.export_projects(actor=actor, project_ids=scoped_ids)
+		places_result = await self.export_places(actor=actor, project_ids=scoped_ids)
+		audits_result = await self.export_audits(actor=actor, project_ids=scoped_ids)
+		auditors = await self._export_auditors_scoped(project_ids=scoped_ids)
+
+		return AdminProjectsExportBundle(
+			generated_at=datetime.now(timezone.utc),
+			scope=scope,
+			projects=projects_result.records,
+			places=places_result.records,
+			auditors=auditors,
+			audits=audits_result.records,
+		)
+
+	async def export_places_bundle(
+		self,
+		*,
+		actor: CurrentUserContext,
+		search: str | None = None,
+		account_ids: list[uuid.UUID] | None = None,
+		project_ids: list[uuid.UUID] | None = None,
+		place_ids: list[uuid.UUID] | None = None,
+		audit_statuses: list[str] | None = None,
+		survey_statuses: list[str] | None = None,
+	) -> AdminPlacesExportBundle:
+		"""Return a relational export bundle rooted at the scoped place set.
+
+		If explicit place_ids are provided they define the scope (Export selected).
+		Otherwise the filters define the scope (Export all filtered).
+		"""
+
+		self._require_admin(actor)
+		normalized_place_ids = place_ids or []
+
+		if normalized_place_ids:
+			scoped_ids = normalized_place_ids
+			scope = f"selected:{len(scoped_ids)} places"
+		else:
+			initial = await self.export_places(
+				actor=actor,
+				search=search,
+				account_ids=account_ids,
+				project_ids=project_ids,
+				audit_statuses=audit_statuses,
+				survey_statuses=survey_statuses,
+			)
+			scoped_ids = [r.place_id for r in initial.records]
+			scope = f"filtered:{len(scoped_ids)} places"
+
+		if not scoped_ids:
+			return AdminPlacesExportBundle(
+				generated_at=datetime.now(timezone.utc),
+				scope=scope,
+				places=[],
+				auditors=[],
+				audits=[],
+			)
+
+		places_result = await self.export_places(actor=actor, place_ids=scoped_ids)
+		audits_result = await self.export_audits(actor=actor, place_ids=scoped_ids)
+		auditors = await self._export_auditors_scoped(place_ids=scoped_ids)
+
+		return AdminPlacesExportBundle(
+			generated_at=datetime.now(timezone.utc),
+			scope=scope,
+			places=places_result.records,
+			auditors=auditors,
+			audits=audits_result.records,
 		)
 
 	async def get_system(self, *, actor: CurrentUserContext) -> AdminSystemResponse:

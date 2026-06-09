@@ -309,3 +309,132 @@ class PlaceSummaryResponse(ApiModel):
 	audit_mean_scores: ScorePairResponse | None = None
 	survey_mean_scores: ScorePairResponse | None = None
 	overall_scores: ScorePairResponse | None = None
+
+
+# ── Manager Bulk Export Schemas ──────────────────────────────────────────────
+# Scoped to the manager's own account. Auditor identity is fully exposed
+# (name, email, demographics) - consistent with the existing manager auditor view.
+# Account columns are omitted since exports are always scoped to one account.
+
+
+class ManagerProjectExportRecord(ApiModel):
+	"""Single project row for manager bulk export (account-scoped)."""
+
+	project_id: uuid.UUID
+	name: str
+	overview: str | None
+	start_date: date | None
+	end_date: date | None
+	place_types: list[str]
+	places_count: int
+	auditors_count: int
+	audits_completed: int
+	average_pv_score: float | None
+	average_u_score: float | None
+	audit_mean_pv: float | None = None
+	audit_mean_u: float | None = None
+	survey_mean_pv: float | None = None
+	survey_mean_u: float | None = None
+
+
+class ManagerPlaceExportRecord(ApiModel):
+	"""Single place row for manager bulk export (account-scoped, includes project description)."""
+
+	place_id: uuid.UUID
+	project_id: uuid.UUID
+	project_name: str
+	project_overview: str | None
+	project_start_date: date | None
+	project_end_date: date | None
+	name: str
+	address: str | None
+	city: str | None
+	province: str | None
+	country: str | None
+	postal_code: str | None
+	place_type: str | None
+	lat: float | None
+	lng: float | None
+	place_audit_status: str
+	place_survey_status: str
+	place_audit_count: int
+	place_survey_count: int
+	audits_completed: int
+	audit_mean_pv: float | None
+	audit_mean_u: float | None
+	survey_mean_pv: float | None
+	survey_mean_u: float | None
+	last_audited_at: datetime | None
+
+
+class ManagerAuditorExportRecord(ApiModel):
+	"""Single auditor row for manager bulk export. Full identity is exposed."""
+
+	auditor_profile_id: uuid.UUID
+	auditor_code: str
+	full_name: str
+	email: str | None
+	age_range: str | None
+	gender: str | None
+	country: str | None
+	role: str | None
+	assignments_count: int
+	completed_audits: int
+	last_active_at: datetime | None
+
+
+class ManagerAuditExportRecord(ApiModel):
+	"""Single audit row for manager bulk export. Full auditor identity is included."""
+
+	audit_id: uuid.UUID
+	audit_code: str
+	status: str
+	execution_mode: str | None
+	project_id: uuid.UUID
+	project_name: str
+	place_id: uuid.UUID
+	place_name: str
+	auditor_code: str
+	auditor_full_name: str
+	auditor_email: str | None
+	auditor_age_range: str | None
+	auditor_gender: str | None
+	auditor_country: str | None
+	auditor_role: str | None
+	started_at: datetime
+	submitted_at: datetime | None
+	summary_score: float | None
+	audit_pv_score: float | None
+	audit_u_score: float | None
+	survey_pv_score: float | None
+	survey_u_score: float | None
+
+
+class ManagerProjectsExportBundle(ApiModel):
+	"""Relational export bundle rooted at a set of projects (manager-scoped)."""
+
+	generated_at: datetime
+	scope: str
+	projects: list[ManagerProjectExportRecord]
+	places: list[ManagerPlaceExportRecord]
+	auditors: list[ManagerAuditorExportRecord]
+	audits: list[ManagerAuditExportRecord]
+
+
+class ManagerPlacesExportBundle(ApiModel):
+	"""Relational export bundle rooted at a set of places (manager-scoped)."""
+
+	generated_at: datetime
+	scope: str
+	places: list[ManagerPlaceExportRecord]
+	auditors: list[ManagerAuditorExportRecord]
+	audits: list[ManagerAuditExportRecord]
+
+
+class ManagerAuditsExportResponse(ApiModel):
+	"""Wrapped manager export for audits or reports (submitted-only)."""
+
+	entity: str
+	generated_at: datetime
+	record_count: int
+	records: list[ManagerAuditExportRecord]

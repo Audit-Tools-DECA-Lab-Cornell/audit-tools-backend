@@ -114,6 +114,17 @@ async def create_place(
 	return await service.create_place(actor=current_user, payload=payload)
 
 
+@router.get("/places/{place_id}")
+async def get_place(
+	place_id: uuid.UUID,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceManagementService = MANAGEMENT_SERVICE_DEPENDENCY,
+) -> PlaceDetailResponse:
+	"""Get place details."""
+
+	return await service.get_place(actor=current_user, place_id=place_id)
+
+
 @router.patch("/places/{place_id}")
 async def update_place(
 	place_id: uuid.UUID,

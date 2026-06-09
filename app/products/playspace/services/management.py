@@ -4,6 +4,7 @@ Manager/admin write-path service for Playspace dashboard workflows.
 
 from __future__ import annotations
 
+import re
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -144,23 +145,27 @@ class PlayspaceManagementService:
 
 	@staticmethod
 	def _generate_auditor_code(account_name: str) -> str:
-		"""Return a non-sequential auditor code derived from the account name.
+		"""Return a non-sequential auditor code.
 
-		Format: ``AUD-{ORG}-{YY}-{NNNNNNNN}``
-		- ORG		— uppercase initials from the first letter of each word (e.g. "Auckland Play Collective" → "APC").
-		- YY		— two-digit current UTC year.
-		- NNNNNNNN	— cryptographically random 8-digit number (10000000–99999999) that prevents auditor enumeration.
+		Format: AUD-{ORG}-{YY}-{NNNNNNNN}
 
-		Uniqueness is enforced by the duplicate-code check that follows this
-		call. A collision is statistically negligible given the 90 000 000-value
-		space and the typical per-org auditor count.
+		ORG is derived from the account name:
+		- normal words contribute initials: "Auckland Play Collective" -> "APC"
+		- short uppercase acronyms are preserved: "TM (TMW) Workshop" -> "TMTMWW"
+		- empty/unusable names fall back to "ORG"
 		"""
 
-		words = account_name.strip().split()
-		org_initials = "".join(w[0].upper() for w in words if w) or "ORG"
-		two_digit_year = str(datetime.now(timezone.utc).year % 100).zfill(2)
-		sequence = secrets.randbelow(90_000_000) + 10_000_000
-		return f"AUD-{org_initials}-{two_digit_year}-{sequence}"
+		tokens = re.findall(r"[A-Za-z0-9]+", account_name)
+
+		org_slug = (
+			"".join(token.upper() if len(token) <= 4 and token.isupper() else token[0].upper() for token in tokens)[:34]
+			or "ORG"
+		)
+
+		year = f"{datetime.now(timezone.utc).year % 100:02d}"
+		random_suffix = secrets.randbelow(90_000_000) + 10_000_000
+
+		return f"AUD-{org_slug}-{year}-{random_suffix}"
 
 	@staticmethod
 	def _serialize_account(account: Account) -> AccountManagementResponse:
@@ -444,6 +449,25 @@ class PlayspaceManagementService:
 		await self._session.commit()
 		return self._serialize_place(place, projects)
 
+	async def get_place(
+		self,
+		*,
+		actor: CurrentUserContext,
+		place_id: uuid.UUID,
+	) -> PlaceDetailResponse:
+		"""Get full place detail including joined project fields."""
+
+		self._require_manager_or_admin(actor)
+		place = await self._get_place(place_id)
+		current_projects = await self._get_projects_for_place(place.id)
+		if not current_projects:
+			raise HTTPException(
+				status_code=status.HTTP_409_CONFLICT,
+				detail="The place is not linked to any project.",
+			)
+		self._ensure_account_access(actor=actor, account_id=current_projects[0].account_id)
+		return self._serialize_place(place, current_projects)
+
 	async def update_place(
 		self,
 		*,
@@ -681,7 +705,7 @@ class PlayspaceManagementService:
 		"""Remove an auditor from a manager account without destroying records.
 
 		The AuditorProfile and its linked User are NOT deleted.  All historical
-		data — submissions, audits, assignments — is preserved for reporting.
+		data - submissions, audits, assignments - is preserved for reporting.
 
 		What changes: ``AuditorProfile.account_id`` is set to NULL so the profile
 		disappears from every account-scoped list; ``User.account_id`` is set to

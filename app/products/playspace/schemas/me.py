@@ -15,7 +15,7 @@ class MyAccountResponse(ApiModel):
 	"""Current user's identity as seen on the settings / profile screen.
 
 	Fields are resolved from the user's **profile** (ManagerProfile or
-	AuditorProfile), not from the Account record — the Account is an
+	AuditorProfile), not from the Account record - the Account is an
 	organisational workspace, not a person.
 	"""
 
@@ -52,7 +52,7 @@ class ChangePasswordRequest(RequestModel):
 class AuditorProfileSelfUpdateRequest(RequestModel):
 	"""Self-service update for mutable auditor profile fields.
 
-	The ``auditor_code`` field is intentionally absent — it is immutable
+	The ``auditor_code`` field is intentionally absent - it is immutable
 	from the mobile app.
 	"""
 

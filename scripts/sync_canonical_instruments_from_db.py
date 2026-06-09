@@ -243,7 +243,7 @@ def sync_instruments(
 		desired_paths.add(out)
 		_write_json_file(out, payload, dry_run=dry_run)
 
-	# 3) Legacy anchor file: best row for a fixed (key, version) — used by
+	# 3) Legacy anchor file: best row for a fixed (key, version) - used by
 	#    ``get_canonical_instrument_payload`` as the v5.2 fallback.
 	legacy_key = (legacy_instrument_key, legacy_instrument_version)
 	if legacy_key in by_key_version:

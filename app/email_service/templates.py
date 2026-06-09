@@ -618,6 +618,92 @@ def submit_failure_html(
 	)
 
 
+def export_ready_html(
+	*,
+	requester_name: str,
+	entity_label: str,
+	format_label: str,
+	audit_count: int,
+	combined_report_count: int,
+	dashboard_url: str,
+	had_failures: bool,
+) -> str:
+	"""Render the raw-data export completion email.
+
+	The export ZIP is generated in the requester's browser and downloads there
+	directly, so this email confirms completion rather than carrying a download
+	link. The call-to-action returns the user to the raw-data dashboard.
+	"""
+	campaign = "raw_data_export_ready"
+
+	panel_rows = [
+		EmailPanelRow("Export", entity_label),
+		EmailPanelRow("Format", format_label),
+		EmailPanelRow("Audits", str(audit_count)),
+	]
+	if combined_report_count > 0:
+		panel_rows.append(EmailPanelRow("Combined reports", str(combined_report_count)))
+
+	failure_notice = (
+		_notice(
+			"&#9888;&#65039; <strong>Some items were skipped.</strong> A few audits or reports could not be "
+			"included - see <strong>manifest.json</strong> inside the ZIP for the full list and reasons."
+		)
+		if had_failures
+		else ""
+	)
+
+	body_rows = f"""\
+        <tr>
+          <td class="email-content" style="padding:36px 40px 0 40px;">
+{_paragraph(f"Hello <strong>{_h(requester_name)}</strong>,", margin="0 0 20px 0")}
+{
+		_paragraph(
+			"Your raw-data export has finished building and the ZIP has downloaded in your browser. "
+			"Each audit and combined report is included as a PDF alongside the data file you chose.",
+			margin="0 0 28px 0",
+		)
+	}
+          </td>
+        </tr>
+{_panel("Export Summary", panel_rows)}
+{failure_notice}
+        <tr>
+          <td class="email-content" style="padding:28px 40px 0 40px;">
+{_section_label("Back to the dashboard", margin="0 0 16px 0")}
+{
+		_primary_button(
+			EmailCta(
+				label="Open raw data",
+				url=dashboard_url,
+				content_tag="export_ready_cta",
+				aria_label="Open the raw data dashboard",
+			),
+			campaign=campaign,
+		)
+	}
+{
+		_fallback_link(
+			dashboard_url,
+			campaign=campaign,
+			content="export_ready_fallback",
+		)
+	}
+          </td>
+        </tr>"""
+
+	return _render_email(
+		title="Your Export Is Ready",
+		preheader=f"Your {entity_label} export finished and downloaded in your browser.",
+		eyebrow="Playspace",
+		heading="Your Export Is Ready",
+		body_rows=body_rows,
+		platform="Playspace",
+		product="Playspace",
+		footer_note="You received this message because you requested a raw-data export from the Playspace dashboard.",
+	)
+
+
 def verification_html(verify_url: str) -> str:
 	"""Render the account email-verification email."""
 	campaign = "email_verification"
@@ -650,7 +736,7 @@ def verification_html(verify_url: str) -> str:
 			"What Happens Next",
 			[
 				"Click <strong>Verify My Email</strong> below to confirm your address.",
-				"Your account will be activated immediately — no further steps needed.",
+				"Your account will be activated immediately - no further steps needed.",
 				"You can then sign in and access your assigned workspace.",
 			],
 		)

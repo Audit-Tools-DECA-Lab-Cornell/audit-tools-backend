@@ -1,4 +1,4 @@
-"""Email delivery helpers — Brevo Transactional API with Gmail SMTP fallback."""
+"""Email delivery helpers - Brevo Transactional API with Gmail SMTP fallback."""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ from urllib3.util.retry import Retry
 from dotenv import find_dotenv, load_dotenv
 from app.email_service.templates import (
 	credentials_html,
+	export_ready_html,
 	invite_html,
-	password_reset_html,
 	submit_failure_html,
 	verification_html,
 )
@@ -100,12 +100,12 @@ def _send_email_via_smtp(
 	"""Send an email via a generic SMTP relay (e.g. Gmail App Password).
 
 	Reads configuration from the following environment variables:
-	SMTP_HOST        — SMTP server hostname (default: smtp.gmail.com)
-	SMTP_PORT        — SMTP port as a string (default: 587)
-	SMTP_USERNAME    — SMTP login username
-	SMTP_PASSWORD    — SMTP login password / App Password
-	SMTP_FROM_EMAIL  — Envelope and From-header address
-	SMTP_USE_TLS     — "true" to use STARTTLS (default: true)
+	SMTP_HOST        - SMTP server hostname (default: smtp.gmail.com)
+	SMTP_PORT        - SMTP port as a string (default: 587)
+	SMTP_USERNAME    - SMTP login username
+	SMTP_PASSWORD    - SMTP login password / App Password
+	SMTP_FROM_EMAIL  - Envelope and From-header address
+	SMTP_USE_TLS     - "true" to use STARTTLS (default: true)
 
 	Returns True on success; logs a warning and returns False when
 	credentials are absent or sending fails.
@@ -164,7 +164,7 @@ def _send_email_via_smtp(
 		return True
 	except smtplib.SMTPAuthenticationError:
 		logger.error(
-			"SMTP authentication failed for %s@%s — check SMTP_PASSWORD.",
+			"SMTP authentication failed for %s@%s - check SMTP_PASSWORD.",
 			smtp_user,
 			smtp_host,
 		)
@@ -198,7 +198,7 @@ def _send_email(
 	merged_bcc = _with_admin_notification_bcc(to_email=to_email, bcc=bcc)
 
 	if not api_key or not sender_email:
-		# Brevo not configured — attempt SMTP fallback before giving up.
+		# Brevo not configured - attempt SMTP fallback before giving up.
 		return _send_email_via_smtp(
 			to_email=to_email,
 			bcc=merged_bcc,
@@ -240,7 +240,7 @@ def _send_email(
 
 	if html_body:
 		payload["htmlContent"] = html_body
-	# Only include the BCC key when there are actual addresses — sending bcc: null
+	# Only include the BCC key when there are actual addresses - sending bcc: null
 	# is valid JSON but results in a Brevo 400 on some API versions.
 	if merged_bcc:
 		payload["bcc"] = [{"email": addr} for addr in merged_bcc]
@@ -298,25 +298,6 @@ def send_verification_email(*, to_email: str, verify_url: str) -> bool:
 		fallback_url=verify_url,
 		email_type="email_verification",
 		tags=["auth", "verification"],
-	)
-
-
-def send_password_reset_email(*, to_email: str, reset_url: str) -> bool:
-	"""Send password-reset link."""
-	return _send_email(
-		to_email=to_email,
-		subject="Reset your Audit Tools password",
-		body=(
-			"We received a request to reset your Audit Tools password.\n\n"
-			"Open the link below to choose a new password:\n"
-			f"{reset_url}\n\n"
-			"If you did not request this reset, you can ignore this email."
-		),
-		html_body=password_reset_html(reset_url),
-		log_label="Password reset link",
-		fallback_url=reset_url,
-		email_type="password_reset",
-		tags=["auth", "password_reset"],
 	)
 
 
@@ -458,4 +439,56 @@ def send_audit_submit_failure_email(
 		email_type="audit_submit_failure",
 		tags=["audit", "submit_failure", "auditor"],
 		track_clicks=False,
+	)
+
+
+def send_export_ready_email(
+	*,
+	to_email: str,
+	requester_name: str,
+	entity_label: str,
+	format_label: str,
+	audit_count: int,
+	combined_report_count: int,
+	dashboard_url: str,
+	had_failures: bool,
+) -> bool:
+	"""Notify a manager/admin that their raw-data export finished building.
+
+	The ZIP is generated in the requester's browser and downloads there, so this
+	is a completion notice rather than a download link. Fired when a large export
+	(above the immediate threshold) completes, since the requester may have
+	stepped away while it ran.
+	"""
+	combined_line = f"  Combined reports: {combined_report_count}\n" if combined_report_count > 0 else ""
+	failure_line = "\nSome items were skipped - see manifest.json inside the ZIP for details.\n" if had_failures else ""
+	body = (
+		f"Hello {requester_name},\n\n"
+		"Your raw-data export has finished building and the ZIP has downloaded in your "
+		"browser. Each audit and combined report is included as a PDF alongside the data "
+		"file you chose.\n\n"
+		f"  Export: {entity_label}\n"
+		f"  Format: {format_label}\n"
+		f"  Audits: {audit_count}\n"
+		f"{combined_line}"
+		f"{failure_line}\n"
+		f"Open the raw data dashboard: {dashboard_url}\n"
+	)
+	return _send_email(
+		to_email=to_email,
+		subject="Your Playspace export is ready",
+		body=body,
+		html_body=export_ready_html(
+			requester_name=requester_name,
+			entity_label=entity_label,
+			format_label=format_label,
+			audit_count=audit_count,
+			combined_report_count=combined_report_count,
+			dashboard_url=dashboard_url,
+			had_failures=had_failures,
+		),
+		log_label="Export ready",
+		fallback_url=dashboard_url,
+		email_type="raw_data_export_ready",
+		tags=["export", "raw_data"],
 	)

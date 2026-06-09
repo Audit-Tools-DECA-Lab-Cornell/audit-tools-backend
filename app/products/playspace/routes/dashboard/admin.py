@@ -21,8 +21,10 @@ from app.products.playspace.schemas.admin import (
 	AdminAuditsExportResponse,
 	AdminOverviewResponse,
 	AdminPlaceRowResponse,
+	AdminPlacesExportBundle,
 	AdminPlacesExportResponse,
 	AdminProjectRowResponse,
+	AdminProjectsExportBundle,
 	AdminProjectsExportResponse,
 	AdminSystemResponse,
 )
@@ -255,4 +257,46 @@ async def export_admin_reports(
 		search=search,
 		account_ids=account_ids,
 		project_ids=project_ids,
+	)
+
+
+@router.get("/export/projects/bundle")
+async def export_admin_projects_bundle(
+	search: str | None = Query(default=None),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
+) -> AdminProjectsExportBundle:
+	"""Export a relational bundle rooted at the scoped project set (projects + places + auditors + audits)."""
+
+	return await service.export_projects_bundle(
+		actor=current_user,
+		search=search,
+		account_ids=account_ids,
+		project_ids=project_ids,
+	)
+
+
+@router.get("/export/places/bundle")
+async def export_admin_places_bundle(
+	search: str | None = Query(default=None),
+	account_ids: list[uuid.UUID] | None = Query(default=None, alias="account_id"),
+	project_ids: list[uuid.UUID] | None = Query(default=None, alias="project_id"),
+	place_ids: list[uuid.UUID] | None = Query(default=None, alias="place_id"),
+	audit_statuses: list[str] | None = Query(default=None, alias="audit_status"),
+	survey_statuses: list[str] | None = Query(default=None, alias="survey_status"),
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAdminService = ADMIN_SERVICE_DEPENDENCY,
+) -> AdminPlacesExportBundle:
+	"""Export a relational bundle rooted at the scoped place set (places + auditors + audits)."""
+
+	return await service.export_places_bundle(
+		actor=current_user,
+		search=search,
+		account_ids=account_ids,
+		project_ids=project_ids,
+		place_ids=place_ids,
+		audit_statuses=audit_statuses,
+		survey_statuses=survey_statuses,
 	)

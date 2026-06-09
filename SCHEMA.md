@@ -1,4 +1,4 @@
-# Audit Backend — Schema Reference
+# Audit Backend - Schema Reference
 
 > This document records the **current** backend data model used by `audit-tools-backend`.
 
@@ -15,11 +15,11 @@ There are **two independent product databases** (YEE and Playspace) selected via
 `-x product=yee|playspace`. They share the **core** tables but each owns a few
 tables the other database never receives:
 
-| Scope | Tables | Lives in |
-| ----- | ------ | -------- |
-| Shared core | `accounts`, `users`, `notifications`, `manager_profiles`, `auditor_profiles`, `auditor_access_requests`, `auditor_invites`, `manager_invites`, `places`, `projects`, `project_places`, `auditor_assignments`, `audits`, `instruments` | Both |
-| Playspace-only | `playspace_submissions`, `playspace_submission_contexts`, `playspace_pre_submission_answers`, `playspace_submission_sections`, `playspace_question_responses`, `playspace_scale_answers`, `playspace_checklist_answers` | Playspace |
-| YEE-only | `yee_audit_submissions` | YEE |
+| Scope          | Tables                                                                                                                                                                                                                                | Lives in  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Shared core    | `accounts`, `users`, `notifications`, `manager_profiles`, `auditor_profiles`, `auditor_access_requests`, `auditor_invites`, `manager_invites`, `places`, `projects`, `project_places`, `auditor_assignments`, `audits`, `instruments` | Both      |
+| Playspace-only | `playspace_submissions`, `playspace_submission_contexts`, `playspace_pre_submission_answers`, `playspace_submission_sections`, `playspace_question_responses`, `playspace_scale_answers`, `playspace_checklist_answers`               | Playspace |
+| YEE-only       | `yee_audit_submissions`                                                                                                                                                                                                               | YEE       |
 
 This isolation is enforced by **branched Alembic history**: a shared `core` base
 (`0001`) with a `playspace` branch (`ps_*`) and a `yee` branch (`yee_*`)
@@ -225,17 +225,17 @@ Assignments grant project-level or project-place-level access to an auditor.
 
 Shared instrument-version table used by both products. Playspace admins manage PVUA versions through `/playspace/admin/instruments`; YEE seeds its canonical source-material instrument into the same shared table shape.
 
-| Column                 | Notes                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| `id`                   | UUID primary key                                                      |
-| `instrument_key`       | Product/instrument family key (`pvua_v5_2`, YEE source key, etc.)     |
-| `instrument_version`   | Version label shown in admin/version history surfaces                 |
-| `parent_instrument_id` | Nullable self-FK → `instruments.id` with `ON DELETE SET NULL`         |
-| `is_active`            | Active version for the instrument key                                 |
-| `content`              | JSONB instrument payload                                              |
-| `created_at`           |                                                                     |
-| `updated_at`           |                                                                     |
-| `activated_at`         | Nullable timestamp for the active transition                          |
+| Column                 | Notes                                                             |
+| ---------------------- | ----------------------------------------------------------------- |
+| `id`                   | UUID primary key                                                  |
+| `instrument_key`       | Product/instrument family key (`pvua_v5_2`, YEE source key, etc.) |
+| `instrument_version`   | Version label shown in admin/version history surfaces             |
+| `parent_instrument_id` | Nullable self-FK → `instruments.id` with `ON DELETE SET NULL`     |
+| `is_active`            | Active version for the instrument key                             |
+| `content`              | JSONB instrument payload                                          |
+| `created_at`           |                                                                   |
+| `updated_at`           |                                                                   |
+| `activated_at`         | Nullable timestamp for the active transition                      |
 
 Active seed instruments are root versions (`parent_instrument_id = NULL`). Draft versions created from an existing version store that parent id while inactive; activating a draft clears the parent id. Deleting an inactive parent leaves child drafts as root versions because the self-FK uses `ON DELETE SET NULL`. Active versions are protected from deletion by the service layer.
 
@@ -270,16 +270,16 @@ YEE-only submission record (created on the `yee` Alembic branch; **exists in the
 YEE database only**). Decoupled from the shared `audits` shell so the YEE
 execution flow can evolve independently.
 
-| Column                   | Notes                                                       |
-| ------------------------ | ----------------------------------------------------------- |
-| `id`                     | UUID primary key                                            |
-| `auditor_id`             | FK → `auditor_profiles` (`ON DELETE RESTRICT`)              |
-| `place_id`               | FK → `places` (`ON DELETE CASCADE`)                         |
-| `submitted_at`           | Defaults to `now()`                                         |
-| `participant_info_json`  | JSONB participant metadata                                  |
-| `responses_json`         | JSONB response payload                                      |
-| `section_scores_json`    | JSONB per-section scores                                    |
-| `total_score`            | Integer total                                               |
+| Column                  | Notes                                          |
+| ----------------------- | ---------------------------------------------- |
+| `id`                    | UUID primary key                               |
+| `auditor_id`            | FK → `auditor_profiles` (`ON DELETE RESTRICT`) |
+| `place_id`              | FK → `places` (`ON DELETE CASCADE`)            |
+| `submitted_at`          | Defaults to `now()`                            |
+| `participant_info_json` | JSONB participant metadata                     |
+| `responses_json`        | JSONB response payload                         |
+| `section_scores_json`   | JSONB per-section scores                       |
+| `total_score`           | Integer total                                  |
 
 ---
 

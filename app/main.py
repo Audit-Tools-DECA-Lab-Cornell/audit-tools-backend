@@ -21,6 +21,7 @@ from app.products.playspace.routes import router as playspace_router
 from app.products.yee.routes import router as yee_shared_router
 from app.yee_router import router as yee_router
 
+
 def _resolve_cors_origins() -> list[str]:
 	"""Resolve allowed browser origins for local and deployed frontends."""
 

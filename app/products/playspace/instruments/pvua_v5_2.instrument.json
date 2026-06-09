@@ -51,14 +51,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_1",
             "question_type": "scaled"
@@ -99,14 +95,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_2",
             "question_type": "scaled"
@@ -147,15 +139,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_3",
             "question_type": "scaled"
@@ -196,14 +183,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_4",
             "question_type": "scaled"
@@ -244,15 +227,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_5",
             "question_type": "scaled"
@@ -293,14 +271,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_6",
             "question_type": "scaled"
@@ -372,14 +346,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Character & Community"
-            ],
+            "domains": ["Playspace Character & Community"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_1_playspace_character_community",
             "question_key": "q_1_7",
             "question_type": "scaled"
@@ -429,14 +399,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_1",
             "question_type": "scaled"
@@ -469,14 +435,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_2",
             "question_type": "scaled"
@@ -517,14 +479,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_3",
             "question_type": "scaled"
@@ -557,14 +515,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_4",
             "question_type": "scaled"
@@ -597,14 +551,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_5",
             "question_type": "scaled"
@@ -645,14 +595,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_6",
             "question_type": "scaled"
@@ -693,14 +639,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_7",
             "question_type": "scaled"
@@ -733,14 +675,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Location & Connectivity"
-            ],
+            "domains": ["Playspace Location & Connectivity"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_2_playspace_location_connectivity",
             "question_key": "q_2_8",
             "question_type": "scaled"
@@ -782,14 +720,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Rules & Restrictions"
-            ],
+            "domains": ["Playspace Rules & Restrictions"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_3_playspace_rules_restrictions",
             "question_key": "q_3_1",
             "question_type": "scaled"
@@ -822,14 +756,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Rules & Restrictions"
-            ],
+            "domains": ["Playspace Rules & Restrictions"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_3_playspace_rules_restrictions",
             "question_key": "q_3_2",
             "question_type": "scaled"
@@ -862,14 +792,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Rules & Restrictions"
-            ],
+            "domains": ["Playspace Rules & Restrictions"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_3_playspace_rules_restrictions",
             "question_key": "q_3_3",
             "question_type": "scaled"
@@ -919,14 +845,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Information & Wayfinding"
-            ],
+            "domains": ["Playspace Information & Wayfinding"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_4_playspace_information_wayfinding",
             "question_key": "q_4_1",
             "question_type": "scaled"
@@ -967,14 +889,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Information & Wayfinding"
-            ],
+            "domains": ["Playspace Information & Wayfinding"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_4_playspace_information_wayfinding",
             "question_key": "q_4_2",
             "question_type": "scaled"
@@ -1015,14 +933,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Information & Wayfinding"
-            ],
+            "domains": ["Playspace Information & Wayfinding"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_4_playspace_information_wayfinding",
             "question_key": "q_4_3",
             "question_type": "scaled"
@@ -1063,14 +977,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Information & Wayfinding"
-            ],
+            "domains": ["Playspace Information & Wayfinding"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_4_playspace_information_wayfinding",
             "question_key": "q_4_4",
             "question_type": "scaled"
@@ -1111,14 +1021,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Information & Wayfinding"
-            ],
+            "domains": ["Playspace Information & Wayfinding"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_4_playspace_information_wayfinding",
             "question_key": "q_4_5",
             "question_type": "scaled"
@@ -1159,14 +1065,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace Information & Wayfinding"
-            ],
+            "domains": ["Playspace Information & Wayfinding"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_4_playspace_information_wayfinding",
             "question_key": "q_4_6",
             "question_type": "scaled"
@@ -1208,14 +1110,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_1",
             "question_type": "scaled"
@@ -1256,14 +1154,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_2",
             "question_type": "scaled"
@@ -1304,14 +1198,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_3",
             "question_type": "scaled"
@@ -1344,14 +1234,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_4",
             "question_type": "scaled"
@@ -1392,14 +1278,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_5",
             "question_type": "scaled"
@@ -1440,14 +1322,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_6",
             "question_type": "scaled"
@@ -1519,14 +1397,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Management & Maintenance"
-            ],
+            "domains": ["Management & Maintenance"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_5_management_maintenance",
             "question_key": "q_5_7",
             "question_type": "scaled"
@@ -1576,14 +1450,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Climate Protection & Adaptability"
-            ],
+            "domains": ["Climate Protection & Adaptability"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_6_climate_protection_adaptability",
             "question_key": "q_6_1",
             "question_type": "scaled"
@@ -1624,14 +1494,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Climate Protection & Adaptability"
-            ],
+            "domains": ["Climate Protection & Adaptability"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_6_climate_protection_adaptability",
             "question_key": "q_6_2",
             "question_type": "scaled"
@@ -1672,14 +1538,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Climate Protection & Adaptability"
-            ],
+            "domains": ["Climate Protection & Adaptability"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_6_climate_protection_adaptability",
             "question_key": "q_6_3",
             "question_type": "scaled"
@@ -1720,14 +1582,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Climate Protection & Adaptability"
-            ],
+            "domains": ["Climate Protection & Adaptability"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_6_climate_protection_adaptability",
             "question_key": "q_6_4",
             "question_type": "scaled"
@@ -1768,14 +1626,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Climate Protection & Adaptability"
-            ],
+            "domains": ["Climate Protection & Adaptability"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_6_climate_protection_adaptability",
             "question_key": "q_6_5",
             "question_type": "scaled"
@@ -1833,14 +1687,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Boundaries & Entrances"
-            ],
+            "domains": ["Boundaries & Entrances"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_7_boundaries_entrances",
             "question_key": "q_7_1",
             "question_type": "scaled"
@@ -1881,21 +1731,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Boundaries & Entrances"
-            ],
+            "domains": ["Boundaries & Entrances"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "display_if": {
               "question_key": "q_7_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_7_boundaries_entrances",
             "question_key": "q_7_2",
@@ -1945,21 +1788,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Boundaries & Entrances"
-            ],
+            "domains": ["Boundaries & Entrances"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "display_if": {
               "question_key": "q_7_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_7_boundaries_entrances",
             "question_key": "q_7_3",
@@ -2009,14 +1845,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Boundaries & Entrances"
-            ],
+            "domains": ["Boundaries & Entrances"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_7_boundaries_entrances",
             "question_key": "q_7_4",
             "question_type": "scaled"
@@ -2097,15 +1929,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value",
-              "usability"
-            ],
+            "constructs": ["play_value", "usability"],
             "section_key": "section_8_pathways",
             "question_key": "q_8_1",
             "question_type": "scaled"
@@ -2208,21 +2035,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Pathways"
-            ],
+            "domains": ["Pathways"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "display_if": {
               "question_key": "q_8_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_8_pathways",
             "question_key": "q_8_2",
@@ -2326,14 +2146,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_8_pathways",
             "question_key": "q_8_3",
             "question_type": "scaled"
@@ -2414,14 +2230,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Open Space"
-            ],
+            "domains": ["Open Space"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_9_open_space",
             "question_key": "q_9_1",
             "question_type": "scaled"
@@ -2493,22 +2305,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "display_if": {
               "question_key": "q_9_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_9_open_space",
             "question_key": "q_9_2",
@@ -2621,14 +2425,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Enclosed & Bounded Spaces"
-            ],
+            "domains": ["Enclosed & Bounded Spaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_10_enclosed_bounded_spaces",
             "question_key": "q_10_1",
             "question_type": "scaled"
@@ -2731,21 +2531,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Enclosed & Bounded Spaces"
-            ],
+            "domains": ["Enclosed & Bounded Spaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "display_if": {
               "question_key": "q_10_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_10_enclosed_bounded_spaces",
             "question_key": "q_10_2",
@@ -2849,14 +2642,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Enclosed & Bounded Spaces"
-            ],
+            "domains": ["Enclosed & Bounded Spaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_10_enclosed_bounded_spaces",
             "question_key": "q_10_3",
             "question_type": "scaled"
@@ -2968,14 +2757,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sport & Game Spaces"
-            ],
+            "domains": ["Sport & Game Spaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_11_sport_game_spaces",
             "question_key": "q_11_1",
             "question_type": "scaled"
@@ -3016,21 +2801,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Sport & Game Spaces"
-            ],
+            "domains": ["Sport & Game Spaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "display_if": {
               "question_key": "q_11_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_11_sport_game_spaces",
             "question_key": "q_11_2",
@@ -3072,21 +2850,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Sport & Game Spaces"
-            ],
+            "domains": ["Sport & Game Spaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "display_if": {
               "question_key": "q_11_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_11_sport_game_spaces",
             "question_key": "q_11_3",
@@ -3230,14 +3001,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_1",
             "question_type": "scaled"
@@ -3371,14 +3138,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_2",
             "question_type": "scaled"
@@ -3512,14 +3275,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_3",
             "question_type": "scaled"
@@ -3653,14 +3412,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_4",
             "question_type": "scaled"
@@ -3794,14 +3549,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_5",
             "question_type": "scaled"
@@ -3935,14 +3686,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_6",
             "question_type": "scaled"
@@ -4076,14 +3823,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_7",
             "question_type": "scaled"
@@ -4217,14 +3960,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_8",
             "question_type": "scaled"
@@ -4358,14 +4097,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_9",
             "question_type": "scaled"
@@ -4507,15 +4242,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value",
-              "usability"
-            ],
+            "constructs": ["play_value", "usability"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_10",
             "question_type": "scaled"
@@ -4649,14 +4379,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_11",
             "question_type": "scaled"
@@ -4790,14 +4516,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Manufactured Play Features"
-            ],
+            "domains": ["Manufactured Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_12_manufactured_play_features",
             "question_key": "q_12_12",
             "question_type": "scaled"
@@ -4909,14 +4631,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Natural Play Features"
-            ],
+            "domains": ["Natural Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_1",
             "question_type": "scaled"
@@ -5019,15 +4737,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Natural Play Features"
-            ],
+            "domains": ["Natural Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value",
-              "usability"
-            ],
+            "constructs": ["play_value", "usability"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_2",
             "question_type": "scaled"
@@ -5161,14 +4874,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Natural Play Features"
-            ],
+            "domains": ["Natural Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_3",
             "question_type": "scaled"
@@ -5302,14 +5011,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Natural Play Features"
-            ],
+            "domains": ["Natural Play Features"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_13_natural_play_features",
             "question_key": "q_13_4",
             "question_type": "scaled"
@@ -5390,14 +5095,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Manufactured Parts & Equipment"
-            ],
+            "domains": ["Loose Manufactured Parts & Equipment"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_14_loose_manufactured_parts_equipment",
             "question_key": "q_14_1",
             "question_type": "scaled"
@@ -5469,14 +5170,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Manufactured Parts & Equipment"
-            ],
+            "domains": ["Loose Manufactured Parts & Equipment"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_14_loose_manufactured_parts_equipment",
             "question_key": "q_14_2",
             "question_type": "scaled"
@@ -5579,14 +5276,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Manufactured Parts & Equipment"
-            ],
+            "domains": ["Loose Manufactured Parts & Equipment"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_14_loose_manufactured_parts_equipment",
             "question_key": "q_14_3",
             "question_type": "scaled"
@@ -5720,14 +5413,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Manufactured Parts & Equipment"
-            ],
+            "domains": ["Loose Manufactured Parts & Equipment"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_14_loose_manufactured_parts_equipment",
             "question_key": "q_14_4",
             "question_type": "scaled"
@@ -5808,14 +5497,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Natural Parts & Malleable Materials"
-            ],
+            "domains": ["Loose Natural Parts & Malleable Materials"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_15_loose_natural_parts_malleable_materials",
             "question_key": "q_15_1",
             "question_type": "scaled"
@@ -5887,21 +5572,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Natural Parts & Malleable Materials"
-            ],
+            "domains": ["Loose Natural Parts & Malleable Materials"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "display_if": {
               "question_key": "q_15_1",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_15_loose_natural_parts_malleable_materials",
             "question_key": "q_15_2",
@@ -5974,14 +5652,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Natural Parts & Malleable Materials"
-            ],
+            "domains": ["Loose Natural Parts & Malleable Materials"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_15_loose_natural_parts_malleable_materials",
             "question_key": "q_15_3",
             "question_type": "scaled"
@@ -6053,14 +5727,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Natural Parts & Malleable Materials"
-            ],
+            "domains": ["Loose Natural Parts & Malleable Materials"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_15_loose_natural_parts_malleable_materials",
             "question_key": "q_15_4",
             "question_type": "scaled"
@@ -6163,14 +5833,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Loose Natural Parts & Malleable Materials"
-            ],
+            "domains": ["Loose Natural Parts & Malleable Materials"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_15_loose_natural_parts_malleable_materials",
             "question_key": "q_15_5",
             "question_type": "scaled"
@@ -6251,15 +5917,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_1",
             "question_type": "scaled"
@@ -6331,15 +5992,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_2",
             "question_type": "scaled"
@@ -6380,15 +6036,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_3",
             "question_type": "scaled"
@@ -6429,15 +6080,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_4",
             "question_type": "scaled"
@@ -6478,15 +6124,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_5",
             "question_type": "scaled"
@@ -6527,15 +6168,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_6",
             "question_type": "scaled"
@@ -6576,15 +6212,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Seating"
-            ],
+            "domains": ["Seating"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_16_seating",
             "question_key": "q_16_7",
             "question_type": "scaled"
@@ -6642,14 +6273,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Amenities"
-            ],
+            "domains": ["Amenities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_17_amenities",
             "question_key": "q_17_1",
             "question_type": "scaled"
@@ -6698,14 +6325,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Amenities"
-            ],
+            "domains": ["Amenities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_17_amenities",
             "question_key": "q_17_2",
             "question_type": "scaled"
@@ -6754,14 +6377,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Amenities"
-            ],
+            "domains": ["Amenities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_17_amenities",
             "question_key": "q_17_3",
             "question_type": "scaled"
@@ -6873,14 +6492,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Topography & Surfaces"
-            ],
+            "domains": ["Topography & Surfaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_18_topography_surfaces",
             "question_key": "q_18_1",
             "question_type": "scaled"
@@ -6952,14 +6567,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Topography & Surfaces"
-            ],
+            "domains": ["Topography & Surfaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_18_topography_surfaces",
             "question_key": "q_18_2",
             "question_type": "scaled"
@@ -7062,14 +6673,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Topography & Surfaces"
-            ],
+            "domains": ["Topography & Surfaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_18_topography_surfaces",
             "question_key": "q_18_3",
             "question_type": "scaled"
@@ -7172,14 +6779,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Topography & Surfaces"
-            ],
+            "domains": ["Topography & Surfaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_18_topography_surfaces",
             "question_key": "q_18_4",
             "question_type": "scaled"
@@ -7282,14 +6885,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Topography & Surfaces"
-            ],
+            "domains": ["Topography & Surfaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_18_topography_surfaces",
             "question_key": "q_18_5",
             "question_type": "scaled"
@@ -7392,14 +6991,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Topography & Surfaces"
-            ],
+            "domains": ["Topography & Surfaces"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_18_topography_surfaces",
             "question_key": "q_18_6",
             "question_type": "scaled"
@@ -7480,14 +7075,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_1",
             "question_type": "scaled"
@@ -7559,21 +7150,17 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_2",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**—creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
+            "prompt": "has features that **make use of sunlight, changing natural light, and/or electronic lighting**-creating sensory and play opportunitites through light responive features (e.g. stained-glass panels; illuminated features; features that create patterned or moving shadows)",
             "scales": [
               {
                 "key": "provision",
@@ -7638,14 +7225,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_3",
             "question_type": "scaled"
@@ -7748,14 +7331,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_4",
             "question_type": "scaled"
@@ -7889,14 +7468,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_5",
             "question_type": "scaled"
@@ -7999,14 +7574,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_6",
             "question_type": "scaled"
@@ -8078,14 +7649,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_7",
             "question_type": "scaled"
@@ -8219,14 +7786,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Novelty"
-            ],
+            "domains": ["Novelty"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_19_novelty",
             "question_key": "q_19_8",
             "question_type": "scaled"
@@ -8307,14 +7870,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_1",
             "question_type": "scaled"
@@ -8386,14 +7945,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_2",
             "question_type": "scaled"
@@ -8465,14 +8020,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_3",
             "question_type": "scaled"
@@ -8575,14 +8126,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_4",
             "question_type": "scaled"
@@ -8654,14 +8201,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "play_value"
-            ],
+            "constructs": ["play_value"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_5",
             "question_type": "scaled"
@@ -8764,15 +8307,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability",
-              "play_value"
-            ],
+            "constructs": ["usability", "play_value"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_6",
             "question_type": "scaled"
@@ -8813,20 +8351,16 @@
                 ]
               }
             ],
-            "domains": [
-              "Sensory Qualities & Regulation"
-            ],
+            "domains": ["Sensory Qualities & Regulation"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_20_sensory_qualities_regulation",
             "question_key": "q_20_7",
             "question_type": "scaled"
           }
         ],
-        "description": "**Sensory Qualities & Regulation:** evaluates how well a space supports diverse sensory experiences that can enhance engagement, comfort, and well‑being. Considers the presence of visual, auditory, olfactory, and tactile elements that create interest and stimulation—such as color accents, varied textures, sounds, pleasant smells, and interactive features. It also assesses whether the environment may introduce negative sensory experiences or is supportive of varying sensory needs such as opportunities for sensory retreat or reduced stimulation.",
+        "description": "**Sensory Qualities & Regulation:** evaluates how well a space supports diverse sensory experiences that can enhance engagement, comfort, and well‑being. Considers the presence of visual, auditory, olfactory, and tactile elements that create interest and stimulation-such as color accents, varied textures, sounds, pleasant smells, and interactive features. It also assesses whether the environment may introduce negative sensory experiences or is supportive of varying sensory needs such as opportunities for sensory retreat or reduced stimulation.",
         "instruction": "Read each statement and answer the questions. This playspace...",
         "section_key": "section_20_sensory_qualities_regulation",
         "notes_prompt": "Any comments? Describe one or more recommendations to improve the sensory qualitites of this playspace:"
@@ -8870,14 +8404,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_1",
             "question_type": "scaled"
@@ -8918,14 +8448,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_2",
             "question_type": "scaled"
@@ -8966,14 +8492,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_3",
             "question_type": "scaled"
@@ -9014,21 +8536,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "display_if": {
               "question_key": "q_21_3",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_4",
@@ -9070,21 +8585,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "display_if": {
               "question_key": "q_21_3",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_5",
@@ -9126,21 +8634,14 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "display_if": {
               "question_key": "q_21_3",
               "response_key": "provision",
-              "any_of_option_keys": [
-                "some",
-                "a_lot"
-              ]
+              "any_of_option_keys": ["some", "a_lot"]
             },
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_6",
@@ -9182,14 +8683,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_7",
             "question_type": "scaled"
@@ -9230,14 +8727,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_8",
             "question_type": "scaled"
@@ -9278,14 +8771,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_9",
             "question_type": "scaled"
@@ -9326,14 +8815,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Accommodating diverse abilities"
-            ],
+            "domains": ["Accommodating diverse abilities"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_21_accommodating_diverse_abilities",
             "question_key": "q_21_10",
             "question_type": "scaled"
@@ -9476,14 +8961,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_1",
             "question_type": "scaled"
@@ -9617,14 +9098,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_2",
             "question_type": "scaled"
@@ -9758,14 +9235,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_3",
             "question_type": "scaled"
@@ -9899,14 +9372,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_4",
             "question_type": "scaled"
@@ -10040,14 +9509,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_5",
             "question_type": "scaled"
@@ -10181,14 +9646,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_6",
             "question_type": "scaled"
@@ -10322,14 +9783,10 @@
                 ]
               }
             ],
-            "domains": [
-              "Playspace suitability for diverse users"
-            ],
+            "domains": ["Playspace suitability for diverse users"],
             "options": [],
             "required": true,
-            "constructs": [
-              "usability"
-            ],
+            "constructs": ["usability"],
             "section_key": "section_22_playspace_suitability_for_diverse_users",
             "question_key": "q_22_7",
             "question_type": "scaled"
@@ -10780,11 +10237,7 @@
         "group_key": null,
         "input_type": "auto_timestamp",
         "description": "Automatically populated from the auditor profile.",
-        "visible_modes": [
-          "audit",
-          "survey",
-          "both"
-        ]
+        "visible_modes": ["audit", "survey", "both"]
       },
       {
         "key": "audit_date",
@@ -10795,11 +10248,7 @@
         "group_key": null,
         "input_type": "auto_timestamp",
         "description": "Automatically generated.",
-        "visible_modes": [
-          "audit",
-          "survey",
-          "both"
-        ]
+        "visible_modes": ["audit", "survey", "both"]
       },
       {
         "key": "started_at",
@@ -10810,11 +10259,7 @@
         "group_key": null,
         "input_type": "auto_timestamp",
         "description": "Automatically generated timestamp.",
-        "visible_modes": [
-          "audit",
-          "survey",
-          "both"
-        ]
+        "visible_modes": ["audit", "survey", "both"]
       },
       {
         "key": "submitted_at",
@@ -10825,11 +10270,7 @@
         "group_key": null,
         "input_type": "auto_timestamp",
         "description": "Automatically generated when the final submit action is completed.",
-        "visible_modes": [
-          "audit",
-          "survey",
-          "both"
-        ]
+        "visible_modes": ["audit", "survey", "both"]
       },
       {
         "key": "total_minutes",
@@ -10840,11 +10281,7 @@
         "group_key": null,
         "input_type": "auto_timestamp",
         "description": "Automatically calculated from the start and finish timestamps.",
-        "visible_modes": [
-          "audit",
-          "survey",
-          "both"
-        ]
+        "visible_modes": ["audit", "survey", "both"]
       },
       {
         "key": "place_size",
@@ -10876,10 +10313,7 @@
         "group_key": null,
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "current_users_0_5",
@@ -10906,10 +10340,7 @@
         "group_key": "current_users_matrix",
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "current_users_6_12",
@@ -10936,10 +10367,7 @@
         "group_key": "current_users_matrix",
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "current_users_13_17",
@@ -10966,10 +10394,7 @@
         "group_key": "current_users_matrix",
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "current_users_18_plus",
@@ -10996,10 +10421,7 @@
         "group_key": "current_users_matrix",
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "playspace_busyness",
@@ -11026,10 +10448,7 @@
         "group_key": null,
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "season",
@@ -11061,10 +10480,7 @@
         "group_key": null,
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "weather_conditions",
@@ -11116,10 +10532,7 @@
         "group_key": null,
         "input_type": "multi_select",
         "description": "Select all that apply.",
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       },
       {
         "key": "wind_conditions",
@@ -11151,10 +10564,7 @@
         "group_key": null,
         "input_type": "single_select",
         "description": null,
-        "visible_modes": [
-          "audit",
-          "both"
-        ]
+        "visible_modes": ["audit", "both"]
       }
     ]
   }

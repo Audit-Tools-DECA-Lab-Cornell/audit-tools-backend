@@ -19,7 +19,7 @@ def test_next_draft_version_increments_existing_sub_versions() -> None:
 def test_next_published_version_increments_highest_publication() -> None:
 	assert next_published_version(["5.23"]) == "5.24"
 	# The next publication is one above the HIGHEST existing publication, not the
-	# order they are listed in — a rollback must not let a number be reused.
+	# order they are listed in - a rollback must not let a number be reused.
 	assert next_published_version(["5.23", "5.21", "5.22"]) == "5.24"
 
 

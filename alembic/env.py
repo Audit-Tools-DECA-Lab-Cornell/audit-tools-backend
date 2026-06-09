@@ -45,9 +45,7 @@ def _is_production_like_environment(environment: Environment) -> bool:
 	"""Detect hosted production-style environments where silent DB fallback is risky."""
 
 	return (
-		environment is Environment.PRODUCTION
-		or os.getenv("RENDER") == "true"
-		or bool(os.getenv("RENDER_SERVICE_ID"))
+		environment is Environment.PRODUCTION or os.getenv("RENDER") == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
 	)
 
 

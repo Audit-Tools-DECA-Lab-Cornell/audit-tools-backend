@@ -67,8 +67,8 @@ The backend migration history is product-scoped **and branched**. A shared
 `core` base revision (`0001`) holds the tables common to both products, and two
 branches descend from it:
 
-- `playspace` branch — Playspace-only tables (`playspace_*`)
-- `yee` branch — YEE-only tables (`yee_audit_submissions`)
+- `playspace` branch - Playspace-only tables (`playspace_*`)
+- `yee` branch - YEE-only tables (`yee_audit_submissions`)
 
 Each physical database only ever advances along its own branch, so the YEE
 database never receives `playspace_*` tables and the Playspace database never
@@ -84,11 +84,11 @@ alembic -x product=playspace upgrade playspace@head
 
 If a database was previously migrated under the old single linear history
 (through the squashed `0002`), re-point it onto the branched revision IDs with a
-**stamp** — this changes only the `alembic_version` bookkeeping and runs **no
+**stamp** - this changes only the `alembic_version` bookkeeping and runs **no
 DDL**, so existing data is untouched:
 
 ```bash
-# Playspace PRODUCTION (real data — stamp only, never re-run DDL):
+# Playspace PRODUCTION (real data - stamp only, never re-run DDL):
 alembic -x product=playspace -x environment=production stamp --purge playspace@head
 
 # YEE is reset-friendly (seed data only): drop/recreate the schema and rebuild:

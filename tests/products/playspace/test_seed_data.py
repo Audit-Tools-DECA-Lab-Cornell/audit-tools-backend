@@ -59,7 +59,7 @@ def test_build_playspace_seed_entities_spreads_projects_across_manager_accounts(
 def test_build_playspace_seed_entities_every_profile_has_a_linked_user() -> None:
 	"""Every ManagerProfile and AuditorProfile must have a unique user_id.
 
-	Accounts are organisational workspaces only — no User is created directly
+	Accounts are organisational workspaces only - no User is created directly
 	for a MANAGER or AUDITOR account. Each profile carries its own login
 	identity via its user_id FK, and no two profiles may share a User.
 	"""
@@ -89,7 +89,7 @@ def test_build_playspace_seed_entities_every_profile_has_a_linked_user() -> None
 	assert len(all_profile_user_ids) == len(set(all_profile_user_ids)), "Two or more profiles share the same user_id"
 
 	# No User belonging to a MANAGER or AUDITOR account should exist outside
-	# of a profile link. (Admin accounts are exempt — they have no profile table.)
+	# of a profile link. (Admin accounts are exempt - they have no profile table.)
 	accounts = [entity for entity in entities if isinstance(entity, Account)]
 	manager_account_ids = {a.id for a in accounts if a.account_type is AccountType.MANAGER}
 	auditor_account_ids = {a.id for a in accounts if a.account_type is AccountType.AUDITOR}

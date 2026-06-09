@@ -57,7 +57,7 @@ class AuditListItem(BaseModel):
 	submitted_at: str | None = None
 	score: int
 	total_raw_score: int = 0
-	total_weighted_score: int = 0
+	total_weighted_score: float = 0.0
 	domain_weights: dict[str, int] = Field(default_factory=dict)
 	status: str
 
@@ -309,7 +309,7 @@ class PlaceComparisonAuditItem(BaseModel):
 	project_name: str
 	date: str
 	total_raw_score: int
-	total_weighted_score: int
+	total_weighted_score: float
 	domain_weights: dict[str, int]
 	raw_domain_scores: dict[str, int]
 	weighted_domain_scores: dict[str, float]
@@ -891,7 +891,7 @@ async def _fetch_audits(
 		resolved_total_raw_score = (
 			submission_total_score if isinstance(submission_total_score, int) else _extract_score(audit.scores_json)
 		)
-		resolved_total_weighted_score = 0
+		resolved_total_weighted_score = 0.0
 		resolved_domain_weights = _empty_domain_scores()
 
 		if audit.status == AuditStatus.SUBMITTED and resolved_submission_id is None:
@@ -910,12 +910,11 @@ async def _fetch_audits(
 				submission_section_scores = repaired_submission.section_scores_json
 
 		if isinstance(submission_participant_info, dict) and isinstance(submission_section_scores, dict):
-			_, weighted_domain_scores, resolved_total_weighted_score = _build_submission_scores(
+			_, _, resolved_total_weighted_score = _build_submission_scores(
 				submission_section_scores,
 				submission_participant_info,
 			)
 			resolved_domain_weights = _extract_domain_weights(submission_participant_info)
-			resolved_total_weighted_score = sum(weighted_domain_scores.values())
 
 		items.append(
 			AuditListItem(
@@ -1670,12 +1669,16 @@ async def get_manager_audit_edit_state(
 		)
 
 	participant_info, responses = _decode_audit_participant_payload(audit)
-	score = score_yee_responses(responses) if responses else {
-		"total_score": _extract_score(audit.scores_json),
-		"section_scores": {},
-		"category_scores": {},
-		"matched_scored_answers": 0,
-	}
+	score = (
+		score_yee_responses(responses)
+		if responses
+		else {
+			"total_score": _extract_score(audit.scores_json),
+			"section_scores": {},
+			"category_scores": {},
+			"matched_scored_answers": 0,
+		}
+	)
 	if not participant_info:
 		participant_info = {
 			"auditor_id": _display_auditor_code(auditor.auditor_code),
@@ -1758,7 +1761,7 @@ async def update_manager_audit_edit_state(
 	audit.submitted_at = submitted_at
 	audit.total_minutes = int(payload.participant_info.get("total_minutes") or 0) if payload.participant_info else None
 	audit.responses_json = payload.responses
-	audit.summary_score = float(score["total_score"])
+	audit.summary_score = float(cast(int, score["total_score"]))
 	audit.scores_json = {
 		"total_score": score["total_score"],
 		"section_scores": score["section_scores"],

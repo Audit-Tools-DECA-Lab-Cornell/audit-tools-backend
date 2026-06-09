@@ -5,7 +5,7 @@ description: Sets up Caliber for automatic AI agent context sync. Installs pre-c
 
 # Setup Caliber
 
-Dynamic onboarding for Caliber — automatic AI agent context sync.
+Dynamic onboarding for Caliber - automatic AI agent context sync.
 Run all diagnostic steps below on every invocation to determine what's already
 set up and what still needs to be done.
 
@@ -22,15 +22,19 @@ command -v caliber >/dev/null 2>&1 && caliber --version || echo "NOT_INSTALLED"
 
 - If a version prints → Caliber is installed globally. Set `CALIBER="caliber"` and move to Step 2.
 - If NOT_INSTALLED → Install it globally (faster for daily use since the pre-commit hook runs on every commit):
+
   ```bash
   npm install -g @rely-ai/caliber
   ```
+
   Set `CALIBER="caliber"`.
 
   If npm fails (permissions, no sudo, etc.), fall back to npx:
+
   ```bash
   npx @rely-ai/caliber --version 2>/dev/null || echo "NO_NODE"
   ```
+
   - If npx works → Set `CALIBER="npx @rely-ai/caliber"`. This works but adds ~500ms per invocation.
   - If NO_NODE → Tell the user: "Caliber requires Node.js >= 20. Install Node first, then run /setup-caliber again." Stop here.
 
@@ -40,7 +44,7 @@ command -v caliber >/dev/null 2>&1 && caliber --version || echo "NOT_INSTALLED"
 grep -q "caliber" .git/hooks/pre-commit 2>/dev/null && echo "HOOK_ACTIVE" || echo "NO_HOOK"
 ```
 
-- If HOOK_ACTIVE → Tell the user: "Pre-commit hook is active — configs sync on every commit." Move to Step 3.
+- If HOOK_ACTIVE → Tell the user: "Pre-commit hook is active - configs sync on every commit." Move to Step 3.
 - If NO_HOOK → Tell the user: "I'll install the pre-commit hook so your agent configs sync automatically on every commit."
   ```bash
   $CALIBER hooks --install
@@ -49,6 +53,7 @@ grep -q "caliber" .git/hooks/pre-commit 2>/dev/null && echo "HOOK_ACTIVE" || ech
 ### Step 3: Detect agents and check if configs exist
 
 First, detect which coding agents are configured in this project:
+
 ```bash
 AGENTS=""
 [ -d .claude ] && AGENTS="claude"
@@ -62,6 +67,7 @@ If no agents are detected, ask the user which coding agents they use (Claude Cod
 Build the agent list from their answer as a comma-separated string (e.g. "claude,cursor").
 
 Then check if agent configs exist:
+
 ```bash
 echo "CLAUDE_MD=$([ -f CLAUDE.md ] && echo exists || echo missing)"
 echo "CURSOR_RULES=$([ -d .cursor/rules ] && ls .cursor/rules/*.mdc 2>/dev/null | wc -l | tr -d ' ' || echo 0)"
@@ -98,11 +104,13 @@ Ask the user: "Are you setting up for yourself only, or for your team too?"
 - If **solo** → Continue with solo setup:
 
   Check if session learning is enabled:
+
   ```bash
   $CALIBER learn status 2>/dev/null | head -3
   ```
+
   - If learning is already enabled → note it in the summary.
-  - If not enabled → ask the user: "Caliber can learn from your coding sessions — when you correct a mistake or fix a pattern, it remembers for next time. Enable session learning?"
+  - If not enabled → ask the user: "Caliber can learn from your coding sessions - when you correct a mistake or fix a pattern, it remembers for next time. Enable session learning?"
     If yes:
     ```bash
     $CALIBER learn install
@@ -117,17 +125,20 @@ Ask the user: "Are you setting up for yourself only, or for your team too?"
   Then show the summary (see below) and stop.
 
 - If **team** → Check if the GitHub Action already exists:
+
   ```bash
   [ -f .github/workflows/caliber-sync.yml ] && echo "ACTION_EXISTS" || echo "NO_ACTION"
   ```
+
   - If ACTION_EXISTS → Tell the user: "GitHub Action is already configured."
   - If NO_ACTION → Tell the user: "I'll create a GitHub Action that syncs configs nightly and on every PR."
     Write this file to `.github/workflows/caliber-sync.yml`:
+
     ```yaml
     name: Caliber Sync
     on:
       schedule:
-        - cron: '0 3 * * 1-5'
+        - cron: "0 3 * * 1-5"
       pull_request:
         types: [opened, synchronize]
       workflow_dispatch:
@@ -145,7 +156,9 @@ Ask the user: "Are you setting up for yourself only, or for your team too?"
             env:
               ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     ```
+
     Now determine which LLM provider the team uses. Check the local Caliber config:
+
     ```bash
     $CALIBER config --show 2>/dev/null || echo "NO_CONFIG"
     ```
@@ -156,12 +169,14 @@ Ask the user: "Are you setting up for yourself only, or for your team too?"
     - **vertex** → `VERTEX_PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` (service account JSON)
 
     Update the workflow env block to match the provider. For example, if using OpenAI:
+
     ```yaml
-            env:
-              OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     ```
 
     Then check if the `gh` CLI is available to set the secret:
+
     ```bash
     command -v gh >/dev/null 2>&1 && echo "GH_AVAILABLE" || echo "NO_GH"
     ```
@@ -173,10 +188,11 @@ Ask the user: "Are you setting up for yourself only, or for your team too?"
       (This prompts for the value securely via stdin)
     - If NO_GH → Tell the user exactly what to do:
       "Go to your repo on GitHub → Settings → Secrets and variables → Actions → New repository secret.
-       Name: ANTHROPIC_API_KEY (or OPENAI_API_KEY depending on provider)
-       Value: your API key"
+      Name: ANTHROPIC_API_KEY (or OPENAI_API_KEY depending on provider)
+      Value: your API key"
 
     Finally, offer to commit and push the workflow file:
+
     ```bash
     git add .github/workflows/caliber-sync.yml
     git commit -m "feat: add Caliber sync GitHub Action"
@@ -190,10 +206,10 @@ After completing all steps, show the user what's configured:
 ```
 Caliber Setup Complete:
 ✓ Caliber installed (vX.X.X)
-✓ Pre-commit hook — configs sync on every commit
-✓ Agent configs — CLAUDE.md, Cursor rules, AGENTS.md
+✓ Pre-commit hook - configs sync on every commit
+✓ Agent configs - CLAUDE.md, Cursor rules, AGENTS.md
 ✓ Config score: X/100
-✓ GitHub Action — nightly sync + PR checks (team only)
+✓ GitHub Action - nightly sync + PR checks (team only)
 
 From now on, every commit keeps all your agent configs in sync automatically.
 ```

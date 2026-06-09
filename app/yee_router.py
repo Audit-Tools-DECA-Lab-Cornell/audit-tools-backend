@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.yee_instrument_schema import YeeInstrumentResponse
 from app.yee_scoring import get_yee_instrument_data, score_yee_responses
+from app.yee_instrument_schema import YeeInstrumentResponse
 
 router: APIRouter = APIRouter(prefix="/yee", tags=["yee"])
 
@@ -324,11 +325,7 @@ async def _bootstrap_yee_instrument_if_missing(session: AsyncSession, instrument
 
 
 async def _list_yee_instrument_versions(session: AsyncSession, instrument_key: str = "yee") -> list[Instrument]:
-	stmt = (
-		select(Instrument)
-		.where(Instrument.instrument_key == instrument_key)
-		.order_by(Instrument.created_at.desc())
-	)
+	stmt = select(Instrument).where(Instrument.instrument_key == instrument_key).order_by(Instrument.created_at.desc())
 	return list((await session.execute(stmt)).scalars().all())
 
 
