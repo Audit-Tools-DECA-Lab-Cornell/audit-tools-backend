@@ -10,6 +10,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -87,11 +88,28 @@ async def terminate_stale_connections(engine: AsyncEngine) -> None:
 
 
 async def reset_public_schema(engine: AsyncEngine) -> None:
-	"""Drop and recreate the public schema in the guarded Playspace test database."""
+	"""Drop and recreate the public schema in the guarded Playspace test database.
 
-	async with engine.begin() as conn:
-		await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
-		await conn.execute(text("CREATE SCHEMA public"))
+	A connection that reconnects after the termination sweep can hold ``AccessShareLock`` on a
+	table while the ``CASCADE`` drop needs ``AccessExclusiveLock`` on it - a lock cycle Postgres
+	reports as a deadlock. Bounding the lock wait lets the drop abort and release its own locks;
+	re-terminating the stragglers and retrying then wins the schema reset cleanly.
+	"""
+
+	last_error: DBAPIError | None = None
+	for _ in range(5):
+		try:
+			async with engine.begin() as conn:
+				await conn.execute(text("SET lock_timeout = '10s'"))
+				await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+				await conn.execute(text("CREATE SCHEMA public"))
+			return
+		except DBAPIError as error:
+			last_error = error
+			await terminate_stale_connections(engine)
+			await asyncio.sleep(0.5)
+	if last_error is not None:
+		raise last_error
 
 
 def run_playspace_migrations() -> None:
