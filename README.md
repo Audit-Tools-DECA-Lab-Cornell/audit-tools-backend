@@ -115,14 +115,14 @@ alembic -x product=playspace upgrade playspace@head
 5. Seed demo data when needed:
 
 ```bash
-./.venv/bin/python -m app.seed
+./.venv/bin/python -m app.seed --allow-destructive
 ```
 
 Or seed one product only:
 
 ```bash
-./.venv/bin/python -m app.seed --product yee
-./.venv/bin/python -m app.seed --product playspace
+./.venv/bin/python -m app.seed --allow-destructive --product yee
+./.venv/bin/python -m app.seed --allow-destructive --product playspace
 ```
 
 6. Start the API:

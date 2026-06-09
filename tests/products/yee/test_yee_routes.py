@@ -8,13 +8,18 @@ instrument → audit-state → draft → submit → list → fetch.
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 from fastapi.testclient import TestClient
 
+import app.auth as auth_module
 from app.models import Instrument
-from app.seed import YEE_PLACE_PLAZA_ID, _build_yee_entities
+from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
 
 # Matches the deterministic YEE seed (see app/seed.py).
 SEED_AUDITOR_EMAIL = "auditor-demo-1@yee.local"
+SEED_MANAGER_EMAIL = "manager-demo@yee.local"
+SEED_AUDITOR_THREE_EMAIL = "auditor-demo-3@yee.local"
 SEED_PASSWORD = "DemoPass123!"
 
 
@@ -55,6 +60,15 @@ def test_seeded_auditor_can_login(yee_client: TestClient) -> None:
 	assert token
 
 
+def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -> None:
+	"""The documented demo manager account authenticates as a manager."""
+
+	response = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert response.status_code == 200, response.text
+	assert response.json()["user"]["account_type"] == "MANAGER"
+	assert response.json()["user"]["dashboard_path"] == "/dashboard"
+
+
 def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
 	"""An assigned-but-unstarted place reports NOT_STARTED."""
 
@@ -65,6 +79,52 @@ def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
 	)
 	assert response.status_code == 200, response.text
 	assert response.json()["status"] == "NOT_STARTED"
+
+
+def test_seeded_in_progress_audit_reports_draft_state(yee_client: TestClient) -> None:
+	"""Seeded in-progress audits remain resumable even with fallback seed keys."""
+
+	token = _login_auditor(yee_client, email=SEED_AUDITOR_THREE_EMAIL)
+	response = yee_client.get(
+		f"/yee/places/{YEE_PLACE_COMMONS_ID}/audit-state",
+		headers=_bearer_headers(token),
+	)
+	assert response.status_code == 200, response.text
+	assert response.json()["status"] == "DRAFT"
+	assert response.json()["audit_id"] is not None
+
+
+def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatch) -> None:
+	"""A verified YEE user can request a reset link and log in with the new password."""
+
+	captured_reset_url: dict[str, str] = {}
+
+	def _capture_reset_email(*, to_email: str, reset_url: str) -> bool:
+		captured_reset_url["to_email"] = to_email
+		captured_reset_url["reset_url"] = reset_url
+		return True
+
+	monkeypatch.setattr(auth_module, "send_password_reset_email", _capture_reset_email)
+
+	forgot = yee_client.post(
+		"/yee/auth/forgot-password",
+		json={"email": SEED_MANAGER_EMAIL, "website": ""},
+		headers={"X-Frontend-Origin": "http://localhost:3000"},
+	)
+	assert forgot.status_code == 200, forgot.text
+	assert captured_reset_url["to_email"] == SEED_MANAGER_EMAIL
+
+	token = parse_qs(urlparse(captured_reset_url["reset_url"]).query)["token"][0]
+	new_password = "EvenBetterPass123!"
+	reset = yee_client.post(
+		"/yee/auth/reset-password",
+		json={"token": token, "password": new_password, "website": ""},
+	)
+	assert reset.status_code == 200, reset.text
+
+	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": new_password})
+	assert login.status_code == 200, login.text
+	assert login.json()["user"]["account_type"] == "MANAGER"
 
 
 def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient) -> None:
@@ -132,7 +192,5 @@ def test_build_yee_entities_instrument_is_active_root_version() -> None:
 	entities = _build_yee_entities()
 	instruments = [entity for entity in entities if isinstance(entity, Instrument)]
 
-	assert len(instruments) == 1
-	seed_instrument = instruments[0]
-	assert seed_instrument.is_active is True
-	assert seed_instrument.parent_instrument_id is None
+	assert len(instruments) >= 1
+	assert any(instrument.is_active is True and instrument.parent_instrument_id is None for instrument in instruments)

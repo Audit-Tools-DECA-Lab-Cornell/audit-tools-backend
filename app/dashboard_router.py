@@ -355,6 +355,7 @@ class PlaceDetailResponse(BaseModel):
 class RawDataExportRow(BaseModel):
 	audit_id: str
 	auditor_generated_id: str
+	organization: str
 	place_id: str
 	place_name: str
 	project_id: str
@@ -698,12 +699,13 @@ def _flatten_responses(responses: dict[str, Any]) -> dict[str, str]:
 async def _fetch_reporting_rows(
 	session: AsyncSession,
 	user: User,
-) -> list[tuple[YeeAuditSubmission, Place, Project, str]]:
+) -> list[tuple[YeeAuditSubmission, Place, Project, str, str]]:
 	stmt = (
-		select(YeeAuditSubmission, Place, Project, Auditor.auditor_code)
+		select(YeeAuditSubmission, Place, Project, Auditor.auditor_code, Account.name)
 		.join(Place, YeeAuditSubmission.place_id == Place.id)
 		.join(ProjectPlace, ProjectPlace.place_id == Place.id)
 		.join(Project, ProjectPlace.project_id == Project.id)
+		.join(Account, Project.account_id == Account.id)
 		.join(Auditor, YeeAuditSubmission.auditor_id == Auditor.id)
 		.order_by(Project.name.asc(), Place.name.asc(), YeeAuditSubmission.submitted_at.desc())
 	)
@@ -711,7 +713,10 @@ async def _fetch_reporting_rows(
 	if project_scope is not None:
 		stmt = stmt.where(project_scope)
 	rows = (await session.execute(stmt)).all()
-	return [(submission, place, project, auditor_code) for submission, place, project, auditor_code in rows]
+	return [
+		(submission, place, project, auditor_code, organization_name)
+		for submission, place, project, auditor_code, organization_name in rows
+	]
 
 
 async def _fetch_place_comparison_groups(
@@ -721,7 +726,7 @@ async def _fetch_place_comparison_groups(
 	rows = await _fetch_reporting_rows(session, user)
 	grouped: dict[str, dict[str, Any]] = defaultdict(dict)
 
-	for submission, place, project, auditor_code in rows:
+	for submission, place, project, auditor_code, _organization_name in rows:
 		group = grouped.setdefault(
 			str(place.id),
 			{
@@ -773,7 +778,7 @@ async def _fetch_raw_data_rows(
 ) -> list[RawDataExportRow]:
 	rows = await _fetch_reporting_rows(session, user)
 	export_rows: list[RawDataExportRow] = []
-	for submission, place, project, auditor_code in rows:
+	for submission, place, project, auditor_code, organization_name in rows:
 		participant_info = submission.participant_info_json
 		raw_domain_scores, weighted_domain_scores, total_weighted_score = _build_submission_scores(
 			submission.section_scores_json,
@@ -783,6 +788,7 @@ async def _fetch_raw_data_rows(
 			RawDataExportRow(
 				audit_id=str(submission.id),
 				auditor_generated_id=_display_auditor_code(auditor_code),
+				organization=organization_name,
 				place_id=str(place.id),
 				place_name=place.name,
 				project_id=str(project.id),

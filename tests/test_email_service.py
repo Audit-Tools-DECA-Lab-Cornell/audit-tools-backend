@@ -28,6 +28,10 @@ class _FakeBrevoResponse:
 			{"to_email": "user@example.org", "verify_url": "https://example.org/verify"},
 		),
 		(
+			email_module.send_password_reset_email,
+			{"to_email": "reset@example.org", "reset_url": "https://example.org/reset"},
+		),
+		(
 			email_module.send_auditor_invite_email,
 			{"to_email": "auditor@example.org", "invite_url": "https://example.org/invite/auditor"},
 		),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
+import hashlib
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -23,14 +24,16 @@ from sqlalchemy.orm import selectinload
 from app.auth_security import (
 	generate_access_token,
 	generate_email_verification_token,
+	generate_password_reset_token,
 	get_verification_ttl_hours,
 	hash_password,
 	hash_verification_token,
 	verify_access_token,
+	verify_password_reset_token,
 	verify_password,
 )
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
-from app.email_service import send_verification_email
+from app.email_service import send_password_reset_email, send_verification_email
 from app.models import (
 	Account,
 	AccountType,
@@ -64,6 +67,18 @@ class LoginRequest(BaseModel):
 class ResendVerificationRequest(BaseModel):
 	email: str = Field(..., max_length=320)
 	captcha_token: str | None = Field(default=None, max_length=4096)
+	website: str | None = Field(default=None, max_length=200)
+
+
+class ForgotPasswordRequest(BaseModel):
+	email: str = Field(..., max_length=320)
+	captcha_token: str | None = Field(default=None, max_length=4096)
+	website: str | None = Field(default=None, max_length=200)
+
+
+class ResetPasswordRequest(BaseModel):
+	token: str = Field(..., min_length=1, max_length=4096)
+	password: str = Field(..., min_length=8, max_length=4096)
 	website: str | None = Field(default=None, max_length=200)
 
 
@@ -650,6 +665,33 @@ def _build_verify_url(*, request: FastAPIRequest, token: str) -> str:
 	return f"{base}{product_prefix}/auth/verify-email?{query}"
 
 
+def _build_password_reset_url(*, request: FastAPIRequest, token: str) -> str:
+	template = os.getenv("AUTH_PASSWORD_RESET_URL_TEMPLATE", "").strip()
+	if template:
+		return template.format(token=token)
+
+	frontend_origin = (
+		request.headers.get("x-frontend-origin", "").strip()
+		or request.headers.get("origin", "").strip()
+		or request.headers.get("referer", "").strip()
+	)
+	if frontend_origin:
+		base = frontend_origin.rstrip("/")
+		if "/reset-password" in base:
+			base = base.split("/reset-password", 1)[0]
+		elif "/login" in base:
+			base = base.split("/login", 1)[0]
+		elif "/signup" in base:
+			base = base.split("/signup", 1)[0]
+		query = urlencode({"token": token})
+		return f"{base}/reset-password?{query}"
+
+	product_prefix = "/playspace" if request.url.path.startswith("/playspace/") else "/yee"
+	base = str(request.base_url).rstrip("/")
+	query = urlencode({"token": token})
+	return f"{base}{product_prefix}/auth/reset-password?{query}"
+
+
 def _manager_account_name(name: str | None, email: str) -> str:
 	if name and name.strip():
 		return f"{name.strip()}'s Workspace"
@@ -791,6 +833,7 @@ async def signup(
 	now = datetime.now(timezone.utc)
 	approved = account_type == AccountType.MANAGER
 	clean_name = _clean_name(payload.name)
+	profile_completed = clean_name is not None
 	account_name = _manager_account_name(clean_name, email) if account_type == AccountType.MANAGER else None
 
 	existing_result = await session.execute(select(User).where(User.email == email))
@@ -820,7 +863,8 @@ async def signup(
 			failed_login_attempts=0,
 			approved=approved,
 			approved_at=now if approved else None,
-			profile_completed=False,
+			profile_completed=profile_completed,
+			profile_completed_at=now if profile_completed else None,
 		)
 		session.add(user)
 		try:
@@ -846,8 +890,8 @@ async def signup(
 		user.email_verified_at = None
 		user.approved = approved
 		user.approved_at = now if approved else None
-		user.profile_completed = False
-		user.profile_completed_at = None
+		user.profile_completed = profile_completed
+		user.profile_completed_at = now if profile_completed else None
 
 	if user.account_type == AccountType.MANAGER:
 		await _ensure_manager_profile_for_user(
@@ -945,6 +989,79 @@ async def resend_verification(
 
 	await _send_or_log_verification_email(request=request, user=user, session=session)
 	return MessageResponse(message="If your email exists, a verification link has been sent.")
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+	payload: ForgotPasswordRequest,
+	request: FastAPIRequest,
+	session: AsyncSession = Depends(get_auth_session),
+) -> MessageResponse:
+	"""Send a password-reset email when the account exists."""
+
+	if payload.website and payload.website.strip():
+		return MessageResponse(message="If your email exists, a password reset link has been sent.")
+
+	if _is_playspace_request(request):
+		_raise_playspace_auth_not_supported(feature_name="Password reset")
+
+	_verify_turnstile_if_enabled(
+		captcha_token=payload.captcha_token,
+		remote_ip=request.client.host if request.client else None,
+	)
+
+	email = _normalize_email(payload.email)
+	result = await session.execute(select(User).options(selectinload(User.account)).where(User.email == email))
+	user = result.scalar_one_or_none()
+
+	if user is None or not user.email_verified:
+		return MessageResponse(message="If your email exists, a password reset link has been sent.")
+
+	reset_token, _ = generate_password_reset_token(str(user.id), user.password_hash)
+	reset_url = _build_password_reset_url(request=request, token=reset_token)
+	send_password_reset_email(to_email=user.email, reset_url=reset_url)
+	return MessageResponse(message="If your email exists, a password reset link has been sent.")
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+	payload: ResetPasswordRequest,
+	request: FastAPIRequest,
+	session: AsyncSession = Depends(get_auth_session),
+) -> MessageResponse:
+	"""Reset a user's password from a signed reset token."""
+
+	if payload.website and payload.website.strip():
+		raise HTTPException(status_code=400, detail="Spam check failed.")
+
+	if _is_playspace_request(request):
+		_raise_playspace_auth_not_supported(feature_name="Password reset")
+
+	if len(payload.password) < 8:
+		raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+	token_payload = verify_password_reset_token(payload.token)
+	if token_payload is None:
+		raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
+
+	user_id_raw, expected_fingerprint = token_payload
+	try:
+		user_id = uuid.UUID(user_id_raw)
+	except ValueError as err:
+		raise HTTPException(status_code=400, detail="Invalid password reset token payload.") from err
+
+	user = await session.get(User, user_id)
+	if user is None:
+		raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
+
+	if expected_fingerprint != hashlib.sha256(user.password_hash.encode("utf-8")).hexdigest()[:24]:
+		raise HTTPException(status_code=400, detail="This password reset link is no longer valid.")
+
+	user.password_hash = hash_password(payload.password)
+	user.failed_login_attempts = 0
+	await session.commit()
+
+	return MessageResponse(message="Password reset successful. You can now log in with your new password.")
 
 
 @router.post("/login", response_model=AuthResponse)

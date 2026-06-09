@@ -56,6 +56,25 @@ def generate_email_verification_token() -> str:
 	return secrets.token_urlsafe(32)
 
 
+def generate_password_reset_token(user_id: str, password_hash: str) -> tuple[str, datetime]:
+	"""Generate a signed password-reset token bound to the current password hash."""
+
+	expires_at = datetime.now(timezone.utc) + timedelta(hours=get_password_reset_ttl_hours())
+	payload_json = json.dumps(
+		{
+			"sub": user_id,
+			"exp": int(expires_at.timestamp()),
+			"pwd": _password_reset_fingerprint(password_hash),
+		},
+		separators=(",", ":"),
+		sort_keys=True,
+	).encode("utf-8")
+	payload_b64 = base64.urlsafe_b64encode(payload_json).decode("utf-8").rstrip("=")
+	signature = _sign_token_payload(payload_b64)
+	token = f"reset.{payload_b64}.{signature}"
+	return token, expires_at
+
+
 def hash_verification_token(token: str) -> str:
 	"""Hash a verification token before persisting to DB."""
 
@@ -86,6 +105,17 @@ def get_verification_ttl_hours() -> int:
 		return ttl if ttl > 0 else 24
 	except ValueError:
 		return 24
+
+
+def get_password_reset_ttl_hours() -> int:
+	"""Read password-reset token TTL (hours) from env with safe fallback."""
+
+	raw = os.getenv("AUTH_PASSWORD_RESET_TTL_HOURS", "2").strip()
+	try:
+		ttl = int(raw)
+		return ttl if ttl > 0 else 2
+	except ValueError:
+		return 2
 
 
 def get_access_token_ttl_days() -> int:
@@ -125,6 +155,33 @@ def verify_access_token(token: str) -> str | None:
 	return user_id
 
 
+def verify_password_reset_token(token: str) -> tuple[str, str] | None:
+	"""Return the user id plus password fingerprint when a reset token is valid."""
+
+	parts = token.strip().split(".")
+	if len(parts) != 3 or parts[0] != "reset":
+		return None
+
+	_, payload_b64, provided_signature = parts
+	expected_signature = _sign_token_payload(payload_b64)
+	if not hmac.compare_digest(expected_signature, provided_signature):
+		return None
+
+	try:
+		payload_json = _urlsafe_b64decode(payload_b64)
+		payload = json.loads(payload_json)
+		user_id = str(payload["sub"])
+		password_fingerprint = str(payload["pwd"])
+		expires_at = datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
+	except Exception:
+		return None
+
+	if datetime.now(timezone.utc) > expires_at:
+		return None
+
+	return user_id, password_fingerprint
+
+
 def _get_access_token_secret() -> bytes:
 	secret = os.getenv("AUTH_TOKEN_SECRET_KEY", "").strip()
 	if not secret:
@@ -144,3 +201,9 @@ def _sign_token_payload(payload_b64: str) -> str:
 def _urlsafe_b64decode(value: str) -> bytes:
 	padding = "=" * (-len(value) % 4)
 	return base64.urlsafe_b64decode((value + padding).encode("utf-8"))
+
+
+def _password_reset_fingerprint(password_hash: str) -> str:
+	"""Derive a short stable fingerprint used to invalidate old reset tokens."""
+
+	return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:24]

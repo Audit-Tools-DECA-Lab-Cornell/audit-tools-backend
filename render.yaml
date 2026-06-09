@@ -4,6 +4,6 @@ services:
     env: python
     # NOTE: Keep this minimal; configure secrets (e.g. DATABASE_URL_YEE / DATABASE_URL_PLAYSPACE) in Render's dashboard.
     buildCommand: "python -m pip install -r requirements.txt"
-    preDeployCommand: "alembic -x product=yee upgrade head && alembic -x product=playspace upgrade head"
+    preDeployCommand: "alembic -x product=yee upgrade yee@head && alembic -x product=playspace upgrade playspace@head"
     startCommand: "python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: "/health"

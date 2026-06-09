@@ -674,3 +674,60 @@ def verification_html(verify_url: str) -> str:
 		product=_BRAND_NAME,
 		footer_note=f"If you did not create an {_BRAND_NAME} account, you can safely ignore this email.",
 	)
+
+
+def password_reset_html(reset_url: str) -> str:
+	"""Render the password-reset email."""
+	campaign = "password_reset"
+	reset_cta = EmailCta(
+		"Reset My Password",
+		reset_url,
+		"reset_cta",
+		"Reset your password",
+	)
+
+	body_rows = f"""\
+        <tr>
+          <td class="email-content" style="padding:36px 40px 0 40px;">
+{_paragraph("We received a request to reset your Audit Tools password.", margin="0 0 16px 0")}
+{
+		_paragraph(
+			"Use the secure link below to choose a new password. If you did not request a password reset, you can ignore this email and your current password will keep working.",
+			margin="0 0 0 0",
+		)
+	}
+          </td>
+        </tr>
+{
+		_notice(
+			"&#9888;&#65039; <strong>This link expires in 2 hours.</strong> For security, any older reset link also stops working after your password changes."
+		)
+	}
+{
+		_steps(
+			"Reset Steps",
+			[
+				"Click <strong>Reset My Password</strong> below.",
+				"Choose a new password for your account.",
+				"Return to the login page and sign in with the new password.",
+			],
+		)
+	}
+        <tr>
+          <td class="email-content" style="padding:28px 40px 0 40px;">
+{_section_label("Choose a New Password", margin="0 0 16px 0")}
+{_primary_button(reset_cta, campaign=campaign, full_width=True)}
+{_fallback_link(reset_url, campaign=campaign, content="plain_link")}
+          </td>
+        </tr>"""
+
+	return _render_email(
+		title=f"Reset Your {_BRAND_NAME} Password",
+		preheader=f"Use this secure link to reset your {_BRAND_NAME} password.",
+		eyebrow=_BRAND_NAME,
+		heading="Reset Your Password",
+		body_rows=body_rows,
+		platform=_BRAND_NAME,
+		product=_BRAND_NAME,
+		footer_note=f"If you did not request a password reset for {_BRAND_NAME}, you can safely ignore this email.",
+	)

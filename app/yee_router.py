@@ -26,6 +26,7 @@ from app.models import (
 	User,
 	YeeAuditSubmission,
 )
+from app.yee_instrument_schema import YeeInstrumentResponse
 from app.yee_scoring import get_yee_instrument_data, score_yee_responses
 
 router: APIRouter = APIRouter(prefix="/yee", tags=["yee"])
@@ -256,7 +257,7 @@ async def _get_draft_audit(
 		.where(
 			Audit.auditor_profile_id == auditor.id,
 			Audit.place_id == place_id,
-			Audit.instrument_key == "yee",
+			or_(Audit.instrument_key == "yee", Audit.instrument_key.like("yee%"), Audit.instrument_key.is_(None)),
 			Audit.status.in_([AuditStatus.IN_PROGRESS, AuditStatus.PAUSED]),
 		)
 		.order_by(Audit.updated_at.desc())
@@ -275,7 +276,7 @@ async def _get_latest_yee_audit(
 		.where(
 			Audit.auditor_profile_id == auditor.id,
 			Audit.place_id == place_id,
-			Audit.instrument_key == "yee",
+			or_(Audit.instrument_key == "yee", Audit.instrument_key.like("yee%"), Audit.instrument_key.is_(None)),
 		)
 		.order_by(Audit.updated_at.desc(), Audit.created_at.desc())
 	)
