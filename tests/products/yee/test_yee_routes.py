@@ -94,6 +94,28 @@ def test_seeded_in_progress_audit_reports_draft_state(yee_client: TestClient) ->
 	assert response.json()["audit_id"] is not None
 
 
+def test_seeded_in_progress_audit_can_be_saved_again(yee_client: TestClient) -> None:
+	"""Auditor 3 can update the seeded Commons draft without tripping the save path."""
+
+	token = _login_auditor(yee_client, email=SEED_AUDITOR_THREE_EMAIL)
+	response = yee_client.put(
+		f"/yee/places/{YEE_PLACE_COMMONS_ID}/draft",
+		headers=_bearer_headers(token),
+		json={
+			"participant_info": {"total_minutes": 24},
+			"responses": {
+				"QID22": "3",
+				"QID24": "1",
+			},
+		},
+	)
+	assert response.status_code == 200, response.text
+	assert response.json()["status"] == "DRAFT"
+	assert response.json()["audit_id"] is not None
+	assert response.json()["participant_info"]["total_minutes"] == 24
+	assert response.json()["responses"]["QID22"] == "3"
+
+
 def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatch) -> None:
 	"""A verified YEE user can request a reset link and log in with the new password."""
 

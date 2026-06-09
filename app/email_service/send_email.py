@@ -19,6 +19,7 @@ from app.email_service.templates import (
 	credentials_html,
 	export_ready_html,
 	invite_html,
+	password_reset_html,
 	submit_failure_html,
 	verification_html,
 )
@@ -298,6 +299,25 @@ def send_verification_email(*, to_email: str, verify_url: str) -> bool:
 		fallback_url=verify_url,
 		email_type="email_verification",
 		tags=["auth", "verification"],
+	)
+
+
+def send_password_reset_email(*, to_email: str, reset_url: str) -> bool:
+	"""Send a password reset email."""
+	return _send_email(
+		to_email=to_email,
+		subject="Reset your Audit Tools password",
+		body=(
+			"We received a request to reset your Audit Tools password.\n\n"
+			"Use the link below to choose a new password:\n"
+			f"{reset_url}\n\n"
+			"If you did not request a password reset, you can ignore this email."
+		),
+		html_body=password_reset_html(reset_url),
+		log_label="Password reset link",
+		fallback_url=reset_url,
+		email_type="password_reset",
+		tags=["auth", "password_reset"],
 	)
 
 
