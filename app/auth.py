@@ -90,6 +90,7 @@ class AuthUser(BaseModel):
 	account_id: uuid.UUID | None = None
 	organization: str | None = None
 	account_type: AccountType
+	is_primary_manager: bool = False
 	email_verified: bool
 	approved: bool
 	profile_completed: bool
@@ -209,7 +210,20 @@ def _next_step_for_user(user: User) -> str:
 	return "DASHBOARD"
 
 
-def _serialize_auth_user(user: User) -> AuthUser:
+async def _is_primary_manager(session: AsyncSession, user: User) -> bool:
+	if user.account_type != AccountType.MANAGER or user.account_id is None:
+		return False
+
+	result = await session.execute(
+		select(ManagerProfile.is_primary).where(
+			ManagerProfile.user_id == user.id,
+			ManagerProfile.account_id == user.account_id,
+		)
+	)
+	return bool(result.scalar_one_or_none())
+
+
+async def _serialize_auth_user(session: AsyncSession, user: User) -> AuthUser:
 	return AuthUser(
 		id=user.id,
 		email=user.email,
@@ -217,6 +231,7 @@ def _serialize_auth_user(user: User) -> AuthUser:
 		account_id=user.account_id,
 		organization=(user.account.name if "account" in user.__dict__ and user.account is not None else None),
 		account_type=user.account_type,
+		is_primary_manager=await _is_primary_manager(session, user),
 		email_verified=user.email_verified,
 		approved=user.approved,
 		profile_completed=user.profile_completed,
@@ -225,7 +240,7 @@ def _serialize_auth_user(user: User) -> AuthUser:
 	)
 
 
-def _build_auth_response_for_user(user: User) -> AuthResponse:
+async def _build_auth_response_for_user(session: AsyncSession, user: User) -> AuthResponse:
 	"""Create a signed auth response for one persisted user."""
 
 	access_token, expires_at = generate_access_token(str(user.id))
@@ -233,7 +248,7 @@ def _build_auth_response_for_user(user: User) -> AuthResponse:
 		access_token=access_token,
 		token_type="bearer",
 		expires_at=expires_at,
-		user=_serialize_auth_user(user),
+		user=await _serialize_auth_user(session, user),
 	)
 
 
@@ -489,7 +504,7 @@ async def _playspace_signup(
 
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	created_user = result.scalar_one()
-	return _build_auth_response_for_user(created_user)
+	return await _build_auth_response_for_user(session, created_user)
 
 
 async def _playspace_request_access(
@@ -597,7 +612,7 @@ async def _playspace_login(
 	await session.commit()
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	authenticated_user = result.scalar_one()
-	return _build_auth_response_for_user(authenticated_user)
+	return await _build_auth_response_for_user(session, authenticated_user)
 
 
 def _raise_playspace_auth_not_supported(*, feature_name: str) -> None:
@@ -711,6 +726,15 @@ def _build_invite_url(*, request: FastAPIRequest, token: str) -> str:
 
 	base = str(request.base_url).rstrip("/")
 	return f"{base}/invite/{token}"
+
+
+def _build_manager_invite_url(*, request: FastAPIRequest, token: str) -> str:
+	template = os.getenv("AUTH_MANAGER_INVITE_URL_TEMPLATE", "").strip()
+	if template:
+		return template.format(token=token)
+
+	base = str(request.base_url).rstrip("/")
+	return f"{base}/manager-invite/{token}"
 
 
 async def _get_valid_invite(session: AsyncSession, token: str) -> AuditorInvite:
@@ -1123,7 +1147,7 @@ async def login(
 		access_token=token,
 		token_type="bearer",
 		expires_at=expires_at,
-		user=_serialize_auth_user(user),
+		user=await _serialize_auth_user(session, user),
 	)
 
 
@@ -1145,7 +1169,7 @@ async def get_current_session(
 			prefer_primary=True,
 		)
 		await session.commit()
-		return SessionResponse(user=_serialize_auth_user(user))
+		return SessionResponse(user=await _serialize_auth_user(session, user))
 
 	user = await _get_current_yee_user(credentials=credentials, session=session)
 	await _ensure_manager_profile_for_user(
@@ -1156,7 +1180,7 @@ async def get_current_session(
 		prefer_primary=True,
 	)
 	await session.commit()
-	return SessionResponse(user=_serialize_auth_user(user))
+	return SessionResponse(user=await _serialize_auth_user(session, user))
 
 
 @router.post("/complete-profile", response_model=SessionResponse)
@@ -1180,7 +1204,7 @@ async def complete_profile(
 		await session.commit()
 		result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 		refreshed_user = result.scalar_one()
-		return SessionResponse(user=_serialize_auth_user(refreshed_user))
+		return SessionResponse(user=await _serialize_auth_user(session, refreshed_user))
 
 	user = await _get_current_yee_user(credentials=credentials, session=session)
 	if not user.email_verified:
@@ -1198,7 +1222,7 @@ async def complete_profile(
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	user = result.scalar_one()
 
-	return SessionResponse(user=_serialize_auth_user(user))
+	return SessionResponse(user=await _serialize_auth_user(session, user))
 
 
 @router.get("/invite/{token}", response_model=InvitePreviewResponse)
@@ -1298,7 +1322,7 @@ async def accept_invite(
 		access_token=token_value,
 		token_type="bearer",
 		expires_at=expires_at,
-		user=_serialize_auth_user(user),
+		user=await _serialize_auth_user(session, user),
 	)
 
 
@@ -1405,5 +1429,5 @@ async def accept_manager_invite(
 		access_token=token_value,
 		token_type="bearer",
 		expires_at=expires_at,
-		user=_serialize_auth_user(user),
+		user=await _serialize_auth_user(session, user),
 	)

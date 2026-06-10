@@ -9,16 +9,16 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest
+from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.auth import _build_invite_url, _manager_account_name, get_auth_session, get_current_user
+from app.auth import _build_invite_url, _build_manager_invite_url, get_auth_session, get_current_user
 from app.auth_security import generate_email_verification_token, hash_verification_token
-from app.email_service import send_auditor_invite_email
+from app.email_service import send_auditor_invite_email, send_manager_invite_email
 from app.models import (
 	Account,
 	AccountType,
@@ -27,6 +27,8 @@ from app.models import (
 	AuditStatus,
 	Auditor,
 	AuditorInvite,
+	ManagerInvite,
+	ManagerProfile,
 	Place,
 	Project,
 	ProjectPlace,
@@ -262,6 +264,20 @@ class AuditorInviteResponse(BaseModel):
 	status: str
 	expires_at: datetime
 	invite_url: str
+
+
+class CreateManagerInviteRequest(BaseModel):
+	email: str = Field(..., max_length=320)
+
+
+class ManagerInviteResponse(BaseModel):
+	id: str
+	email: str
+	status: str
+	expires_at: datetime
+	invite_url: str | None = None
+	created_at: datetime | None = None
+	accepted_at: datetime | None = None
 
 
 class CreateAssignmentRequest(BaseModel):
@@ -1471,6 +1487,25 @@ def _normalize_email(email: str) -> str:
 	return email.strip().lower()
 
 
+def _derive_manager_invite_status(invite: ManagerInvite) -> str:
+	if invite.accepted_at is not None:
+		return "ACCEPTED"
+	if datetime.now(timezone.utc) > invite.expires_at:
+		return "EXPIRED"
+	return "PENDING"
+
+
+def _serialize_manager_invite(invite: ManagerInvite) -> ManagerInviteResponse:
+	return ManagerInviteResponse(
+		id=str(invite.id),
+		email=invite.email,
+		status=_derive_manager_invite_status(invite),
+		expires_at=invite.expires_at,
+		created_at=invite.created_at,
+		accepted_at=invite.accepted_at,
+	)
+
+
 async def _generate_unique_auditor_code(session: AsyncSession) -> str:
 	existing_codes = (await session.execute(select(Auditor.auditor_code))).scalars().all()
 	max_suffix = 0
@@ -1487,6 +1522,34 @@ async def _get_current_auditor(session: AsyncSession, user: User) -> Auditor:
 	if auditor is None:
 		raise HTTPException(status_code=404, detail="Auditor profile not found.")
 	return auditor
+
+
+async def _require_primary_manager(session: AsyncSession, user: User) -> uuid.UUID:
+	if user.account_type != AccountType.MANAGER:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Only managers can manage manager invites.",
+		)
+	if user.account_id is None:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Manager account scope is required.",
+		)
+
+	profile_result = await session.execute(
+		select(ManagerProfile).where(
+			ManagerProfile.user_id == user.id,
+			ManagerProfile.account_id == user.account_id,
+		)
+	)
+	profile = profile_result.scalar_one_or_none()
+	if profile is None or not profile.is_primary:
+		raise HTTPException(
+			status_code=status.HTTP_403_FORBIDDEN,
+			detail="Only the primary manager can manage manager invites.",
+		)
+
+	return user.account_id
 
 
 @router.get("/overview", response_model=DashboardOverviewResponse)
@@ -2191,6 +2254,212 @@ async def create_auditor_invite(
 		expires_at=invite.expires_at,
 		invite_url=invite_url,
 	)
+
+
+@router.post("/manager-invites", response_model=ManagerInviteResponse, status_code=201)
+async def create_manager_invite(
+	payload: CreateManagerInviteRequest,
+	request: FastAPIRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerInviteResponse:
+	account_id = await _require_primary_manager(session, user)
+
+	email = _normalize_email(payload.email)
+	if not email:
+		raise HTTPException(status_code=400, detail="Email is required.")
+	if email == _normalize_email(user.email):
+		raise HTTPException(status_code=409, detail="Use your existing credentials for this account.")
+
+	existing_user_result = await session.execute(select(User).where(User.email == email))
+	existing_user = existing_user_result.scalar_one_or_none()
+	if existing_user is not None:
+		if existing_user.account_type != AccountType.MANAGER:
+			raise HTTPException(
+				status_code=409,
+				detail="This email is already used by a non-manager account.",
+			)
+		if existing_user.account_id == account_id:
+			raise HTTPException(
+				status_code=409,
+				detail="This manager already has account access.",
+			)
+		raise HTTPException(
+			status_code=409,
+			detail="This email is already linked to another manager account.",
+		)
+
+	existing_profile_result = await session.execute(
+		select(ManagerProfile).where(ManagerProfile.email == email)
+	)
+	existing_profile = existing_profile_result.scalar_one_or_none()
+	if existing_profile is not None:
+		if existing_profile.account_id != account_id:
+			raise HTTPException(
+				status_code=409,
+				detail="This email is already linked to another manager account.",
+			)
+		if existing_profile.user_id is not None:
+			raise HTTPException(
+				status_code=409,
+				detail="This manager already has account access.",
+			)
+
+	now = datetime.now(timezone.utc)
+	existing_invite_result = await session.execute(
+		select(ManagerInvite)
+		.where(
+			ManagerInvite.account_id == account_id,
+			ManagerInvite.email == email,
+			ManagerInvite.accepted_at.is_(None),
+		)
+		.order_by(ManagerInvite.created_at.desc())
+		.limit(1)
+	)
+	existing_invite = existing_invite_result.scalar_one_or_none()
+	if existing_invite is not None and now <= existing_invite.expires_at:
+		raise HTTPException(
+			status_code=409,
+			detail="An active manager invite already exists for this email.",
+		)
+
+	token = generate_email_verification_token()
+	invite = ManagerInvite(
+		account_id=account_id,
+		invited_by_user_id=user.id,
+		email=email,
+		token_hash=hash_verification_token(token),
+		expires_at=now + timedelta(days=7),
+	)
+	session.add(invite)
+	await session.flush()
+
+	account = await session.get(Account, account_id)
+	invited_by_name = user.name
+	profile_result = await session.execute(
+		select(ManagerProfile).where(
+			ManagerProfile.user_id == user.id,
+			ManagerProfile.account_id == account_id,
+		)
+	)
+	profile = profile_result.scalar_one_or_none()
+	if profile is not None and profile.full_name:
+		invited_by_name = profile.full_name
+
+	invite_url = _build_manager_invite_url(request=request, token=token)
+	send_manager_invite_email(
+		to_email=email,
+		invite_url=invite_url,
+		organization_name=account.name if account is not None else None,
+		invited_by_name=invited_by_name,
+	)
+	await session.commit()
+	await session.refresh(invite)
+
+	return ManagerInviteResponse(
+		id=str(invite.id),
+		email=invite.email,
+		status="PENDING",
+		expires_at=invite.expires_at,
+		invite_url=invite_url,
+		created_at=invite.created_at,
+		accepted_at=invite.accepted_at,
+	)
+
+
+@router.get("/manager-invites", response_model=list[ManagerInviteResponse])
+async def list_manager_invites(
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> list[ManagerInviteResponse]:
+	account_id = await _require_primary_manager(session, user)
+	result = await session.execute(
+		select(ManagerInvite)
+		.where(ManagerInvite.account_id == account_id)
+		.order_by(ManagerInvite.created_at.desc())
+	)
+	return [_serialize_manager_invite(invite) for invite in result.scalars().all()]
+
+
+@router.delete(
+	"/manager-invites/{invite_id}",
+	status_code=204,
+	response_model=None,
+	response_class=Response,
+)
+async def revoke_manager_invite(
+	invite_id: uuid.UUID,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> None:
+	account_id = await _require_primary_manager(session, user)
+	result = await session.execute(
+		select(ManagerInvite).where(
+			ManagerInvite.id == invite_id,
+			ManagerInvite.account_id == account_id,
+		)
+	)
+	invite = result.scalar_one_or_none()
+	if invite is None:
+		raise HTTPException(status_code=404, detail="Invite not found.")
+	if invite.accepted_at is not None:
+		raise HTTPException(
+			status_code=400,
+			detail="Cannot revoke an invite that has already been accepted.",
+		)
+	await session.delete(invite)
+	await session.commit()
+
+
+@router.post("/manager-invites/{invite_id}/resend", response_model=ManagerInviteResponse)
+async def resend_manager_invite(
+	invite_id: uuid.UUID,
+	request: FastAPIRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerInviteResponse:
+	account_id = await _require_primary_manager(session, user)
+	result = await session.execute(
+		select(ManagerInvite).where(
+			ManagerInvite.id == invite_id,
+			ManagerInvite.account_id == account_id,
+		)
+	)
+	invite = result.scalar_one_or_none()
+	if invite is None:
+		raise HTTPException(status_code=404, detail="Invite not found.")
+	if invite.accepted_at is not None:
+		raise HTTPException(
+			status_code=400,
+			detail="Cannot resend an invite that has already been accepted.",
+		)
+
+	token = generate_email_verification_token()
+	invite.token_hash = hash_verification_token(token)
+	invite.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+	await session.flush()
+
+	account = await session.get(Account, account_id)
+	invited_by_name = user.name
+	profile_result = await session.execute(
+		select(ManagerProfile).where(
+			ManagerProfile.user_id == user.id,
+			ManagerProfile.account_id == account_id,
+		)
+	)
+	profile = profile_result.scalar_one_or_none()
+	if profile is not None and profile.full_name:
+		invited_by_name = profile.full_name
+
+	send_manager_invite_email(
+		to_email=invite.email,
+		invite_url=_build_manager_invite_url(request=request, token=token),
+		organization_name=account.name if account is not None else None,
+		invited_by_name=invited_by_name,
+	)
+	await session.commit()
+	await session.refresh(invite)
+	return _serialize_manager_invite(invite)
 
 
 @router.post("/assignments", response_model=AssignmentResponse)

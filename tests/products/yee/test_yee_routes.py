@@ -87,6 +87,7 @@ def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -
 	response = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
 	assert response.status_code == 200, response.text
 	assert response.json()["user"]["account_type"] == "MANAGER"
+	assert response.json()["user"]["is_primary_manager"] is True
 	assert response.json()["user"]["dashboard_path"] == "/dashboard"
 
 
@@ -202,6 +203,143 @@ def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatc
 	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": new_password})
 	assert login.status_code == 200, login.text
 	assert login.json()["user"]["account_type"] == "MANAGER"
+
+
+def test_primary_manager_can_manage_secondary_manager_invites(
+	yee_client: TestClient,
+	monkeypatch,
+) -> None:
+	"""Primary YEE managers can manage manager invites; secondary managers cannot."""
+
+	sent_invites: list[dict[str, str | None]] = []
+
+	def _capture_manager_invite_email(
+		*,
+		to_email: str,
+		invite_url: str,
+		organization_name: str | None = None,
+		invited_by_name: str | None = None,
+	) -> bool:
+		sent_invites.append(
+			{
+				"to_email": to_email,
+				"invite_url": invite_url,
+				"organization_name": organization_name,
+				"invited_by_name": invited_by_name,
+			}
+		)
+		return True
+
+	monkeypatch.setattr(auth_module, "send_manager_invite_email", _capture_manager_invite_email)
+	import app.dashboard_router as dashboard_router_module
+
+	monkeypatch.setattr(
+		dashboard_router_module,
+		"send_manager_invite_email",
+		_capture_manager_invite_email,
+	)
+
+	manager_login = yee_client.post(
+		"/yee/auth/login",
+		json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD},
+	)
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	initial_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
+	assert initial_list.status_code == 200, initial_list.text
+	assert isinstance(initial_list.json(), list)
+
+	invite_email = "secondary-manager-yee@example.org"
+	create_response = yee_client.post(
+		"/yee/dashboard/manager-invites",
+		headers=manager_headers,
+		json={"email": invite_email},
+	)
+	assert create_response.status_code == 201, create_response.text
+	created = create_response.json()
+	assert created["email"] == invite_email
+	assert created["status"] == "PENDING"
+	assert sent_invites[-1]["to_email"] == invite_email
+	assert sent_invites[-1]["organization_name"] == "Youth Enabling Environments Collaborative"
+	invite_token = created["invite_url"].rsplit("/", 1)[-1]
+
+	list_response = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
+	assert list_response.status_code == 200, list_response.text
+	matching_invite = next((item for item in list_response.json() if item["email"] == invite_email), None)
+	assert matching_invite is not None
+	assert matching_invite["status"] == "PENDING"
+	invite_id = matching_invite["id"]
+
+	resend_response = yee_client.post(
+		f"/yee/dashboard/manager-invites/{invite_id}/resend",
+		headers=manager_headers,
+	)
+	assert resend_response.status_code == 200, resend_response.text
+	assert resend_response.json()["id"] == invite_id
+	assert resend_response.json()["status"] == "PENDING"
+
+	accept_response = yee_client.post(
+		f"/yee/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Secondary Manager", "password": SEED_PASSWORD},
+	)
+	assert accept_response.status_code == 200, accept_response.text
+	assert accept_response.json()["user"]["account_type"] == "MANAGER"
+	assert accept_response.json()["user"]["email"] == invite_email
+	assert accept_response.json()["user"]["is_primary_manager"] is False
+
+	accepted_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
+	assert accepted_list.status_code == 200, accepted_list.text
+	accepted_invite = next((item for item in accepted_list.json() if item["id"] == invite_id), None)
+	assert accepted_invite is not None
+	assert accepted_invite["status"] == "ACCEPTED"
+	assert accepted_invite["accepted_at"] is not None
+
+	secondary_login = yee_client.post(
+		"/yee/auth/login",
+		json={"email": invite_email, "password": SEED_PASSWORD},
+	)
+	assert secondary_login.status_code == 200, secondary_login.text
+	assert secondary_login.json()["user"]["is_primary_manager"] is False
+	secondary_headers = _bearer_headers(secondary_login.json()["access_token"])
+	assert yee_client.get("/yee/dashboard/manager-invites", headers=secondary_headers).status_code == 403
+
+	auditor_headers = _bearer_headers(_login_auditor(yee_client))
+	assert yee_client.get("/yee/dashboard/manager-invites", headers=auditor_headers).status_code == 403
+
+	assert (
+		yee_client.post(
+			f"/yee/dashboard/manager-invites/{invite_id}/resend",
+			headers=manager_headers,
+		).status_code
+		== 400
+	)
+	assert (
+		yee_client.delete(
+			f"/yee/dashboard/manager-invites/{invite_id}",
+			headers=manager_headers,
+		).status_code
+		== 400
+	)
+
+	revoke_email = "revokable-secondary-yee@example.org"
+	revoke_create = yee_client.post(
+		"/yee/dashboard/manager-invites",
+		headers=manager_headers,
+		json={"email": revoke_email},
+	)
+	assert revoke_create.status_code == 201, revoke_create.text
+	revoke_id = revoke_create.json()["id"]
+
+	revoke_response = yee_client.delete(
+		f"/yee/dashboard/manager-invites/{revoke_id}",
+		headers=manager_headers,
+	)
+	assert revoke_response.status_code == 204
+
+	post_revoke_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
+	assert post_revoke_list.status_code == 200, post_revoke_list.text
+	assert all(item["id"] != revoke_id for item in post_revoke_list.json())
 
 
 def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient) -> None:
