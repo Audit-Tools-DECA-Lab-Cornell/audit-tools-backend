@@ -1847,16 +1847,21 @@ async def approve_user(
 			session.add(auditor)
 		else:
 			auditor.account_id = target_account.id
-	elif target_user.account_type == AccountType.MANAGER and target_user.account_id is None:
-		target_account = Account(
-			name=_manager_account_name(target_user.name, target_user.email),
-			email=target_user.email,
-			password_hash=target_user.password_hash,
-			account_type=AccountType.MANAGER,
-		)
-		session.add(target_account)
-		await session.flush()
+	elif target_user.account_type == AccountType.MANAGER:
+		account_id = payload.account_id or target_user.account_id
+		if account_id is None:
+			raise HTTPException(status_code=400, detail="An organization is required to approve this manager.")
+		target_account = await session.get(Account, account_id)
+		if target_account is None:
+			raise HTTPException(status_code=404, detail="Account not found.")
 		target_user.account_id = target_account.id
+		await _ensure_manager_profile_for_user(
+			session=session,
+			user=target_user,
+			email=target_user.email,
+			clean_name=_clean_name(target_user.name),
+			prefer_primary=True,
+		)
 
 	target_user.approved = True
 	target_user.approved_at = datetime.now(timezone.utc)
@@ -1981,12 +1986,13 @@ async def update_project(
 		).scalar_one()
 	)
 	audit_total = await _count_rows(session, Audit, Audit.project_id == project.id)
+	account = await session.get(Account, project.account_id)
 
 	return ProjectListItem(
 		id=str(project.id),
 		name=project.name,
 		summary=project.description or "Project summary pending",
-		organization=_manager_account_name(user.name, user.email),
+		organization=account.name if account is not None else None,
 		places=place_total,
 		audits=audit_total,
 		status="Planning" if project.start_date is None else "Active",
@@ -2033,13 +2039,14 @@ async def create_place(
 	await session.flush()
 	session.add(ProjectPlace(project_id=project.id, place_id=place.id))
 	await session.commit()
+	account = await session.get(Account, project.account_id)
 
 	return PlaceListItem(
 		id=str(place.id),
 		name=place.name,
 		project_id=str(project.id),
 		project=project.name,
-		organization=None,
+		organization=account.name if account is not None else None,
 		address=place.address or "",
 		postal_code=place.postal_code,
 		audits=0,
@@ -2118,13 +2125,14 @@ async def update_place(
 			Auditor.id.in_(_manager_invited_auditor_ids_subquery(user))
 		)
 	assigned_auditor_codes = (await session.execute(assigned_auditors_stmt)).scalars().all()
+	account = await session.get(Account, target_project.account_id)
 
 	return PlaceListItem(
 		id=str(place.id),
 		name=place.name,
 		project_id=str(target_project.id),
 		project=target_project.name,
-		organization=_manager_account_name(user.name, user.email),
+		organization=account.name if account is not None else None,
 		address=place.address,
 		postal_code=place.postal_code,
 		assigned_auditors=[_display_auditor_code(code) for code in assigned_auditor_codes],

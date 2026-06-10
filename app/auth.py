@@ -831,10 +831,10 @@ async def signup(
 
 	password_hash = hash_password(payload.password)
 	now = datetime.now(timezone.utc)
-	approved = account_type == AccountType.MANAGER
+	approved = False
 	clean_name = _clean_name(payload.name)
 	profile_completed = clean_name is not None
-	account_name = _manager_account_name(clean_name, email) if account_type == AccountType.MANAGER else None
+	account_name = None
 
 	existing_result = await session.execute(select(User).where(User.email == email))
 	existing_user = existing_result.scalar_one_or_none()
@@ -843,20 +843,10 @@ async def signup(
 		raise HTTPException(status_code=409, detail="An account with this email already exists.")
 
 	if existing_user is None:
-		account = None
-		if account_name is not None:
-			account = Account(
-				name=account_name,
-				email=email,
-				account_type=AccountType.MANAGER,
-			)
-			session.add(account)
-			await session.flush()
-
 		user = User(
 			email=email,
 			password_hash=password_hash,
-			account_id=account.id if account is not None else None,
+			account_id=None,
 			account_type=account_type,
 			name=clean_name,
 			email_verified=False,
@@ -874,15 +864,7 @@ async def signup(
 			raise HTTPException(status_code=409, detail="Unable to create account.") from err
 	else:
 		user = existing_user
-		if account_name is not None and user.account_id is None:
-			account = Account(
-				name=account_name,
-				email=email,
-				account_type=AccountType.MANAGER,
-			)
-			session.add(account)
-			await session.flush()
-			user.account_id = account.id
+		user.account_id = None
 		user.password_hash = password_hash
 		user.account_type = account_type
 		user.name = clean_name
@@ -892,15 +874,6 @@ async def signup(
 		user.approved_at = now if approved else None
 		user.profile_completed = profile_completed
 		user.profile_completed_at = now if profile_completed else None
-
-	if user.account_type == AccountType.MANAGER:
-		await _ensure_manager_profile_for_user(
-			session=session,
-			user=user,
-			email=email,
-			clean_name=clean_name,
-			prefer_primary=True,
-		)
 
 	await _send_or_log_verification_email(request=request, user=user, session=session)
 

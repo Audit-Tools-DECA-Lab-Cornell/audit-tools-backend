@@ -8,12 +8,15 @@ instrument → audit-state → draft → submit → list → fetch.
 
 from __future__ import annotations
 
+import asyncio
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.auth as auth_module
-from app.models import Instrument
+from app.models import Account, Instrument, User
 from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
 
 # Matches the deterministic YEE seed (see app/seed.py).
@@ -35,6 +38,20 @@ def _login_auditor(client: TestClient, email: str = SEED_AUDITOR_EMAIL, password
 	response = client.post("/yee/auth/login", json={"email": email, "password": password})
 	assert response.status_code == 200, response.text
 	return response.json()["access_token"]
+
+
+async def _load_manager_signup_snapshot(
+	session_factory: async_sessionmaker[AsyncSession],
+	email: str,
+) -> tuple[User | None, int]:
+	"""Return the newly signed-up user plus the current YEE account count."""
+
+	async with session_factory() as session:
+		user = (
+			await session.execute(select(User).where(User.email == email))
+		).scalar_one_or_none()
+		account_count = int((await session.execute(select(func.count(Account.id)))).scalar_one() or 0)
+	return user, account_count
 
 
 def test_yee_status_is_isolated(yee_client: TestClient) -> None:
@@ -67,6 +84,36 @@ def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -
 	assert response.status_code == 200, response.text
 	assert response.json()["user"]["account_type"] == "MANAGER"
 	assert response.json()["user"]["dashboard_path"] == "/dashboard"
+
+
+def test_manager_signup_does_not_create_a_new_organization(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""Public YEE manager signup stays unassigned until admin approval."""
+
+	email = "manager.pending@example.org"
+	before_user, before_count = asyncio.run(_load_manager_signup_snapshot(yee_test_session_factory, email))
+	assert before_user is None
+
+	response = yee_client.post(
+		"/yee/auth/signup",
+		json={
+			"email": email,
+			"password": SEED_PASSWORD,
+			"name": "Manager Pending",
+			"account_type": "MANAGER",
+			"website": "",
+		},
+	)
+	assert response.status_code == 201, response.text
+
+	user, after_count = asyncio.run(_load_manager_signup_snapshot(yee_test_session_factory, email))
+	assert user is not None
+	assert user.account_type.value == "MANAGER"
+	assert user.account_id is None
+	assert user.approved is False
+	assert after_count == before_count
 
 
 def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
