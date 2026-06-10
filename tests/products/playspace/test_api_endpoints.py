@@ -219,6 +219,8 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("GET", "/playspace/auth/verify-email"),
 		("POST", "/playspace/auth/resend-verification"),
 		("POST", "/playspace/auth/request-access"),
+		("POST", "/playspace/auth/reset-password"),
+		("POST", "/playspace/auth/forgot-password"),
 		("GET", "/playspace/auth/invite/{token}"),
 		("POST", "/playspace/auth/invite/{token}/accept"),
 		("GET", "/playspace/auth/manager-invites/{token}"),

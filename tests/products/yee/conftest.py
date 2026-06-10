@@ -17,6 +17,7 @@ import pytest
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
 	AsyncEngine,
 	AsyncSession,
@@ -90,11 +91,29 @@ async def _terminate_yee_test_database_connections(engine: AsyncEngine) -> None:
 
 
 async def _reset_yee_test_database(engine: AsyncEngine) -> None:
-	"""Drop and recreate the public schema so the YEE branch can apply cleanly."""
+	"""Drop and recreate the public schema so the YEE branch can apply cleanly.
 
-	async with engine.begin() as conn:
-		await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
-		await conn.execute(text("CREATE SCHEMA public"))
+	The test databases share one hosted compute, so a connection that reconnects after the
+	pre-reset termination sweep can hold ``AccessShareLock`` on a table while the ``CASCADE``
+	drop needs ``AccessExclusiveLock`` on it - a lock cycle Postgres reports as a deadlock.
+	Bounding the lock wait lets the drop abort and release its own locks; re-terminating the
+	stragglers and retrying then wins the schema reset cleanly.
+	"""
+
+	last_error: DBAPIError | None = None
+	for _ in range(5):
+		try:
+			async with engine.begin() as conn:
+				await conn.execute(text("SET lock_timeout = '10s'"))
+				await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+				await conn.execute(text("CREATE SCHEMA public"))
+			return
+		except DBAPIError as error:
+			last_error = error
+			await _terminate_yee_test_database_connections(engine)
+			await asyncio.sleep(0.5)
+	if last_error is not None:
+		raise last_error
 
 
 def _upgrade_yee_test_database(engine: AsyncEngine) -> None:
@@ -145,6 +164,10 @@ def yee_test_session_factory() -> Iterator[async_sessionmaker[AsyncSession]]:
 	_upgrade_yee_test_database(migration_engine)
 	asyncio.run(migration_engine.dispose())
 
+	# ``NullPool`` is required, not just preferred: this engine is seeded under one event loop
+	# (``asyncio.run`` at setup) and then serves requests under the TestClient's separate loop.
+	# Pooling would hand a connection bound to the setup loop to a request on the other loop,
+	# which asyncpg rejects. A fresh connection per checkout keeps every operation loop-local.
 	test_engine: AsyncEngine = create_async_engine(
 		normalized_url,
 		echo=False,

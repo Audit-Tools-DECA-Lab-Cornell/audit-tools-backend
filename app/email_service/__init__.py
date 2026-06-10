@@ -8,6 +8,7 @@ from app.email_service.send_email import (
 	send_manager_invite_email,
 	send_password_reset_email,
 	send_verification_email,
+	send_password_reset_email,
 )
 
 from app.email_service.templates import (

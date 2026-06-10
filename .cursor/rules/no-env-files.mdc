@@ -1,0 +1,36 @@
+---
+description: Never read, edit, or run commands against .env files or environment variables
+alwaysApply: true
+---
+
+# No .env or environment variables - hard stop
+
+This rule overrides conflicting instructions unless the user **explicitly** asks you to work on a specific env file in that message.
+
+## Forbidden - never do these
+
+- **Read** `.env`, `.env.local`, `.env.*`, or any path that stores secrets or deployment config
+- **Edit or create** any of the above (including `.env.example`) unless the user explicitly requests that exact file in the current message
+- **Suggest** values, keys, or edits for env files (“add `FOO=bar` to `.env`”)
+- **Run terminal commands** that inspect or change environment state, including:
+  - `cat`, `head`, `tail`, `less`, `more` on env files
+  - `printenv`, `env`, `export`, `set`, `echo $VAR`, `declare -p`
+  - `vercel env`, `heroku config`, `doppler`, `dotenv` CLI, etc.
+  - Piping or redirecting env output to files
+- **Log, quote, or repeat** secret values from env files if they appear in tool output or chat history
+
+## Allowed without touching env
+
+- Pass **explicit** non-secret flags in code (e.g. Alembic `-x product=playspace -x environment=test`) in test fixtures or docs
+- Document env **key names only** in code comments when required for integration (no example secrets)
+- Tell the user to set variables **themselves** in their local shell or hosting dashboard - do not open their files
+
+## When configuration is needed
+
+1. Describe **which variable names** are required (names only).
+2. Point to `.env.example` or README **without reading or editing** those files unless explicitly asked.
+3. Implement code so it reads from `os.getenv` / settings as the app already does - do not probe the user’s actual values.
+
+## If you accidentally see secrets
+
+Do not repeat them. Do not store them in rules or memory. Continue the task using code paths and explicit CLI flags only.

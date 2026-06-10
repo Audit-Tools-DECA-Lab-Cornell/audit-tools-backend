@@ -14,7 +14,7 @@ import asyncio
 import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
-
+from urllib.parse import urlparse
 from alembic.config import Config
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ from alembic import command
 from app.auth_security import hash_password
 from app.core.demo_data import DEMO_ACCOUNT_ID
 from app.core.source_materials import build_yee_source_metadata
-from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
+from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey, get_database_url
 from app.models import (
 	Account,
 	AccountType,
@@ -261,6 +261,22 @@ def _build_yee_entities() -> list[object]:
 	)
 
 	users = [
+		User(
+			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd7"),
+			email="manager-demo@yee.local",
+			password_hash=_demo_password_hash(),
+			account_id=DEMO_ACCOUNT_ID,
+			account_type=AccountType.MANAGER,
+			name="Demo Manager",
+			email_verified=True,
+			email_verified_at=_utc_datetime("2026-02-20T08:04:00Z"),
+			failed_login_attempts=0,
+			approved=True,
+			approved_at=_utc_datetime("2026-02-20T08:05:00Z"),
+			profile_completed=True,
+			profile_completed_at=_utc_datetime("2026-02-20T08:06:00Z"),
+			created_at=_utc_datetime("2026-02-20T08:03:00Z"),
+		),
 		# Primary manager - Dr. Farah Khan (linked to YEE_MANAGER_PROFILE_PRIMARY_ID)
 		User(
 			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd1"),
@@ -785,7 +801,37 @@ def _parse_args() -> argparse.Namespace:
 		default=False,
 		help="Skip the Alembic upgrade step (use when the schema is already current).",
 	)
+	parser.add_argument(
+		"--allow-destructive",
+		action="store_true",
+		default=False,
+		help="Acknowledge that seeding deletes existing product data before re-inserting demo records.",
+	)
 	return parser.parse_args()
+
+
+def _host_for_database_url(raw_url: str) -> str:
+	"""Extract one database hostname from a SQLAlchemy-style URL."""
+
+	normalized = raw_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+	normalized = normalized.replace("postgres://", "postgresql://", 1)
+	return urlparse(normalized).hostname or ""
+
+
+def _require_destructive_confirmation(products: list[ProductKey], *, allow_destructive: bool) -> None:
+	"""Block destructive seeding unless the caller opted in explicitly."""
+
+	if allow_destructive:
+		return
+
+	targets = ", ".join(
+		f"{product.value} ({_host_for_database_url(get_database_url(product)) or 'unknown-host'})"
+		for product in products
+	)
+	raise SystemExit(
+		"Refusing to seed because this command deletes existing data. "
+		f"Targets: {targets}. Re-run with --allow-destructive if you intend to reset those databases."
+	)
 
 
 async def _run() -> None:
@@ -793,7 +839,7 @@ async def _run() -> None:
 
 	args = _parse_args()
 	products = [ProductKey.YEE, ProductKey.PLAYSPACE] if args.product == "all" else [ProductKey(args.product)]
-
+	_require_destructive_confirmation(products, allow_destructive=args.allow_destructive)
 	for product in products:
 		summary = await _seed_product(product, skip_migrate=args.skip_migrate)
 		print(

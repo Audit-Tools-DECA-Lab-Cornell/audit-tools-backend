@@ -26,7 +26,6 @@ from app.models import (
 	User,
 	YeeAuditSubmission,
 )
-from app.yee_instrument_schema import YeeInstrumentResponse
 from app.yee_scoring import get_yee_instrument_data, score_yee_responses
 from app.yee_instrument_schema import YeeInstrumentResponse
 
