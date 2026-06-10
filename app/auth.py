@@ -53,6 +53,7 @@ class SignupRequest(BaseModel):
 	email: str = Field(..., max_length=320)
 	password: str = Field(..., min_length=8, max_length=4096)
 	name: str | None = Field(default=None, max_length=200)
+	organization: str | None = Field(default=None, max_length=200)
 	account_type: AccountType | None = Field(default=None)
 	captcha_token: str | None = Field(default=None, max_length=4096)
 	website: str | None = Field(default=None, max_length=200)
@@ -411,6 +412,11 @@ async def _playspace_signup(
 		raise HTTPException(
 			status_code=403,
 			detail="Admin accounts cannot be created through public signup.",
+		)
+	if account_type != AccountType.MANAGER:
+		raise HTTPException(
+			status_code=403,
+			detail="Auditor accounts must be invited by a manager.",
 		)
 
 	clean_name = _clean_name(payload.name)
@@ -831,10 +837,13 @@ async def signup(
 
 	password_hash = hash_password(payload.password)
 	now = datetime.now(timezone.utc)
-	approved = False
+	approved = account_type == AccountType.MANAGER
 	clean_name = _clean_name(payload.name)
+	clean_organization = _clean_name(payload.organization)
 	profile_completed = clean_name is not None
-	account_name = None
+	account_name = clean_organization if account_type == AccountType.MANAGER else None
+	if account_type == AccountType.MANAGER and clean_organization is None:
+		raise HTTPException(status_code=400, detail="Organization name is required for manager signup.")
 
 	existing_result = await session.execute(select(User).where(User.email == email))
 	existing_user = existing_result.scalar_one_or_none()
@@ -843,10 +852,20 @@ async def signup(
 		raise HTTPException(status_code=409, detail="An account with this email already exists.")
 
 	if existing_user is None:
+		account = None
+		if account_name is not None:
+			account = Account(
+				name=account_name,
+				email=email,
+				account_type=AccountType.MANAGER,
+			)
+			session.add(account)
+			await session.flush()
+
 		user = User(
 			email=email,
 			password_hash=password_hash,
-			account_id=None,
+			account_id=account.id if account is not None else None,
 			account_type=account_type,
 			name=clean_name,
 			email_verified=False,
@@ -864,7 +883,20 @@ async def signup(
 			raise HTTPException(status_code=409, detail="Unable to create account.") from err
 	else:
 		user = existing_user
-		user.account_id = None
+		if account_name is not None:
+			if user.account_id is None:
+				account = Account(
+					name=account_name,
+					email=email,
+					account_type=AccountType.MANAGER,
+				)
+				session.add(account)
+				await session.flush()
+				user.account_id = account.id
+			else:
+				account = await session.get(Account, user.account_id)
+				if account is not None:
+					account.name = account_name
 		user.password_hash = password_hash
 		user.account_type = account_type
 		user.name = clean_name
@@ -874,6 +906,15 @@ async def signup(
 		user.approved_at = now if approved else None
 		user.profile_completed = profile_completed
 		user.profile_completed_at = now if profile_completed else None
+
+	if user.account_type == AccountType.MANAGER:
+		await _ensure_manager_profile_for_user(
+			session=session,
+			user=user,
+			email=email,
+			clean_name=clean_name,
+			prefer_primary=True,
+		)
 
 	await _send_or_log_verification_email(request=request, user=user, session=session)
 

@@ -1341,9 +1341,13 @@ async def _fetch_auditors(session: AsyncSession, user: User) -> list[AuditorList
 	return [
 		AuditorListItem(
 			id=str(auditor.id),
-			name=user_name or _display_auditor_code(auditor.auditor_code),
+			name=(
+				_display_auditor_code(auditor.auditor_code)
+				if user.account_type == AccountType.ADMIN
+				else user_name or _display_auditor_code(auditor.auditor_code)
+			),
 			auditor_id=_display_auditor_code(auditor.auditor_code),
-			email=user_email or auditor.email or "",
+			email="" if user.account_type == AccountType.ADMIN else user_email or auditor.email or "",
 			assigned_places=assigned_places_by_auditor.get(auditor.id, []),
 			completed_audits=int(audit_total),
 			status="Active" if auditor.user_id else "Invite pending",
@@ -1352,11 +1356,12 @@ async def _fetch_auditors(session: AsyncSession, user: User) -> list[AuditorList
 	]
 
 
-async def _fetch_users(session: AsyncSession) -> list[UserListItem]:
+async def _fetch_users(session: AsyncSession, current_user: User) -> list[UserListItem]:
 	account_alias = aliased(Account)
 	stmt = (
-		select(User, account_alias.name)
+		select(User, account_alias.name, Auditor.auditor_code)
 		.outerjoin(account_alias, account_alias.id == User.account_id)
+		.outerjoin(Auditor, Auditor.user_id == User.id)
 		.order_by(User.email.asc())
 	)
 	rows = (await session.execute(stmt)).all()
@@ -1388,8 +1393,14 @@ async def _fetch_users(session: AsyncSession) -> list[UserListItem]:
 	return [
 		UserListItem(
 			id=str(user.id),
-			name=user.name or user.email,
-			email=user.email,
+			name=(
+				_display_auditor_code(auditor_code)
+				if current_user.account_type == AccountType.ADMIN
+				and user.account_type == AccountType.AUDITOR
+				and auditor_code
+				else user.name or user.email
+			),
+			email="" if current_user.account_type == AccountType.ADMIN and user.account_type == AccountType.AUDITOR else user.email,
 			role=user.account_type.value,
 			account_id=str(user.account_id) if user.account_id is not None else None,
 			organization=account_name or "Unassigned",
@@ -1400,7 +1411,7 @@ async def _fetch_users(session: AsyncSession) -> list[UserListItem]:
 			contact_info="",
 			project_assignments=", ".join(project_names_by_user.get(user.id, [])) or "None",
 		)
-		for user, account_name in rows
+		for user, account_name, auditor_code in rows
 	]
 
 
@@ -1811,7 +1822,7 @@ async def list_users(
 	session: AsyncSession = Depends(get_auth_session),
 ) -> list[UserListItem]:
 	_require_admin(user)
-	return await _fetch_users(session)
+	return await _fetch_users(session, user)
 
 
 @router.post("/users/approve", response_model=UserListItem)

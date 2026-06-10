@@ -43,15 +43,19 @@ def _login_auditor(client: TestClient, email: str = SEED_AUDITOR_EMAIL, password
 async def _load_manager_signup_snapshot(
 	session_factory: async_sessionmaker[AsyncSession],
 	email: str,
-) -> tuple[User | None, int]:
-	"""Return the newly signed-up user plus the current YEE account count."""
+) -> tuple[User | None, int, str | None]:
+	"""Return the signed-up user, current account count, and linked account name."""
 
 	async with session_factory() as session:
 		user = (
 			await session.execute(select(User).where(User.email == email))
 		).scalar_one_or_none()
 		account_count = int((await session.execute(select(func.count(Account.id)))).scalar_one() or 0)
-	return user, account_count
+		account_name = None
+		if user is not None and user.account_id is not None:
+			account = await session.get(Account, user.account_id)
+			account_name = account.name if account is not None else None
+	return user, account_count, account_name
 
 
 def test_yee_status_is_isolated(yee_client: TestClient) -> None:
@@ -86,14 +90,16 @@ def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -
 	assert response.json()["user"]["dashboard_path"] == "/dashboard"
 
 
-def test_manager_signup_does_not_create_a_new_organization(
+def test_manager_signup_creates_primary_manager_organization(
 	yee_client: TestClient,
 	yee_test_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-	"""Public YEE manager signup stays unassigned until admin approval."""
+	"""Public YEE manager signup creates one real organization account immediately."""
 
 	email = "manager.pending@example.org"
-	before_user, before_count = asyncio.run(_load_manager_signup_snapshot(yee_test_session_factory, email))
+	before_user, before_count, _before_account_name = asyncio.run(
+		_load_manager_signup_snapshot(yee_test_session_factory, email)
+	)
 	assert before_user is None
 
 	response = yee_client.post(
@@ -102,18 +108,20 @@ def test_manager_signup_does_not_create_a_new_organization(
 			"email": email,
 			"password": SEED_PASSWORD,
 			"name": "Manager Pending",
+			"organization": "Example YEE Partner Organization",
 			"account_type": "MANAGER",
 			"website": "",
 		},
 	)
 	assert response.status_code == 201, response.text
 
-	user, after_count = asyncio.run(_load_manager_signup_snapshot(yee_test_session_factory, email))
+	user, after_count, account_name = asyncio.run(_load_manager_signup_snapshot(yee_test_session_factory, email))
 	assert user is not None
 	assert user.account_type.value == "MANAGER"
-	assert user.account_id is None
-	assert user.approved is False
-	assert after_count == before_count
+	assert user.account_id is not None
+	assert user.approved is True
+	assert account_name == "Example YEE Partner Organization"
+	assert after_count == before_count + 1
 
 
 def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
