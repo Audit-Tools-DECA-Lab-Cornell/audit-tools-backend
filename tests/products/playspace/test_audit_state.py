@@ -397,7 +397,7 @@ def test_apply_draft_patch_merges_section_answers_into_canonical_aggregate() -> 
 				responses={
 					"question_a": {
 						"provision": "a_lot",
-						"diversity": "some_diversity",
+						"variety": "some_variety",
 					}
 				},
 				note="Updated note",
@@ -413,7 +413,7 @@ def test_apply_draft_patch_merges_section_answers_into_canonical_aggregate() -> 
 			"responses": {
 				"question_a": {
 					"provision": "a_lot",
-					"diversity": "some_diversity",
+					"variety": "some_variety",
 				}
 			},
 		}

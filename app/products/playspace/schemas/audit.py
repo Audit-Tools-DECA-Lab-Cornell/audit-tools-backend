@@ -130,8 +130,8 @@ class AuditScoreTotalsResponse(ApiModel):
 
 	provision_total: float
 	provision_total_max: float
-	diversity_total: float
-	diversity_total_max: float
+	variety_total: float
+	variety_total_max: float
 	challenge_total: float
 	challenge_total_max: float
 	sociability_total: float

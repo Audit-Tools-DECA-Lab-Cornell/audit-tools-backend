@@ -7,9 +7,9 @@
     "source_files": [],
     "preamble": [
       "## Wie das Tool strukturiert ist\nDas Playspace Play Value and Usability Audit Tool ist in 22 Bereiche unterteilt. Jeder Bereich umfasst zwischen 2 und 12 Items. Alle Items repräsentieren spezifische Merkmale oder Eigenschaften der Umgebung.",
-      "Jedes Item wird anhand von bis zu vier Skalen bewertet: Bereitstellung (Provision), Vielfalt (Diversity), Herausforderungsmöglichkeiten (Challenge Opportunities) und Unterstützung der Geselligkeit (Sociability Support). Nicht alle Items enthalten jede Skala.",
+      "Jedes Item wird anhand von bis zu vier Skalen bewertet: Bereitstellung (Provision), Vielfalt (Variety), Herausforderungsmöglichkeiten (Challenge Opportunities) und Unterstützung der Geselligkeit (Sociability Support). Nicht alle Items enthalten jede Skala.",
       "### 1. Bereitstellung (Provision)\nDie Bereitstellung wird immer zuerst beantwortet. Wenn die Antwort auf die Bereitstellung eine Null-Antwort ist, wie z. B. „Nein“ oder „Nicht zutreffend“, bleiben die übrigen Skalen ausgeblendet, da sie nicht anwendbar sind.",
-      "### 2. Vielfalt (Diversity)\nDie Vielfalt bewertet, ob die bereitgestellten Items eine Auswahl an Typen, Formen oder Möglichkeiten bieten. Mit anderen Worten: Ob sie nicht alle identisch sind.\n\n**Leitfrage:** Inwieweit wird die Vielfalt bei diesem Merkmal/dieser Umgebungseigenschaft berücksichtigt?\n\nBeispiel: Bei 5 Schaukeln: Sind es verschiedene Typen (z. B. normale Schaukel, Kleinkindschaukel, Nestschaukel, Seilschaukel) oder sind alle identisch?\n\n**Es liegt in Ihrem Ermessen anzugeben, ob „Keine Vielfalt“, „Etwas Vielfalt“ oder „Viel Vielfalt“ vorliegt. Sie können nur eine Option wählen!**",
+      "### 2. Vielfalt (Variety)\nDie Vielfalt bewertet, ob die bereitgestellten Items eine Auswahl an Typen, Formen oder Möglichkeiten bieten. Mit anderen Worten: Ob sie nicht alle identisch sind.\n\n**Leitfrage:** Inwieweit wird die Vielfalt bei diesem Merkmal/dieser Umgebungseigenschaft berücksichtigt?\n\nBeispiel: Bei 5 Schaukeln: Sind es verschiedene Typen (z. B. normale Schaukel, Kleinkindschaukel, Nestschaukel, Seilschaukel) oder sind alle identisch?\n\n**Es liegt in Ihrem Ermessen anzugeben, ob „Keine Vielfalt“, „Etwas Vielfalt“ oder „Viel Vielfalt“ vorliegt. Sie können nur eine Option wählen!**",
       "### 3. Herausforderungsmöglichkeiten (Challenge opportunities)\nHerausforderungsmöglichkeiten bewerten, ob das Merkmal Gelegenheiten mit unterschiedlichen Schwierigkeitsgraden bietet.\n\n**Leitfrage:** Inwieweit bietet dieses Merkmal/diese Umgebungseigenschaft verschiedene Schwierigkeitsgrade?\n\nBeispiel: Die vorhandenen Schaukeln sollten daraufhin untersucht und beurteilt werden, ob sie zunehmend herausfordernde Möglichkeiten bieten.\n\n**Es liegt in Ihrem Ermessen anzugeben, ob die bereitgestellten Schaukeln unterschiedliche Schwierigkeitsgrade bieten. Sie können nur eine Option wählen!**",
       "### 4. Unterstützung der Geselligkeit (Sociability support)\nDie Unterstützung der Geselligkeit bewertet, ob mehr als ein Kind/eine Person dieses Merkmal/diese Umgebungseigenschaft zusammen nutzen kann. Es wird betrachtet, ob das Merkmal von mehr als einer Person gleichzeitig genutzt werden kann – einzeln, in kleinen Gruppen oder in größeren Gruppen.\n\n**Leitfrage:** Kann mehr als ein Kind (oder eine Person) dieses Merkmal zusammen nutzen?\n\nBeispiel: Können einige Schaukeln allein genutzt werden? Können einige zu zweit genutzt werden? Können einige von Kindergruppen genutzt werden?\n\n**Es liegt in Ihrem Ermessen anzugeben, ob sie allein, zu zweit oder in Gruppen genutzt werden können.**",
       "## Offene Reflexion\nDie offene Frage gibt Ihnen die Möglichkeit, einige Reflexionen niederzuschreiben. Eine Leitfrage bittet Sie, ein oder zwei Aspekte zu beschreiben, deren Änderung Sie für den Spielraum empfehlen, um dessen Spielwert und Nutzbarkeit zu erhöhen.",
@@ -427,7 +427,7 @@
         ]
       },
       {
-        "key": "diversity",
+        "key": "variety",
         "title": "Vielfalt",
         "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
         "description": "Vielfalt bewertet, ob die bereitgestellten Items Abwechslung bieten, anstatt alle gleich zu sein.",
@@ -441,7 +441,7 @@
             "is_not_applicable": true
           },
           {
-            "key": "no_diversity",
+            "key": "no_variety",
             "label": "Keine Vielfalt",
             "addition_value": 1,
             "boost_value": 1,
@@ -449,7 +449,7 @@
             "is_not_applicable": false
           },
           {
-            "key": "some_diversity",
+            "key": "some_variety",
             "label": "Etwas Vielfalt",
             "addition_value": 2,
             "boost_value": 2,
@@ -457,7 +457,7 @@
             "is_not_applicable": false
           },
           {
-            "key": "a_lot_of_diversity",
+            "key": "a_lot_of_variety",
             "label": "Viel Vielfalt",
             "addition_value": 3,
             "boost_value": 3,
@@ -860,7 +860,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -873,7 +873,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -881,7 +881,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -889,7 +889,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -1398,7 +1398,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -1411,7 +1411,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -1419,7 +1419,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -1427,7 +1427,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -1481,7 +1481,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -1494,7 +1494,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -1502,7 +1502,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -1510,7 +1510,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -1556,7 +1556,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -1569,7 +1569,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -1577,7 +1577,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -1585,7 +1585,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -1631,7 +1631,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -1644,7 +1644,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -1652,7 +1652,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -1660,7 +1660,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -1706,7 +1706,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -1719,7 +1719,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -1727,7 +1727,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -1735,7 +1735,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -1781,7 +1781,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -1794,7 +1794,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -1802,7 +1802,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -1810,7 +1810,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -2113,7 +2113,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -2126,7 +2126,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -2134,7 +2134,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -2142,7 +2142,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -2702,7 +2702,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -2715,7 +2715,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -2723,7 +2723,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -2731,7 +2731,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -2821,7 +2821,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -2834,7 +2834,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -2842,7 +2842,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -2850,7 +2850,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3119,7 +3119,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3132,7 +3132,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3140,7 +3140,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3148,7 +3148,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3241,7 +3241,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3254,7 +3254,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3262,7 +3262,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3270,7 +3270,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3363,7 +3363,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3376,7 +3376,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3384,7 +3384,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3392,7 +3392,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3494,7 +3494,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3507,7 +3507,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3515,7 +3515,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3523,7 +3523,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3616,7 +3616,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3629,7 +3629,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3637,7 +3637,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3645,7 +3645,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3699,7 +3699,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3712,7 +3712,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3720,7 +3720,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3728,7 +3728,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3830,7 +3830,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -3843,7 +3843,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -3851,7 +3851,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -3859,7 +3859,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -3991,7 +3991,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4004,7 +4004,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4012,7 +4012,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4020,7 +4020,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -4152,7 +4152,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4165,7 +4165,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4173,7 +4173,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4181,7 +4181,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -4313,7 +4313,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4326,7 +4326,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4334,7 +4334,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4342,7 +4342,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -4474,7 +4474,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4487,7 +4487,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4495,7 +4495,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4503,7 +4503,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -4635,7 +4635,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4648,7 +4648,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4656,7 +4656,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4664,7 +4664,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -4796,7 +4796,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4809,7 +4809,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4817,7 +4817,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4825,7 +4825,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -4957,7 +4957,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -4970,7 +4970,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -4978,7 +4978,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -4986,7 +4986,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -5118,7 +5118,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -5131,7 +5131,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -5139,7 +5139,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -5147,7 +5147,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -5279,7 +5279,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -5292,7 +5292,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -5300,7 +5300,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -5308,7 +5308,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -5440,7 +5440,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -5453,7 +5453,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -5461,7 +5461,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -5469,7 +5469,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -5610,7 +5610,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -5623,7 +5623,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -5631,7 +5631,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -5639,7 +5639,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -5732,7 +5732,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -5745,7 +5745,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -5753,7 +5753,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -5761,7 +5761,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -5854,7 +5854,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -5867,7 +5867,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -5875,7 +5875,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -5883,7 +5883,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -6015,7 +6015,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -6028,7 +6028,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -6036,7 +6036,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -6044,7 +6044,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -6185,7 +6185,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -6198,7 +6198,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -6206,7 +6206,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -6214,7 +6214,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -6356,7 +6356,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -6369,7 +6369,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -6377,7 +6377,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -6385,7 +6385,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -6507,7 +6507,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -6520,7 +6520,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -6528,7 +6528,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -6536,7 +6536,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -6677,7 +6677,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -6690,7 +6690,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -6698,7 +6698,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -6706,7 +6706,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -6892,7 +6892,7 @@
                 ]
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt",
                 "prompt": "Inwieweit gibt es Vielfalt bei der Bereitstellung dieses Merkmals/dieser Umgebungseigenschaft?",
                 "options": [
@@ -6905,7 +6905,7 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
+                    "key": "no_variety",
                     "label": "Keine Vielfalt",
                     "addition_value": 1,
                     "boost_value": 1,
@@ -6913,7 +6913,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
+                    "key": "some_variety",
                     "label": "Etwas Vielfalt",
                     "addition_value": 2,
                     "boost_value": 2,
@@ -6921,7 +6921,7 @@
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
+                    "key": "a_lot_of_variety",
                     "label": "Viel Vielfalt",
                     "addition_value": 3,
                     "boost_value": 3,
@@ -7006,7 +7006,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7027,7 +7027,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7121,7 +7121,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7190,7 +7190,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7267,7 +7267,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7336,7 +7336,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7564,7 +7564,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7589,7 +7589,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7610,7 +7610,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7635,7 +7635,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7660,7 +7660,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7685,7 +7685,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7719,7 +7719,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7748,7 +7748,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7777,7 +7777,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7802,7 +7802,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7827,7 +7827,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7856,7 +7856,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7885,7 +7885,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7906,7 +7906,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -7944,7 +7944,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7965,7 +7965,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -7986,7 +7986,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -8007,7 +8007,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8032,7 +8032,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -8053,7 +8053,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8078,7 +8078,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               }
             ],
@@ -8302,7 +8302,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8331,7 +8331,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8360,7 +8360,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8389,7 +8389,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8418,7 +8418,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8447,7 +8447,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8476,7 +8476,7 @@
                 "title": "Bereitstellung"
               },
               {
-                "key": "diversity",
+                "key": "variety",
                 "title": "Vielfalt"
               },
               {
@@ -8503,9 +8503,9 @@
     "source_files": [],
     "preamble": [
       "## How the tool is structured\nThe Playspace Play Value and Usability Audit tool is structured in 22 domains. Each domain has between 2 and 12 items. All items represent specific features or characteristics of the environment.",
-      "Each item is assessed through up to four scales: Provision, Diversity, Challenge Opportunities, and Sociability Support. Not all items include every scale.",
+      "Each item is assessed through up to four scales: Provision, Variety, Challenge Opportunities, and Sociability Support. Not all items include every scale.",
       "### 1. Provision\nProvision is always answered first. When the provision answer is a zero-like response such as No or Not applicable, the remaining scales stay hidden because they do not apply.",
-      "### 2. Diversity\nDiversity evaluates whether the provided items offer a variety of types, forms, or opportunities. In other words, whether they are not all the same.\n\n**Guiding question:** To what extent is diversity in this feature/environmental characteristic considered?\n\nExample: For 5 swings: Are they all different types (e.g. large swing, baby swing, basket swing, rope swing), or are they all identical?\n\n**It is your judgment to indicate if there is No diversity, Some diversity or A lot of diversity considered. You can only choose one!**",
+      "### 2. Variety\nVariety evaluates whether the provided items offer a variety of types, forms, or opportunities. In other words, whether they are not all the same.\n\n**Guiding question:** To what extent is variety in this feature/environmental characteristic considered?\n\nExample: For 5 swings: Are they all different types (e.g. large swing, baby swing, basket swing, rope swing), or are they all identical?\n\n**It is your judgment to indicate if there is No variety, Some variety or A lot of variety considered. You can only choose one!**",
       "### 3. Challenge opportunities\nChallenge opportunities assess whether the feature provides opportunities with different levels of difficulty.\n\n**Guiding question:** To what extent does this feature/environmental characteristic offer different levels of challenge?\n\nExample: The swings provided should be examined and judged if they provide increasing challenging opportunities.\n\n**It is your judgment to indicate if the provided swings offer different levels of difficulty. You can only choose one!**",
       "### 4. Sociability support\nSociability support assesses whether more than one child/person can use this feature/environmental characteristic together. It considers whether the feature can be used by more than one person at once, individually, in small groups, or in larger groups.\n\n**Guiding question:** Can more than one child (or person) use this feature together?\n\nExample: Can some of the swings be used alone? Can some be used in pairs? Can some be used in groups of children?\n\n**It is your judgment to indicate if they can be used alone, in pairs or in groups.**",
       "## Open reflection\nThe open question gives you the possibility to write down some reflections. A guiding question will ask you to describe one or two aspects you recommend changing in the playspace to increase its play value and usability.",
@@ -8923,10 +8923,10 @@
         ]
       },
       {
-        "key": "diversity",
-        "title": "Diversity",
-        "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
-        "description": "Diversity evaluates whether the provided items offer variety rather than all being the same.",
+        "key": "variety",
+        "title": "Variety",
+        "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+        "description": "Variety evaluates whether the provided items offer variety rather than all being the same.",
         "options": [
           {
             "key": "not_applicable",
@@ -8937,24 +8937,24 @@
             "is_not_applicable": true
           },
           {
-            "key": "no_diversity",
-            "label": "No Diversity",
+            "key": "no_variety",
+            "label": "No Variety",
             "addition_value": 1,
             "boost_value": 1,
             "allows_follow_up_scales": false,
             "is_not_applicable": false
           },
           {
-            "key": "some_diversity",
-            "label": "Some Diversity",
+            "key": "some_variety",
+            "label": "Some Variety",
             "addition_value": 2,
             "boost_value": 2,
             "allows_follow_up_scales": false,
             "is_not_applicable": false
           },
           {
-            "key": "a_lot_of_diversity",
-            "label": "A lot of Diversity",
+            "key": "a_lot_of_variety",
+            "label": "A lot of Variety",
             "addition_value": 3,
             "boost_value": 3,
             "allows_follow_up_scales": false,
@@ -9356,9 +9356,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -9369,24 +9369,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -9894,9 +9894,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -9907,24 +9907,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -9977,9 +9977,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -9990,24 +9990,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -10052,9 +10052,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -10065,24 +10065,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -10127,9 +10127,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -10140,24 +10140,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -10202,9 +10202,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -10215,24 +10215,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -10277,9 +10277,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -10290,24 +10290,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -10609,9 +10609,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -10622,24 +10622,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -11198,9 +11198,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -11211,24 +11211,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -11317,9 +11317,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -11330,24 +11330,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -11395,7 +11395,7 @@
       {
         "section_key": "section_9_open_space",
         "title": "Open Space",
-        "description": "An open space is defined as an integrated area within or surrounding the playsapace with no play features, other built structures and no planting. Open spaces are multipurpose areas and are used flexibly, affording a diversity of opportunities such as running, walking, loose parts play (balls, hula hoops or natural elements and others), sitting or relaxing, picnics, playing in groups, …",
+        "description": "An open space is defined as an integrated area within or surrounding the playsapace with no play features, other built structures and no planting. Open spaces are multipurpose areas and are used flexibly, affording a variety of opportunities such as running, walking, loose parts play (balls, hula hoops or natural elements and others), sitting or relaxing, picnics, playing in groups, …",
         "instruction": "Read each statement and answer the questions. This playspace...",
         "notes_prompt": "Any comments? Describe one or more recommendations to improve the open spaces of this playspace:",
         "questions": [
@@ -11615,9 +11615,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -11628,24 +11628,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -11737,9 +11737,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -11750,24 +11750,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -11859,9 +11859,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -11872,24 +11872,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -11990,9 +11990,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12003,24 +12003,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12112,9 +12112,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12125,24 +12125,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12195,9 +12195,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12208,24 +12208,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12326,9 +12326,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12339,24 +12339,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12487,9 +12487,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12500,24 +12500,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12648,9 +12648,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12661,24 +12661,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12809,9 +12809,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12822,24 +12822,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -12970,9 +12970,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -12983,24 +12983,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -13131,9 +13131,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -13144,24 +13144,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -13292,9 +13292,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -13305,24 +13305,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -13453,9 +13453,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -13466,24 +13466,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -13614,9 +13614,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -13627,24 +13627,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -13775,9 +13775,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -13788,24 +13788,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -13936,9 +13936,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -13949,24 +13949,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -14106,9 +14106,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -14119,24 +14119,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -14228,9 +14228,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -14241,24 +14241,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -14350,9 +14350,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -14363,24 +14363,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -14511,9 +14511,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -14524,24 +14524,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -14681,9 +14681,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -14694,24 +14694,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -14852,9 +14852,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -14865,24 +14865,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15003,9 +15003,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15016,24 +15016,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15173,9 +15173,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15186,24 +15186,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15388,9 +15388,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15401,24 +15401,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15529,9 +15529,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15542,24 +15542,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15612,9 +15612,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15625,24 +15625,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15768,9 +15768,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15781,24 +15781,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -15899,9 +15899,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -15912,24 +15912,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -16029,7 +16029,7 @@
         "section_key": "section_16_seating",
         "title": "Seating",
         "description": "Seating is a supporting feature of playgrounds. More formal seating might be used more by adults who want to supervise children. More informal seating might be used by children for resting, sitting, observing others, linger or socialize with peers but also afford evolving of creative and imaginative play (examples of informal seating: platforms, tree logs, stumps, steps, low raised boundaries, rocks, picknick tables, seating in smaller spaces and in nature …)",
-        "instruction": "Answers about provision and diversity of seating should be considered against what is appropriate or expected for the size and/or type of playspace. Read each statement and answer the questions. This playspace...",
+        "instruction": "Answers about provision and variety of seating should be considered against what is appropriate or expected for the size and/or type of playspace. Read each statement and answer the questions. This playspace...",
         "notes_prompt": "Any comments? Describe one or more recommendations to improve seating of this playspace:",
         "questions": [
           {
@@ -16073,9 +16073,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -16086,24 +16086,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -16204,9 +16204,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -16217,24 +16217,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -16734,9 +16734,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -16747,24 +16747,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -16856,9 +16856,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -16869,24 +16869,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -16939,9 +16939,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -16952,24 +16952,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17061,9 +17061,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17074,24 +17074,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17183,9 +17183,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17196,24 +17196,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17305,9 +17305,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17318,24 +17318,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17436,9 +17436,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17449,24 +17449,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17597,9 +17597,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17610,24 +17610,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17758,9 +17758,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17771,24 +17771,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -17880,9 +17880,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -17893,24 +17893,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18002,9 +18002,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18015,24 +18015,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18163,9 +18163,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18176,24 +18176,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18324,9 +18324,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18337,24 +18337,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18407,9 +18407,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18420,24 +18420,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18577,9 +18577,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18590,24 +18590,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18660,9 +18660,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18673,24 +18673,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18743,9 +18743,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18756,24 +18756,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18826,9 +18826,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18839,24 +18839,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -18948,9 +18948,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -18961,24 +18961,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -19031,9 +19031,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -19044,24 +19044,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -19153,9 +19153,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -19166,24 +19166,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -19709,9 +19709,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -19722,24 +19722,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -19870,9 +19870,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -19883,24 +19883,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -20031,9 +20031,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -20044,24 +20044,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -20192,9 +20192,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -20205,24 +20205,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -20353,9 +20353,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -20366,24 +20366,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -20514,9 +20514,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -20527,24 +20527,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,
@@ -20675,9 +20675,9 @@
                 ]
               },
               {
-                "key": "diversity",
-                "title": "Diversity",
-                "prompt": "To what extent is there diversity in the provision of this feature/environmental characteristic?",
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
                     "key": "not_applicable",
@@ -20688,24 +20688,24 @@
                     "is_not_applicable": true
                   },
                   {
-                    "key": "no_diversity",
-                    "label": "No Diversity",
+                    "key": "no_variety",
+                    "label": "No Variety",
                     "addition_value": 1,
                     "boost_value": 1,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "some_diversity",
-                    "label": "Some Diversity",
+                    "key": "some_variety",
+                    "label": "Some Variety",
                     "addition_value": 2,
                     "boost_value": 2,
                     "allows_follow_up_scales": false,
                     "is_not_applicable": false
                   },
                   {
-                    "key": "a_lot_of_diversity",
-                    "label": "A lot of Diversity",
+                    "key": "a_lot_of_variety",
+                    "label": "A lot of Variety",
                     "addition_value": 3,
                     "boost_value": 3,
                     "allows_follow_up_scales": false,

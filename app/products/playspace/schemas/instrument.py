@@ -30,7 +30,7 @@ class ScaleKey(str, Enum):
 	"""Supported scoring columns in the PVUA workbook."""
 
 	PROVISION = "provision"
-	DIVERSITY = "diversity"
+	VARIETY = "variety"
 	SOCIABILITY = "sociability"
 	CHALLENGE = "challenge"
 

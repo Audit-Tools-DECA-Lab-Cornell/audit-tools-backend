@@ -2,7 +2,7 @@
 Playspace audit runtime helpers for execution-mode filtering, progress, and scoring.
 
 The scoring model uses raw totals rather than normalized percentages:
-provision is summed directly, diversity and challenge contribute both domain
+provision is summed directly, variety and challenge contribute both domain
 column totals and construct multipliers, and sociability is tracked as a
 separate score stream alongside play value and usability.
 """
@@ -47,8 +47,8 @@ class ScoreTotals:
 
 	provision_total: float = 0.0
 	provision_total_max: float = 0.0
-	diversity_total: float = 0.0
-	diversity_total_max: float = 0.0
+	variety_total: float = 0.0
+	variety_total_max: float = 0.0
 	challenge_total: float = 0.0
 	challenge_total_max: float = 0.0
 	sociability_total: float = 0.0
@@ -642,10 +642,10 @@ def _score_question(
 
 	provision_total = float(provision_option.addition_value)
 	provision_total_max = _read_provision_scale_maximum(question=question)
-	diversity_total = 0.0
-	diversity_total_max, diversity_multiplier_max = _read_multiplier_scale_maximum(
+	variety_total = 0.0
+	variety_total_max, variety_multiplier_max = _read_multiplier_scale_maximum(
 		question=question,
-		scale_key="diversity",
+		scale_key="variety",
 	)
 	challenge_total = 0.0
 	challenge_total_max, challenge_multiplier_max = _read_multiplier_scale_maximum(
@@ -654,14 +654,14 @@ def _score_question(
 	)
 	sociability_total = 0.0
 	sociability_total_max = _read_sociability_scale_maximum(question=question)
-	diversity_multiplier = 1.0
+	variety_multiplier = 1.0
 	challenge_multiplier = 1.0
 
 	if provision_option.allows_follow_up_scales:
-		diversity_total, diversity_multiplier = _read_multiplier_scale_score(
+		variety_total, variety_multiplier = _read_multiplier_scale_score(
 			question=question,
 			question_answers=question_answers,
-			scale_key="diversity",
+			scale_key="variety",
 		)
 		challenge_total, challenge_multiplier = _read_multiplier_scale_score(
 			question=question,
@@ -673,8 +673,8 @@ def _score_question(
 			question_answers=question_answers,
 		)
 
-	construct_score = provision_total * diversity_multiplier * challenge_multiplier
-	construct_score_max = provision_total_max * diversity_multiplier_max * challenge_multiplier_max
+	construct_score = provision_total * variety_multiplier * challenge_multiplier
+	construct_score_max = provision_total_max * variety_multiplier_max * challenge_multiplier_max
 	play_value_total = construct_score if "play_value" in question.constructs else 0.0
 	play_value_total_max = construct_score_max if "play_value" in question.constructs else 0.0
 	usability_total = construct_score if "usability" in question.constructs else 0.0
@@ -683,8 +683,8 @@ def _score_question(
 	return ScoreTotals(
 		provision_total=round(provision_total, 2),
 		provision_total_max=round(provision_total_max, 2),
-		diversity_total=round(diversity_total, 2),
-		diversity_total_max=round(diversity_total_max, 2),
+		variety_total=round(variety_total, 2),
+		variety_total_max=round(variety_total_max, 2),
 		challenge_total=round(challenge_total, 2),
 		challenge_total_max=round(challenge_total_max, 2),
 		sociability_total=round(sociability_total, 2),
@@ -717,7 +717,7 @@ def _read_multiplier_scale_score(
 	question_answers: JsonDict,
 	scale_key: str,
 ) -> tuple[float, float]:
-	"""Read one diversity/challenge answer as both a domain total and multiplier."""
+	"""Read one variety/challenge answer as both a domain total and multiplier."""
 
 	scale = next(
 		(current_scale for current_scale in question.scales if current_scale.key == scale_key),
@@ -808,8 +808,8 @@ def _add_score_totals(left: ScoreTotals, right: ScoreTotals) -> ScoreTotals:
 	return ScoreTotals(
 		provision_total=left.provision_total + right.provision_total,
 		provision_total_max=left.provision_total_max + right.provision_total_max,
-		diversity_total=left.diversity_total + right.diversity_total,
-		diversity_total_max=left.diversity_total_max + right.diversity_total_max,
+		variety_total=left.variety_total + right.variety_total,
+		variety_total_max=left.variety_total_max + right.variety_total_max,
 		challenge_total=left.challenge_total + right.challenge_total,
 		challenge_total_max=left.challenge_total_max + right.challenge_total_max,
 		sociability_total=left.sociability_total + right.sociability_total,
@@ -830,7 +830,7 @@ def _serialize_score_totals(
 
 	payload: JsonDict = {
 		"provision_total": round(score_totals.provision_total, 2),
-		"diversity_total": round(score_totals.diversity_total, 2),
+		"variety_total": round(score_totals.variety_total, 2),
 		"challenge_total": round(score_totals.challenge_total, 2),
 		"sociability_total": round(score_totals.sociability_total, 2),
 		"play_value_total": round(score_totals.play_value_total, 2),
@@ -842,7 +842,7 @@ def _serialize_score_totals(
 	return {
 		**payload,
 		"provision_total_max": round(score_totals.provision_total_max, 2),
-		"diversity_total_max": round(score_totals.diversity_total_max, 2),
+		"variety_total_max": round(score_totals.variety_total_max, 2),
 		"challenge_total_max": round(score_totals.challenge_total_max, 2),
 		"sociability_total_max": round(score_totals.sociability_total_max, 2),
 		"play_value_total_max": round(score_totals.play_value_total_max, 2),

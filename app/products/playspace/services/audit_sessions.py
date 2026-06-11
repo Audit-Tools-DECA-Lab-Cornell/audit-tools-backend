@@ -1553,8 +1553,11 @@ class PlayspaceAuditSessionsMixin:
 		score_payload = self._read_json_dict(raw_score_payload)
 		provision_total = score_payload.get("provision_total")
 		provision_total_max = score_payload.get("provision_total_max")
-		diversity_total = score_payload.get("diversity_total")
-		diversity_total_max = score_payload.get("diversity_total_max")
+		# Score payloads cached before the Diversity→Variety rename keep the old
+		# "diversity_total" keys; read them as a fallback until the data migration
+		# and all writers have populated the canonical "variety_total" keys.
+		variety_total = score_payload.get("variety_total", score_payload.get("diversity_total"))
+		variety_total_max = score_payload.get("variety_total_max", score_payload.get("diversity_total_max"))
 		challenge_total = score_payload.get("challenge_total")
 		challenge_total_max = score_payload.get("challenge_total_max")
 		sociability_total = score_payload.get("sociability_total")
@@ -1566,8 +1569,8 @@ class PlayspaceAuditSessionsMixin:
 		numeric_values = [
 			provision_total,
 			provision_total_max,
-			diversity_total,
-			diversity_total_max,
+			variety_total,
+			variety_total_max,
 			challenge_total,
 			challenge_total_max,
 			sociability_total,
@@ -1587,8 +1590,8 @@ class PlayspaceAuditSessionsMixin:
 		return AuditScoreTotalsResponse(
 			provision_total=float_values[0],
 			provision_total_max=float_values[1],
-			diversity_total=float_values[2],
-			diversity_total_max=float_values[3],
+			variety_total=float_values[2],
+			variety_total_max=float_values[3],
 			challenge_total=float_values[4],
 			challenge_total_max=float_values[5],
 			sociability_total=float_values[6],

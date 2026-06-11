@@ -53,6 +53,18 @@ CURRENT_AUDIT_SCHEMA_VERSION = 1
 # multiple rows in playspace_pre_audit_answers).
 _MULTI_SELECT_PRE_AUDIT_FIELDS: frozenset[str] = frozenset({"weather_conditions"})
 
+# The second PVUA scale is named "variety". App builds released before that
+# rename still send the previous "diversity" scale key and its option keys when
+# syncing drafts. Normalize them on ingest so audits in progress on an older
+# device persist into the canonical variety rows. Required until every field
+# device has upgraded past the rename release.
+_LEGACY_SCALE_KEY_ALIASES: dict[str, str] = {"diversity": "variety"}
+_LEGACY_OPTION_KEY_ALIASES: dict[str, str] = {
+	"no_diversity": "no_variety",
+	"some_diversity": "some_variety",
+	"a_lot_of_diversity": "a_lot_of_variety",
+}
+
 
 # ── routing helpers ──────────────────────────────────────────────────────────
 
@@ -578,10 +590,12 @@ def _upsert_section_normalized(
 
 		# Upsert scale answer rows.
 		sa_by_key = {sa.scale_key: sa for sa in qr.scale_answers or []}
-		for scale_key, raw_option_key in scale_answers.items():
-			if scale_key in {"question_note", "selected_option_keys", "other_details"}:
+		for raw_scale_key, raw_option_key in scale_answers.items():
+			if raw_scale_key in {"question_note", "selected_option_keys", "other_details"}:
 				continue
+			scale_key = _LEGACY_SCALE_KEY_ALIASES.get(raw_scale_key, raw_scale_key)
 			option_key = str(raw_option_key) if raw_option_key is not None else ""
+			option_key = _LEGACY_OPTION_KEY_ALIASES.get(option_key, option_key)
 			if scale_key in sa_by_key:
 				sa_by_key[scale_key].option_key = option_key
 			else:

@@ -111,7 +111,7 @@ def _build_construct_scoring_section() -> ScoringSection:
 						],
 					),
 					ScoringScale(
-						key="diversity",
+						key="variety",
 						options=[
 							ScoringScaleOption(
 								key="not_applicable",
@@ -120,13 +120,13 @@ def _build_construct_scoring_section() -> ScoringSection:
 								allows_follow_up_scales=False,
 							),
 							ScoringScaleOption(
-								key="some_diversity",
+								key="some_variety",
 								addition_value=2.0,
 								boost_value=2.0,
 								allows_follow_up_scales=False,
 							),
 							ScoringScaleOption(
-								key="a_lot_of_diversity",
+								key="a_lot_of_variety",
 								addition_value=3.0,
 								boost_value=3.0,
 								allows_follow_up_scales=False,
@@ -367,7 +367,7 @@ def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(
 					"responses": {
 						"q_construct": {
 							"provision": "some",
-							"diversity": "some_diversity",
+							"variety": "some_variety",
 							"challenge": "a_lot_of_challenge",
 							"sociability": "pairs",
 						}
@@ -383,8 +383,8 @@ def test_score_audit_tracks_maximum_totals_for_scales_and_constructs(
 
 	assert overall["provision_total"] == 1.0
 	assert overall["provision_total_max"] == 2.0
-	assert overall["diversity_total"] == 1.0
-	assert overall["diversity_total_max"] == 2.0
+	assert overall["variety_total"] == 1.0
+	assert overall["variety_total_max"] == 2.0
 	assert overall["challenge_total"] == 2.0
 	assert overall["challenge_total_max"] == 2.0
 	assert overall["sociability_total"] == 1.0

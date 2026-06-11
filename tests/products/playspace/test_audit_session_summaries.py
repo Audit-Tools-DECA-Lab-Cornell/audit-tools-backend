@@ -33,8 +33,8 @@ def test_resolve_compact_audit_summary_prefers_cached_overall_totals() -> None:
 			"overall": {
 				"provision_total": 1.0,
 				"provision_total_max": 10.0,
-				"diversity_total": 2.0,
-				"diversity_total_max": 10.0,
+				"variety_total": 2.0,
+				"variety_total_max": 10.0,
 				"challenge_total": 3.0,
 				"challenge_total_max": 10.0,
 				"sociability_total": 4.0,
@@ -64,8 +64,8 @@ def test_resolve_compact_audit_summary_falls_back_to_stored_summary_score() -> N
 			"overall": {
 				"provision_total": 1.0,
 				"provision_total_max": 10.0,
-				"diversity_total": 2.0,
-				"diversity_total_max": 10.0,
+				"variety_total": 2.0,
+				"variety_total_max": 10.0,
 				"challenge_total": 3.0,
 				"challenge_total_max": 10.0,
 				"sociability_total": 4.0,

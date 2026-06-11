@@ -420,7 +420,7 @@ Scoring is computed from the audit's JSONB response payload, then serialized int
 | Bucket              | Type            |
 | ------------------- | --------------- |
 | `provision_total`   | Column total    |
-| `diversity_total`   | Column total    |
+| `variety_total`   | Column total    |
 | `challenge_total`   | Column total    |
 | `sociability_total` | Construct total |
 | `play_value_total`  | Construct total |
