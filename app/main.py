@@ -33,7 +33,7 @@ def _resolve_cors_origins() -> list[str]:
 		"http://localhost:8081",
 		"https://audit-tools-backend.onrender.com",
 		"https://audit-tools-playspace-frontend.vercel.app",
-		"https://audit-tools-playspace-mobile.expo.dev",
+		"https://audit-tools-playspace-mobile.expo.app",
 		"https://copa-tool.vercel.app",
 	]
 	configured_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
