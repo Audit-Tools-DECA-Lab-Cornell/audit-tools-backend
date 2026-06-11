@@ -47,9 +47,7 @@ async def _load_manager_signup_snapshot(
 	"""Return the signed-up user, current account count, and linked account name."""
 
 	async with session_factory() as session:
-		user = (
-			await session.execute(select(User).where(User.email == email))
-		).scalar_one_or_none()
+		user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
 		account_count = int((await session.execute(select(func.count(Account.id)))).scalar_one() or 0)
 		account_name = None
 		if user is not None and user.account_id is not None:

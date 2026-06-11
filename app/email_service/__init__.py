@@ -6,7 +6,6 @@ from app.email_service.send_email import (
 	send_auditor_credentials_email,
 	send_export_ready_email,
 	send_manager_invite_email,
-	send_password_reset_email,
 	send_verification_email,
 	send_password_reset_email,
 )

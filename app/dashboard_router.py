@@ -16,7 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.auth import _build_invite_url, _build_manager_invite_url, get_auth_session, get_current_user
+from app.auth import (
+	_build_invite_url,
+	_build_manager_invite_url,
+	_ensure_manager_profile_for_user,
+	get_auth_session,
+	get_current_user,
+	_clean_name,
+)
 from app.auth_security import generate_email_verification_token, hash_verification_token
 from app.email_service import send_auditor_invite_email, send_manager_invite_email
 from app.models import (
@@ -1419,7 +1426,9 @@ async def _fetch_users(session: AsyncSession, current_user: User) -> list[UserLi
 				and auditor_code
 				else user.name or user.email
 			),
-			email="" if current_user.account_type == AccountType.ADMIN and user.account_type == AccountType.AUDITOR else user.email,
+			email=""
+			if current_user.account_type == AccountType.ADMIN and user.account_type == AccountType.AUDITOR
+			else user.email,
 			role=user.account_type.value,
 			account_id=str(user.account_id) if user.account_id is not None else None,
 			organization=account_name or "Unassigned",
@@ -2292,9 +2301,7 @@ async def create_manager_invite(
 			detail="This email is already linked to another manager account.",
 		)
 
-	existing_profile_result = await session.execute(
-		select(ManagerProfile).where(ManagerProfile.email == email)
-	)
+	existing_profile_result = await session.execute(select(ManagerProfile).where(ManagerProfile.email == email))
 	existing_profile = existing_profile_result.scalar_one_or_none()
 	if existing_profile is not None:
 		if existing_profile.account_id != account_id:
@@ -2377,9 +2384,7 @@ async def list_manager_invites(
 ) -> list[ManagerInviteResponse]:
 	account_id = await _require_primary_manager(session, user)
 	result = await session.execute(
-		select(ManagerInvite)
-		.where(ManagerInvite.account_id == account_id)
-		.order_by(ManagerInvite.created_at.desc())
+		select(ManagerInvite).where(ManagerInvite.account_id == account_id).order_by(ManagerInvite.created_at.desc())
 	)
 	return [_serialize_manager_invite(invite) for invite in result.scalars().all()]
 
