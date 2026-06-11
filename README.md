@@ -93,7 +93,7 @@ cp .env.example .env
 ```
 
 3. Set product database URLs for each tier you use (dev, prod, test). You only
-   need to configure these once — switch targets at runtime with `ENVIRONMENT`:
+   need to configure these once - switch targets at runtime with `ENVIRONMENT`:
 
 ```env
 ENVIRONMENT=development
