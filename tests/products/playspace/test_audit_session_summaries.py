@@ -196,3 +196,97 @@ def test_auditor_place_response_schema_exposes_selected_execution_mode() -> None
 	response_schema = AuditorPlaceResponse.model_json_schema()
 
 	assert "selected_execution_mode" in response_schema.get("properties", {})
+
+
+def test_build_audit_scores_response_preserves_unsure_variants_for_drafts() -> None:
+	"""Draft score responses should preserve additive Unsure variant buckets."""
+
+	service = _build_service()
+	submission = PlayspaceSubmission(
+		project_id=uuid.uuid4(),
+		place_id=uuid.uuid4(),
+		auditor_profile_id=uuid.uuid4(),
+		audit_code="PS-UNSURE",
+		status=AuditStatus.IN_PROGRESS,
+		responses_json={},
+		scores_json={
+			"execution_mode": ExecutionMode.AUDIT.value,
+			"overall": {
+				"provision_total": 1.0,
+				"provision_total_max": 2.0,
+				"variety_total": 0.0,
+				"variety_total_max": 0.0,
+				"challenge_total": 1.0,
+				"challenge_total_max": 2.0,
+				"sociability_total": 0.0,
+				"sociability_total_max": 0.0,
+				"play_value_total": 2.0,
+				"play_value_total_max": 6.0,
+				"usability_total": 2.0,
+				"usability_total_max": 6.0,
+			},
+			"audit": None,
+			"survey": None,
+			"by_section": {},
+			"by_domain": {},
+			"unsure_answer_count": 2,
+			"unsure_variants": {
+				"unsure_as_zero": {
+					"execution_mode": ExecutionMode.AUDIT.value,
+					"overall": {
+						"provision_total": 1.0,
+						"provision_total_max": 2.0,
+						"variety_total": 0.0,
+						"variety_total_max": 2.0,
+						"challenge_total": 1.0,
+						"challenge_total_max": 2.0,
+						"sociability_total": 0.0,
+						"sociability_total_max": 2.0,
+						"play_value_total": 2.0,
+						"play_value_total_max": 18.0,
+						"usability_total": 2.0,
+						"usability_total_max": 18.0,
+					},
+					"audit": None,
+					"survey": None,
+					"by_section": {},
+					"by_domain": {},
+				},
+				"unsure_as_max": {
+					"execution_mode": ExecutionMode.AUDIT.value,
+					"overall": {
+						"provision_total": 1.0,
+						"provision_total_max": 2.0,
+						"variety_total": 2.0,
+						"variety_total_max": 2.0,
+						"challenge_total": 1.0,
+						"challenge_total_max": 2.0,
+						"sociability_total": 2.0,
+						"sociability_total_max": 2.0,
+						"play_value_total": 6.0,
+						"play_value_total_max": 18.0,
+						"usability_total": 6.0,
+						"usability_total_max": 18.0,
+					},
+					"audit": None,
+					"survey": None,
+					"by_section": {},
+					"by_domain": {},
+				},
+			},
+		},
+	)
+
+	response = service._build_audit_scores_response(
+		audit=submission,
+		fallback_mode=ExecutionMode.AUDIT,
+	)
+
+	assert response.unsure_answer_count == 2
+	assert response.unsure_variants is not None
+	assert response.unsure_variants.unsure_as_zero is not None
+	assert response.unsure_variants.unsure_as_max is not None
+	assert response.unsure_variants.unsure_as_zero.overall is not None
+	assert response.unsure_variants.unsure_as_zero.overall.play_value_total_max == 18.0
+	assert response.unsure_variants.unsure_as_max.overall is not None
+	assert response.unsure_variants.unsure_as_max.overall.play_value_total == 6.0

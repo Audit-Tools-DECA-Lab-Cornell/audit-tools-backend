@@ -73,7 +73,8 @@ class InstrumentScaleOptionResponse(ApiModel):
 	addition_value: float
 	boost_value: float
 	allows_follow_up_scales: bool
-	is_not_applicable: bool
+	is_not_applicable: bool = False
+	is_unsure: bool = False
 
 
 class InstrumentScaleDefinitionResponse(ApiModel):

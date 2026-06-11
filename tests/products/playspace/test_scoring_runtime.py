@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.products.playspace.schemas.instrument import ExecutionMode
+from app.products.playspace.schemas.instrument import ExecutionMode, InstrumentScaleOptionResponse
 from app.products.playspace.scoring import build_audit_progress, score_audit
 from app.products.playspace.scoring_metadata import (
 	ScoringChoiceOption,
@@ -483,3 +483,315 @@ def test_score_audit_allows_both_questions_to_feed_survey_partition_in_audit_mod
 	assert isinstance(survey_partition, dict)
 	assert audit_partition["play_value_total"] == 2.0
 	assert survey_partition["play_value_total"] == 1.0
+
+
+def _build_unsure_scoring_section() -> ScoringSection:
+	"""Create one section with N/A and Unsure options on every scale."""
+
+	return ScoringSection(
+		section_key="section_unsure",
+		questions=[
+			ScoringQuestion(
+				question_key="q_unsure",
+				mode="audit",
+				constructs=["play_value", "usability"],
+				domains=["Unsure Demo"],
+				question_type="scaled",
+				required=True,
+				display_if=None,
+				options=[],
+				scales=[
+					ScoringScale(
+						key="provision",
+						options=[
+							ScoringScaleOption(
+								key="no",
+								addition_value=0.0,
+								boost_value=0.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="some",
+								addition_value=1.0,
+								boost_value=1.0,
+								allows_follow_up_scales=True,
+							),
+							ScoringScaleOption(
+								key="a_lot",
+								addition_value=2.0,
+								boost_value=2.0,
+								allows_follow_up_scales=True,
+							),
+							ScoringScaleOption(
+								key="not_applicable",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_not_applicable=True,
+							),
+							ScoringScaleOption(
+								key="unsure",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_unsure=True,
+							),
+						],
+					),
+					ScoringScale(
+						key="variety",
+						options=[
+							ScoringScaleOption(
+								key="not_applicable",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_not_applicable=True,
+							),
+							ScoringScaleOption(
+								key="some_variety",
+								addition_value=2.0,
+								boost_value=2.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="a_lot_of_variety",
+								addition_value=3.0,
+								boost_value=3.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="unsure",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_unsure=True,
+							),
+						],
+					),
+					ScoringScale(
+						key="challenge",
+						options=[
+							ScoringScaleOption(
+								key="not_applicable",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_not_applicable=True,
+							),
+							ScoringScaleOption(
+								key="some_challenge",
+								addition_value=2.0,
+								boost_value=2.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="a_lot_of_challenge",
+								addition_value=3.0,
+								boost_value=3.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="unsure",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_unsure=True,
+							),
+						],
+					),
+					ScoringScale(
+						key="sociability",
+						options=[
+							ScoringScaleOption(
+								key="none",
+								addition_value=1.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="pairs",
+								addition_value=2.0,
+								boost_value=2.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="groups",
+								addition_value=3.0,
+								boost_value=3.0,
+								allows_follow_up_scales=False,
+							),
+							ScoringScaleOption(
+								key="not_applicable",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_not_applicable=True,
+							),
+							ScoringScaleOption(
+								key="unsure",
+								addition_value=0.0,
+								boost_value=1.0,
+								allows_follow_up_scales=False,
+								is_unsure=True,
+							),
+						],
+					),
+				],
+			)
+		],
+	)
+
+
+def _score_unsure_fixture(monkeypatch, responses: dict[str, str]) -> dict[str, object]:
+	custom_sections = [_build_unsure_scoring_section()]
+	monkeypatch.setattr(
+		"app.products.playspace.scoring.get_scoring_sections",
+		lambda: custom_sections,
+	)
+	return score_audit(
+		responses_json={
+			"meta": {"execution_mode": ExecutionMode.AUDIT.value},
+			"sections": {"section_unsure": {"responses": {"q_unsure": responses}}},
+		},
+		include_maximums=True,
+	)
+
+
+def test_score_audit_excludes_entire_question_when_provision_is_not_applicable(monkeypatch) -> None:
+	"""Provision N/A should remove the full question from totals and denominators."""
+
+	scores = _score_unsure_fixture(
+		monkeypatch,
+		{
+			"provision": "not_applicable",
+			"variety": "unsure",
+			"challenge": "some_challenge",
+			"sociability": "unsure",
+		},
+	)
+
+	overall = scores.get("overall")
+	assert isinstance(overall, dict)
+	assert all(value == 0.0 for key, value in overall.items() if key.endswith("_total") or key.endswith("_max"))
+	assert scores.get("unsure_answer_count") == 0
+	assert scores.get("unsure_variants") is None
+
+
+def test_score_audit_excludes_follow_up_not_applicable_denominator_only(monkeypatch) -> None:
+	"""Follow-up N/A should only remove that scale's denominator and multiplier max."""
+
+	scores = _score_unsure_fixture(
+		monkeypatch,
+		{
+			"provision": "some",
+			"variety": "not_applicable",
+			"challenge": "some_challenge",
+			"sociability": "pairs",
+		},
+	)
+
+	overall = scores.get("overall")
+	assert isinstance(overall, dict)
+	assert overall["provision_total"] == 1.0
+	assert overall["provision_total_max"] == 2.0
+	assert overall["variety_total"] == 0.0
+	assert overall["variety_total_max"] == 0.0
+	assert overall["challenge_total"] == 1.0
+	assert overall["challenge_total_max"] == 2.0
+	assert overall["sociability_total"] == 1.0
+	assert overall["sociability_total_max"] == 2.0
+	assert overall["play_value_total"] == 2.0
+	assert overall["play_value_total_max"] == 6.0
+	assert overall["usability_total"] == 2.0
+	assert overall["usability_total_max"] == 6.0
+
+
+def test_score_audit_emits_unsure_variants_for_follow_up_answers(monkeypatch) -> None:
+	"""Unsure answers should expose excluded, zero, and max interpretations side by side."""
+
+	scores = _score_unsure_fixture(
+		monkeypatch,
+		{
+			"provision": "some",
+			"variety": "unsure",
+			"challenge": "some_challenge",
+			"sociability": "unsure",
+		},
+	)
+
+	canonical = scores.get("overall")
+	assert isinstance(canonical, dict)
+	assert scores.get("unsure_answer_count") == 2
+	assert canonical["variety_total"] == 0.0
+	assert canonical["variety_total_max"] == 0.0
+	assert canonical["sociability_total"] == 0.0
+	assert canonical["sociability_total_max"] == 0.0
+	assert canonical["play_value_total"] == 2.0
+	assert canonical["play_value_total_max"] == 6.0
+
+	variants = scores.get("unsure_variants")
+	assert isinstance(variants, dict)
+	zero = variants["unsure_as_zero"]["overall"]
+	maximum = variants["unsure_as_max"]["overall"]
+	assert zero["variety_total"] == 0.0
+	assert zero["variety_total_max"] == 2.0
+	assert zero["sociability_total"] == 0.0
+	assert zero["sociability_total_max"] == 2.0
+	assert zero["play_value_total"] == 2.0
+	assert zero["play_value_total_max"] == 18.0
+	assert maximum["variety_total"] == 2.0
+	assert maximum["variety_total_max"] == 2.0
+	assert maximum["sociability_total"] == 2.0
+	assert maximum["sociability_total_max"] == 2.0
+	assert maximum["play_value_total"] == 6.0
+	assert maximum["play_value_total_max"] == 18.0
+
+
+def test_score_audit_handles_provision_unsure_variants_and_ignores_hidden_followups(monkeypatch) -> None:
+	"""Provision Unsure should hide stale follow-ups and drive all three interpretations."""
+
+	scores = _score_unsure_fixture(
+		monkeypatch,
+		{
+			"provision": "unsure",
+			"variety": "unsure",
+			"challenge": "unsure",
+			"sociability": "unsure",
+		},
+	)
+
+	canonical = scores.get("overall")
+	assert isinstance(canonical, dict)
+	assert all(value == 0.0 for key, value in canonical.items() if key.endswith("_total") or key.endswith("_max"))
+	assert scores.get("unsure_answer_count") == 1
+
+	variants = scores.get("unsure_variants")
+	assert isinstance(variants, dict)
+	zero = variants["unsure_as_zero"]["overall"]
+	maximum = variants["unsure_as_max"]["overall"]
+	assert zero["provision_total"] == 0.0
+	assert zero["provision_total_max"] == 2.0
+	assert zero["play_value_total"] == 0.0
+	assert zero["play_value_total_max"] == 18.0
+	assert maximum["provision_total"] == 2.0
+	assert maximum["variety_total"] == 2.0
+	assert maximum["challenge_total"] == 2.0
+	assert maximum["sociability_total"] == 2.0
+	assert maximum["play_value_total"] == 18.0
+	assert maximum["play_value_total_max"] == 18.0
+
+
+def test_instrument_scale_option_defaults_unsure_flag_for_legacy_json() -> None:
+	"""Legacy instrument options should parse without an explicit is_unsure field."""
+
+	option = InstrumentScaleOptionResponse(
+		key="some",
+		label="Some",
+		addition_value=1.0,
+		boost_value=1.0,
+		allows_follow_up_scales=True,
+	)
+
+	assert option.is_not_applicable is False
+	assert option.is_unsure is False

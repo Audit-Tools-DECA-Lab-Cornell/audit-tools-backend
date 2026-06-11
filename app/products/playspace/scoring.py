@@ -10,6 +10,7 @@ separate score stream alongside play value and usability.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 
 from app.models import PlayspaceSubmission
 from app.products.playspace.audit_state import build_responses_json_from_relations
@@ -39,6 +40,14 @@ ALL_EXECUTION_MODES = [
 	ExecutionMode.SURVEY,
 	ExecutionMode.BOTH,
 ]
+
+
+class UnsurePolicy(str, Enum):
+	"""Supported interpretations for Unsure scale answers."""
+
+	EXCLUDED = "unsure_as_excluded"
+	ZERO = "unsure_as_zero"
+	MAX = "unsure_as_max"
 
 
 @dataclass(frozen=True)
@@ -288,6 +297,8 @@ def score_audit(
 		snapshot=snapshot,
 		include_maximums=include_maximums,
 		scoring_sections=scoring_sections,
+		unsure_policy=UnsurePolicy.EXCLUDED,
+		include_unsure_variants=True,
 	)
 
 
@@ -307,6 +318,8 @@ def score_audit_for_audit(
 		snapshot=snapshot,
 		include_maximums=include_maximums,
 		scoring_sections=scoring_sections,
+		unsure_policy=UnsurePolicy.EXCLUDED,
+		include_unsure_variants=True,
 	)
 
 
@@ -315,6 +328,8 @@ def _score_audit_from_snapshot(
 	snapshot: AuditStateSnapshot,
 	include_maximums: bool,
 	scoring_sections: list[ScoringSection],
+	unsure_policy: UnsurePolicy,
+	include_unsure_variants: bool,
 ) -> JsonDict:
 	"""Calculate scores from one storage-agnostic audit snapshot."""
 
@@ -350,6 +365,7 @@ def _score_audit_from_snapshot(
 			question_totals = _score_question(
 				question=question,
 				section_answers=section_answers,
+				unsure_policy=unsure_policy,
 			)
 			section_totals = _add_score_totals(section_totals, question_totals)
 
@@ -384,7 +400,7 @@ def _score_audit_from_snapshot(
 	for domain_totals in domain_scores.values():
 		overall_totals = _add_score_totals(overall_totals, domain_totals)
 
-	return {
+	result: JsonDict = {
 		"overall": _serialize_score_totals(overall_totals, include_maximums=include_maximums),
 		"audit": (
 			_serialize_score_totals(partition_scores["audit"], include_maximums=include_maximums)
@@ -400,6 +416,35 @@ def _score_audit_from_snapshot(
 		"by_domain": serialized_domain_scores,
 		"execution_mode": execution_mode.value,
 	}
+
+	if include_maximums and include_unsure_variants:
+		unsure_answer_count = _count_unsure_answers(
+			snapshot=snapshot,
+			execution_mode=execution_mode,
+			scoring_sections=scoring_sections,
+		)
+		result["unsure_answer_count"] = unsure_answer_count
+		if unsure_answer_count > 0:
+			result["unsure_variants"] = {
+				UnsurePolicy.ZERO.value: _score_audit_from_snapshot(
+					snapshot=snapshot,
+					include_maximums=include_maximums,
+					scoring_sections=scoring_sections,
+					unsure_policy=UnsurePolicy.ZERO,
+					include_unsure_variants=False,
+				),
+				UnsurePolicy.MAX.value: _score_audit_from_snapshot(
+					snapshot=snapshot,
+					include_maximums=include_maximums,
+					scoring_sections=scoring_sections,
+					unsure_policy=UnsurePolicy.MAX,
+					include_unsure_variants=False,
+				),
+			}
+		else:
+			result["unsure_variants"] = None
+
+	return result
 
 
 ######################################################################################
@@ -624,6 +669,7 @@ def _score_question(
 	*,
 	question: ScoringQuestion,
 	section_answers: JsonDict,
+	unsure_policy: UnsurePolicy,
 ) -> ScoreTotals:
 	"""Score one question according to the client-approved Playspace rules."""
 
@@ -640,38 +686,60 @@ def _score_question(
 	if provision_option is None:
 		return ScoreTotals()
 
-	provision_total = float(provision_option.addition_value)
+	if _is_excluding_option(provision_option, unsure_policy):
+		return ScoreTotals()
+
 	provision_total_max = _read_provision_scale_maximum(question=question)
-	variety_total = 0.0
 	variety_total_max, variety_multiplier_max = _read_multiplier_scale_maximum(
 		question=question,
 		scale_key="variety",
 	)
-	challenge_total = 0.0
 	challenge_total_max, challenge_multiplier_max = _read_multiplier_scale_maximum(
 		question=question,
 		scale_key="challenge",
 	)
-	sociability_total = 0.0
 	sociability_total_max = _read_sociability_scale_maximum(question=question)
-	variety_multiplier = 1.0
-	challenge_multiplier = 1.0
 
-	if provision_option.allows_follow_up_scales:
-		variety_total, variety_multiplier = _read_multiplier_scale_score(
-			question=question,
-			question_answers=question_answers,
-			scale_key="variety",
-		)
-		challenge_total, challenge_multiplier = _read_multiplier_scale_score(
-			question=question,
-			question_answers=question_answers,
-			scale_key="challenge",
-		)
-		sociability_total = _read_sociability_scale_score(
-			question=question,
-			question_answers=question_answers,
-		)
+	if provision_option.is_unsure and unsure_policy is UnsurePolicy.MAX:
+		provision_total = provision_total_max
+		variety_total = variety_total_max
+		variety_multiplier = variety_multiplier_max
+		challenge_total = challenge_total_max
+		challenge_multiplier = challenge_multiplier_max
+		sociability_total = sociability_total_max
+	else:
+		provision_total = float(provision_option.addition_value)
+		variety_total = 0.0
+		challenge_total = 0.0
+		sociability_total = 0.0
+		variety_multiplier = 1.0
+		challenge_multiplier = 1.0
+
+		if provision_option.allows_follow_up_scales:
+			(
+				variety_total,
+				variety_total_max,
+				variety_multiplier,
+				variety_multiplier_max,
+			) = _read_multiplier_scale_result(
+				question=question,
+				question_answers=question_answers,
+				scale_key="variety",
+				unsure_policy=unsure_policy,
+			)
+			challenge_total, challenge_total_max, challenge_multiplier, challenge_multiplier_max = (
+				_read_multiplier_scale_result(
+					question=question,
+					question_answers=question_answers,
+					scale_key="challenge",
+					unsure_policy=unsure_policy,
+				)
+			)
+			sociability_total, sociability_total_max = _read_sociability_scale_result(
+				question=question,
+				question_answers=question_answers,
+				unsure_policy=unsure_policy,
+			)
 
 	construct_score = provision_total * variety_multiplier * challenge_multiplier
 	construct_score_max = provision_total_max * variety_multiplier_max * challenge_multiplier_max
@@ -696,6 +764,18 @@ def _score_question(
 	)
 
 
+def _is_excluding_option(option: ScoringScaleOption, unsure_policy: UnsurePolicy) -> bool:
+	"""Return whether an option removes its score and denominator for this policy."""
+
+	return option.is_not_applicable or (option.is_unsure and unsure_policy is UnsurePolicy.EXCLUDED)
+
+
+def _max_candidate_options(options: list[ScoringScaleOption]) -> list[ScoringScaleOption]:
+	"""Return options that can define a normal maximum denominator."""
+
+	return [option for option in options if not option.is_not_applicable and not option.is_unsure]
+
+
 def _read_provision_scale_maximum(*, question: ScoringQuestion) -> float:
 	"""Return the highest provision score available for one question."""
 
@@ -706,38 +786,48 @@ def _read_provision_scale_maximum(*, question: ScoringQuestion) -> float:
 	if provision_scale is None:
 		return 0.0
 	return max(
-		(float(option.addition_value) for option in provision_scale.options),
+		(float(option.addition_value) for option in _max_candidate_options(provision_scale.options)),
 		default=0.0,
 	)
 
 
-def _read_multiplier_scale_score(
+def _read_multiplier_scale_result(
 	*,
 	question: ScoringQuestion,
 	question_answers: JsonDict,
 	scale_key: str,
-) -> tuple[float, float]:
-	"""Read one variety/challenge answer as both a domain total and multiplier."""
+	unsure_policy: UnsurePolicy,
+) -> tuple[float, float, float, float]:
+	"""Read one variety/challenge answer as total, max, multiplier, and multiplier max."""
 
 	scale = next(
 		(current_scale for current_scale in question.scales if current_scale.key == scale_key),
 		None,
 	)
 	if scale is None:
-		return 0.0, 1.0
+		return 0.0, 0.0, 1.0, 1.0
 
+	max_column_total, max_multiplier = _read_multiplier_scale_maximum(question=question, scale_key=scale_key)
 	answer_key = question_answers.get(scale_key)
 	if not isinstance(answer_key, str):
-		return 0.0, 1.0
+		return 0.0, max_column_total, 1.0, max_multiplier
 
 	selected_option = _find_option_by_key(scale.options, answer_key)
 	if selected_option is None:
-		return 0.0, 1.0
+		return 0.0, max_column_total, 1.0, max_multiplier
+
+	if _is_excluding_option(selected_option, unsure_policy):
+		return 0.0, 0.0, 1.0, 1.0
+
+	if selected_option.is_unsure:
+		if unsure_policy is UnsurePolicy.MAX:
+			return max_column_total, max_column_total, max_multiplier, max_multiplier
+		return 0.0, max_column_total, 1.0, max_multiplier
 
 	column_total = max(float(selected_option.addition_value) - 1.0, 0.0)
 	if selected_option.addition_value <= 0:
-		return column_total, 1.0
-	return column_total, float(selected_option.boost_value)
+		return column_total, max_column_total, 1.0, max_multiplier
+	return column_total, max_column_total, float(selected_option.boost_value), max_multiplier
 
 
 def _read_multiplier_scale_maximum(
@@ -754,37 +844,48 @@ def _read_multiplier_scale_maximum(
 	if scale is None:
 		return 0.0, 1.0
 
+	candidate_options = _max_candidate_options(scale.options)
 	max_column_total = max(
-		(max(float(option.addition_value) - 1.0, 0.0) for option in scale.options),
+		(max(float(option.addition_value) - 1.0, 0.0) for option in candidate_options),
 		default=0.0,
 	)
-	max_multiplier = max((float(option.boost_value) for option in scale.options), default=1.0)
+	max_multiplier = max((float(option.boost_value) for option in candidate_options), default=1.0)
 	return max_column_total, max(max_multiplier, 1.0)
 
 
-def _read_sociability_scale_score(
+def _read_sociability_scale_result(
 	*,
 	question: ScoringQuestion,
 	question_answers: JsonDict,
-) -> float:
-	"""Read one sociability answer using the client-specified 0/1/2 mapping."""
+	unsure_policy: UnsurePolicy,
+) -> tuple[float, float]:
+	"""Read one sociability answer as total and response-aware max."""
 
 	scale = next(
 		(current_scale for current_scale in question.scales if current_scale.key == "sociability"),
 		None,
 	)
 	if scale is None:
-		return 0.0
+		return 0.0, 0.0
 
+	max_total = _read_sociability_scale_maximum(question=question)
 	answer_key = question_answers.get("sociability")
 	if not isinstance(answer_key, str):
-		return 0.0
+		return 0.0, max_total
 
 	selected_option = _find_option_by_key(scale.options, answer_key)
 	if selected_option is None:
-		return 0.0
+		return 0.0, max_total
 
-	return max(float(selected_option.addition_value) - 1.0, 0.0)
+	if _is_excluding_option(selected_option, unsure_policy):
+		return 0.0, 0.0
+
+	if selected_option.is_unsure:
+		if unsure_policy is UnsurePolicy.MAX:
+			return max_total, max_total
+		return 0.0, max_total
+
+	return max(float(selected_option.addition_value) - 1.0, 0.0), max_total
 
 
 def _read_sociability_scale_maximum(*, question: ScoringQuestion) -> float:
@@ -797,9 +898,57 @@ def _read_sociability_scale_maximum(*, question: ScoringQuestion) -> float:
 	if scale is None:
 		return 0.0
 	return max(
-		(max(float(option.addition_value) - 1.0, 0.0) for option in scale.options),
+		(max(float(option.addition_value) - 1.0, 0.0) for option in _max_candidate_options(scale.options)),
 		default=0.0,
 	)
+
+
+def _count_unsure_answers(
+	*,
+	snapshot: AuditStateSnapshot,
+	execution_mode: ExecutionMode,
+	scoring_sections: list[ScoringSection],
+) -> int:
+	"""Count visible Unsure answers, ignoring follow-ups hidden by the provision answer."""
+
+	count = 0
+	sections_payload = snapshot.sections_payload
+	for section in scoring_sections:
+		section_answers = _read_json_dict(sections_payload.get(section.section_key))
+		for question in _get_visible_questions(
+			section=section,
+			execution_mode=execution_mode,
+			section_answers=section_answers,
+		):
+			if question.question_type != "scaled" or len(question.scales) == 0:
+				continue
+
+			question_answers = _read_json_dict(section_answers.get(question.question_key))
+			provision_scale = next((scale for scale in question.scales if scale.key == "provision"), None)
+			if provision_scale is None:
+				continue
+
+			provision_answer_key = question_answers.get("provision")
+			if not isinstance(provision_answer_key, str):
+				continue
+			provision_option = _find_option_by_key(provision_scale.options, provision_answer_key)
+			if provision_option is None:
+				continue
+			if provision_option.is_unsure:
+				count += 1
+			if not provision_option.allows_follow_up_scales:
+				continue
+
+			for scale in question.scales:
+				if scale.key == "provision":
+					continue
+				answer_key = question_answers.get(scale.key)
+				if not isinstance(answer_key, str):
+					continue
+				selected_option = _find_option_by_key(scale.options, answer_key)
+				if selected_option is not None and selected_option.is_unsure:
+					count += 1
+	return count
 
 
 def _add_score_totals(left: ScoreTotals, right: ScoreTotals) -> ScoreTotals:

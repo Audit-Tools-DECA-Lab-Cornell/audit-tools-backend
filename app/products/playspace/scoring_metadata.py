@@ -48,6 +48,8 @@ class ScoringScaleOption:
 	addition_value: float
 	boost_value: float
 	allows_follow_up_scales: bool
+	is_not_applicable: bool = False
+	is_unsure: bool = False
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,8 @@ def _build_scale_option(option: InstrumentScaleOptionResponse) -> ScoringScaleOp
 		addition_value=float(option.addition_value),
 		boost_value=float(option.boost_value),
 		allows_follow_up_scales=bool(option.allows_follow_up_scales),
+		is_not_applicable=bool(option.is_not_applicable),
+		is_unsure=bool(option.is_unsure),
 	)
 
 

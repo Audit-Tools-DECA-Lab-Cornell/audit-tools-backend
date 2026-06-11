@@ -58,6 +58,8 @@ from app.products.playspace.schemas import (
 	AuditProgressResponse,
 	AuditScoresResponse,
 	AuditScoreTotalsResponse,
+	AuditScoreVariantBucketsResponse,
+	AuditUnsureVariantsResponse,
 	AuditSectionStateResponse,
 	AuditSessionResponse,
 	AuditSubmitRequest,
@@ -1486,6 +1488,8 @@ class PlayspaceAuditSessionsMixin:
 			overall=self._build_score_totals_response(raw_scores.get("overall")),
 			by_section=self._build_score_collection_response(raw_scores.get("by_section")),
 			by_domain=self._build_score_collection_response(raw_scores.get("by_domain")),
+			unsure_answer_count=self._read_non_negative_int(raw_scores.get("unsure_answer_count")),
+			unsure_variants=self._build_unsure_variants_response(raw_scores.get("unsure_variants")),
 		)
 
 	def _resolve_compact_audit_summary(
@@ -1529,6 +1533,51 @@ class PlayspaceAuditSessionsMixin:
 			)
 		except ValueError:
 			return raw_scores
+
+	def _build_unsure_variants_response(
+		self,
+		raw_variants: object,
+	) -> AuditUnsureVariantsResponse | None:
+		"""Parse additional Unsure score interpretations from a raw score payload."""
+
+		variants_payload = self._read_json_dict(raw_variants)
+		if not variants_payload:
+			return None
+
+		return AuditUnsureVariantsResponse(
+			unsure_as_zero=self._build_score_variant_buckets_response(variants_payload.get("unsure_as_zero")),
+			unsure_as_max=self._build_score_variant_buckets_response(variants_payload.get("unsure_as_max")),
+		)
+
+	def _build_score_variant_buckets_response(
+		self,
+		raw_variant: object,
+	) -> AuditScoreVariantBucketsResponse | None:
+		"""Parse one non-canonical score variant into typed bucket responses."""
+
+		variant_payload = self._read_json_dict(raw_variant)
+		if not variant_payload:
+			return None
+
+		execution_mode = self._parse_execution_mode(variant_payload.get("execution_mode"))
+		return AuditScoreVariantBucketsResponse(
+			execution_mode=execution_mode,
+			audit=self._build_score_totals_response(variant_payload.get("audit")),
+			survey=self._build_score_totals_response(variant_payload.get("survey")),
+			overall=self._build_score_totals_response(variant_payload.get("overall")),
+			by_section=self._build_score_collection_response(variant_payload.get("by_section")),
+			by_domain=self._build_score_collection_response(variant_payload.get("by_domain")),
+		)
+
+	@staticmethod
+	def _read_non_negative_int(value: object) -> int:
+		"""Read a non-negative integer field from a JSON payload."""
+
+		if isinstance(value, int) and value >= 0:
+			return value
+		if isinstance(value, float) and value >= 0 and value.is_integer():
+			return int(value)
+		return 0
 
 	def _build_score_collection_response(
 		self,

@@ -142,6 +142,24 @@ class AuditScoreTotalsResponse(ApiModel):
 	usability_total_max: float
 
 
+class AuditScoreVariantBucketsResponse(ApiModel):
+	"""One non-canonical Unsure interpretation across all score buckets."""
+
+	execution_mode: ExecutionMode | None = None
+	audit: AuditScoreTotalsResponse | None = None
+	survey: AuditScoreTotalsResponse | None = None
+	overall: AuditScoreTotalsResponse | None = None
+	by_section: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
+	by_domain: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
+
+
+class AuditUnsureVariantsResponse(ApiModel):
+	"""Additional score interpretations for visible Unsure answers."""
+
+	unsure_as_zero: AuditScoreVariantBucketsResponse | None = None
+	unsure_as_max: AuditScoreVariantBucketsResponse | None = None
+
+
 class AuditScoresResponse(ApiModel):
 	"""Typed calculated score payload for drafts and submitted audits."""
 
@@ -152,6 +170,8 @@ class AuditScoresResponse(ApiModel):
 	overall: AuditScoreTotalsResponse | None = None
 	by_section: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
 	by_domain: dict[str, AuditScoreTotalsResponse] = Field(default_factory=dict)
+	unsure_answer_count: int = 0
+	unsure_variants: AuditUnsureVariantsResponse | None = None
 
 
 class AuditAggregateWriteRequest(RequestModel):
