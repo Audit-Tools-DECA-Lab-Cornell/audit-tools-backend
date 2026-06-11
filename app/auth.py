@@ -724,6 +724,21 @@ def _build_invite_url(*, request: FastAPIRequest, token: str) -> str:
 	if template:
 		return template.format(token=token)
 
+	frontend_origin = (
+		request.headers.get("x-frontend-origin", "").strip()
+		or request.headers.get("origin", "").strip()
+		or request.headers.get("referer", "").strip()
+	)
+	if frontend_origin:
+		base = frontend_origin.rstrip("/")
+		if "/invite/" in base:
+			base = base.split("/invite/", 1)[0]
+		elif "/login" in base:
+			base = base.split("/login", 1)[0]
+		elif "/signup" in base:
+			base = base.split("/signup", 1)[0]
+		return f"{base}/invite/{token}"
+
 	base = str(request.base_url).rstrip("/")
 	return f"{base}/invite/{token}"
 
@@ -732,6 +747,21 @@ def _build_manager_invite_url(*, request: FastAPIRequest, token: str) -> str:
 	template = os.getenv("AUTH_MANAGER_INVITE_URL_TEMPLATE", "").strip()
 	if template:
 		return template.format(token=token)
+
+	frontend_origin = (
+		request.headers.get("x-frontend-origin", "").strip()
+		or request.headers.get("origin", "").strip()
+		or request.headers.get("referer", "").strip()
+	)
+	if frontend_origin:
+		base = frontend_origin.rstrip("/")
+		if "/manager-invite/" in base:
+			base = base.split("/manager-invite/", 1)[0]
+		elif "/login" in base:
+			base = base.split("/login", 1)[0]
+		elif "/signup" in base:
+			base = base.split("/signup", 1)[0]
+		return f"{base}/manager-invite/{token}"
 
 	base = str(request.base_url).rstrip("/")
 	return f"{base}/manager-invite/{token}"

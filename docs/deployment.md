@@ -49,7 +49,11 @@ Recommended:
 
 - `AUTH_ACCESS_TOKEN_TTL_DAYS`
 - `AUTH_EMAIL_VERIFY_TTL_HOURS`
+- `AUTH_PASSWORD_RESET_TTL_HOURS`
 - `AUTH_VERIFY_URL_TEMPLATE`
+- `AUTH_PASSWORD_RESET_URL_TEMPLATE`
+- `AUTH_INVITE_URL_TEMPLATE`
+- `AUTH_MANAGER_INVITE_URL_TEMPLATE`
 
 Optional but important in production:
 
@@ -59,6 +63,11 @@ Optional but important in production:
 - `SMTP_PASSWORD`
 - `SMTP_FROM_EMAIL`
 - `SMTP_USE_TLS`
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
+- `BREVO_REPLY_TO_EMAIL`
+- `ADMIN_NOTIFICATION_EMAIL`
 - `TURNSTILE_SECRET_KEY`
 
 ## Migration Runbook
@@ -144,6 +153,18 @@ Example:
 ```env
 AUTH_VERIFY_URL_TEMPLATE=https://your-frontend-domain.example/verify-email?token={token}
 ```
+
+Password reset and invite acceptance should also point at the frontend domain:
+
+```env
+AUTH_PASSWORD_RESET_URL_TEMPLATE=https://your-frontend-domain.example/reset-password?token={token}
+AUTH_INVITE_URL_TEMPLATE=https://your-frontend-domain.example/invite/{token}
+AUTH_MANAGER_INVITE_URL_TEMPLATE=https://your-frontend-domain.example/manager-invite/{token}
+```
+
+If you leave those templates blank, the backend will try to infer the frontend
+origin from the incoming request headers. That is convenient for local testing,
+but setting the explicit templates is safer for production email links.
 
 ## Suggested Release Validation
 

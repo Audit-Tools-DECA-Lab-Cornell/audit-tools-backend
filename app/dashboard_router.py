@@ -286,6 +286,12 @@ class CreateAssignmentRequest(BaseModel):
 	place_ids: list[uuid.UUID] = Field(..., min_length=1)
 
 
+class DeleteAssignmentRequest(BaseModel):
+	project_id: uuid.UUID
+	auditor_id: uuid.UUID
+	place_id: uuid.UUID | None = None
+
+
 class AssignmentResultItem(BaseModel):
 	id: str
 	auditor_id: str
@@ -297,6 +303,10 @@ class AssignmentResponse(BaseModel):
 	created_count: int
 	existing_count: int
 	assignments: list[AssignmentResultItem]
+
+
+class DeleteAssignmentResponse(BaseModel):
+	deleted_count: int
 
 
 class AuditorAssignedPlaceItem(BaseModel):
@@ -473,14 +483,7 @@ def _manager_project_ids_subquery(user: User):
 def _manager_invited_auditor_ids_subquery(user: User):
 	if user.account_type == AccountType.ADMIN:
 		return select(Auditor.id).distinct()
-	return (
-		select(AuditorInvite.auditor_id)
-		.where(
-			AuditorInvite.invited_by_user_id == user.id,
-			AuditorInvite.auditor_id.is_not(None),
-		)
-		.distinct()
-	)
+	return select(Auditor.id).where(Auditor.account_id == _manager_account_id(user)).distinct()
 
 
 def _extract_score(scores_json: dict[str, object]) -> int:
@@ -2556,6 +2559,57 @@ async def create_assignment(
 			for assignment in [*existing_assignments, *created_assignments]
 		],
 	)
+
+
+@router.delete("/assignments", response_model=DeleteAssignmentResponse)
+async def delete_assignment(
+	payload: DeleteAssignmentRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> DeleteAssignmentResponse:
+	_require_manager_or_admin(user)
+	account_id = _manager_account_id(user)
+	if account_id is None:
+		raise HTTPException(status_code=403, detail="Admin assignments are not supported from this route.")
+
+	project = await session.get(Project, payload.project_id)
+	if project is None or project.account_id != account_id:
+		raise HTTPException(status_code=404, detail="Project not found in your manager scope.")
+
+	auditor = await session.get(Auditor, payload.auditor_id)
+	if auditor is None or auditor.account_id != account_id:
+		raise HTTPException(status_code=404, detail="Auditor not found in your account scope.")
+
+	stmt = select(Assignment).where(
+		Assignment.project_id == project.id,
+		Assignment.auditor_profile_id == auditor.id,
+	)
+	if payload.place_id is not None:
+		place = await session.get(Place, payload.place_id)
+		if place is None:
+			raise HTTPException(status_code=404, detail="Place not found.")
+		place_link = (
+			await session.execute(
+				select(ProjectPlace).where(
+					ProjectPlace.project_id == project.id,
+					ProjectPlace.place_id == payload.place_id,
+				)
+			)
+		).scalar_one_or_none()
+		if place_link is None:
+			raise HTTPException(status_code=404, detail="Place not found in the selected project.")
+		stmt = stmt.where(Assignment.place_id == payload.place_id)
+
+	assignments = list((await session.execute(stmt)).scalars().all())
+	if not assignments:
+		raise HTTPException(status_code=404, detail="Assignment not found.")
+
+	deleted_count = len(assignments)
+	for assignment in assignments:
+		await session.delete(assignment)
+	await session.commit()
+
+	return DeleteAssignmentResponse(deleted_count=deleted_count)
 
 
 @router.get("/my-places", response_model=list[AuditorAssignedPlaceItem])
