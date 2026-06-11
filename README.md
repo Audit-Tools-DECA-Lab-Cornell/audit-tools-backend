@@ -92,24 +92,45 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-3. Set product database URLs:
+3. Set product database URLs for each tier you use (dev, prod, test). You only
+   need to configure these once — switch targets at runtime with `ENVIRONMENT`:
 
 ```env
-DATABASE_URL_YEE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_yee
-DATABASE_URL_PLAYSPACE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_playspace
+ENVIRONMENT=development
+
+DEV_DATABASE_URL_YEE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_yee
+DEV_DATABASE_URL_PLAYSPACE=postgresql+asyncpg://postgres:postgres@localhost:5432/audit_tools_playspace
+DATABASE_URL_YEE=postgresql+asyncpg://...
+DATABASE_URL_PLAYSPACE=postgresql+asyncpg://...
+TEST_DATABASE_URL_PLAYSPACE=postgresql+asyncpg://...
 AUTH_TOKEN_SECRET_KEY=change-me
 AUTH_ACCESS_TOKEN_TTL_DAYS=7
 AUTH_EMAIL_VERIFY_TTL_HOURS=24
 AUTH_VERIFY_URL_TEMPLATE=http://localhost:3000/verify-email?token={token}
 ```
 
+Resolution order matches Alembic `-x environment=...`:
+
+| `ENVIRONMENT`           | Playspace URL keys tried (in order)                      |
+| ----------------------- | -------------------------------------------------------- |
+| `development` (default) | `DEV_DATABASE_URL_PLAYSPACE` → `DATABASE_URL_PLAYSPACE`  |
+| `production`            | `DATABASE_URL_PLAYSPACE`                                 |
+| `test`                  | `TEST_DATABASE_URL_PLAYSPACE` → `DATABASE_URL_PLAYSPACE` |
+
 4. Apply migrations to both product databases. Each product has its own Alembic
    branch (`yee` / `playspace`) sharing a common `core` base, so target the
    product-scoped branch head rather than the bare `head`:
 
 ```bash
-alembic -x product=yee upgrade yee@head
-alembic -x product=playspace upgrade playspace@head
+alembic -x product=yee -x environment=development upgrade yee@head
+alembic -x product=playspace -x environment=development upgrade playspace@head
+```
+
+For production or test databases:
+
+```bash
+alembic -x product=playspace -x environment=production upgrade playspace@head
+alembic -x product=playspace -x environment=test upgrade playspace@head
 ```
 
 5. Seed demo data when needed:
@@ -130,6 +151,16 @@ Or seed one product only:
 ```bash
 uvicorn app.main:app --reload
 ```
+
+Point the server at a different database tier without editing `.env`:
+
+```bash
+ENVIRONMENT=production uvicorn app.main:app --reload
+ENVIRONMENT=test uvicorn app.main:app --reload
+```
+
+On startup the backend logs the active `ENVIRONMENT` and resolved
+host/database for each product.
 
 Useful local URLs:
 

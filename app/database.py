@@ -4,9 +4,7 @@ Database engines and async session dependencies for product databases.
 
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncIterator
-from enum import Enum
 
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy.engine import URL, make_url
@@ -17,55 +15,21 @@ from sqlalchemy.ext.asyncio import (
 	create_async_engine,
 )
 
+from app.db_urls import (
+	DatabaseEnvironment,
+	ProductKey,
+	describe_database_target,
+	get_active_database_environment,
+	resolve_raw_database_url,
+)
+
 load_dotenv(find_dotenv())
 
 ######################################################################################
 ################################ Database Products ###################################
 ######################################################################################
 
-
-class ProductKey(str, Enum):
-	"""Selector used to route requests to YEE or Playspace databases."""
-
-	YEE = "yee"
-	PLAYSPACE = "playspace"
-
-
-def _is_production_like_environment() -> bool:
-	"""Detect hosted production-style environments where silent DB fallback is risky."""
-
-	environment = (os.getenv("ENVIRONMENT") or "").strip().lower()
-	return environment == "production" or os.getenv("RENDER") == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
-
-
-def _resolve_raw_database_url(product: ProductKey) -> str:
-	"""Resolve one product database URL from environment variables or defaults."""
-
-	env_suffix = "YEE" if product is ProductKey.YEE else "PLAYSPACE"
-	env_keys = [f"DEV_DATABASE_URL_{env_suffix}", f"DATABASE_URL_{env_suffix}"]
-
-	for env_key in env_keys:
-		raw_value = os.getenv(env_key)
-		if raw_value is None:
-			continue
-		normalized = raw_value.strip()
-		if normalized:
-			return normalized
-
-	if product is ProductKey.YEE:
-		legacy_url = os.getenv("DATABASE_URL")
-		if legacy_url and legacy_url.strip() and not _is_production_like_environment():
-			return legacy_url.strip()
-
-	if _is_production_like_environment():
-		expected_key = f"DATABASE_URL_{env_suffix}"
-		raise RuntimeError(
-			f"Missing required environment variable {expected_key}. "
-			"Production deployments must provide explicit product database URLs for YEE and Playspace."
-		)
-
-	default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
-	return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
+ACTIVE_DATABASE_ENVIRONMENT: DatabaseEnvironment = get_active_database_environment()
 
 
 def _normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, object]]:
@@ -107,12 +71,19 @@ def normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, obje
 	return _normalize_postgres_sqlalchemy_url(raw_url)
 
 
+def describe_active_database_targets() -> dict[str, str]:
+	"""Return safe host/database labels for startup diagnostics."""
+
+	return {product.value: describe_database_target(RAW_DATABASE_URL_BY_PRODUCT[product]) for product in ProductKey}
+
+
 def _build_engine_and_factory(
 	product: ProductKey,
+	environment: DatabaseEnvironment,
 ) -> tuple[str, AsyncEngine, async_sessionmaker[AsyncSession]]:
 	"""Create one product engine + session factory pair."""
 
-	raw_database_url = _resolve_raw_database_url(product)
+	raw_database_url = resolve_raw_database_url(product, environment)
 	normalized_url, connect_args = _normalize_postgres_sqlalchemy_url(raw_database_url)
 	engine = create_async_engine(
 		normalized_url,
@@ -137,7 +108,7 @@ ASYNC_ENGINE_BY_PRODUCT: dict[ProductKey, AsyncEngine] = {}
 ASYNC_SESSION_FACTORY_BY_PRODUCT: dict[ProductKey, async_sessionmaker[AsyncSession]] = {}
 
 for product_key in ProductKey:
-	raw_database_url, engine, session_factory = _build_engine_and_factory(product_key)
+	raw_database_url, engine, session_factory = _build_engine_and_factory(product_key, ACTIVE_DATABASE_ENVIRONMENT)
 	RAW_DATABASE_URL_BY_PRODUCT[product_key] = raw_database_url
 	ASYNC_ENGINE_BY_PRODUCT[product_key] = engine
 	ASYNC_SESSION_FACTORY_BY_PRODUCT[product_key] = session_factory

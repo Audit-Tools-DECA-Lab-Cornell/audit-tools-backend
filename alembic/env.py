@@ -9,7 +9,6 @@ through `-x product=yee` or `-x product=playspace`.
 from __future__ import annotations
 
 import asyncio
-from enum import Enum
 from logging.config import fileConfig
 import os
 from typing import Any
@@ -20,7 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from dotenv import find_dotenv, load_dotenv
 
 from alembic import context
-from app.database import ProductKey, normalize_postgres_sqlalchemy_url
+from app.database import normalize_postgres_sqlalchemy_url
+from app.db_urls import DatabaseEnvironment, ProductKey, parse_database_environment, resolve_raw_database_url
 from app.models import Base, table_belongs_to_product
 
 load_dotenv(find_dotenv())
@@ -33,61 +33,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-class Environment(str, Enum):
-	"""The target environment for this migration run."""
-
-	TEST = "test"
-	DEVELOPMENT = "development"
-	PRODUCTION = "production"
-
-
-def _is_production_like_environment(environment: Environment) -> bool:
-	"""Detect hosted production-style environments where silent DB fallback is risky."""
-
-	return (
-		environment is Environment.PRODUCTION or os.getenv("RENDER") == "true" or bool(os.getenv("RENDER_SERVICE_ID"))
-	)
-
-
-def _resolve_raw_database_url(product: ProductKey, environment: Environment) -> str:
-	"""Resolve one product database URL from environment variables or defaults."""
-
-	env_suffix = "YEE" if product is ProductKey.YEE else "PLAYSPACE"
-	match environment:
-		case Environment.TEST:
-			env_prefix = "TEST_"
-		case Environment.DEVELOPMENT:
-			env_prefix = "DEV_"
-		case Environment.PRODUCTION:
-			env_prefix = ""
-
-	env_keys = [f"{env_prefix}DATABASE_URL_{env_suffix}", f"DATABASE_URL_{env_suffix}"]
-
-	for env_key in env_keys:
-		raw_value = os.getenv(env_key)
-		if raw_value is None:
-			continue
-		normalized = raw_value.strip()
-		if normalized:
-			return normalized
-
-	if product is ProductKey.YEE:
-		legacy_url = os.getenv("DATABASE_URL")
-		if legacy_url and legacy_url.strip() and not _is_production_like_environment(environment):
-			return legacy_url.strip()
-
-	if _is_production_like_environment(environment):
-		expected_key = f"DATABASE_URL_{env_suffix}"
-		raise RuntimeError(
-			f"Missing required environment variable {expected_key}. "
-			"Production migration runs must target explicit product database URLs."
-		)
-
-	default_dbname = "audit_tools_yee" if product is ProductKey.YEE else "audit_tools_playspace"
-	return f"postgresql+asyncpg://postgres:postgres@localhost:5432/{default_dbname}"
-
-
-def _resolve_environment() -> Environment:
+def _resolve_environment() -> DatabaseEnvironment:
 	"""
 	Resolve the target environment for this migration run.
 
@@ -100,15 +46,8 @@ def _resolve_environment() -> Environment:
 	"""
 
 	x_args = context.get_x_argument(as_dictionary=True)
-	raw_environment = x_args.get("environment", Environment.DEVELOPMENT.value) or os.getenv(
-		"ENVIRONMENT", Environment.DEVELOPMENT.value
-	)
-	environment = raw_environment.strip().lower()
-	allowed = {item.value for item in Environment}
-	if environment not in allowed:
-		allowed_values = ", ".join(sorted(allowed))
-		raise ValueError(f"Invalid environment '{raw_environment}'. Expected one of: {allowed_values}.")
-	return Environment(environment)
+	raw_environment = x_args.get("environment") or os.getenv("ENVIRONMENT")
+	return parse_database_environment(raw_environment)
 
 
 def _resolve_product_key() -> ProductKey:
@@ -168,14 +107,14 @@ def _make_include_object(product: ProductKey):
 	return include_object
 
 
-def _set_sqlalchemy_url(product: ProductKey, environment: Environment) -> str:
+def _set_sqlalchemy_url(product: ProductKey, environment: DatabaseEnvironment) -> str:
 	"""
 	Ensure Alembic uses the same database URL as the application.
 
 	Alembic requires this value even when we override engine creation below.
 	"""
 
-	raw_url = _resolve_raw_database_url(product, environment)
+	raw_url = resolve_raw_database_url(product, environment)
 	config.set_main_option("sqlalchemy.url", raw_url)
 	return raw_url
 

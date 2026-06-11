@@ -6,6 +6,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import os
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler  # type: ignore[import-not-found]
@@ -14,7 +16,7 @@ from slowapi.middleware import SlowAPIMiddleware  # type: ignore[import-not-foun
 
 from app.auth import router as auth_router
 from app.dashboard_router import router as dashboard_router
-from app.database import dispose_engines
+from app.database import ACTIVE_DATABASE_ENVIRONMENT, describe_active_database_targets, dispose_engines
 from app.limiter import limiter
 from app.notifications_router import router as notifications_router
 from app.products.playspace.routes import router as playspace_router
@@ -42,6 +44,7 @@ def _resolve_cors_origins() -> list[str]:
 
 
 origins = _resolve_cors_origins()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -52,6 +55,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 	Disposes the DB engine on shutdown so connections are closed cleanly.
 	"""
 
+	targets = describe_active_database_targets()
+	logger.info(
+		"Database environment=%s yee=%s playspace=%s",
+		ACTIVE_DATABASE_ENVIRONMENT.value,
+		targets["yee"],
+		targets["playspace"],
+	)
 	yield
 	await dispose_engines()
 
