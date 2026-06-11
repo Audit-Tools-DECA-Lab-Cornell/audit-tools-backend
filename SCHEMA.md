@@ -415,16 +415,18 @@ One row per checklist-style question response. This table stores the array/objec
 
 ## 3. Current Playspace Score Model
 
-Scoring is computed from the audit's JSONB response payload, then serialized into typed partition scores and stored on `playspace_submissions`.
+Scoring is computed from the audit's JSONB response payload, then serialized into typed partition scores and stored on `playspace_submissions`. Each score bucket is paired with a dynamic maximum bucket; `Not applicable` answers contribute `0` and remove that scale from the maximum for the canonical report score.
 
-| Bucket              | Type            |
-| ------------------- | --------------- |
-| `provision_total`   | Column total    |
-| `variety_total`   | Column total    |
-| `challenge_total`   | Column total    |
-| `sociability_total` | Construct total |
-| `play_value_total`  | Construct total |
-| `usability_total`   | Construct total |
+| Bucket              | Maximum bucket          | Type            |
+| ------------------- | ----------------------- | --------------- |
+| `provision_total`   | `provision_total_max`   | Column total    |
+| `variety_total`     | `variety_total_max`     | Column total    |
+| `challenge_total`   | `challenge_total_max`   | Column total    |
+| `sociability_total` | `sociability_total_max` | Construct total |
+| `play_value_total`  | `play_value_total_max`  | Construct total |
+| `usability_total`   | `usability_total_max`   | Construct total |
+
+Canonical scoring treats Unsure answers as excluded from the score and maximum. When Unsure answers are present, API score payloads also return `unsure_answer_count` and `unsure_variants` with alternate `unsure_as_zero` and `unsure_as_max` bucket sets so report surfaces can show the interpretation range.
 
 These totals are returned in: audit session responses · assigned-place summaries · dashboard/stat payloads where applicable.
 
