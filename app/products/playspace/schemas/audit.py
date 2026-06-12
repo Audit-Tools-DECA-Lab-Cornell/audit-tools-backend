@@ -217,9 +217,27 @@ class AuditDraftSaveResponse(ApiModel):
 
 
 class AuditSubmitRequest(RequestModel):
-	"""Optional revision check payload for final audit submission."""
+	"""Optional revision check and idempotency payload for final audit submission."""
 
 	expected_revision: int | None = Field(default=None, ge=0)
+	# When provided, a replayed submit of an already-submitted audit whose stored
+	# key matches returns the submitted session instead of a 409 conflict. The
+	# mobile client sends the audit id so an offline submit retried after an
+	# ambiguous network failure resolves cleanly.
+	idempotency_key: str | None = Field(default=None, max_length=64)
+
+
+class AuditSubmitIntentRequest(RequestModel):
+	"""Submit-intent beacon recorded when an auditor taps submit.
+
+	Sent ahead of (and independently from) the submit request so the server
+	knows a submission is expected even if the submit itself never completes;
+	a backend job emails the auditor when an intended submission stalls.
+	"""
+
+	# Device-reported time the auditor tapped submit, kept for diagnostics. The
+	# authoritative intent timestamp is stamped server-side on first receipt.
+	client_intended_at: datetime | None = None
 
 
 class PlaceAuditAccessRequest(RequestModel):

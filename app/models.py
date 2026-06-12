@@ -839,6 +839,14 @@ class PlayspaceSubmission(Base):
 	)
 	submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 	total_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+	# Offline durability: the server records that an auditor intended to submit
+	# (the submit-intent beacon) so a never-arrived detector can email them even
+	# if the submit request itself never completes. submit_idempotency_key makes
+	# a replayed submit return the submitted session instead of a 409 conflict.
+	submit_intended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	submit_intent_client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	submit_stall_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	submit_idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 	summary_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 	audit_play_value_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 	audit_usability_score: Mapped[float | None] = mapped_column(Float, nullable=True)

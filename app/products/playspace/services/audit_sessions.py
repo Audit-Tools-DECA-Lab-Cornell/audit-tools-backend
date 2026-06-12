@@ -8,7 +8,7 @@ import ast
 import json
 import math
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
@@ -62,6 +62,7 @@ from app.products.playspace.schemas import (
 	AuditUnsureVariantsResponse,
 	AuditSectionStateResponse,
 	AuditSessionResponse,
+	AuditSubmitIntentRequest,
 	AuditSubmitRequest,
 	ExecutionMode,
 	PaginatedResponse,
@@ -848,6 +849,23 @@ class PlayspaceAuditSessionsMixin:
 		"""Validate completion, calculate scores, and submit an in-progress audit."""
 
 		audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
+
+		# Idempotent replay: a submit retried after an ambiguous network failure
+		# returns the already-submitted session instead of a 409 when its stored
+		# key matches, so the client never enters conflict recovery (which can
+		# otherwise discard local edits). The mobile client sends the audit id.
+		submit_idempotency_key = payload.idempotency_key if payload is not None else None
+		if (
+			audit.status is AuditStatus.SUBMITTED
+			and submit_idempotency_key is not None
+			and audit.submit_idempotency_key == submit_idempotency_key
+		):
+			return await self._build_audit_session_response(
+				audit=audit,
+				project=audit.project,
+				place=audit.place,
+			)
+
 		self._ensure_not_submitted(
 			audit=audit,
 			detail="This audit has already been submitted.",
@@ -890,6 +908,9 @@ class PlayspaceAuditSessionsMixin:
 		audit.survey_usability_score = survey_partition.usability_total if survey_partition is not None else None
 		overall_payload = self._build_score_totals_response(calculated_scores.get("overall"))
 		audit.summary_score = self._combined_construct_total(overall_payload)
+		# Store the idempotency key so a replayed submit returns this session.
+		if submit_idempotency_key is not None:
+			audit.submit_idempotency_key = submit_idempotency_key
 		await self._commit_and_refresh(audit)
 
 		return await self._build_audit_session_response(
@@ -897,6 +918,120 @@ class PlayspaceAuditSessionsMixin:
 			project=audit.project,
 			place=audit.place,
 		)
+
+	async def record_submit_intent(
+		self,
+		*,
+		actor: CurrentUserContext,
+		audit_id: uuid.UUID,
+		payload: AuditSubmitIntentRequest | None = None,
+	) -> None:
+		"""Record that the owning auditor intends to submit this in-progress audit.
+
+		The mobile app fires this beacon when the auditor taps submit, ahead of
+		and independently from the submit request, so the server knows a
+		submission is expected even if the submit itself never arrives. The
+		authoritative intent time is stamped server-side once and preserved on
+		repeat beacons; a submitted audit is a no-op. Auditor-only, best-effort.
+		"""
+
+		if actor.role is not CurrentUserRole.AUDITOR:
+			raise HTTPException(
+				status_code=status.HTTP_403_FORBIDDEN,
+				detail="Auditor access is required for this endpoint.",
+			)
+
+		audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
+		if audit.status is AuditStatus.SUBMITTED:
+			return
+
+		if audit.submit_intended_at is None:
+			audit.submit_intended_at = datetime.now(timezone.utc)
+		if payload is not None and payload.client_intended_at is not None:
+			audit.submit_intent_client_at = payload.client_intended_at
+
+		await self._commit_and_refresh(audit)
+
+	async def notify_stalled_submissions(
+		self,
+		*,
+		stall_threshold: timedelta,
+		renotify_after: timedelta,
+		now: datetime | None = None,
+		limit: int = 200,
+	) -> list[uuid.UUID]:
+		"""Email auditors whose intended submissions never completed.
+
+		Selects in-progress audits whose submit-intent beacon is at least
+		``stall_threshold`` old and that have not been notified within
+		``renotify_after``, emails each owning auditor (reusing the offline
+		submit-failure notice), and stamps ``submit_stall_notified_at`` so a
+		later run does not re-notify too soon. Runs outside a request (no actor)
+		from the scheduled job; safe to run repeatedly. Returns the audit ids
+		notified this run.
+		"""
+
+		import logging
+
+		from app.email_service.send_email import send_audit_submit_failure_email
+
+		_log = logging.getLogger(__name__)
+
+		evaluation_time = now if now is not None else datetime.now(timezone.utc)
+		intent_cutoff = evaluation_time - stall_threshold
+		renotify_cutoff = evaluation_time - renotify_after
+
+		result = await self._session.execute(
+			select(PlayspaceSubmission)
+			.where(
+				PlayspaceSubmission.status != AuditStatus.SUBMITTED,
+				PlayspaceSubmission.submit_intended_at.is_not(None),
+				PlayspaceSubmission.submit_intended_at <= intent_cutoff,
+				or_(
+					PlayspaceSubmission.submit_stall_notified_at.is_(None),
+					PlayspaceSubmission.submit_stall_notified_at <= renotify_cutoff,
+				),
+			)
+			.order_by(PlayspaceSubmission.submit_intended_at)
+			.limit(limit)
+			.options(
+				selectinload(PlayspaceSubmission.auditor_profile),
+				selectinload(PlayspaceSubmission.place),
+				selectinload(PlayspaceSubmission.project),
+			)
+		)
+		stalled_audits = result.scalars().all()
+
+		notified_audit_ids: list[uuid.UUID] = []
+		for audit in stalled_audits:
+			auditor_profile = audit.auditor_profile
+			to_email = auditor_profile.email if auditor_profile is not None else None
+			if to_email:
+				place_name = audit.place.name if audit.place is not None else str(audit.place_id)
+				project_name = audit.project.name if audit.project is not None else str(audit.project_id)
+				try:
+					send_audit_submit_failure_email(
+						to_email=to_email,
+						auditor_name=auditor_profile.full_name,
+						place_name=place_name,
+						audit_code=audit.audit_code,
+						project_name=project_name,
+					)
+				except Exception:
+					# One failed email must not abort the batch; the row stays
+					# eligible for the next run because notified_at is still set
+					# below only after a delivery attempt.
+					_log.exception("notify_stalled_submissions: email send raised for audit_id=%s", audit.id)
+			else:
+				_log.warning("notify_stalled_submissions: no auditor email for audit_id=%s", audit.id)
+
+			audit.submit_stall_notified_at = evaluation_time
+			notified_audit_ids.append(audit.id)
+
+		if notified_audit_ids:
+			await self._session.commit()
+
+		return notified_audit_ids
 
 	async def notify_submit_failure(
 		self,
