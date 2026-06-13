@@ -1006,25 +1006,37 @@ class PlayspaceAuditSessionsMixin:
 		for audit in stalled_audits:
 			auditor_profile = audit.auditor_profile
 			to_email = auditor_profile.email if auditor_profile is not None else None
-			if to_email:
-				place_name = audit.place.name if audit.place is not None else str(audit.place_id)
-				project_name = audit.project.name if audit.project is not None else str(audit.project_id)
-				try:
-					send_audit_submit_failure_email(
-						to_email=to_email,
-						auditor_name=auditor_profile.full_name,
-						place_name=place_name,
-						audit_code=audit.audit_code,
-						project_name=project_name,
-					)
-				except Exception:
-					# One failed email must not abort the batch; the row stays
-					# eligible for the next run because notified_at is still set
-					# below only after a delivery attempt.
-					_log.exception("notify_stalled_submissions: email send raised for audit_id=%s", audit.id)
-			else:
+			if not to_email:
+				# No address on file: leave the row eligible (do not stamp) so it is
+				# picked up once an email is added, and never count it as notified.
 				_log.warning("notify_stalled_submissions: no auditor email for audit_id=%s", audit.id)
+				continue
 
+			place_name = audit.place.name if audit.place is not None else str(audit.place_id)
+			project_name = audit.project.name if audit.project is not None else str(audit.project_id)
+			delivered = False
+			try:
+				# The helper returns False (rather than raising) on missing
+				# credentials, HTTP, or SMTP errors.
+				delivered = send_audit_submit_failure_email(
+					to_email=to_email,
+					auditor_name=auditor_profile.full_name,
+					place_name=place_name,
+					audit_code=audit.audit_code,
+					project_name=project_name,
+				)
+			except Exception:
+				_log.exception("notify_stalled_submissions: email send raised for audit_id=%s", audit.id)
+				delivered = False
+
+			if not delivered:
+				# Transient failure: keep the row eligible for the next sweep
+				# instead of suppressing it for the whole renotify window.
+				_log.warning("notify_stalled_submissions: email not delivered for audit_id=%s", audit.id)
+				continue
+
+			# Only on confirmed delivery do we suppress re-notification and report
+			# the audit as notified.
 			audit.submit_stall_notified_at = evaluation_time
 			notified_audit_ids.append(audit.id)
 

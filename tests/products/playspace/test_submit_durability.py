@@ -265,3 +265,48 @@ def test_notify_stalled_submissions_detector(
 	)
 	assert uuid.UUID(audit_id) not in notified_after_submit
 	assert len(sent_emails) == 1
+
+
+def test_notify_stalled_submissions_keeps_row_eligible_on_email_failure(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+	playspace_test_session_factory: async_sessionmaker[AsyncSession],
+	monkeypatch,
+) -> None:
+	"""A failed delivery must not stamp/suppress the row; it stays eligible to retry."""
+
+	suffix = _unique_suffix()
+	manager_token = _login_manager(playspace_client)
+	audit_id, _auditor_headers = _open_fresh_audit(playspace_client, manager_token, suffix)
+
+	intent_time = datetime.now(timezone.utc) - timedelta(hours=2)
+	asyncio.run(_mutate_audit(playspace_test_session_factory, audit_id, submit_intended_at=intent_time))
+
+	# The email helper returns False (not raising) on a delivery failure.
+	delivery_succeeds = {"value": False}
+
+	def _fake_send(**_kwargs: object) -> bool:
+		return delivery_succeeds["value"]
+
+	monkeypatch.setattr("app.email_service.send_email.send_audit_submit_failure_email", _fake_send)
+
+	async def _run_detector() -> list[uuid.UUID]:
+		async with playspace_test_session_factory() as session:
+			service = PlayspaceAuditService(session)
+			return await service.notify_stalled_submissions(
+				stall_threshold=timedelta(hours=1),
+				renotify_after=timedelta(hours=24),
+			)
+
+	# Failed delivery: not reported as notified and not stamped (stays eligible).
+	failed = asyncio.run(_run_detector())
+	assert uuid.UUID(audit_id) not in failed
+	fields = asyncio.run(_read_submit_fields(playspace_test_session_factory, audit_id))
+	assert fields["submit_stall_notified_at"] is None
+
+	# Once delivery succeeds, the same still-eligible row is notified and stamped.
+	delivery_succeeds["value"] = True
+	delivered = asyncio.run(_run_detector())
+	assert uuid.UUID(audit_id) in delivered
+	fields_after = asyncio.run(_read_submit_fields(playspace_test_session_factory, audit_id))
+	assert fields_after["submit_stall_notified_at"] is not None
