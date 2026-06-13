@@ -17,6 +17,7 @@ from app.products.playspace.schemas import (
 	AuditDraftPatchRequest,
 	AuditDraftSaveResponse,
 	AuditSessionResponse,
+	AuditSubmitIntentRequest,
 	AuditSubmitRequest,
 	PlaceAuditAccessRequest,
 )
@@ -82,6 +83,27 @@ async def submit_audit(
 	"""Submit a playspace audit after validating completion and calculating scores."""
 
 	return await service.submit_audit(actor=current_user, audit_id=audit_id, payload=payload)
+
+
+@router.post(
+	"/audits/{audit_id}/submit-intent",
+	status_code=204,
+	response_class=Response,
+	response_model=None,
+)
+async def record_submit_intent(
+	audit_id: uuid.UUID,
+	payload: AuditSubmitIntentRequest | None = None,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceAuditService = AUDIT_SERVICE_DEPENDENCY,
+) -> None:
+	"""Record the owning auditor's intent to submit an in-progress audit.
+
+	The mobile app fires this beacon when the auditor taps submit so the server
+	knows a submission is expected even if the submit request never arrives. The
+	endpoint always returns 204 and is auditor-only.
+	"""
+	await service.record_submit_intent(actor=current_user, audit_id=audit_id, payload=payload)
 
 
 @router.post(
