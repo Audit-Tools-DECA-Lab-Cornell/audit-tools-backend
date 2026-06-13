@@ -233,10 +233,13 @@ def test_notify_stalled_submissions_detector(
 		_fake_send,
 	)
 
-	async def _run_detector(**kwargs: object) -> list[uuid.UUID]:
+	async def _run_detector(*, stall_threshold: timedelta, renotify_after: timedelta) -> list[uuid.UUID]:
 		async with playspace_test_session_factory() as session:
 			service = PlayspaceAuditService(session)
-			return await service.notify_stalled_submissions(**kwargs)
+			return await service.notify_stalled_submissions(
+				stall_threshold=stall_threshold,
+				renotify_after=renotify_after,
+			)
 
 	# First sweep notifies the stalled audit exactly once.
 	notified = asyncio.run(_run_detector(stall_threshold=timedelta(hours=1), renotify_after=timedelta(hours=24)))
