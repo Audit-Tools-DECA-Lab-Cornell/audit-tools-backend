@@ -332,6 +332,14 @@ async def _get_yee_instrument_by_id(session: AsyncSession, instrument_id: uuid.U
 	return (await session.execute(select(Instrument).where(Instrument.id == instrument_id))).scalar_one_or_none()
 
 
+def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
+	canonical = YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
+	if not isinstance(raw_content, dict):
+		return canonical
+	merged = {**canonical, **raw_content}
+	return YeeInstrumentResponse.model_validate(merged).model_dump()
+
+
 async def _create_yee_instrument_version(
 	session: AsyncSession,
 	data: YeeInstrumentCreateRequest,
@@ -390,7 +398,7 @@ async def get_yee_instrument(
 		active = await _bootstrap_yee_instrument_if_missing(session)
 	if active is not None:
 		try:
-			return YeeInstrumentResponse.model_validate(active.content).model_dump()
+			return _normalize_yee_instrument_content(active.content)
 		except Exception:
 			pass
 	return YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
@@ -405,7 +413,20 @@ async def admin_list_yee_instruments(
 	_require_admin(user)
 	await _bootstrap_yee_instrument_if_missing(session, instrument_key)
 	rows = await _list_yee_instrument_versions(session, instrument_key)
-	return [YeeInstrumentVersionResponse.model_validate(row) for row in rows]
+	return [
+		YeeInstrumentVersionResponse.model_validate(
+			{
+				"id": row.id,
+				"instrument_key": row.instrument_key,
+				"instrument_version": row.instrument_version,
+				"is_active": row.is_active,
+				"content": _normalize_yee_instrument_content(row.content) if instrument_key == "yee" else row.content,
+				"created_at": row.created_at,
+				"updated_at": row.updated_at,
+			}
+		)
+		for row in rows
+	]
 
 
 @router.get("/site-copy")
@@ -477,7 +498,17 @@ async def admin_create_yee_instrument(
 		content=validated_content,
 	)
 	row = await _create_yee_instrument_version(session, validated_data, activate)
-	return YeeInstrumentVersionResponse.model_validate(row)
+	return YeeInstrumentVersionResponse.model_validate(
+		{
+			"id": row.id,
+			"instrument_key": row.instrument_key,
+			"instrument_version": row.instrument_version,
+			"is_active": row.is_active,
+			"content": _normalize_yee_instrument_content(row.content),
+			"created_at": row.created_at,
+			"updated_at": row.updated_at,
+		}
+	)
 
 
 @router.patch("/admin/instruments/{instrument_id}", response_model=YeeInstrumentVersionResponse)
@@ -491,7 +522,17 @@ async def admin_update_yee_instrument(
 	row = await _update_yee_instrument_status(session, instrument_id, data)
 	if row is None:
 		raise HTTPException(status_code=404, detail="Instrument not found")
-	return YeeInstrumentVersionResponse.model_validate(row)
+	return YeeInstrumentVersionResponse.model_validate(
+		{
+			"id": row.id,
+			"instrument_key": row.instrument_key,
+			"instrument_version": row.instrument_version,
+			"is_active": row.is_active,
+			"content": _normalize_yee_instrument_content(row.content),
+			"created_at": row.created_at,
+			"updated_at": row.updated_at,
+		}
+	)
 
 
 @router.get("/my-audits", response_model=list[MyYeeAuditItem])

@@ -28,6 +28,48 @@ class YeeInstrumentSectionMeta(BaseModel):
 	comment_prompt: str = ""
 
 
+class YeeInstrumentOption(BaseModel):
+	value: str
+	label: str
+	notes: str | None = None
+
+
+class YeeInstrumentPreAuditQuestion(BaseModel):
+	id: str
+	title: str
+	prompt: str
+	description: str = ""
+	options: list[YeeInstrumentOption] = Field(default_factory=list)
+	multi_select: bool = False
+	required: bool = True
+	auto_generated: bool = False
+
+
+class YeeInstrumentScaleRule(BaseModel):
+	value: str
+	label: str
+	add: int | None = None
+	boost: int | None = None
+	follow_up_behavior: str | None = None
+	tag: str | None = None
+
+
+class YeeInstrumentScaleGuidance(BaseModel):
+	id: str
+	title: str
+	prompt: str
+	description: str = ""
+	rules: list[YeeInstrumentScaleRule] = Field(default_factory=list)
+
+
+class YeeInstrumentLegalDocument(BaseModel):
+	id: str
+	title: str
+	last_updated: str | None = None
+	content: str
+	document_type: str | None = None
+
+
 class YeeInstrumentResponse(BaseModel):
 	survey_id: str | None = None
 	survey_name: str
@@ -35,3 +77,7 @@ class YeeInstrumentResponse(BaseModel):
 	scoring_categories: dict[str, str] = Field(default_factory=dict)
 	sections: list[YeeInstrumentSectionMeta] = Field(default_factory=list)
 	scoring_items: list[YeeInstrumentItem]
+	preamble: list[str] = Field(default_factory=list)
+	pre_audit_questions: list[YeeInstrumentPreAuditQuestion] = Field(default_factory=list)
+	scale_guidance: list[YeeInstrumentScaleGuidance] = Field(default_factory=list)
+	legal_documents: list[YeeInstrumentLegalDocument] = Field(default_factory=list)

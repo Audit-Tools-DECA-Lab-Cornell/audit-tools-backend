@@ -9,6 +9,169 @@ from pathlib import Path
 YEE_QSF_PATH = Path(__file__).resolve().parent / "data" / "yee_instrument.qsf"
 TOTAL_CATEGORY_NAME = "Score"
 
+YEE_PREAMBLE = [
+	"The YEE instrument is completed through a nine-step auditor flow: visit context, importance weighting, six domain sections, and final comments.",
+	"Section question wording comes from the survey definition itself, while visit details and importance-weighting prompts are part of the broader YEE audit workflow used in the web app.",
+	"Each saved instrument version is a complete snapshot. When a manager or auditor opens the YEE survey, the currently active version is the one the app uses.",
+]
+
+YEE_PRE_AUDIT_QUESTIONS = [
+	{
+		"id": "auditor_id",
+		"title": "Auditor ID",
+		"prompt": "Generated auditor ID",
+		"description": "Automatically populated from the auditor profile at the start of the audit.",
+		"options": [],
+		"required": True,
+		"auto_generated": True,
+	},
+	{
+		"id": "audit_date",
+		"title": "Date of the audit",
+		"prompt": "Audit date",
+		"description": "Recorded when the auditor begins the audit and editable in the visit details step.",
+		"options": [],
+		"required": True,
+		"auto_generated": True,
+	},
+	{
+		"id": "visit_frequency",
+		"title": "Visit frequency",
+		"prompt": "How often have you been to / visited this space in the last 6 months?",
+		"description": "Single-select visit context question shown before the scored YEE sections begin.",
+		"options": [
+			{"value": "never-before", "label": "I have never been here before"},
+			{"value": "every-or-almost-every-day", "label": "Every day or Almost every day"},
+			{"value": "once-or-twice-a-week", "label": "One or twice a week"},
+			{"value": "once-or-twice-a-month", "label": "Once or twice a month"},
+			{"value": "few-times-less-than-monthly", "label": "Only a few times (less than once a month)"},
+			{"value": "not-in-last-6-months", "label": "I have not been here in the last 6 months"},
+		],
+		"required": True,
+	},
+	{
+		"id": "season",
+		"title": "Season",
+		"prompt": "What is the current season?",
+		"description": "Single-select context question used in raw data and reporting.",
+		"options": [
+			{"value": "spring", "label": "Spring"},
+			{"value": "summer", "label": "Summer"},
+			{"value": "autumn", "label": "Autumn"},
+			{"value": "winter", "label": "Winter"},
+		],
+		"required": True,
+	},
+	{
+		"id": "weather",
+		"title": "Weather",
+		"prompt": "What is the weather like today?",
+		"description": "Multi-select visit context question shown before the scored YEE sections begin.",
+		"options": [
+			{"value": "sunny-mostly-sunny", "label": "Sunny / Mostly sunny"},
+			{"value": "mostly-cloudy-overcast", "label": "Mostly cloudy / Overcast"},
+			{"value": "rainy-drizzling", "label": "Rainy / drizzling"},
+			{"value": "windy", "label": "Windy"},
+			{"value": "snowy-flurries", "label": "Snowy / Flurries"},
+			{"value": "stormy", "label": "Stormy"},
+			{"value": "feels-hot", "label": "Feels hot / very hot"},
+			{"value": "feels-cold", "label": "Feels cold / very cold"},
+		],
+		"multi_select": True,
+		"required": True,
+	},
+	{
+		"id": "importance_weighting",
+		"title": "Importance weighting",
+		"prompt": "Please start by telling us how important each of the following issues are to you.",
+		"description": "Auditors assign a weight to each YEE domain before answering the section questions. These weights drive the youth-weighted score outputs in reports.",
+		"options": [
+			{"value": "3", "label": "Very important to me"},
+			{"value": "2", "label": "Somewhat important to me"},
+			{"value": "1", "label": "Not really important to me"},
+		],
+		"required": True,
+	},
+]
+
+YEE_SCALE_GUIDANCE = [
+	{
+		"id": "provision",
+		"title": "Provision",
+		"prompt": "To what degree is this feature/environmental characteristic present or considered?",
+		"description": "Provision refers to the presence or quantity of an environmental feature or characteristic.",
+		"rules": [
+			{"value": "0", "label": "No", "add": 0, "boost": 0, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "1", "label": "Some", "add": 1, "boost": 1, "follow_up_behavior": "Unlocks follow-up"},
+			{"value": "2", "label": "A lot", "add": 2, "boost": 2, "follow_up_behavior": "Unlocks follow-up"},
+			{"value": "na", "label": "Not applicable", "add": 0, "boost": 0, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+		],
+	},
+	{
+		"id": "variety",
+		"title": "Variety",
+		"prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+		"description": "Variety evaluates whether the provided feature offers variety in type, form, or opportunity rather than all options being the same.",
+		"rules": [
+			{"value": "na", "label": "Not applicable", "add": 0, "boost": 1, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{"value": "1", "label": "No Variety", "add": 1, "boost": 1, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "2", "label": "Some Variety", "add": 2, "boost": 2, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "3", "label": "A lot of Variety", "add": 3, "boost": 3, "follow_up_behavior": "Blocks follow-up"},
+		],
+	},
+	{
+		"id": "challenge",
+		"title": "Challenge Opportunities",
+		"prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+		"description": "Challenge opportunities assess whether the feature provides opportunities with different levels of difficulty.",
+		"rules": [
+			{"value": "na", "label": "Not applicable", "add": 0, "boost": 1, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{"value": "1", "label": "No Challenge", "add": 1, "boost": 1, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "2", "label": "Some Challenge", "add": 2, "boost": 2, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "3", "label": "A lot of Challenge", "add": 3, "boost": 3, "follow_up_behavior": "Blocks follow-up"},
+		],
+	},
+	{
+		"id": "sociability",
+		"title": "Sociability Support",
+		"prompt": "Can more than one child or person use this feature/environmental characteristic together?",
+		"description": "Sociability support assesses whether the feature can be used by more than one person at once, individually, in small groups, or in larger groups.",
+		"rules": [
+			{"value": "na", "label": "Not applicable", "add": 0, "boost": 1, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{"value": "1", "label": "No", "add": 1, "boost": 1, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "2", "label": "Yes - a pair", "add": 2, "boost": 2, "follow_up_behavior": "Blocks follow-up"},
+			{"value": "3", "label": "Yes - more than two children", "add": 3, "boost": 3, "follow_up_behavior": "Blocks follow-up"},
+		],
+	},
+]
+
+YEE_LEGAL_DOCUMENTS = [
+	{
+		"id": "service-agreement",
+		"title": "Service agreement",
+		"last_updated": "2026-06-14",
+		"document_type": "service_agreement",
+		"content": (
+			"This YEE account may be used by invited managers and auditors to manage projects, places, "
+			"audits, reports, and related field workflows. Managers control project and auditor access "
+			"within their own organization, while platform admins have cross-organization reporting access. "
+			"Auditors may complete only the audits assigned to them and may not reconfigure organization, "
+			"project, place, or instrument settings."
+		),
+	},
+	{
+		"id": "privacy-guidance",
+		"title": "Privacy guidance",
+		"last_updated": "2026-06-14",
+		"document_type": "privacy_guidance",
+		"content": (
+			"Auditor personal details should remain visible only to managers inside the same organization. "
+			"Platform administrators may view manager details and aggregate audit records, but auditor names "
+			"and email addresses should remain restricted in admin-facing experiences."
+		),
+	},
+]
+
 
 def _as_str(value: object) -> str | None:
 	if value is None:
@@ -220,6 +383,10 @@ def get_yee_instrument_data() -> dict[str, object]:
 		"scoring_categories": scoring_names_by_id,
 		"sections": list(section_metadata_by_block.values()),
 		"scoring_items": scoring_items,
+		"preamble": YEE_PREAMBLE,
+		"pre_audit_questions": YEE_PRE_AUDIT_QUESTIONS,
+		"scale_guidance": YEE_SCALE_GUIDANCE,
+		"legal_documents": YEE_LEGAL_DOCUMENTS,
 	}
 
 
