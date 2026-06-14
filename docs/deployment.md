@@ -69,6 +69,7 @@ Optional but important in production:
 - `BREVO_REPLY_TO_EMAIL`
 - `ADMIN_NOTIFICATION_EMAIL`
 - `TURNSTILE_SECRET_KEY`
+- `PROTECTED_YEE_DEMO_EMAILS`
 
 ## Migration Runbook
 
@@ -176,6 +177,19 @@ Minimum release smoke test:
 - one YEE manager/admin dashboard call
 - one Playspace dashboard or instrument call
 - one migration status check per database
+
+If you intentionally keep seeded YEE demo accounts in a shared review/staging
+environment, and one of those credentials drifts, you can restore the known
+demo passwords without destructive reseeding:
+
+```bash
+python -m app.reset_demo_passwords
+```
+
+By default, the backend protects the built-in seeded YEE demo emails from
+invite-based identity takeover and self-service password-reset drift. If you
+need to customize that protected set for a deployment, configure
+`PROTECTED_YEE_DEMO_EMAILS` as a comma-separated list.
 
 ## Security Notes
 

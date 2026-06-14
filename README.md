@@ -201,6 +201,25 @@ The current seed flows use the shared demo password:
 This applies to seeded auth-capable demo accounts used in local development and
 integration tests.
 
+If a shared demo account drifts from that password in a non-destructive YEE
+environment, you can restore the seeded demo passwords without wiping the whole
+database:
+
+```bash
+./.venv/bin/python -m app.reset_demo_passwords
+```
+
+To restore only one account:
+
+```bash
+./.venv/bin/python -m app.reset_demo_passwords --email manager-demo@yee.local
+```
+
+The backend also protects the seeded YEE demo emails by default so invite
+acceptance and self-service password reset flows do not mutate those shared
+review accounts. You can override that list with `PROTECTED_YEE_DEMO_EMAILS`
+if your deployment needs different protected identities.
+
 ## Testing
 
 Fast checks:

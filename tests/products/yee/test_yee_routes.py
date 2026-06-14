@@ -9,6 +9,7 @@ instrument → audit-state → draft → submit → list → fetch.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -16,7 +17,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.auth as auth_module
-from app.models import Account, Instrument, User
+from app.auth_security import hash_verification_token
+from app.models import Account, Instrument, ManagerInvite, User
 from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
 
 # Matches the deterministic YEE seed (see app/seed.py).
@@ -54,6 +56,28 @@ async def _load_manager_signup_snapshot(
 			account = await session.get(Account, user.account_id)
 			account_name = account.name if account is not None else None
 	return user, account_count, account_name
+
+
+async def _create_legacy_manager_invite_for_existing_manager(
+	session_factory: async_sessionmaker[AsyncSession],
+	*,
+	email: str,
+	account_id: str,
+	invited_by_user_id: str,
+	token: str,
+) -> None:
+	"""Create a pending invite to simulate a legacy/stray manager invite row."""
+
+	async with session_factory() as session:
+		invite = ManagerInvite(
+			account_id=account_id,
+			invited_by_user_id=invited_by_user_id,
+			email=email,
+			token_hash=hash_verification_token(token),
+			expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+		)
+		session.add(invite)
+		await session.commit()
 
 
 def test_yee_status_is_isolated(yee_client: TestClient) -> None:
@@ -203,6 +227,29 @@ def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatc
 	assert login.json()["user"]["account_type"] == "MANAGER"
 
 
+def test_protected_demo_password_reset_is_blocked(yee_client: TestClient, monkeypatch) -> None:
+	"""Protected seeded demo accounts do not drift through self-service reset."""
+
+	sent_reset_emails: list[dict[str, str]] = []
+
+	def _capture_reset_email(*, to_email: str, reset_url: str) -> bool:
+		sent_reset_emails.append({"to_email": to_email, "reset_url": reset_url})
+		return True
+
+	monkeypatch.setattr(auth_module, "send_password_reset_email", _capture_reset_email)
+
+	forgot = yee_client.post(
+		"/yee/auth/forgot-password",
+		json={"email": SEED_MANAGER_EMAIL, "website": ""},
+		headers={"X-Frontend-Origin": "http://localhost:3000"},
+	)
+	assert forgot.status_code == 200, forgot.text
+	assert sent_reset_emails == []
+
+	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert login.status_code == 200, login.text
+
+
 def test_primary_manager_can_manage_secondary_manager_invites(
 	yee_client: TestClient,
 	monkeypatch,
@@ -338,6 +385,34 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	post_revoke_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
 	assert post_revoke_list.status_code == 200, post_revoke_list.text
 	assert all(item["id"] != revoke_id for item in post_revoke_list.json())
+
+
+def test_existing_manager_invite_acceptance_cannot_overwrite_existing_manager_password(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""A stray legacy invite cannot hijack an existing manager's credentials."""
+
+	legacy_token = "legacy-manager-demo-token"
+	asyncio.run(
+		_create_legacy_manager_invite_for_existing_manager(
+			yee_test_session_factory,
+			email=SEED_MANAGER_EMAIL,
+			account_id="11111111-1111-4111-8111-111111111111",
+			invited_by_user_id="dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+			token=legacy_token,
+		)
+	)
+
+	accept_response = yee_client.post(
+		f"/yee/auth/manager-invites/{legacy_token}/accept",
+		json={"name": "Manager Demo", "password": "DifferentPass123!"},
+	)
+	assert accept_response.status_code == 409, accept_response.text
+	assert accept_response.json()["detail"] == "Protected demo accounts cannot be repurposed through manager invites."
+
+	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert login.status_code == 200, login.text
 
 
 def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient) -> None:

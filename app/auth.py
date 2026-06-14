@@ -33,6 +33,7 @@ from app.auth_security import (
 	verify_password,
 )
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
+from app.demo_accounts import is_protected_yee_demo_email
 from app.email_service import send_password_reset_email, send_verification_email
 from app.models import (
 	Account,
@@ -47,6 +48,13 @@ from app.models import (
 
 router: APIRouter = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _reject_protected_demo_user_mutation(*, email: str | None, detail: str) -> None:
+	"""Block mutations that would drift protected seeded YEE demo accounts."""
+
+	if is_protected_yee_demo_email(email):
+		raise HTTPException(status_code=409, detail=detail)
 
 
 class SignupRequest(BaseModel):
@@ -1084,6 +1092,8 @@ async def forgot_password(
 
 	if user is None or not user.email_verified:
 		return MessageResponse(message="If your email exists, a password reset link has been sent.")
+	if is_protected_yee_demo_email(user.email):
+		return MessageResponse(message="If your email exists, a password reset link has been sent.")
 
 	reset_token, _ = generate_password_reset_token(str(user.id), user.password_hash)
 	reset_url = _build_password_reset_url(request=request, token=reset_token)
@@ -1121,6 +1131,8 @@ async def reset_password(
 	user = await session.get(User, user_id)
 	if user is None:
 		raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
+	if is_protected_yee_demo_email(user.email):
+		raise HTTPException(status_code=409, detail="Protected demo accounts cannot reset their password from email links.")
 
 	if expected_fingerprint != hashlib.sha256(user.password_hash.encode("utf-8")).hexdigest()[:24]:
 		raise HTTPException(status_code=400, detail="This password reset link is no longer valid.")
@@ -1298,6 +1310,11 @@ async def accept_invite(
 	user = user_result.scalar_one_or_none()
 	if user is not None and user.account_type == AccountType.MANAGER:
 		raise HTTPException(status_code=409, detail="This email is already used by a manager account.")
+	if user is not None:
+		_reject_protected_demo_user_mutation(
+			email=user.email,
+			detail="Protected demo accounts cannot be repurposed through auditor invites.",
+		)
 
 	now = datetime.now(timezone.utc)
 	if user is None:
@@ -1405,8 +1422,15 @@ async def accept_manager_invite(
 
 	user_result = await session.execute(select(User).options(selectinload(User.account)).where(User.email == email))
 	user = user_result.scalar_one_or_none()
+	if user is not None:
+		_reject_protected_demo_user_mutation(
+			email=user.email,
+			detail="Protected demo accounts cannot be repurposed through manager invites.",
+		)
 	if user is not None and user.account_type != AccountType.MANAGER:
 		raise HTTPException(status_code=409, detail="This email is already used by a non-manager account.")
+	if user is not None and user.account_id == invite.account_id:
+		raise HTTPException(status_code=409, detail="This manager already has account access.")
 	if user is not None and user.account_id not in {None, invite.account_id}:
 		raise HTTPException(status_code=409, detail="This email is already linked to another manager account.")
 
