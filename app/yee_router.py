@@ -387,6 +387,17 @@ async def _update_yee_instrument_status(
 	return instrument
 
 
+async def _delete_yee_instrument_version(session: AsyncSession, instrument_id: uuid.UUID) -> Instrument | None:
+	instrument = await _get_yee_instrument_by_id(session, instrument_id)
+	if instrument is None:
+		return None
+	if instrument.is_active:
+		raise HTTPException(status_code=400, detail="The active instrument version cannot be deleted.")
+	await session.delete(instrument)
+	await session.commit()
+	return instrument
+
+
 @router.get("/instrument")
 async def get_yee_instrument(
 	session: AsyncSession = Depends(get_auth_session),
@@ -533,6 +544,19 @@ async def admin_update_yee_instrument(
 			"updated_at": row.updated_at,
 		}
 	)
+
+
+@router.delete("/admin/instruments/{instrument_id}")
+async def admin_delete_yee_instrument(
+	instrument_id: uuid.UUID,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> dict[str, Any]:
+	_require_admin(user)
+	row = await _delete_yee_instrument_version(session, instrument_id)
+	if row is None:
+		raise HTTPException(status_code=404, detail="Instrument not found")
+	return {"deleted": True, "instrument_id": str(instrument_id)}
 
 
 @router.get("/my-audits", response_model=list[MyYeeAuditItem])
