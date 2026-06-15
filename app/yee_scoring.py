@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
+from html import unescape
 from pathlib import Path
 
 YEE_QSF_PATH = Path(__file__).resolve().parent / "data" / "yee_instrument.qsf"
@@ -187,6 +189,53 @@ def _normalize_block_title(block_name: str) -> str:
 	return cleaned.strip()
 
 
+def _normalize_instrument_text(value: str | None) -> str:
+	if not value:
+		return ""
+	text = unescape(value).replace("\xa0", " ").strip()
+	replacements = {
+		"USE & USABILITY": "Use & Usability",
+		"USE or USABILITY": "use or usability",
+		"USE OR USABILITY": "use or usability",
+		"AESTHETICS & CARE": "Aesthetics & Care",
+		"AESTHETICS or CARE": "Aesthetics & Care",
+		"AESTHETICS OR CARE": "Aesthetics & Care",
+		"ACTIVITY SPACES": "Activity Spaces",
+		"ACCESS:": "Access:",
+		"AMENITIES:": "Amenities:",
+		"Click to write the question text": "",
+		"If yes, please rate the condition": "If yes, please rate the condition.",
+		"Poor": "Poor",
+		"Acceptable": "Acceptable",
+		"Great": "Great",
+	}
+	for source, target in replacements.items():
+		text = text.replace(source, target)
+	text = text.replace("<br>", " ").replace("<br/>", " ").replace("<br />", " ")
+	text = re.sub(r"\bex:", "Ex:", text, flags=re.IGNORECASE)
+	text = re.sub(r"\s+", " ", text)
+	return text.strip()
+
+
+def _normalize_choice_map(raw_choices: object) -> dict[str, dict[str, str | None]]:
+	if not isinstance(raw_choices, dict):
+		return {}
+	normalized: dict[str, dict[str, str | None]] = {}
+	for key, value in raw_choices.items():
+		if not isinstance(value, dict):
+			continue
+		display = _normalize_instrument_text(_as_str(value.get("Display")))
+		normalized[str(key)] = {
+			**value,
+			"Display": display if display else None,
+		}
+	return normalized
+
+
+def _default_section_comment_prompt(section_title: str) -> str:
+	return f"Are there any comments you want to add about the {section_title} of this space? (optional)"
+
+
 def _load_qsf() -> dict[str, object]:
 	with YEE_QSF_PATH.open("r", encoding="utf-8") as f:
 		return json.load(f)
@@ -302,7 +351,9 @@ def get_yee_instrument_data() -> dict[str, object]:
 
 		if not payload.get("GradingData"):
 			question_type = _as_str(payload.get("QuestionType")) or ""
-			question_text = _as_str(payload.get("QuestionText")) or _as_str(payload.get("QuestionDescription")) or ""
+			question_text = _normalize_instrument_text(
+				_as_str(payload.get("QuestionText")) or _as_str(payload.get("QuestionDescription")) or ""
+			)
 			meta = section_metadata_by_block.setdefault(
 				block_name,
 				{
@@ -315,8 +366,7 @@ def get_yee_instrument_data() -> dict[str, object]:
 			if question_type == "DB" and question_text:
 				meta["intro_text"] = question_text
 			elif question_type == "TE" and question_text:
-				if not meta["comment_prompt"] or "other thoughts" not in meta["comment_prompt"].lower():
-					meta["comment_prompt"] = question_text
+				meta["comment_prompt"] = question_text
 
 		additional_questions = payload.get("AdditionalQuestions", {})
 		if isinstance(additional_questions, dict) and additional_questions:
@@ -338,16 +388,18 @@ def get_yee_instrument_data() -> dict[str, object]:
 						"base_question_id": base_qid,
 						"block": block_name,
 						"block_title": normalized_block_title,
-						"question_text": _as_str(question_data.get("QuestionDescription"))
-						or _as_str(payload.get("QuestionDescription"))
-						or "",
+						"question_text": _normalize_instrument_text(
+							_as_str(question_data.get("QuestionDescription"))
+							or _as_str(payload.get("QuestionDescription"))
+							or ""
+						),
 						"item_kind": (
 							"condition"
 							if "if yes" in ((_as_str(question_data.get("QuestionDescription")) or "").lower())
 							else "presence"
 						),
-						"choices": question_data.get("Choices", {}),
-						"answers": question_data.get("Answers", {}),
+						"choices": _normalize_choice_map(question_data.get("Choices", {})),
+						"answers": _normalize_choice_map(question_data.get("Answers", {})),
 						"score_entries": score_entries,
 					}
 				)
@@ -366,22 +418,36 @@ def get_yee_instrument_data() -> dict[str, object]:
 				"base_question_id": base_qid,
 				"block": block_name,
 				"block_title": normalized_block_title,
-				"question_text": _as_str(payload.get("QuestionDescription"))
-				or _as_str(payload.get("QuestionText"))
-				or "",
+				"question_text": _normalize_instrument_text(
+					_as_str(payload.get("QuestionDescription"))
+					or _as_str(payload.get("QuestionText"))
+					or ""
+				),
 				"item_kind": "presence",
-				"choices": payload.get("Choices", {}),
-				"answers": payload.get("Answers", {}),
+				"choices": _normalize_choice_map(payload.get("Choices", {})),
+				"answers": _normalize_choice_map(payload.get("Answers", {})),
 				"score_entries": score_entries,
 			}
 		)
+
+	sections = list(section_metadata_by_block.values())
+	for section in sections:
+		title = section.get("title", "").strip()
+		if not title:
+			continue
+		if title != "Youth Participant Info":
+			section["comment_prompt"] = _default_section_comment_prompt(title)
+			continue
+		comment_prompt = section.get("comment_prompt", "").strip()
+		if not comment_prompt or title.lower() not in comment_prompt.lower():
+			section["comment_prompt"] = _default_section_comment_prompt(title)
 
 	return {
 		"survey_id": _as_str(survey_entry.get("SurveyID")) or "unknown",
 		"survey_name": _as_str(survey_entry.get("SurveyName")) or "Youth Enabling Environments Audit Tool",
 		"version": _as_str(survey_entry.get("LastModified")) or "unknown",
 		"scoring_categories": scoring_names_by_id,
-		"sections": list(section_metadata_by_block.values()),
+		"sections": sections,
 		"scoring_items": scoring_items,
 		"preamble": YEE_PREAMBLE,
 		"pre_audit_questions": YEE_PRE_AUDIT_QUESTIONS,
