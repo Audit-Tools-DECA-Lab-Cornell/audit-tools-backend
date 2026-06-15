@@ -121,12 +121,8 @@ def root() -> dict[str, str]:
 # )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8081",
-        "https://audit-tools-yee-mobile-url--0z1bpjun5s.expo.app",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
