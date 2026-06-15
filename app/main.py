@@ -16,7 +16,14 @@ from slowapi.middleware import SlowAPIMiddleware  # type: ignore[import-not-foun
 
 from app.auth import router as auth_router
 from app.dashboard_router import router as dashboard_router
-from app.database import ACTIVE_DATABASE_ENVIRONMENT, describe_active_database_targets, dispose_engines
+from app.database import (
+	ACTIVE_DATABASE_ENVIRONMENT,
+	ASYNC_SESSION_FACTORY_BY_PRODUCT,
+	describe_active_database_targets,
+	dispose_engines,
+)
+from app.db_urls import ProductKey
+from app.demo_account_reconciler import reconcile_protected_yee_demo_accounts
 from app.limiter import limiter
 from app.notifications_router import router as notifications_router
 from app.products.playspace.routes import router as playspace_router
@@ -63,6 +70,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 		targets["yee"],
 		targets["playspace"],
 	)
+	try:
+		async with ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.YEE]() as session:
+			reconciliation_summary = await reconcile_protected_yee_demo_accounts(session)
+		logger.info("Protected YEE demo reconciliation summary=%s", reconciliation_summary)
+	except Exception:
+		logger.exception("Protected YEE demo reconciliation failed during startup.")
 	yield
 	await dispose_engines()
 

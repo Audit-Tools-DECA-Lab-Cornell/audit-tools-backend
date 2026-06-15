@@ -13,11 +13,12 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.auth as auth_module
 from app.auth_security import hash_verification_token
+from app.demo_account_reconciler import reconcile_protected_yee_demo_accounts
 from app.models import Account, Instrument, ManagerInvite, User
 from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
 
@@ -80,6 +81,24 @@ async def _create_legacy_manager_invite_for_existing_manager(
 		await session.commit()
 
 
+async def _delete_user_by_email(
+	session_factory: async_sessionmaker[AsyncSession],
+	email: str,
+) -> None:
+	"""Delete one user row to simulate auth drift in the live database."""
+
+	async with session_factory() as session:
+		await session.execute(delete(User).where(User.email == email))
+		await session.commit()
+
+
+async def _reconcile_demo_accounts(session_factory: async_sessionmaker[AsyncSession]) -> dict[str, int]:
+	"""Run protected demo reconciliation through a real async session."""
+
+	async with session_factory() as session:
+		return await reconcile_protected_yee_demo_accounts(session)
+
+
 def test_yee_status_is_isolated(yee_client: TestClient) -> None:
 	"""The YEE namespace status stub responds without touching Playspace."""
 
@@ -111,6 +130,26 @@ def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -
 	assert response.json()["user"]["account_type"] == "MANAGER"
 	assert response.json()["user"]["is_primary_manager"] is True
 	assert response.json()["user"]["dashboard_path"] == "/dashboard"
+
+
+def test_demo_manager_login_is_restored_if_user_row_drifts(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""Protected demo reconciliation recreates the manager auth row if it disappears."""
+
+	asyncio.run(_delete_user_by_email(yee_test_session_factory, SEED_MANAGER_EMAIL))
+
+	broken_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert broken_login.status_code == 401, broken_login.text
+
+	summary = asyncio.run(_reconcile_demo_accounts(yee_test_session_factory))
+	assert summary["users_created"] >= 1
+
+	restored_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert restored_login.status_code == 200, restored_login.text
+	assert restored_login.json()["user"]["account_type"] == "MANAGER"
+	assert restored_login.json()["user"]["is_primary_manager"] is True
 
 
 def test_manager_signup_creates_primary_manager_organization(
