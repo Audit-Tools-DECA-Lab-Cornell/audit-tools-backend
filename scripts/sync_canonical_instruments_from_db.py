@@ -39,14 +39,12 @@ from app.products.playspace.schemas.instrument import PlayspaceInstrumentRespons
 class InstrumentSyncPaths:
 	"""Output locations under ``app/products/playspace/instruments/``."""
 
-	legacy_basename: str
 	active_suffix: str
 	catalog_version_sep: str
 
 	@staticmethod
 	def default() -> InstrumentSyncPaths:
 		return InstrumentSyncPaths(
-			legacy_basename="pvua_v5_2.instrument.json",
 			active_suffix=".active.instrument.json",
 			catalog_version_sep="__v",
 		)
@@ -170,8 +168,6 @@ def _list_managed_extras(instruments_dir: Path, *, paths: InstrumentSyncPaths) -
 		if not child.is_file() or not child.suffix == ".json":
 			continue
 		name = child.name
-		if name == paths.legacy_basename:
-			continue
 		if name.endswith(paths.active_suffix):
 			result.append(child)
 		elif paths.catalog_version_sep in name and name.endswith(".instrument.json"):
@@ -187,8 +183,6 @@ async def _load_all_instruments(session: AsyncSession) -> list[Instrument]:
 def sync_instruments(
 	rows: list[Instrument],
 	*,
-	legacy_instrument_key: str,
-	legacy_instrument_version: str,
 	instruments_dir: Path,
 	paths: InstrumentSyncPaths,
 	dry_run: bool,
@@ -243,31 +237,7 @@ def sync_instruments(
 		desired_paths.add(out)
 		_write_json_file(out, payload, dry_run=dry_run)
 
-	# 3) Legacy anchor file: best row for a fixed (key, version) - used by
-	#    ``get_canonical_instrument_payload`` as the v5.2 fallback.
-	legacy_key = (legacy_instrument_key, legacy_instrument_version)
-	if legacy_key in by_key_version:
-		winner = _pick_winner_for_pair(by_key_version[legacy_key])
-		payload = _content_to_canonical_file_object(winner.content)
-		if not skip_schema_validation:
-			_validate_against_playspace_schema(
-				file_payload=payload,
-				instrument_id=winner.id,
-				instrument_key=legacy_instrument_key,
-				instrument_version=legacy_instrument_version,
-				label="legacy",
-			)
-		out = instruments_dir / paths.legacy_basename
-		desired_paths.add(out)
-		_write_json_file(out, payload, dry_run=dry_run)
-	else:
-		print(
-			f"Note: no database row for legacy anchor {legacy_instrument_key!r} v{legacy_instrument_version!r}; "
-			f"leaving {paths.legacy_basename} unchanged.",
-			file=sys.stderr,
-		)
-
-	# 4) Remove managed catalog/active files that are no longer produced.
+	# 3) Remove managed catalog/active files that are no longer produced.
 	if not dry_run:
 		for extra in _list_managed_extras(instruments_dir, paths=paths):
 			if extra not in desired_paths:
@@ -329,14 +299,9 @@ async def _amain() -> int:
 		print("No rows in instruments table; nothing to export.", file=sys.stderr)
 		return 0
 
-	# Local import so this module can be imported for tests without loading disk JSON.
-	from app.products.playspace import instrument as instrument_mod  # noqa: E402
-
 	try:
 		sync_instruments(
 			rows,
-			legacy_instrument_key=instrument_mod.INSTRUMENT_KEY,
-			legacy_instrument_version=instrument_mod.INSTRUMENT_VERSION,
 			instruments_dir=instruments_dir,
 			paths=paths,
 			dry_run=bool(args.dry_run),

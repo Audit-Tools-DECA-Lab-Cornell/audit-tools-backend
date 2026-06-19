@@ -5,11 +5,9 @@ The ``app/products/playspace/instruments/`` directory is updated from the
 ``instruments`` table by ``scripts/sync_canonical_instruments_from_db.py`` (see
 ``sync-playspace-instruments`` GitHub workflow). Expected layout:
 
-* ``pvua_v5_2.instrument.json`` - best row for the legacy anchor (``INSTRUMENT_KEY`` /
-  ``INSTRUMENT_VERSION``), used as the server fallback when the database has no
-  active copy.
 * ``<instrument_key>.active.instrument.json`` - the row with ``is_active`` for that
-  key (``created_at`` tie-break, matching ``get_active_instrument``).
+  key (``created_at`` tie-break, matching ``get_active_instrument``). Used as the
+  on-disk fallback when the database has no active copy.
 * ``<instrument_key>__v<version>.instrument.json`` - one export per
   ``(instrument_key, instrument_version)`` pair (winner chosen when many rows
   share a pair: active first, then newest ``updated_at``).
@@ -26,28 +24,9 @@ from app.products.playspace.schemas.instrument import PlayspaceInstrumentRespons
 
 
 INSTRUMENT_KEY = "pvua_v5_2"
-INSTRUMENT_VERSION = "5.2"
 INSTRUMENT_NAME = "Playspace Play Value and Usability Audit Tool"
 
-_INSTRUMENT_PATH = Path(__file__).parent / "instruments" / "pvua_v5_2.instrument.json"
 _ACTIVE_INSTRUMENT_PATH = Path(__file__).parent / "instruments" / f"{INSTRUMENT_KEY}.active.instrument.json"
-
-
-@lru_cache(maxsize=1)
-def get_canonical_instrument_payload() -> dict[str, Any]:
-	"""Load the backend-owned canonical Playspace instrument JSON."""
-
-	with _INSTRUMENT_PATH.open("r", encoding="utf-8") as instrument_file:
-		payload = _unwrap_localized_instrument_payload(json.load(instrument_file))
-
-	instrument_key = payload.get("instrument_key")
-	instrument_version = payload.get("instrument_version")
-	if instrument_key != INSTRUMENT_KEY or instrument_version != INSTRUMENT_VERSION:
-		raise ValueError(
-			f"Canonical Playspace instrument payload metadata does not match {INSTRUMENT_KEY} v{INSTRUMENT_VERSION}."
-		)
-
-	return dict(payload)
 
 
 def _unwrap_localized_instrument_payload(payload: object) -> dict[str, Any]:
@@ -65,18 +44,42 @@ def _unwrap_localized_instrument_payload(payload: object) -> dict[str, Any]:
 	return dict(payload)
 
 
+def _read_required_string(payload: dict[str, Any], field_name: str) -> str:
+	"""Return one required non-empty string field from an instrument payload."""
+
+	value = payload.get(field_name)
+	if not isinstance(value, str) or not value.strip():
+		raise ValueError(f"Active Playspace instrument payload is missing {field_name!r}.")
+	return value.strip()
+
+
 @lru_cache(maxsize=1)
 def get_active_instrument_payload() -> dict[str, Any]:
-	"""Load the on-disk active Playspace instrument JSON (includes checklist follow-ups)."""
+	"""Load the on-disk active Playspace instrument JSON."""
 
 	with _ACTIVE_INSTRUMENT_PATH.open("r", encoding="utf-8") as instrument_file:
 		payload = _unwrap_localized_instrument_payload(json.load(instrument_file))
 
-	instrument_key = payload.get("instrument_key")
+	instrument_key = _read_required_string(payload, "instrument_key")
 	if instrument_key != INSTRUMENT_KEY:
 		raise ValueError(f"Active Playspace instrument payload metadata does not match {INSTRUMENT_KEY!r}.")
 
-	return payload
+	_read_required_string(payload, "instrument_version")
+	return dict(payload)
+
+
+@lru_cache(maxsize=1)
+def get_active_instrument_version() -> str:
+	"""Return the version string embedded in the on-disk active instrument JSON."""
+
+	return _read_required_string(get_active_instrument_payload(), "instrument_version")
+
+
+@lru_cache(maxsize=1)
+def get_canonical_instrument_payload() -> dict[str, Any]:
+	"""Load the backend-owned fallback Playspace instrument JSON."""
+
+	return get_active_instrument_payload()
 
 
 @lru_cache(maxsize=1)

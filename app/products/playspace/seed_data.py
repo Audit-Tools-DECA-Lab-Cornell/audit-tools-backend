@@ -59,9 +59,9 @@ from app.products.playspace.audit_state import (
 )
 from app.products.playspace.instrument import (
 	INSTRUMENT_KEY,
-	INSTRUMENT_VERSION,
 	get_active_instrument_payload,
 	get_active_instrument_response,
+	get_active_instrument_version,
 )
 from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import (
@@ -495,7 +495,7 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 
 	canonical_instrument = Instrument(
 		instrument_key=INSTRUMENT_KEY,
-		instrument_version=INSTRUMENT_VERSION,
+		instrument_version=get_active_instrument_version(),
 		parent_instrument_id=None,
 		is_active=True,
 		content={"en": get_active_instrument_payload()},
@@ -1725,7 +1725,7 @@ def _build_audit_record(
 				slot_key=slot_key,
 			),
 			instrument_key=INSTRUMENT_KEY,
-			instrument_version=INSTRUMENT_VERSION,
+			instrument_version=get_active_instrument_version(),
 			status=AuditStatus.SUBMITTED,
 			started_at=started_at,
 			submitted_at=submitted_at,
@@ -1811,7 +1811,7 @@ def _build_audit_record(
 			slot_key=slot_key,
 		),
 		instrument_key=INSTRUMENT_KEY,
-		instrument_version=INSTRUMENT_VERSION,
+		instrument_version=get_active_instrument_version(),
 		status=status,
 		started_at=started_at,
 		submitted_at=None,

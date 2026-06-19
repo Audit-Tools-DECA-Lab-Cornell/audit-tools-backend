@@ -44,7 +44,7 @@ from app.products.playspace.audit_state import (
 )
 from app.products.playspace.instrument import (
 	INSTRUMENT_KEY,
-	INSTRUMENT_VERSION,
+	get_active_instrument_version,
 	get_canonical_instrument_response,
 )
 from app.products.playspace.schemas import (
@@ -709,7 +709,9 @@ class PlayspaceAuditSessionsMixin:
 			active_instrument = await get_active_instrument(self._session, INSTRUMENT_KEY)
 			instrument_key = active_instrument.instrument_key if active_instrument is not None else INSTRUMENT_KEY
 			instrument_version = (
-				active_instrument.instrument_version if active_instrument is not None else INSTRUMENT_VERSION
+				active_instrument.instrument_version
+				if active_instrument is not None
+				else get_active_instrument_version()
 			)
 
 			# Create the submission and its context row together so the normalized

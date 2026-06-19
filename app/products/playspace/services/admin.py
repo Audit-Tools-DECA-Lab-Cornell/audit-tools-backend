@@ -28,7 +28,7 @@ from app.products.playspace.execution_mode_scope import (
 from app.products.playspace.instrument import (
 	INSTRUMENT_KEY,
 	INSTRUMENT_NAME,
-	INSTRUMENT_VERSION,
+	get_active_instrument_version,
 	get_canonical_instrument_payload,
 )
 from app.products.playspace.constants import MAX_EXPORT_SIZE
@@ -1675,7 +1675,7 @@ class PlayspaceAdminService:
 			instrument_version = db_instrument.instrument_version
 		else:
 			instrument_content = {"en": get_canonical_instrument_payload()}
-			instrument_version = INSTRUMENT_VERSION
+			instrument_version = get_active_instrument_version()
 
 		return AdminSystemResponse(
 			instrument_key=INSTRUMENT_KEY,
