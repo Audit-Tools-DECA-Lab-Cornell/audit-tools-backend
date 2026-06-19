@@ -1132,7 +1132,9 @@ async def reset_password(
 	if user is None:
 		raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
 	if is_protected_yee_demo_email(user.email):
-		raise HTTPException(status_code=409, detail="Protected demo accounts cannot reset their password from email links.")
+		raise HTTPException(
+			status_code=409, detail="Protected demo accounts cannot reset their password from email links."
+		)
 
 	if expected_fingerprint != hashlib.sha256(user.password_hash.encode("utf-8")).hexdigest()[:24]:
 		raise HTTPException(status_code=400, detail="This password reset link is no longer valid.")

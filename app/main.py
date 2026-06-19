@@ -111,18 +111,11 @@ def root() -> dict[str, str]:
 	return {"status": "ok"}
 
 
-# app.add_middleware(
-# 	CORSMiddleware,
-# 	allow_origins=origins,
-# 	allow_credentials=True,
-# 	allow_origin_regex=r"https://audit-tools-[\w-]+-cleverhugs\.vercel\.app",
-# 	allow_methods=["*"],
-# 	allow_headers=["*"],
-# )
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+	CORSMiddleware,
+	allow_origins=origins,
+	allow_credentials=True,
+	allow_origin_regex=r"https://audit-tools-[\w-]+-cleverhugs\.vercel\.app",
+	allow_methods=["*"],
+	allow_headers=["*"],
 )

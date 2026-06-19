@@ -43,7 +43,9 @@ def _parse_args() -> argparse.Namespace:
 async def _reset_demo_passwords(*, emails: list[str], password: str, dry_run: bool) -> None:
 	"""Reset one or more YEE demo-user passwords."""
 
-	target_emails = tuple(dict.fromkeys(email.strip().lower() for email in emails if email.strip())) or DEFAULT_YEE_DEMO_EMAILS
+	target_emails = (
+		tuple(dict.fromkeys(email.strip().lower() for email in emails if email.strip())) or DEFAULT_YEE_DEMO_EMAILS
+	)
 
 	async with ASYNC_SESSION_FACTORY_BY_PRODUCT[ProductKey.YEE]() as session:
 		result = await session.execute(select(User).where(User.email.in_(target_emails)).order_by(User.email.asc()))

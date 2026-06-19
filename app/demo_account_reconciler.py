@@ -65,9 +65,7 @@ async def reconcile_protected_yee_demo_accounts(session: AsyncSession) -> dict[s
 	existing_users = {
 		user.email.lower(): user
 		for user in (
-			await session.execute(
-				select(User).where(User.email.in_([seed_user.email for seed_user in seed_users]))
-			)
+			await session.execute(select(User).where(User.email.in_([seed_user.email for seed_user in seed_users])))
 		).scalars()
 	}
 

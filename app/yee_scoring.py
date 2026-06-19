@@ -106,7 +106,14 @@ YEE_SCALE_GUIDANCE = [
 			{"value": "0", "label": "No", "add": 0, "boost": 0, "follow_up_behavior": "Blocks follow-up"},
 			{"value": "1", "label": "Some", "add": 1, "boost": 1, "follow_up_behavior": "Unlocks follow-up"},
 			{"value": "2", "label": "A lot", "add": 2, "boost": 2, "follow_up_behavior": "Unlocks follow-up"},
-			{"value": "na", "label": "Not applicable", "add": 0, "boost": 0, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{
+				"value": "na",
+				"label": "Not applicable",
+				"add": 0,
+				"boost": 0,
+				"follow_up_behavior": "Blocks follow-up",
+				"tag": "N/A",
+			},
 		],
 	},
 	{
@@ -115,7 +122,14 @@ YEE_SCALE_GUIDANCE = [
 		"prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
 		"description": "Variety evaluates whether the provided feature offers variety in type, form, or opportunity rather than all options being the same.",
 		"rules": [
-			{"value": "na", "label": "Not applicable", "add": 0, "boost": 1, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{
+				"value": "na",
+				"label": "Not applicable",
+				"add": 0,
+				"boost": 1,
+				"follow_up_behavior": "Blocks follow-up",
+				"tag": "N/A",
+			},
 			{"value": "1", "label": "No Variety", "add": 1, "boost": 1, "follow_up_behavior": "Blocks follow-up"},
 			{"value": "2", "label": "Some Variety", "add": 2, "boost": 2, "follow_up_behavior": "Blocks follow-up"},
 			{"value": "3", "label": "A lot of Variety", "add": 3, "boost": 3, "follow_up_behavior": "Blocks follow-up"},
@@ -127,10 +141,23 @@ YEE_SCALE_GUIDANCE = [
 		"prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
 		"description": "Challenge opportunities assess whether the feature provides opportunities with different levels of difficulty.",
 		"rules": [
-			{"value": "na", "label": "Not applicable", "add": 0, "boost": 1, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{
+				"value": "na",
+				"label": "Not applicable",
+				"add": 0,
+				"boost": 1,
+				"follow_up_behavior": "Blocks follow-up",
+				"tag": "N/A",
+			},
 			{"value": "1", "label": "No Challenge", "add": 1, "boost": 1, "follow_up_behavior": "Blocks follow-up"},
 			{"value": "2", "label": "Some Challenge", "add": 2, "boost": 2, "follow_up_behavior": "Blocks follow-up"},
-			{"value": "3", "label": "A lot of Challenge", "add": 3, "boost": 3, "follow_up_behavior": "Blocks follow-up"},
+			{
+				"value": "3",
+				"label": "A lot of Challenge",
+				"add": 3,
+				"boost": 3,
+				"follow_up_behavior": "Blocks follow-up",
+			},
 		],
 	},
 	{
@@ -139,10 +166,23 @@ YEE_SCALE_GUIDANCE = [
 		"prompt": "Can more than one child or person use this feature/environmental characteristic together?",
 		"description": "Sociability support assesses whether the feature can be used by more than one person at once, individually, in small groups, or in larger groups.",
 		"rules": [
-			{"value": "na", "label": "Not applicable", "add": 0, "boost": 1, "follow_up_behavior": "Blocks follow-up", "tag": "N/A"},
+			{
+				"value": "na",
+				"label": "Not applicable",
+				"add": 0,
+				"boost": 1,
+				"follow_up_behavior": "Blocks follow-up",
+				"tag": "N/A",
+			},
 			{"value": "1", "label": "No", "add": 1, "boost": 1, "follow_up_behavior": "Blocks follow-up"},
 			{"value": "2", "label": "Yes - a pair", "add": 2, "boost": 2, "follow_up_behavior": "Blocks follow-up"},
-			{"value": "3", "label": "Yes - more than two children", "add": 3, "boost": 3, "follow_up_behavior": "Blocks follow-up"},
+			{
+				"value": "3",
+				"label": "Yes - more than two children",
+				"add": 3,
+				"boost": 3,
+				"follow_up_behavior": "Blocks follow-up",
+			},
 		],
 	},
 ]
@@ -419,9 +459,7 @@ def get_yee_instrument_data() -> dict[str, object]:
 				"block": block_name,
 				"block_title": normalized_block_title,
 				"question_text": _normalize_instrument_text(
-					_as_str(payload.get("QuestionDescription"))
-					or _as_str(payload.get("QuestionText"))
-					or ""
+					_as_str(payload.get("QuestionDescription")) or _as_str(payload.get("QuestionText")) or ""
 				),
 				"item_kind": "presence",
 				"choices": _normalize_choice_map(payload.get("Choices", {})),
