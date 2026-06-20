@@ -421,15 +421,14 @@ async def _ensure_manager_profile_for_user(
 		manager_profile.full_name = full_name
 	if not manager_profile.email or not manager_profile.email.strip():
 		manager_profile.email = normalized_email
-	if (
-		(profession_disciplines is not None)
-		and (not manager_profile.profession_disciplines)
-	):
+	if (profession_disciplines is not None) and (not manager_profile.profession_disciplines):
 		manager_profile.profession_disciplines = list(profession_disciplines)
 	if (not manager_profile.organization or not manager_profile.organization.strip()) and (
 		"user" in manager_profile.__dict__ or "account" in user.__dict__
 	):
-		manager_profile.organization = user.account.name if "account" in user.__dict__ and user.account is not None else None
+		manager_profile.organization = (
+			user.account.name if "account" in user.__dict__ and user.account is not None else None
+		)
 	if prefer_primary and not manager_profile.is_primary:
 		has_primary_result = await session.execute(
 			select(ManagerProfile.id)

@@ -180,7 +180,11 @@ async def _get_current_yee_auditor_actor(session: AsyncSession, user: User) -> A
 	if user.account_type not in {AccountType.AUDITOR, AccountType.MANAGER}:
 		raise HTTPException(status_code=403, detail="Auditor access is required.")
 	auditor = await _get_current_auditor(session, user)
-	if user.account_type == AccountType.MANAGER and user.account_id is not None and auditor.account_id != user.account_id:
+	if (
+		user.account_type == AccountType.MANAGER
+		and user.account_id is not None
+		and auditor.account_id != user.account_id
+	):
 		raise HTTPException(status_code=403, detail="Your auditor profile is outside your manager organization.")
 	return auditor
 

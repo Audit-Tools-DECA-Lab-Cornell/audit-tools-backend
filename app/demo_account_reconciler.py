@@ -191,7 +191,10 @@ async def reconcile_protected_yee_demo_accounts(session: AsyncSession) -> dict[s
 			existing_profile.is_primary = seed_profile.is_primary
 			summary["manager_profiles_updated"] += 1
 	else:
-		logger.warning("Protected YEE demo manager-profile reconciliation skipped because the schema is behind the expected migration state.")
+		logger.warning(
+			"""Protected YEE demo manager-profile reconciliation
+			skipped because the schema is behind the expected migration state."""
+		)
 
 	await session.commit()
 	return summary

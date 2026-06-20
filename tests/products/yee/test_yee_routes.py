@@ -325,7 +325,9 @@ def test_secondary_manager_must_confirm_before_creating_new_organization(
 		},
 	)
 	assert signup_without_confirm.status_code == 409, signup_without_confirm.text
-	assert "Creating a new organization will remove you from that organization" in signup_without_confirm.json()["detail"]
+	assert (
+		"Creating a new organization will remove you from that organization" in signup_without_confirm.json()["detail"]
+	)
 
 
 def test_secondary_manager_can_create_new_organization_after_confirmation(
@@ -487,6 +489,7 @@ def test_protected_demo_password_reset_is_blocked(yee_client: TestClient, monkey
 
 def test_primary_manager_can_manage_secondary_manager_invites(
 	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
 	monkeypatch,
 ) -> None:
 	"""Primary YEE managers can manage manager invites; secondary managers cannot."""
