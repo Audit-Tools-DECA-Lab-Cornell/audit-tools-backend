@@ -130,6 +130,21 @@ class BugReportStatusUpdateRequest(RequestModel):
 	linked_known_issue_id: uuid.UUID | None = None
 
 
+class ScreenshotUploadParamsResponse(ApiModel):
+	"""Signed parameters a client uses to upload a screenshot to Cloudinary.
+
+	The signature is computed server-side with the Cloudinary API secret (which
+	never leaves the backend), so clients perform an authenticated signed upload
+	without an unsigned upload preset.
+	"""
+
+	cloud_name: str
+	api_key: str
+	timestamp: int
+	signature: str
+	folder: str
+
+
 ######################################################################################
 #################################### Known Issues ####################################
 ######################################################################################

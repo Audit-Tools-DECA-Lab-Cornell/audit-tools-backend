@@ -26,6 +26,7 @@ from app.products.playspace.schemas.bug_report import (
 	KnownIssueMatch,
 	KnownIssueResponse,
 	KnownIssueUpdateRequest,
+	ScreenshotUploadParamsResponse,
 )
 from app.products.playspace.services import PlayspaceBugReportService
 
@@ -69,6 +70,23 @@ async def list_my_bug_reports(
 
 	user_id = _require_user_id(current_user)
 	return await service.list_my_bug_reports(user_id=user_id)
+
+
+@router.get("/bug-reports/screenshot-upload-params")
+async def get_screenshot_upload_params(
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	service: PlayspaceBugReportService = BUG_REPORT_SERVICE_DEPENDENCY,
+) -> ScreenshotUploadParamsResponse:
+	"""Return signed Cloudinary params for a screenshot upload (auth required)."""
+
+	_require_user_id(current_user)
+	params = service.build_screenshot_upload_params()
+	if params is None:
+		raise HTTPException(
+			status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+			detail="Screenshot upload is not configured.",
+		)
+	return params
 
 
 @router.get("/known-issues/match")

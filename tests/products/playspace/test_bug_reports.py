@@ -301,6 +301,27 @@ def test_non_admin_cannot_review_or_maintain(
 	)
 
 
+def test_screenshot_upload_params_require_auth_and_return_signed_shape(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""The signing endpoint needs auth and, when configured, returns signed params."""
+
+	# Unauthenticated callers cannot obtain upload params.
+	assert playspace_client.get("/playspace/bug-reports/screenshot-upload-params").status_code in (401, 403)
+
+	auditor_headers = _bearer(_login(playspace_client, playspace_seed_snapshot.seeded_auditor_email))
+	response = playspace_client.get("/playspace/bug-reports/screenshot-upload-params", headers=auditor_headers)
+	# 503 when Cloudinary creds are absent (e.g. CI); 200 with signed params when configured.
+	assert response.status_code in (200, 503), response.text
+	if response.status_code == 200:
+		body = response.json()
+		assert set(body) >= {"cloud_name", "api_key", "timestamp", "signature", "folder"}
+		assert body["folder"] == "bug-reports"
+		# The API secret must never be returned to the client.
+		assert "api_secret" not in body
+
+
 def test_unauthenticated_requests_are_rejected(
 	playspace_client: TestClient,
 ) -> None:

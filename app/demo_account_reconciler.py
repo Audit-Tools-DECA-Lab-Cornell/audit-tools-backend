@@ -37,6 +37,7 @@ async def _manager_profiles_schema_ready(session: AsyncSession) -> bool:
 	"""Return whether the live DB has the manager profile columns this reconciler needs."""
 
 	async with session.connection() as connection:
+
 		def _check(sync_connection) -> bool:
 			inspector = sa.inspect(sync_connection)
 			if "manager_profiles" not in inspector.get_table_names():

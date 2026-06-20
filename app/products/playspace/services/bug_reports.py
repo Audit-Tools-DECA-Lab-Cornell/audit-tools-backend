@@ -10,7 +10,10 @@ Visibility model:
 
 from __future__ import annotations
 
+import hashlib
 import math
+import os
+import time
 import uuid
 
 from fastapi import HTTPException, status
@@ -40,11 +43,13 @@ from app.products.playspace.schemas.bug_report import (
 	KnownIssueMatch,
 	KnownIssueResponse,
 	KnownIssueUpdateRequest,
+	ScreenshotUploadParamsResponse,
 )
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 200
 MAX_KNOWN_ISSUE_MATCHES = 10
+SCREENSHOT_UPLOAD_FOLDER = "bug-reports"
 
 
 def _total_pages(total_count: int, page_size: int) -> int:
@@ -55,11 +60,53 @@ def _total_pages(total_count: int, page_size: int) -> int:
 	return max(1, math.ceil(total_count / page_size))
 
 
+def _build_cloudinary_signature(*, folder: str, timestamp: int, api_secret: str) -> str:
+	"""Compute a Cloudinary signed-upload signature.
+
+	Cloudinary signs the alphabetically-sorted upload params (excluding ``file``,
+	``api_key``, and ``resource_type``) joined as ``key=value&...`` with the API
+	secret appended, hashed with SHA-1. Only ``folder`` and ``timestamp`` are
+	enforced here, so the client must send exactly those signed params.
+	"""
+
+	to_sign = f"folder={folder}&timestamp={timestamp}"
+	return hashlib.sha1(f"{to_sign}{api_secret}".encode()).hexdigest()
+
+
 class PlayspaceBugReportService:
 	"""Read/write operations for bug reports and the known-issues library."""
 
 	def __init__(self, *, session: AsyncSession) -> None:
 		self._session = session
+
+	def build_screenshot_upload_params(self) -> ScreenshotUploadParamsResponse | None:
+		"""Return signed Cloudinary upload params, or ``None`` if not configured.
+
+		The Cloudinary API secret is read from the environment and used only to
+		compute the signature - it is never returned to the client. Returns
+		``None`` when Cloudinary credentials are absent so the caller can report
+		that screenshot upload is unavailable rather than failing.
+		"""
+
+		cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+		api_key = os.getenv("CLOUDINARY_API_KEY")
+		api_secret = os.getenv("CLOUDINARY_API_SECRET")
+		if not (cloud_name and api_key and api_secret):
+			return None
+
+		timestamp = int(time.time())
+		signature = _build_cloudinary_signature(
+			folder=SCREENSHOT_UPLOAD_FOLDER,
+			timestamp=timestamp,
+			api_secret=api_secret,
+		)
+		return ScreenshotUploadParamsResponse(
+			cloud_name=cloud_name,
+			api_key=api_key,
+			timestamp=timestamp,
+			signature=signature,
+			folder=SCREENSHOT_UPLOAD_FOLDER,
+		)
 
 	######################################################################################
 	#################################### Bug Reports #####################################
