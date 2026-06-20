@@ -311,6 +311,7 @@ class ManagerProfile(Base):
 	email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
 	phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	position: Mapped[str | None] = mapped_column(String(200), nullable=True)
+	profession_disciplines: Mapped[list[str]] = mapped_column(ARRAY(String(120)), default=list, nullable=False)
 	organization: Mapped[str | None] = mapped_column(String(200), nullable=True)
 	is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 	created_at: Mapped[datetime] = mapped_column(

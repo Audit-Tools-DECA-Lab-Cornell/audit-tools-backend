@@ -174,6 +174,17 @@ async def _get_current_auditor(session: AsyncSession, user: User) -> Auditor:
 	return auditor
 
 
+async def _get_current_yee_auditor_actor(session: AsyncSession, user: User) -> Auditor:
+	"""Allow standard auditors and manager-users with a self auditor profile."""
+
+	if user.account_type not in {AccountType.AUDITOR, AccountType.MANAGER}:
+		raise HTTPException(status_code=403, detail="Auditor access is required.")
+	auditor = await _get_current_auditor(session, user)
+	if user.account_type == AccountType.MANAGER and user.account_id is not None and auditor.account_id != user.account_id:
+		raise HTTPException(status_code=403, detail="Your auditor profile is outside your manager organization.")
+	return auditor
+
+
 async def _get_assigned_place(
 	session: AsyncSession,
 	*,
@@ -566,10 +577,7 @@ async def list_my_yee_audits(
 ) -> list[MyYeeAuditItem]:
 	"""Return submitted YEE audits for the authenticated auditor."""
 
-	if user.account_type != AccountType.AUDITOR:
-		raise HTTPException(status_code=403, detail="Auditor access is required.")
-
-	auditor = await _get_current_auditor(session, user)
+	auditor = await _get_current_yee_auditor_actor(session, user)
 
 	stmt = (
 		select(YeeAuditSubmission, Place.name)
@@ -598,10 +606,7 @@ async def get_yee_audit_state(
 ) -> YeeAuditStateResponse:
 	"""Return the current YEE draft/submission state for one auditor-place pair."""
 
-	if user.account_type != AccountType.AUDITOR:
-		raise HTTPException(status_code=403, detail="Auditor access is required.")
-
-	auditor = await _get_current_auditor(session, user)
+	auditor = await _get_current_yee_auditor_actor(session, user)
 	_, place = await _get_assigned_place(session, auditor=auditor, place_id=place_id)
 
 	submission_stmt = (
@@ -657,10 +662,7 @@ async def save_yee_draft(
 ) -> YeeAuditStateResponse:
 	"""Persist or update one backend-backed YEE draft for the current auditor/place."""
 
-	if user.account_type != AccountType.AUDITOR:
-		raise HTTPException(status_code=403, detail="Auditor access is required.")
-
-	auditor = await _get_current_auditor(session, user)
+	auditor = await _get_current_yee_auditor_actor(session, user)
 	assignment, place = await _get_assigned_place(session, auditor=auditor, place_id=place_id)
 
 	existing_submission_stmt = select(YeeAuditSubmission).where(
@@ -735,10 +737,7 @@ async def submit_yee_audit(
 ) -> YeeAuditSubmissionResponse:
 	"""Compute and persist an authenticated YEE audit submission."""
 
-	if user.account_type != AccountType.AUDITOR:
-		raise HTTPException(status_code=403, detail="Auditor access is required.")
-
-	auditor = await _get_current_auditor(session, user)
+	auditor = await _get_current_yee_auditor_actor(session, user)
 	assignment, place = await _get_assigned_place(session, auditor=auditor, place_id=payload.place_id)
 
 	existing_submission_stmt = select(YeeAuditSubmission).where(
@@ -816,8 +815,8 @@ async def get_yee_submission(
 	if submission is None:
 		raise HTTPException(status_code=404, detail="YEE submission not found.")
 
-	if user.account_type == AccountType.AUDITOR:
-		auditor = await _get_current_auditor(session, user)
+	if user.account_type in {AccountType.AUDITOR, AccountType.MANAGER}:
+		auditor = await _get_current_yee_auditor_actor(session, user)
 		if auditor is None or submission.auditor_id != auditor.id:
 			raise HTTPException(status_code=403, detail="You do not have access to this submission.")
 	else:

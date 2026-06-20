@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 import app.auth as auth_module
 from app.auth_security import hash_verification_token
 from app.demo_account_reconciler import reconcile_protected_yee_demo_accounts
-from app.models import Account, Instrument, ManagerInvite, User
+from app.models import Account, Auditor, Instrument, ManagerInvite, ManagerProfile, User
 from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
 
 # Matches the deterministic YEE seed (see app/seed.py).
@@ -97,6 +97,29 @@ async def _reconcile_demo_accounts(session_factory: async_sessionmaker[AsyncSess
 
 	async with session_factory() as session:
 		return await reconcile_protected_yee_demo_accounts(session)
+
+
+async def _load_manager_profile_by_email(
+	session_factory: async_sessionmaker[AsyncSession],
+	email: str,
+) -> ManagerProfile | None:
+	"""Fetch one manager profile row by email for assertions."""
+
+	async with session_factory() as session:
+		return (await session.execute(select(ManagerProfile).where(ManagerProfile.email == email))).scalar_one_or_none()
+
+
+async def _load_auditor_profile_by_user_email(
+	session_factory: async_sessionmaker[AsyncSession],
+	email: str,
+) -> Auditor | None:
+	"""Fetch one self-created auditor profile via the linked user email."""
+
+	async with session_factory() as session:
+		user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+		if user is None:
+			return None
+		return (await session.execute(select(Auditor).where(Auditor.user_id == user.id))).scalar_one_or_none()
 
 
 def test_yee_status_is_isolated(yee_client: TestClient) -> None:
@@ -184,6 +207,179 @@ def test_manager_signup_creates_primary_manager_organization(
 	assert user.approved is True
 	assert account_name == "Example YEE Partner Organization"
 	assert after_count == before_count + 1
+	assert user.profile_completed is False
+
+
+def test_protected_demo_manager_signup_is_blocked(yee_client: TestClient) -> None:
+	"""Public signup cannot overwrite the protected seeded demo manager account."""
+
+	response = yee_client.post(
+		"/yee/auth/signup",
+		json={
+			"email": SEED_MANAGER_EMAIL,
+			"password": "AnotherDemoPass123!",
+			"name": "Override Demo Manager",
+			"organization": "Override Demo Org",
+			"account_type": "MANAGER",
+			"website": "",
+		},
+	)
+	assert response.status_code == 409, response.text
+	assert response.json()["detail"] == "Protected demo accounts cannot be modified through public signup."
+
+	login_response = yee_client.post(
+		"/yee/auth/login",
+		json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD},
+	)
+	assert login_response.status_code == 200, login_response.text
+
+
+def test_demo_manager_seed_has_manager_profile(
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""The shared manager demo account should have a stable manager profile row."""
+
+	profile = asyncio.run(_load_manager_profile_by_email(yee_test_session_factory, SEED_MANAGER_EMAIL))
+	assert profile is not None
+	assert profile.user_id is not None
+	assert profile.is_primary is False
+
+
+def test_primary_manager_profile_requires_phone_and_profession(yee_client: TestClient) -> None:
+	"""Primary-manager onboarding enforces the richer profile requirements."""
+
+	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	missing_phone = yee_client.put(
+		"/yee/dashboard/manager-profile",
+		headers=manager_headers,
+		json={
+			"full_name": "Dr. Farah Khan",
+			"job_title": "Principal Investigator",
+			"profession_disciplines": ["Public health"],
+			"organization": "Youth Enabling Environments Collaborative",
+			"phone_number": "",
+		},
+	)
+	assert missing_phone.status_code == 400, missing_phone.text
+	assert missing_phone.json()["detail"] == "Phone number is required for the primary manager."
+
+	missing_profession = yee_client.put(
+		"/yee/dashboard/manager-profile",
+		headers=manager_headers,
+		json={
+			"full_name": "Dr. Farah Khan",
+			"job_title": "Principal Investigator",
+			"profession_disciplines": [],
+			"organization": "Youth Enabling Environments Collaborative",
+			"phone_number": "+1 607 555 0147",
+		},
+	)
+	assert missing_profession.status_code == 400, missing_profession.text
+	assert missing_profession.json()["detail"] == "Profession / discipline is required."
+
+
+def test_secondary_manager_must_confirm_before_creating_new_organization(
+	yee_client: TestClient,
+	monkeypatch,
+) -> None:
+	"""A secondary manager cannot create a new org without the explicit confirmation flag."""
+
+	def _capture_manager_invite_email(**_: str | None) -> bool:
+		return True
+
+	monkeypatch.setattr(auth_module, "send_manager_invite_email", _capture_manager_invite_email)
+	import app.dashboard_router as dashboard_router_module
+
+	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
+
+	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	create_response = yee_client.post(
+		"/yee/dashboard/manager-invites",
+		headers=manager_headers,
+		json={"full_name": "Secondary Confirm", "email": "secondary-confirm@example.org"},
+	)
+	assert create_response.status_code == 201, create_response.text
+	invite_token = create_response.json()["invite_url"].rsplit("/", 1)[-1]
+
+	accept_response = yee_client.post(
+		f"/yee/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Secondary Confirm", "password": SEED_PASSWORD},
+	)
+	assert accept_response.status_code == 200, accept_response.text
+
+	signup_without_confirm = yee_client.post(
+		"/yee/auth/signup",
+		json={
+			"email": "secondary-confirm@example.org",
+			"password": SEED_PASSWORD,
+			"name": "Secondary Confirm",
+			"organization": "Brand New Secondary Org",
+			"account_type": "MANAGER",
+			"website": "",
+		},
+	)
+	assert signup_without_confirm.status_code == 409, signup_without_confirm.text
+	assert "Creating a new organization will remove you from that organization" in signup_without_confirm.json()["detail"]
+
+
+def test_secondary_manager_can_create_new_organization_after_confirmation(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+	monkeypatch,
+) -> None:
+	"""Confirmed secondary-manager signup unlinks the old org and creates a new primary org."""
+
+	def _capture_manager_invite_email(**_: str | None) -> bool:
+		return True
+
+	monkeypatch.setattr(auth_module, "send_manager_invite_email", _capture_manager_invite_email)
+	import app.dashboard_router as dashboard_router_module
+
+	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
+
+	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	email = "secondary-confirmed@example.org"
+	create_response = yee_client.post(
+		"/yee/dashboard/manager-invites",
+		headers=manager_headers,
+		json={"full_name": "Secondary Confirmed", "email": email},
+	)
+	assert create_response.status_code == 201, create_response.text
+	invite_token = create_response.json()["invite_url"].rsplit("/", 1)[-1]
+
+	accept_response = yee_client.post(
+		f"/yee/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Secondary Confirmed", "password": SEED_PASSWORD},
+	)
+	assert accept_response.status_code == 200, accept_response.text
+
+	signup_with_confirm = yee_client.post(
+		"/yee/auth/signup",
+		json={
+			"email": email,
+			"password": SEED_PASSWORD,
+			"name": "Secondary Confirmed",
+			"organization": "Secondary Spinoff Org",
+			"account_type": "MANAGER",
+			"confirm_new_organization": True,
+			"website": "",
+		},
+	)
+	assert signup_with_confirm.status_code == 201, signup_with_confirm.text
+
+	user, _count, account_name = asyncio.run(_load_manager_signup_snapshot(yee_test_session_factory, email))
+	assert user is not None
+	assert account_name == "Secondary Spinoff Org"
+	assert user.profile_completed is False
 
 
 def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
@@ -338,7 +534,7 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	create_response = yee_client.post(
 		"/yee/dashboard/manager-invites",
 		headers=manager_headers,
-		json={"email": invite_email},
+		json={"full_name": "Secondary Manager", "email": invite_email},
 	)
 	assert create_response.status_code == 201, create_response.text
 	created = create_response.json()
@@ -371,6 +567,9 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	assert accept_response.json()["user"]["account_type"] == "MANAGER"
 	assert accept_response.json()["user"]["email"] == invite_email
 	assert accept_response.json()["user"]["is_primary_manager"] is False
+	profile = asyncio.run(_load_manager_profile_by_email(yee_test_session_factory, invite_email))
+	assert profile is not None
+	assert profile.full_name == "Secondary Manager"
 
 	accepted_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
 	assert accepted_list.status_code == 200, accepted_list.text
@@ -385,8 +584,12 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	)
 	assert secondary_login.status_code == 200, secondary_login.text
 	assert secondary_login.json()["user"]["is_primary_manager"] is False
+	assert secondary_login.json()["user"]["has_auditor_profile"] is False
 	secondary_headers = _bearer_headers(secondary_login.json()["access_token"])
 	assert yee_client.get("/yee/dashboard/manager-invites", headers=secondary_headers).status_code == 403
+	secondary_manager_list = yee_client.get("/yee/dashboard/managers", headers=secondary_headers)
+	assert secondary_manager_list.status_code == 200, secondary_manager_list.text
+	assert len(secondary_manager_list.json()) >= 2
 
 	auditor_headers = _bearer_headers(_login_auditor(yee_client))
 	assert yee_client.get("/yee/dashboard/manager-invites", headers=auditor_headers).status_code == 403
@@ -410,7 +613,7 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	revoke_create = yee_client.post(
 		"/yee/dashboard/manager-invites",
 		headers=manager_headers,
-		json={"email": revoke_email},
+		json={"full_name": "Revokable Secondary", "email": revoke_email},
 	)
 	assert revoke_create.status_code == 201, revoke_create.text
 	revoke_id = revoke_create.json()["id"]
@@ -424,6 +627,110 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	post_revoke_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
 	assert post_revoke_list.status_code == 200, post_revoke_list.text
 	assert all(item["id"] != revoke_id for item in post_revoke_list.json())
+
+
+def test_primary_manager_invite_limit_is_five_secondary_managers(
+	yee_client: TestClient,
+	monkeypatch,
+) -> None:
+	"""Primary managers cannot create more than five secondary-manager slots."""
+
+	def _capture_manager_invite_email(**_: str | None) -> bool:
+		return True
+
+	monkeypatch.setattr(auth_module, "send_manager_invite_email", _capture_manager_invite_email)
+	import app.dashboard_router as dashboard_router_module
+
+	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
+
+	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	for index in range(4):
+		response = yee_client.post(
+			"/yee/dashboard/manager-invites",
+			headers=manager_headers,
+			json={
+				"full_name": f"Extra Secondary {index}",
+				"email": f"extra-secondary-{index}@example.org",
+			},
+		)
+		assert response.status_code == 201, response.text
+
+	overflow = yee_client.post(
+		"/yee/dashboard/manager-invites",
+		headers=manager_headers,
+		json={"full_name": "Overflow Secondary", "email": "overflow-secondary@example.org"},
+	)
+	assert overflow.status_code == 409, overflow.text
+	assert overflow.json()["detail"] == "A primary manager can invite up to 5 additional managers."
+
+
+def test_manager_can_create_auditor_profile_for_self(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""Managers can create an auditor profile for themselves to use auditor routes."""
+
+	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	create_response = yee_client.post("/yee/dashboard/my-auditor-profile", headers=manager_headers)
+	assert create_response.status_code == 201, create_response.text
+	assert create_response.json()["auditor_id"].startswith("AUD")
+
+	auditor_profile = asyncio.run(_load_auditor_profile_by_user_email(yee_test_session_factory, SEED_MANAGER_EMAIL))
+	assert auditor_profile is not None
+	session_response = yee_client.get("/yee/auth/me", headers=manager_headers)
+	assert session_response.status_code == 200, session_response.text
+	assert session_response.json()["user"]["has_auditor_profile"] is True
+	assert session_response.json()["user"]["auditor_dashboard_path"] == "/my-dashboard"
+	my_audits = yee_client.get("/yee/my-audits", headers=manager_headers)
+	assert my_audits.status_code == 200, my_audits.text
+
+
+def test_primary_manager_can_remove_secondary_manager(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+	monkeypatch,
+) -> None:
+	"""Primary managers can remove a secondary manager from the organization."""
+
+	def _capture_manager_invite_email(**_: str | None) -> bool:
+		return True
+
+	monkeypatch.setattr(auth_module, "send_manager_invite_email", _capture_manager_invite_email)
+	import app.dashboard_router as dashboard_router_module
+
+	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
+
+	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
+	assert manager_login.status_code == 200, manager_login.text
+	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+
+	email = "removable-secondary@example.org"
+	create_response = yee_client.post(
+		"/yee/dashboard/manager-invites",
+		headers=manager_headers,
+		json={"full_name": "Removable Secondary", "email": email},
+	)
+	assert create_response.status_code == 201, create_response.text
+	invite_token = create_response.json()["invite_url"].rsplit("/", 1)[-1]
+
+	accept_response = yee_client.post(
+		f"/yee/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Removable Secondary", "password": SEED_PASSWORD},
+	)
+	assert accept_response.status_code == 200, accept_response.text
+
+	profile = asyncio.run(_load_manager_profile_by_email(yee_test_session_factory, email))
+	assert profile is not None
+
+	remove_response = yee_client.delete(f"/yee/dashboard/managers/{profile.id}", headers=manager_headers)
+	assert remove_response.status_code == 204, remove_response.text
+	assert asyncio.run(_load_manager_profile_by_email(yee_test_session_factory, email)) is None
 
 
 def test_existing_manager_invite_acceptance_cannot_overwrite_existing_manager_password(

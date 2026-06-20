@@ -63,6 +63,7 @@ class SignupRequest(BaseModel):
 	name: str | None = Field(default=None, max_length=200)
 	organization: str | None = Field(default=None, max_length=200)
 	account_type: AccountType | None = Field(default=None)
+	confirm_new_organization: bool = False
 	captcha_token: str | None = Field(default=None, max_length=4096)
 	website: str | None = Field(default=None, max_length=200)
 
@@ -99,6 +100,8 @@ class AuthUser(BaseModel):
 	organization: str | None = None
 	account_type: AccountType
 	is_primary_manager: bool = False
+	has_auditor_profile: bool = False
+	auditor_dashboard_path: str | None = None
 	email_verified: bool
 	approved: bool
 	profile_completed: bool
@@ -129,6 +132,10 @@ class SessionResponse(BaseModel):
 
 class CompleteProfileRequest(BaseModel):
 	name: str = Field(..., min_length=1, max_length=200)
+	job_title: str | None = Field(default=None, max_length=200)
+	profession_disciplines: list[str] = Field(default_factory=list)
+	organization: str | None = Field(default=None, max_length=200)
+	phone_number: str | None = Field(default=None, max_length=50)
 
 
 class InvitePreviewResponse(BaseModel):
@@ -231,7 +238,15 @@ async def _is_primary_manager(session: AsyncSession, user: User) -> bool:
 	return bool(result.scalar_one_or_none())
 
 
+async def _has_auditor_profile(session: AsyncSession, user: User) -> bool:
+	"""Return whether the user already has an auditor profile row."""
+
+	result = await session.execute(select(Auditor.id).where(Auditor.user_id == user.id).limit(1))
+	return result.scalar_one_or_none() is not None
+
+
 async def _serialize_auth_user(session: AsyncSession, user: User) -> AuthUser:
+	has_auditor_profile = await _has_auditor_profile(session, user)
 	return AuthUser(
 		id=user.id,
 		email=user.email,
@@ -240,6 +255,8 @@ async def _serialize_auth_user(session: AsyncSession, user: User) -> AuthUser:
 		organization=(user.account.name if "account" in user.__dict__ and user.account is not None else None),
 		account_type=user.account_type,
 		is_primary_manager=await _is_primary_manager(session, user),
+		has_auditor_profile=has_auditor_profile,
+		auditor_dashboard_path="/my-dashboard" if has_auditor_profile else None,
 		email_verified=user.email_verified,
 		approved=user.approved,
 		profile_completed=user.profile_completed,
@@ -342,6 +359,7 @@ async def _ensure_manager_profile_for_user(
 	clean_name: str | None,
 	prefer_primary: bool,
 	position: str | None = None,
+	profession_disciplines: list[str] | None = None,
 ) -> None:
 	"""Create or link one manager profile row to the authenticated manager user."""
 
@@ -389,6 +407,8 @@ async def _ensure_manager_profile_for_user(
 				email=normalized_email,
 				is_primary=prefer_primary and not has_primary,
 				position=position,
+				profession_disciplines=list(profession_disciplines or []),
+				organization=user.account.name if "account" in user.__dict__ and user.account is not None else None,
 			)
 		)
 		return
@@ -401,6 +421,15 @@ async def _ensure_manager_profile_for_user(
 		manager_profile.full_name = full_name
 	if not manager_profile.email or not manager_profile.email.strip():
 		manager_profile.email = normalized_email
+	if (
+		(profession_disciplines is not None)
+		and (not manager_profile.profession_disciplines)
+	):
+		manager_profile.profession_disciplines = list(profession_disciplines)
+	if (not manager_profile.organization or not manager_profile.organization.strip()) and (
+		"user" in manager_profile.__dict__ or "account" in user.__dict__
+	):
+		manager_profile.organization = user.account.name if "account" in user.__dict__ and user.account is not None else None
 	if prefer_primary and not manager_profile.is_primary:
 		has_primary_result = await session.execute(
 			select(ManagerProfile.id)
@@ -414,6 +443,47 @@ async def _ensure_manager_profile_for_user(
 		has_other_primary = has_primary_result.scalar_one_or_none() is not None
 		if not has_other_primary:
 			manager_profile.is_primary = True
+
+
+async def _get_manager_profile_for_user(
+	*,
+	session: AsyncSession,
+	user: User,
+) -> ManagerProfile | None:
+	"""Return the current manager profile row for one manager user."""
+
+	if user.account_type != AccountType.MANAGER:
+		return None
+	result = await session.execute(select(ManagerProfile).where(ManagerProfile.user_id == user.id).limit(1))
+	return result.scalar_one_or_none()
+
+
+async def _unlink_secondary_manager_from_account(
+	*,
+	session: AsyncSession,
+	user: User,
+	manager_profile: ManagerProfile,
+) -> None:
+	"""Remove one secondary manager from their current organization/account."""
+
+	if manager_profile.is_primary:
+		raise HTTPException(status_code=409, detail="Primary managers cannot create a second organization.")
+
+	invite_rows = (
+		await session.execute(
+			select(ManagerInvite).where(
+				ManagerInvite.account_id == manager_profile.account_id,
+				ManagerInvite.email == user.email,
+			)
+		)
+	).scalars()
+	for invite in invite_rows:
+		await session.delete(invite)
+
+	await session.delete(manager_profile)
+	user.account_id = None
+	user.profile_completed = False
+	user.profile_completed_at = None
 
 
 async def _playspace_signup(
@@ -903,6 +973,8 @@ async def signup(
 	clean_name = _clean_name(payload.name)
 	clean_organization = _clean_name(payload.organization)
 	profile_completed = clean_name is not None
+	email_verification_required = True
+	next_step = "VERIFY_EMAIL"
 	account_name = clean_organization if account_type == AccountType.MANAGER else None
 	if account_type == AccountType.MANAGER and clean_organization is None:
 		raise HTTPException(status_code=400, detail="Organization name is required for manager signup.")
@@ -910,8 +982,44 @@ async def signup(
 	existing_result = await session.execute(select(User).where(User.email == email))
 	existing_user = existing_result.scalar_one_or_none()
 
+	if existing_user is not None:
+		_reject_protected_demo_user_mutation(
+			email=existing_user.email,
+			detail="Protected demo accounts cannot be modified through public signup.",
+		)
+
 	if existing_user is not None and existing_user.email_verified:
-		raise HTTPException(status_code=409, detail="An account with this email already exists.")
+		if account_type != AccountType.MANAGER or existing_user.account_type != AccountType.MANAGER:
+			raise HTTPException(status_code=409, detail="An account with this email already exists.")
+		if existing_user.account_id is not None:
+			account = await session.get(Account, existing_user.account_id)
+			manager_profile = await _get_manager_profile_for_user(session=session, user=existing_user)
+			if manager_profile is None:
+				is_effective_primary = account is not None and _normalize_email(account.email) == email
+				if is_effective_primary:
+					raise HTTPException(status_code=409, detail="This manager already leads an organization.")
+				if not payload.confirm_new_organization:
+					organization_name = account.name if account is not None else "this organization"
+					raise HTTPException(
+						status_code=409,
+						detail=(
+							f"You are currently a manager in {organization_name}. "
+							"Creating a new organization will remove you from that organization. "
+							"Are you sure you want to continue?"
+						),
+					)
+			if manager_profile is not None and not manager_profile.is_primary and not payload.confirm_new_organization:
+				organization_name = account.name if account is not None else "this organization"
+				raise HTTPException(
+					status_code=409,
+					detail=(
+						f"You are currently a manager in {organization_name}. "
+						"Creating a new organization will remove you from that organization. "
+						"Are you sure you want to continue?"
+					),
+				)
+			if manager_profile is not None and manager_profile.is_primary:
+				raise HTTPException(status_code=409, detail="This manager already leads an organization.")
 
 	if existing_user is None:
 		account = None
@@ -934,8 +1042,8 @@ async def signup(
 			failed_login_attempts=0,
 			approved=approved,
 			approved_at=now if approved else None,
-			profile_completed=profile_completed,
-			profile_completed_at=now if profile_completed else None,
+			profile_completed=False if account_type == AccountType.MANAGER else profile_completed,
+			profile_completed_at=None if account_type == AccountType.MANAGER else now if profile_completed else None,
 		)
 		session.add(user)
 		try:
@@ -945,6 +1053,14 @@ async def signup(
 			raise HTTPException(status_code=409, detail="Unable to create account.") from err
 	else:
 		user = existing_user
+		if account_type == AccountType.MANAGER and user.account_id is not None:
+			manager_profile = await _get_manager_profile_for_user(session=session, user=user)
+			if manager_profile is not None and not manager_profile.is_primary:
+				await _unlink_secondary_manager_from_account(
+					session=session,
+					user=user,
+					manager_profile=manager_profile,
+				)
 		if account_name is not None:
 			if user.account_id is None:
 				account = Account(
@@ -962,12 +1078,17 @@ async def signup(
 		user.password_hash = password_hash
 		user.account_type = account_type
 		user.name = clean_name
-		user.email_verified = False
-		user.email_verified_at = None
+		if existing_user.email_verified and account_type == AccountType.MANAGER and payload.confirm_new_organization:
+			user.email_verified = True
+			email_verification_required = False
+			next_step = "COMPLETE_PROFILE"
+		else:
+			user.email_verified = False
+			user.email_verified_at = None
 		user.approved = approved
 		user.approved_at = now if approved else None
-		user.profile_completed = profile_completed
-		user.profile_completed_at = now if profile_completed else None
+		user.profile_completed = False if account_type == AccountType.MANAGER else profile_completed
+		user.profile_completed_at = None if account_type == AccountType.MANAGER else now if profile_completed else None
 
 	if user.account_type == AccountType.MANAGER:
 		await _ensure_manager_profile_for_user(
@@ -978,9 +1099,15 @@ async def signup(
 			prefer_primary=True,
 		)
 
-	await _send_or_log_verification_email(request=request, user=user, session=session)
+	if email_verification_required:
+		await _send_or_log_verification_email(request=request, user=user, session=session)
+		return SignupResponse(message="Account created. Please verify your email before logging in.")
 
-	return SignupResponse(message="Account created. Please verify your email before logging in.")
+	return SignupResponse(
+		message="Organization created. Complete your manager profile to continue.",
+		email_verification_required=False,
+		next_step=next_step,
+	)
 
 
 @router.post(
@@ -1260,8 +1387,39 @@ async def complete_profile(
 		)
 
 	user.name = clean_name
-	user.profile_completed = True
-	user.profile_completed_at = datetime.now(timezone.utc)
+	if user.account_type == AccountType.MANAGER:
+		manager_profile = await _get_manager_profile_for_user(session=session, user=user)
+		if manager_profile is None:
+			raise HTTPException(status_code=404, detail="Manager profile not found.")
+
+		job_title = _clean_name(payload.job_title)
+		organization_name = _clean_name(payload.organization)
+		phone_number = _clean_name(payload.phone_number)
+		profession_disciplines = [value.strip() for value in payload.profession_disciplines if value.strip()]
+		if job_title is None:
+			raise HTTPException(status_code=400, detail="Job title / role is required.")
+		if not profession_disciplines:
+			raise HTTPException(status_code=400, detail="Profession / discipline is required.")
+		if organization_name is None:
+			raise HTTPException(status_code=400, detail="Organization name is required.")
+		if manager_profile.is_primary and phone_number is None:
+			raise HTTPException(status_code=400, detail="Phone number is required for the primary manager.")
+		if user.account is not None and manager_profile.is_primary:
+			user.account.name = organization_name
+		elif user.account is not None and organization_name != user.account.name:
+			raise HTTPException(status_code=400, detail="Secondary managers cannot change the organization name.")
+
+		manager_profile.full_name = clean_name
+		manager_profile.position = job_title
+		manager_profile.profession_disciplines = profession_disciplines
+		manager_profile.organization = organization_name
+		manager_profile.phone = phone_number
+		manager_profile.email = user.email
+		user.profile_completed = True
+		user.profile_completed_at = datetime.now(timezone.utc)
+	else:
+		user.profile_completed = True
+		user.profile_completed_at = datetime.now(timezone.utc)
 	await session.commit()
 	result = await session.execute(select(User).options(selectinload(User.account)).where(User.id == user.id))
 	user = result.scalar_one()

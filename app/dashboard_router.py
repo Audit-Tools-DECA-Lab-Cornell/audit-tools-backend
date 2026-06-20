@@ -20,6 +20,7 @@ from app.auth import (
 	_build_invite_url,
 	_build_manager_invite_url,
 	_ensure_manager_profile_for_user,
+	_get_manager_profile_for_user,
 	get_auth_session,
 	get_current_user,
 	_clean_name,
@@ -274,6 +275,7 @@ class AuditorInviteResponse(BaseModel):
 
 
 class CreateManagerInviteRequest(BaseModel):
+	full_name: str = Field(..., min_length=1, max_length=200)
 	email: str = Field(..., max_length=320)
 
 
@@ -426,6 +428,50 @@ class OrganizationSummaryItem(BaseModel):
 	projects: int
 	places: int
 	audits: int
+
+
+class ManagerProfileResponse(BaseModel):
+	id: str
+	full_name: str
+	email: str
+	job_title: str | None = None
+	profession_disciplines: list[str] = Field(default_factory=list)
+	organization: str | None = None
+	phone_number: str | None = None
+	manager_type: str
+	date_joined: datetime
+	account_creation_date: datetime | None = None
+	profile_completed: bool
+
+
+class UpdateManagerProfileRequest(BaseModel):
+	full_name: str = Field(..., min_length=1, max_length=200)
+	job_title: str = Field(..., min_length=1, max_length=200)
+	profession_disciplines: list[str] = Field(..., min_length=1)
+	organization: str = Field(..., min_length=1, max_length=200)
+	phone_number: str | None = Field(default=None, max_length=50)
+
+
+class ManagerTeamMemberResponse(BaseModel):
+	id: str
+	full_name: str
+	email: str
+	manager_type: str
+	job_title: str | None = None
+	profession_disciplines: list[str] = Field(default_factory=list)
+	organization: str | None = None
+	phone_number: str | None = None
+	date_joined: datetime
+	account_creation_date: datetime | None = None
+	profile_completed: bool
+
+
+class CreateSelfAuditorProfileResponse(BaseModel):
+	id: str
+	auditor_id: str
+	email: str | None = None
+	full_name: str
+	account_id: str
 
 
 def _require_manager_or_admin(user: User) -> None:
@@ -1564,6 +1610,42 @@ async def _require_primary_manager(session: AsyncSession, user: User) -> uuid.UU
 	return user.account_id
 
 
+def _manager_type_label(profile: ManagerProfile) -> str:
+	return "Primary" if profile.is_primary else "Secondary"
+
+
+async def _count_secondary_manager_slots(session: AsyncSession, account_id: uuid.UUID) -> int:
+	"""Count accepted or pending secondary manager slots for one organization."""
+
+	result = await session.execute(
+		select(func.count(ManagerProfile.id)).where(
+			ManagerProfile.account_id == account_id,
+			ManagerProfile.is_primary.is_(False),
+		)
+	)
+	return int(result.scalar_one() or 0)
+
+
+async def _serialize_manager_profile_response(
+	session: AsyncSession,
+	profile: ManagerProfile,
+) -> ManagerProfileResponse:
+	user = await session.get(User, profile.user_id) if profile.user_id is not None else None
+	return ManagerProfileResponse(
+		id=str(profile.id),
+		full_name=profile.full_name,
+		email=profile.email,
+		job_title=profile.position,
+		profession_disciplines=list(profile.profession_disciplines or []),
+		organization=profile.organization,
+		phone_number=profile.phone,
+		manager_type=_manager_type_label(profile),
+		date_joined=profile.created_at,
+		account_creation_date=user.created_at if user is not None else None,
+		profile_completed=user.profile_completed if user is not None else False,
+	)
+
+
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(
 	user: User = Depends(get_current_user),
@@ -1898,6 +1980,167 @@ async def list_users(
 ) -> list[UserListItem]:
 	_require_admin(user)
 	return await _fetch_users(session, user)
+
+
+@router.get("/manager-profile", response_model=ManagerProfileResponse)
+async def get_manager_profile(
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerProfileResponse:
+	"""Return the current manager's profile and recorded metadata."""
+
+	if user.account_type != AccountType.MANAGER:
+		raise HTTPException(status_code=403, detail="Manager access is required.")
+	profile = await _get_manager_profile_for_user(session=session, user=user)
+	if profile is None:
+		raise HTTPException(status_code=404, detail="Manager profile not found.")
+	return await _serialize_manager_profile_response(session, profile)
+
+
+@router.put("/manager-profile", response_model=ManagerProfileResponse)
+async def update_manager_profile(
+	payload: UpdateManagerProfileRequest,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> ManagerProfileResponse:
+	"""Create or update the current manager profile and mark onboarding complete."""
+
+	if user.account_type != AccountType.MANAGER:
+		raise HTTPException(status_code=403, detail="Manager access is required.")
+	clean_name = _clean_name(payload.full_name)
+	job_title = _clean_name(payload.job_title)
+	organization_name = _clean_name(payload.organization)
+	phone_number = _clean_name(payload.phone_number)
+	profession_disciplines = _normalize_text_list(payload.profession_disciplines)
+	if clean_name is None:
+		raise HTTPException(status_code=400, detail="Full name is required.")
+	if job_title is None:
+		raise HTTPException(status_code=400, detail="Job title / role is required.")
+	if organization_name is None:
+		raise HTTPException(status_code=400, detail="Organization name is required.")
+	if not profession_disciplines:
+		raise HTTPException(status_code=400, detail="Profession / discipline is required.")
+
+	profile = await _get_manager_profile_for_user(session=session, user=user)
+	if profile is None:
+		raise HTTPException(status_code=404, detail="Manager profile not found.")
+	if profile.is_primary and phone_number is None:
+		raise HTTPException(status_code=400, detail="Phone number is required for the primary manager.")
+	if user.account is not None and profile.is_primary:
+		user.account.name = organization_name
+	elif user.account is not None and organization_name != user.account.name:
+		raise HTTPException(status_code=400, detail="Secondary managers cannot change the organization name.")
+
+	user.name = clean_name
+	user.profile_completed = True
+	user.profile_completed_at = datetime.now(timezone.utc)
+	profile.full_name = clean_name
+	profile.position = job_title
+	profile.profession_disciplines = profession_disciplines
+	profile.organization = organization_name
+	profile.phone = phone_number
+	profile.email = user.email
+	await session.commit()
+	await session.refresh(profile)
+	return await _serialize_manager_profile_response(session, profile)
+
+
+@router.get("/managers", response_model=list[ManagerTeamMemberResponse])
+async def list_managers(
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> list[ManagerTeamMemberResponse]:
+	"""Return the current organization's management team."""
+
+	if user.account_type != AccountType.MANAGER:
+		raise HTTPException(status_code=403, detail="Manager access is required.")
+	account_id = _manager_account_id(user)
+	if account_id is None:
+		raise HTTPException(status_code=403, detail="Manager account scope is required.")
+	result = await session.execute(
+		select(ManagerProfile).where(ManagerProfile.account_id == account_id).order_by(ManagerProfile.is_primary.desc())
+	)
+	profiles = result.scalars().all()
+	items: list[ManagerTeamMemberResponse] = []
+	for profile in profiles:
+		serialized = await _serialize_manager_profile_response(session, profile)
+		items.append(ManagerTeamMemberResponse(**serialized.model_dump()))
+	return items
+
+
+@router.delete("/managers/{manager_profile_id}", status_code=204, response_model=None, response_class=Response)
+async def remove_manager_from_organization(
+	manager_profile_id: uuid.UUID,
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> None:
+	"""Remove one secondary manager from the current organization."""
+
+	account_id = await _require_primary_manager(session, user)
+	profile = await session.get(ManagerProfile, manager_profile_id)
+	if profile is None or profile.account_id != account_id:
+		raise HTTPException(status_code=404, detail="Manager not found.")
+	if profile.is_primary:
+		raise HTTPException(status_code=400, detail="The primary manager cannot be removed from the organization.")
+
+	target_user = await session.get(User, profile.user_id) if profile.user_id is not None else None
+	invites = (
+		await session.execute(
+			select(ManagerInvite).where(
+				ManagerInvite.account_id == account_id,
+				ManagerInvite.email == profile.email,
+			)
+		)
+	).scalars()
+	for invite in invites:
+		await session.delete(invite)
+	if target_user is not None:
+		target_user.account_id = None
+		target_user.profile_completed = False
+		target_user.profile_completed_at = None
+	await session.delete(profile)
+	await session.commit()
+
+
+@router.post("/my-auditor-profile", response_model=CreateSelfAuditorProfileResponse, status_code=201)
+async def create_self_auditor_profile(
+	user: User = Depends(get_current_user),
+	session: AsyncSession = Depends(get_auth_session),
+) -> CreateSelfAuditorProfileResponse:
+	"""Allow a manager to create an auditor profile for themselves in the same organization."""
+
+	if user.account_type != AccountType.MANAGER:
+		raise HTTPException(status_code=403, detail="Manager access is required.")
+	account_id = _manager_account_id(user)
+	if account_id is None:
+		raise HTTPException(status_code=403, detail="Manager account scope is required.")
+
+	existing = (await session.execute(select(Auditor).where(Auditor.user_id == user.id))).scalar_one_or_none()
+	if existing is None:
+		manager_profile = await _get_manager_profile_for_user(session=session, user=user)
+		display_name = (
+			manager_profile.full_name
+			if manager_profile is not None and manager_profile.full_name
+			else user.name or user.email
+		)
+		existing = Auditor(
+			account_id=account_id,
+			user_id=user.id,
+			auditor_code=await _generate_unique_auditor_code(session),
+			email=user.email,
+			full_name=display_name,
+		)
+		session.add(existing)
+		await session.commit()
+		await session.refresh(existing)
+
+	return CreateSelfAuditorProfileResponse(
+		id=str(existing.id),
+		auditor_id=_display_auditor_code(existing.auditor_code),
+		email=existing.email,
+		full_name=existing.full_name,
+		account_id=str(existing.account_id),
+	)
 
 
 @router.post("/users/approve", response_model=UserListItem)
@@ -2278,8 +2521,11 @@ async def create_manager_invite(
 	account_id = await _require_primary_manager(session, user)
 
 	email = _normalize_email(payload.email)
+	full_name = _clean_name(payload.full_name)
 	if not email:
 		raise HTTPException(status_code=400, detail="Email is required.")
+	if full_name is None:
+		raise HTTPException(status_code=400, detail="Full name is required.")
 	if email == _normalize_email(user.email):
 		raise HTTPException(status_code=409, detail="Use your existing credentials for this account.")
 
@@ -2315,6 +2561,13 @@ async def create_manager_invite(
 				detail="This manager already has account access.",
 			)
 
+	secondary_slots = await _count_secondary_manager_slots(session, account_id)
+	if existing_profile is None and secondary_slots >= 5:
+		raise HTTPException(
+			status_code=409,
+			detail="A primary manager can invite up to 5 additional managers.",
+		)
+
 	now = datetime.now(timezone.utc)
 	existing_invite_result = await session.execute(
 		select(ManagerInvite)
@@ -2333,6 +2586,24 @@ async def create_manager_invite(
 			detail="An active manager invite already exists for this email.",
 		)
 
+	account = await session.get(Account, account_id)
+	if existing_profile is None:
+		session.add(
+			ManagerProfile(
+				account_id=account_id,
+				user_id=None,
+				full_name=full_name,
+				email=email,
+				phone=None,
+				position=None,
+				profession_disciplines=[],
+				organization=account.name if account is not None else None,
+				is_primary=False,
+			)
+		)
+	else:
+		existing_profile.full_name = full_name
+
 	token = generate_email_verification_token()
 	invite = ManagerInvite(
 		account_id=account_id,
@@ -2344,7 +2615,6 @@ async def create_manager_invite(
 	session.add(invite)
 	await session.flush()
 
-	account = await session.get(Account, account_id)
 	invited_by_name = user.name
 	profile_result = await session.execute(
 		select(ManagerProfile).where(
@@ -2415,6 +2685,18 @@ async def revoke_manager_invite(
 			status_code=400,
 			detail="Cannot revoke an invite that has already been accepted.",
 		)
+	placeholder_profile = (
+		await session.execute(
+			select(ManagerProfile).where(
+				ManagerProfile.account_id == account_id,
+				ManagerProfile.email == invite.email,
+				ManagerProfile.user_id.is_(None),
+				ManagerProfile.is_primary.is_(False),
+			)
+		)
+	).scalar_one_or_none()
+	if placeholder_profile is not None:
+		await session.delete(placeholder_profile)
 	await session.delete(invite)
 	await session.commit()
 

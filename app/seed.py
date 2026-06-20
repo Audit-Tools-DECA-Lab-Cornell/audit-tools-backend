@@ -379,6 +379,19 @@ def _build_yee_entities() -> list[object]:
 
 	manager_profiles = [
 		ManagerProfile(
+			id=uuid.UUID("77777777-7777-4777-8777-777777777770"),
+			account_id=DEMO_ACCOUNT_ID,
+			user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd7"),
+			full_name="Demo Manager",
+			email="manager-demo@yee.local",
+			phone=None,
+			position="Demo account reviewer",
+			profession_disciplines=["Evaluation", "Program management"],
+			organization=YEE_ORGANIZATION_NAME,
+			is_primary=False,
+			created_at=_utc_datetime("2026-02-20T08:06:00Z"),
+		),
+		ManagerProfile(
 			id=YEE_MANAGER_PROFILE_PRIMARY_ID,
 			account_id=DEMO_ACCOUNT_ID,
 			user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd1"),
@@ -386,6 +399,7 @@ def _build_yee_entities() -> list[object]:
 			email="farah.khan@example.org",
 			phone="+1 607 555 0147",
 			position="Principal Investigator",
+			profession_disciplines=["Public health", "Environmental design"],
 			organization=YEE_ORGANIZATION_NAME,
 			is_primary=True,
 			created_at=_utc_datetime("2026-02-20T08:10:00Z"),
@@ -398,6 +412,7 @@ def _build_yee_entities() -> list[object]:
 			email="jordan.alvarez@example.org",
 			phone=None,
 			position="Field Operations Lead",
+			profession_disciplines=["Community engagement"],
 			organization=YEE_ORGANIZATION_NAME,
 			is_primary=False,
 			created_at=_utc_datetime("2026-02-20T08:20:00Z"),
