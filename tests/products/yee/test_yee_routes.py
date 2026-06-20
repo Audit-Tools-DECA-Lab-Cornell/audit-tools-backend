@@ -9,6 +9,7 @@ instrument → audit-state → draft → submit → list → fetch.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -57,6 +58,49 @@ async def _load_manager_signup_snapshot(
 			account = await session.get(Account, user.account_id)
 			account_name = account.name if account is not None else None
 	return user, account_count, account_name
+
+
+async def _create_verified_manager_user(
+	session_factory: async_sessionmaker[AsyncSession],
+	*,
+	email: str,
+	password: str,
+	name: str,
+) -> None:
+	"""Create a disposable verified manager account for auth-flow assertions."""
+
+	async with session_factory() as session:
+		account = Account(
+			id=uuid.uuid4(),
+			name=f"{name} Organization",
+			email=email,
+			account_type=auth_module.AccountType.MANAGER,
+		)
+		user = User(
+			id=uuid.uuid4(),
+			email=email,
+			password_hash=auth_module.hash_password(password),
+			account_id=account.id,
+			account_type=auth_module.AccountType.MANAGER,
+			name=name,
+			email_verified=True,
+			email_verified_at=datetime.now(timezone.utc),
+			failed_login_attempts=0,
+			approved=True,
+			approved_at=datetime.now(timezone.utc),
+			profile_completed=False,
+		)
+		profile = ManagerProfile(
+			id=uuid.uuid4(),
+			account_id=account.id,
+			user_id=user.id,
+			full_name=name,
+			email=email,
+			organization=account.name,
+			is_primary=True,
+		)
+		session.add_all([account, user, profile])
+		await session.commit()
 
 
 async def _create_legacy_manager_invite_for_existing_manager(
@@ -431,9 +475,22 @@ def test_seeded_in_progress_audit_can_be_saved_again(yee_client: TestClient) -> 
 	assert response.json()["responses"]["QID22"] == "3"
 
 
-def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatch) -> None:
+def test_password_reset_flow_updates_password(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+	monkeypatch,
+) -> None:
 	"""A verified YEE user can request a reset link and log in with the new password."""
 
+	reset_email = "resettable-manager@example.org"
+	asyncio.run(
+		_create_verified_manager_user(
+			yee_test_session_factory,
+			email=reset_email,
+			password=SEED_PASSWORD,
+			name="Resettable Manager",
+		)
+	)
 	captured_reset_url: dict[str, str] = {}
 
 	def _capture_reset_email(*, to_email: str, reset_url: str) -> bool:
@@ -445,11 +502,11 @@ def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatc
 
 	forgot = yee_client.post(
 		"/yee/auth/forgot-password",
-		json={"email": SEED_MANAGER_EMAIL, "website": ""},
+		json={"email": reset_email, "website": ""},
 		headers={"X-Frontend-Origin": "http://localhost:3000"},
 	)
 	assert forgot.status_code == 200, forgot.text
-	assert captured_reset_url["to_email"] == SEED_MANAGER_EMAIL
+	assert captured_reset_url["to_email"] == reset_email
 
 	token = parse_qs(urlparse(captured_reset_url["reset_url"]).query)["token"][0]
 	new_password = "EvenBetterPass123!"
@@ -459,7 +516,7 @@ def test_password_reset_flow_updates_password(yee_client: TestClient, monkeypatc
 	)
 	assert reset.status_code == 200, reset.text
 
-	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": new_password})
+	login = yee_client.post("/yee/auth/login", json={"email": reset_email, "password": new_password})
 	assert login.status_code == 200, login.text
 	assert login.json()["user"]["account_type"] == "MANAGER"
 

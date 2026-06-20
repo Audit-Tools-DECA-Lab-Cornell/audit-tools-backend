@@ -1,7 +1,7 @@
 """Add shared manager-profile fields used by the updated org rules.
 
-Revision ID: ps_0006
-Revises: ps_0005
+Revision ID: ps_0007
+Revises: ps_0006
 Create Date: 2026-06-19
 """
 
@@ -12,8 +12,8 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "ps_0006"
-down_revision = "ps_0005"
+revision = "ps_0007"
+down_revision = "ps_0006"
 branch_labels = None
 depends_on = None
 

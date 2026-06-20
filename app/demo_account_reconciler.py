@@ -36,29 +36,29 @@ def _seeded_demo_account_users_and_manager_profiles() -> tuple[Account | None, l
 async def _manager_profiles_schema_ready(session: AsyncSession) -> bool:
 	"""Return whether the live DB has the manager profile columns this reconciler needs."""
 
-	async with session.connection() as connection:
+	connection = await session.connection()
 
-		def _check(sync_connection) -> bool:
-			inspector = sa.inspect(sync_connection)
-			if "manager_profiles" not in inspector.get_table_names():
-				return False
-			columns = {column["name"] for column in inspector.get_columns("manager_profiles")}
-			required = {
-				"id",
-				"account_id",
-				"user_id",
-				"full_name",
-				"email",
-				"phone",
-				"position",
-				"organization",
-				"is_primary",
-				"created_at",
-				"profession_disciplines",
-			}
-			return required.issubset(columns)
+	def _check(sync_connection) -> bool:
+		inspector = sa.inspect(sync_connection)
+		if "manager_profiles" not in inspector.get_table_names():
+			return False
+		columns = {column["name"] for column in inspector.get_columns("manager_profiles")}
+		required = {
+			"id",
+			"account_id",
+			"user_id",
+			"full_name",
+			"email",
+			"phone",
+			"position",
+			"organization",
+			"is_primary",
+			"created_at",
+			"profession_disciplines",
+		}
+		return required.issubset(columns)
 
-		return await connection.run_sync(_check)
+	return await connection.run_sync(_check)
 
 
 async def reconcile_protected_yee_demo_accounts(session: AsyncSession) -> dict[str, int]:

@@ -34,6 +34,7 @@ from app.auth_security import (
 )
 from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey
 from app.demo_accounts import is_protected_yee_demo_email
+from app import email_service
 from app.email_service import send_password_reset_email, send_verification_email
 from app.models import (
 	Account,
@@ -48,6 +49,7 @@ from app.models import (
 
 router: APIRouter = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
+send_manager_invite_email = email_service.send_manager_invite_email
 
 
 def _reject_protected_demo_user_mutation(*, email: str | None, detail: str) -> None:
@@ -987,6 +989,14 @@ async def signup(
 			detail="Protected demo accounts cannot be modified through public signup.",
 		)
 
+	existing_account = await _find_account_by_email(session=session, email=email)
+	if existing_account is not None and existing_user is None:
+		_reject_protected_demo_user_mutation(
+			email=existing_account.email,
+			detail="Protected demo accounts cannot be modified through public signup.",
+		)
+		raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
 	if existing_user is not None and existing_user.email_verified:
 		if account_type != AccountType.MANAGER or existing_user.account_type != AccountType.MANAGER:
 			raise HTTPException(status_code=409, detail="An account with this email already exists.")
@@ -1575,6 +1585,10 @@ async def accept_manager_invite(
 
 	invite = await _get_valid_manager_invite(session, token)
 	email = _normalize_email(invite.email)
+	_reject_protected_demo_user_mutation(
+		email=email,
+		detail="Protected demo accounts cannot be repurposed through manager invites.",
+	)
 	clean_name = _clean_name(payload.name)
 	if clean_name is None:
 		raise HTTPException(status_code=400, detail="Name is required.")
