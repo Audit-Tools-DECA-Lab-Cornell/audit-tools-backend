@@ -104,7 +104,11 @@ class BugReportResponse(ApiModel):
 
 
 class BugReportListItem(ApiModel):
-	"""Trimmed bug report row for the admin review table."""
+	"""Bug report row for the admin review table.
+
+	Carries the full detail (description, diagnostic context, screenshot) so the
+	admin dashboard can expand a row inline without a follow-up request.
+	"""
 
 	id: uuid.UUID
 	account_id: uuid.UUID | None
@@ -112,13 +116,16 @@ class BugReportListItem(ApiModel):
 	reporter_role: str | None
 	surface: BugReportSurface
 	title: str
+	description: str
 	severity: BugReportSeverity
 	status: BugReportStatus
 	linked_known_issue_id: uuid.UUID | None
 	project_id: uuid.UUID | None
 	place_id: uuid.UUID | None
 	playspace_submission_id: uuid.UUID | None
+	context: JsonDict
 	screenshot_url: str | None
+	screenshot_public_id: str | None
 	created_at: datetime
 	updated_at: datetime
 
