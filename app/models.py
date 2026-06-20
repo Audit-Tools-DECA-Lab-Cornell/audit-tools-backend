@@ -86,6 +86,52 @@ class PlayspaceType(str, Enum):
 	SCHOOL = "School Playspace"
 
 
+class BugReportSurface(str, Enum):
+	"""Client surface a bug report was filed from.
+
+	Canonical source of the ``surface`` value set shared by the web, mobile, and
+	(future) desktop clients and the cross-repo contract. Adding a value here
+	requires mirroring it in the client types and ``testing/contracts``.
+	"""
+
+	WEB = "web"
+	MOBILE = "mobile"
+	DESKTOP = "desktop"
+
+
+class BugReportSeverity(str, Enum):
+	"""How badly a reported bug blocks the reporter's work.
+
+	Canonical source of the ``severity`` value set; mirror changes in clients.
+	"""
+
+	BLOCKING = "blocking"
+	MAJOR = "major"
+	MINOR = "minor"
+
+
+class BugReportStatus(str, Enum):
+	"""Triage lifecycle of a submitted bug report.
+
+	Canonical source of the ``status`` value set; mirror changes in clients.
+	"""
+
+	NEW = "new"
+	TRIAGED = "triaged"
+	IN_PROGRESS = "in_progress"
+	RESOLVED = "resolved"
+	WONT_FIX = "wont_fix"
+	DUPLICATE = "duplicate"
+
+
+class KnownIssueStatus(str, Enum):
+	"""Lifecycle of a curated known issue shown to reporters before submitting."""
+
+	OPEN = "open"
+	MONITORING = "monitoring"
+	FIXED = "fixed"
+
+
 JSONDict = dict[str, object]
 
 
@@ -133,6 +179,10 @@ ACCOUNT_TYPE_ENUM = PostgresEnumWithCast(AccountType, name="shared_account_type"
 AUDIT_STATUS_ENUM = PostgresEnumWithCast(AuditStatus, name="shared_audit_status")
 NOTIFICATION_TYPE_ENUM = PostgresEnumWithCast(NotificationType, name="notification_type_enum")
 PLAYSPACE_TYPE_ENUM = PostgresEnumWithCast(PlayspaceType, name="playspace_type_enum")
+BUG_REPORT_SURFACE_ENUM = PostgresEnumWithCast(BugReportSurface, name="bug_report_surface")
+BUG_REPORT_SEVERITY_ENUM = PostgresEnumWithCast(BugReportSeverity, name="bug_report_severity")
+BUG_REPORT_STATUS_ENUM = PostgresEnumWithCast(BugReportStatus, name="bug_report_status")
+KNOWN_ISSUE_STATUS_ENUM = PostgresEnumWithCast(KnownIssueStatus, name="known_issue_status")
 
 # Shared cascade configuration for parent -> child relationships.
 CASCADE_DELETE_ORPHAN: str = "all, delete-orphan"
@@ -1247,6 +1297,137 @@ class Instrument(Base):
 		return f"<Instrument(id='{self.id}', key='{self.instrument_key}', version='{self.instrument_version}')>"
 
 
+class KnownIssue(Base):
+	"""Curated, platform-wide known issue shown to reporters before they submit.
+
+	Known issues are NOT account-scoped: the same library is shared across every
+	organization so a reporter on any account sees published matches. Maintained
+	by administrators only.
+	"""
+
+	__tablename__ = "known_issues"
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	title: Mapped[str] = mapped_column(String(200), nullable=False)
+	symptoms: Mapped[str] = mapped_column(Text, nullable=False)
+	workaround: Mapped[str | None] = mapped_column(Text, nullable=True)
+	status: Mapped[KnownIssueStatus] = mapped_column(
+		KNOWN_ISSUE_STATUS_ENUM,
+		nullable=False,
+		default=KnownIssueStatus.OPEN,
+	)
+	tags: Mapped[list[str]] = mapped_column(ARRAY(String(60)), default=list, nullable=False)
+	surfaces: Mapped[list[str]] = mapped_column(ARRAY(String(20)), default=list, nullable=False)
+	is_published: Mapped[bool] = mapped_column(
+		Boolean,
+		nullable=False,
+		default=False,
+		server_default="false",
+		index=True,
+	)
+	created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("users.id", ondelete="SET NULL"),
+		nullable=True,
+	)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+	)
+	updated_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		onupdate=func.now(),
+		nullable=False,
+	)
+
+
+class BugReport(Base):
+	"""A user-submitted bug report with auto-captured diagnostic context.
+
+	Reports are private to the reporter's organization (``account_id``) and the
+	administrator. Entity references (``project_id``/``place_id``/
+	``playspace_submission_id``) are only persisted as foreign keys after the
+	service verifies the reporter has access to them; otherwise they are kept
+	loosely inside ``context``.
+	The diagnostic ``context`` is a privacy-filtered allow-list - it never holds
+	audit answers, notes, tokens, or other sensitive content. Screenshots, when
+	provided, live in Cloudinary; only the URL and public id are stored here.
+	"""
+
+	__tablename__ = "bug_reports"
+
+	id: Mapped[uuid.UUID] = mapped_column(
+		UUID(as_uuid=True),
+		primary_key=True,
+		default=uuid.uuid4,
+	)
+	account_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("accounts.id", ondelete="SET NULL"),
+		index=True,
+		nullable=True,
+	)
+	reporter_user_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("users.id", ondelete="SET NULL"),
+		index=True,
+		nullable=True,
+	)
+	reporter_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+	reporter_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
+	surface: Mapped[BugReportSurface] = mapped_column(BUG_REPORT_SURFACE_ENUM, nullable=False)
+	title: Mapped[str] = mapped_column(String(200), nullable=False)
+	description: Mapped[str] = mapped_column(Text, nullable=False)
+	severity: Mapped[BugReportSeverity] = mapped_column(BUG_REPORT_SEVERITY_ENUM, nullable=False)
+	status: Mapped[BugReportStatus] = mapped_column(
+		BUG_REPORT_STATUS_ENUM,
+		nullable=False,
+		default=BugReportStatus.NEW,
+		index=True,
+	)
+	linked_known_issue_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("known_issues.id", ondelete="SET NULL"),
+		nullable=True,
+	)
+	project_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("projects.id", ondelete="SET NULL"),
+		nullable=True,
+	)
+	place_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("places.id", ondelete="SET NULL"),
+		nullable=True,
+	)
+	playspace_submission_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("playspace_submissions.id", ondelete="SET NULL"),
+		nullable=True,
+	)
+	context: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+	screenshot_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+	screenshot_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		nullable=False,
+		index=True,
+	)
+	updated_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True),
+		server_default=func.now(),
+		onupdate=func.now(),
+		nullable=False,
+	)
+
+
 ######################################################################################
 ############################# Product Table Ownership ################################
 ######################################################################################
@@ -1272,6 +1453,8 @@ PLAYSPACE_ONLY_TABLE_NAMES: frozenset[str] = frozenset(
 		"playspace_question_responses",
 		"playspace_scale_answers",
 		"playspace_checklist_answers",
+		"known_issues",
+		"bug_reports",
 	}
 )
 

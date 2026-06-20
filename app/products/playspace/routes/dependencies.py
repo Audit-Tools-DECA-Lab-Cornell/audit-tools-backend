@@ -16,6 +16,7 @@ from app.models import AccountType, Auditor
 from app.products.playspace.services import (
 	PlayspaceAdminService,
 	PlayspaceAuditService,
+	PlayspaceBugReportService,
 	PlayspaceDashboardService,
 	PlayspaceManagementService,
 )
@@ -92,7 +93,16 @@ def get_admin_service(
 	return PlayspaceAdminService(session=session)
 
 
+def get_bug_report_service(
+	session: AsyncSession = SESSION_DEPENDENCY,
+) -> PlayspaceBugReportService:
+	"""Return the bug-reporting / known-issues service for this request."""
+
+	return PlayspaceBugReportService(session=session)
+
+
 DASHBOARD_SERVICE_DEPENDENCY = Depends(get_dashboard_service)
 AUDIT_SERVICE_DEPENDENCY = Depends(get_audit_service)
 MANAGEMENT_SERVICE_DEPENDENCY = Depends(get_management_service)
 ADMIN_SERVICE_DEPENDENCY = Depends(get_admin_service)
+BUG_REPORT_SERVICE_DEPENDENCY = Depends(get_bug_report_service)

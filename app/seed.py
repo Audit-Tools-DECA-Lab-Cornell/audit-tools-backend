@@ -33,7 +33,9 @@ from app.models import (
 	AuditorInvite,
 	AuditorProfile,
 	AuditStatus,
+	BugReport,
 	Instrument,
+	KnownIssue,
 	ManagerInvite,
 	ManagerProfile,
 	Notification,
@@ -139,6 +141,8 @@ async def _clear_playspace_tables(session: AsyncSession) -> None:
 	"""Remove Playspace-only records (child rows first). Playspace database only."""
 
 	for model in (
+		BugReport,
+		KnownIssue,
 		PlayspaceChecklistAnswer,
 		PlayspaceScaleAnswer,
 		PlayspaceQuestionResponse,
