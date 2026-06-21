@@ -80,19 +80,17 @@ async def _load_direct_auditor_counts(
 	return int(assignments_result.scalar_one() or 0), int(completed_result.scalar_one() or 0)
 
 
-def _signup_and_login_auditor(
+def _signup_and_login_user(
 	client: TestClient,
 	email: str,
 	full_name: str,
-	auditor_code: str,
 ) -> str:
-	"""Create an auditor user account and return a bearer token.
+	"""Create a fresh authenticated playspace user and return a bearer token.
 
-	The management API auto-creates an Account + AuditorProfile when a
-	manager creates an auditor profile.  This helper creates only the User
-	side; the AuditorProfile link is backfilled by the migration/seed.
-	For tests that need an auditor with a full profile, use the management
-	API to create the profile and then login via the auto-created account.
+	Public signup only provisions managers (each gets their own organization
+	account); auditors must be invited by a manager. Tests that just need a
+	distinct authenticated identity - e.g. a second user to prove cross-user
+	isolation - use this to mint one without touching the shared seeded users.
 	"""
 
 	signup_response = client.post(
@@ -101,10 +99,10 @@ def _signup_and_login_auditor(
 			"email": email,
 			"password": SEED_PASSWORD,
 			"name": full_name,
-			"account_type": "AUDITOR",
+			"account_type": "MANAGER",
 		},
 	)
-	assert signup_response.status_code == 201
+	assert signup_response.status_code == 201, signup_response.text
 	return signup_response.json()["access_token"]
 
 
@@ -1096,7 +1094,21 @@ def test_management_endpoints_cover_account_project_place_and_auditor_crud(
 	assert update_place_response.status_code == 200
 	assert update_place_response.json()["id"] == place["id"]
 
-	auditor_profile = {"id": playspace_seed_snapshot.seeded_auditor_profile_id}
+	# Create a throwaway auditor profile for the update/delete coverage below.
+	# Deleting unlinks the auditor (nulls the User + profile ``account_id``), so this
+	# must never touch the shared seeded auditor that other tests authenticate as.
+	create_profile_response = playspace_client.post(
+		"/playspace/auditor-profiles",
+		headers=headers,
+		json={
+			"email": f"crud.auditor.{suffix}@example.org",
+			"full_name": f"CRUD Auditor {suffix}",
+			"country": "New Zealand",
+			"role": f"Field Auditor {suffix}",
+		},
+	)
+	assert create_profile_response.status_code == 201, create_profile_response.text
+	auditor_profile = {"id": create_profile_response.json()["id"]}
 
 	update_profile_response = playspace_client.patch(
 		f"/playspace/auditor-profiles/{auditor_profile['id']}",

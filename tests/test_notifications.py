@@ -23,7 +23,7 @@ from app.models import AccountType, Notification, NotificationType, User
 from app.notification_service import NotificationService
 from tests.products.playspace.test_api_endpoints import (
 	_bearer_headers,
-	_signup_and_login_auditor,
+	_signup_and_login_user,
 	_unique_suffix,
 )
 
@@ -466,11 +466,10 @@ class TestNotificationAPI:
 
 		notification_id = asyncio.run(_seed())
 
-		other_token = _signup_and_login_auditor(
+		other_token = _signup_and_login_user(
 			playspace_client,
 			email=f"notif-intruder-{_unique_suffix()}@example.org",
 			full_name="Intruder User",
-			auditor_code=f"INT-{uuid.uuid4().hex[:6].upper()}",
 		)
 
 		response = playspace_client.post(
