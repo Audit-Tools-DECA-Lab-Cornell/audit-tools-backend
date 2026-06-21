@@ -245,8 +245,14 @@ class PlayspaceBugReportService:
 
 		stmt = select(KnownIssue).where(KnownIssue.is_published.is_(True))
 		if query and query.strip():
-			term = f"%{query.strip()}%"
-			stmt = stmt.where(or_(KnownIssue.title.ilike(term), KnownIssue.symptoms.ilike(term)))
+			# Match on individual words rather than the raw phrase: a reporter's
+			# query like "submit freeze" should find an issue titled "Submit button
+			# freeze on mobile", which no single contiguous-substring match would.
+			# Each word must appear in the title or symptoms (AND across words, OR
+			# across the two fields) so more words narrow the results.
+			for word in query.split():
+				term = f"%{word}%"
+				stmt = stmt.where(or_(KnownIssue.title.ilike(term), KnownIssue.symptoms.ilike(term)))
 		if surface:
 			stmt = stmt.where(KnownIssue.surfaces.contains([surface]))
 		stmt = stmt.order_by(KnownIssue.title.asc()).limit(MAX_KNOWN_ISSUE_MATCHES)
