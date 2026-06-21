@@ -211,6 +211,9 @@ async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -
 		PlayspaceSubmission,
 		# PlayspaceSubmissionContext,
 		Audit,
+		# Known issues before bug reports: a report may FK a known issue.
+		KnownIssue,
+		BugReport,
 	)
 	inserted_entity_ids: set[int] = set()
 

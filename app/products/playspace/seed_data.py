@@ -39,7 +39,13 @@ from app.models import (
 	AuditorAssignment,
 	AuditorProfile,
 	AuditStatus,
+	BugReport,
+	BugReportSeverity,
+	BugReportStatus,
+	BugReportSurface,
 	Instrument,
+	KnownIssue,
+	KnownIssueStatus,
 	ManagerProfile,
 	Place,
 	PlayspaceSubmission,
@@ -90,6 +96,8 @@ PlayspaceEntity = (
 	| AuditorAssignment
 	| PlayspaceSubmission
 	| Instrument
+	| KnownIssue
+	| BugReport
 )
 
 # Auditors whose home city maps to the primary manager account (DEMO_ACCOUNT_ID).
@@ -626,6 +634,12 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 	projects = [context.project for context in project_contexts]
 	places = [context.place for context in place_contexts]
 
+	known_issues, bug_reports = _build_known_issues_and_bug_reports(
+		users=users,
+		auditor_profiles=auditor_profiles,
+		audits=audits,
+	)
+
 	return [
 		*accounts,
 		*users,
@@ -637,7 +651,300 @@ def build_playspace_seed_entities() -> list[PlayspaceEntity]:
 		*assignments,
 		*audits,
 		canonical_instrument,
+		*known_issues,
+		*bug_reports,
 	]
+
+
+BASE_BUG_REPORT_CREATED_AT = datetime(2026, 6, 10, 9, 0, tzinfo=UTC)
+
+
+def _build_known_issues_and_bug_reports(
+	*,
+	users: list[User],
+	auditor_profiles: list[AuditorProfile],
+	audits: list[PlayspaceSubmission],
+) -> tuple[list[KnownIssue], list[BugReport]]:
+	"""Build a small, realistic known-issues library plus sample bug reports.
+
+	The content is drawn from real issues observed during development so the admin
+	review page and the known-issue matcher have meaningful data, and so tests can
+	exercise account isolation, every triage status, published/unpublished
+	filtering, optional screenshots, and verified entity references. Known issues
+	are platform-wide (never account-scoped); bug reports stay private to the
+	reporter's account.
+	"""
+
+	users_by_id = {user.id: user for user in users}
+	user_id_by_auditor_profile = {profile.id: profile.user_id for profile in auditor_profiles}
+
+	admin_user = next((user for user in users if user.account_type == AccountType.ADMIN), None)
+	primary_manager_user = next(
+		(user for user in users if user.account_type == AccountType.MANAGER and user.account_id == DEMO_ACCOUNT_ID),
+		None,
+	)
+	primary_auditor_user = next(
+		(user for user in users if user.account_type == AccountType.AUDITOR and user.account_id == DEMO_ACCOUNT_ID),
+		None,
+	)
+	secondary_auditor_user = next(
+		(
+			user
+			for user in users
+			if user.account_type == AccountType.AUDITOR and user.account_id == SECONDARY_MANAGER_ACCOUNT_ID
+		),
+		None,
+	)
+
+	# The in-progress Riverside audit gives a verified project/place/submission to
+	# attach one report to, plus the auditor who owns it as its reporter.
+	riverside_draft = next((audit for audit in audits if audit.id == PLAYSPACE_AUDIT_RIVERSIDE_IN_PROGRESS_ID), None)
+	riverside_reporter_id = (
+		user_id_by_auditor_profile.get(riverside_draft.auditor_profile_id) if riverside_draft is not None else None
+	)
+	riverside_reporter = users_by_id.get(riverside_reporter_id) if riverside_reporter_id is not None else None
+
+	# Known issues — curated, platform-wide. The first three are published (visible
+	# to reporters); the last is an unpublished draft so tests can prove the matcher
+	# only returns published rows.
+	offline_submit_issue = KnownIssue(
+		id=_stable_uuid("known-issue", "offline-submit-greyed-out"),
+		title="Submit button stays greyed out while offline",
+		symptoms="On the audit submit screen the Submit button is disabled when the device has no connection, even after every section is complete.",
+		workaround="Finish any remaining sections, then submit once the device is back online — drafts are saved locally until then.",
+		status=KnownIssueStatus.MONITORING,
+		tags=["submit", "offline", "audit"],
+		surfaces=[BugReportSurface.MOBILE.value],
+		is_published=True,
+		created_by_user_id=admin_user.id if admin_user is not None else None,
+		created_at=BASE_BUG_REPORT_CREATED_AT,
+		updated_at=BASE_BUG_REPORT_CREATED_AT,
+	)
+	instrument_numbering_issue = KnownIssue(
+		id=_stable_uuid("known-issue", "instrument-change-zero-based"),
+		title="Instrument change list shows zero-based numbers",
+		symptoms="The detected-changes list on the instrument editor numbers sections, questions, and options starting from 0, so every number reads one lower than the spreadsheet.",
+		workaround="These are internal indexes; add one to match the spreadsheet. A fix to show human-friendly numbering is planned.",
+		status=KnownIssueStatus.OPEN,
+		tags=["instruments", "editor", "web"],
+		surfaces=[BugReportSurface.WEB.value],
+		is_published=True,
+		created_by_user_id=admin_user.id if admin_user is not None else None,
+		created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(minutes=5),
+		updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(minutes=5),
+	)
+	manager_redirect_issue = KnownIssue(
+		id=_stable_uuid("known-issue", "manager-signup-redirect"),
+		title="Manager lands on the wrong page after sign-up",
+		symptoms="A newly signed-up manager is redirected to /dashboard instead of their manager dashboard.",
+		workaround="Open the manager dashboard from the navigation menu. This has been fixed in a recent release.",
+		status=KnownIssueStatus.FIXED,
+		tags=["navigation", "onboarding", "web"],
+		surfaces=[BugReportSurface.WEB.value],
+		is_published=True,
+		created_by_user_id=admin_user.id if admin_user is not None else None,
+		created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(minutes=10),
+		updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(minutes=10),
+	)
+	device_content_issue = KnownIssue(
+		id=_stable_uuid("known-issue", "device-content-mismatch"),
+		title="Two devices on the same version show different content",
+		symptoms="Two phones reporting the same app version occasionally display different audit content.",
+		workaround=None,
+		status=KnownIssueStatus.OPEN,
+		tags=["sync", "versioning", "mobile"],
+		surfaces=[BugReportSurface.MOBILE.value],
+		is_published=False,
+		created_by_user_id=admin_user.id if admin_user is not None else None,
+		created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(minutes=15),
+		updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(minutes=15),
+	)
+	known_issues = [offline_submit_issue, instrument_numbering_issue, manager_redirect_issue, device_content_issue]
+
+	def _mobile_context(*, route: str, screen: str, online: bool, sync_phase: str) -> dict[str, object]:
+		return {
+			"app_version": "0.9.3",
+			"platform": "ios",
+			"os_version": "17.5",
+			"device_model": "iPhone 13",
+			"locale": "en",
+			"route": route,
+			"screen": screen,
+			"network_online": online,
+			"network_type": "wifi" if online else "none",
+			"sync_phase": sync_phase,
+			"client_timestamp": BASE_BUG_REPORT_CREATED_AT.isoformat(),
+		}
+
+	def _web_context(*, route: str) -> dict[str, object]:
+		return {
+			"app_version": "web",
+			"platform": "web",
+			"route": route,
+			"screen": route,
+			"locale": "en",
+			"network_online": True,
+			"client_timestamp": BASE_BUG_REPORT_CREATED_AT.isoformat(),
+		}
+
+	bug_reports: list[BugReport] = []
+
+	# 1) Mobile, auditor, fully linked to the in-progress Riverside audit, with a
+	#    screenshot and a link to the offline-submit known issue. Triaged + blocking.
+	if riverside_draft is not None and riverside_reporter is not None:
+		bug_reports.append(
+			BugReport(
+				id=_stable_uuid("bug-report", "riverside-offline-submit"),
+				account_id=DEMO_ACCOUNT_ID,
+				reporter_user_id=riverside_reporter.id,
+				reporter_email=riverside_reporter.email,
+				reporter_role=AccountType.AUDITOR.value,
+				surface=BugReportSurface.MOBILE,
+				title="Can't submit the Riverside audit in the field",
+				description="I finished every section at Riverside Reserve but the Submit button stays greyed out. I had no signal at the park.",
+				severity=BugReportSeverity.BLOCKING,
+				status=BugReportStatus.TRIAGED,
+				linked_known_issue_id=offline_submit_issue.id,
+				project_id=riverside_draft.project_id,
+				place_id=riverside_draft.place_id,
+				playspace_submission_id=riverside_draft.id,
+				context=_mobile_context(
+					route="execute/[placeId]/section",
+					screen="execute",
+					online=False,
+					sync_phase="idle",
+				),
+				screenshot_url="https://res.cloudinary.com/demo/image/upload/v1700000000/bug-reports/riverside-submit.png",
+				screenshot_public_id="bug-reports/riverside-submit",
+				created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=1),
+				updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=2),
+			)
+		)
+
+	# 2) Mobile, auditor, no entity references (pure context). New + major.
+	if primary_auditor_user is not None:
+		bug_reports.append(
+			BugReport(
+				id=_stable_uuid("bug-report", "submit-button-discoverability"),
+				account_id=DEMO_ACCOUNT_ID,
+				reporter_user_id=primary_auditor_user.id,
+				reporter_email=primary_auditor_user.email,
+				reporter_role=AccountType.AUDITOR.value,
+				surface=BugReportSurface.MOBILE,
+				title="Hard to find where to submit an audit",
+				description="It takes too many taps to reach the submit action. It would help to have a submit button on the execute overview and the home screen.",
+				severity=BugReportSeverity.MAJOR,
+				status=BugReportStatus.NEW,
+				context=_mobile_context(
+					route="(tabs)/index",
+					screen="home",
+					online=True,
+					sync_phase="synced",
+				),
+				created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=3),
+				updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=3),
+			)
+		)
+
+	# 3) Web, manager reporter. In progress + minor.
+	if primary_manager_user is not None:
+		bug_reports.append(
+			BugReport(
+				id=_stable_uuid("bug-report", "section-description-not-bold"),
+				account_id=DEMO_ACCOUNT_ID,
+				reporter_user_id=primary_manager_user.id,
+				reporter_email=primary_manager_user.email,
+				reporter_role=AccountType.MANAGER.value,
+				surface=BugReportSurface.WEB,
+				title="Section descriptions aren't bold like question prompts",
+				description="On the instrument spreadsheet page the section description isn't bolded the way the question prompts are, so the hierarchy is hard to read.",
+				severity=BugReportSeverity.MINOR,
+				status=BugReportStatus.IN_PROGRESS,
+				linked_known_issue_id=instrument_numbering_issue.id,
+				context=_web_context(route="/admin/instruments"),
+				created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=4),
+				updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=5),
+			)
+		)
+
+	# 4) Web, admin reporter (no account). Resolved + minor, linked to a fixed issue.
+	if admin_user is not None:
+		bug_reports.append(
+			BugReport(
+				id=_stable_uuid("bug-report", "manager-redirect"),
+				account_id=None,
+				reporter_user_id=admin_user.id,
+				reporter_email=admin_user.email,
+				reporter_role=AccountType.ADMIN.value,
+				surface=BugReportSurface.WEB,
+				title="New manager sent to the wrong dashboard",
+				description="After signing up, a manager is taken to /dashboard rather than the manager dashboard.",
+				severity=BugReportSeverity.MINOR,
+				status=BugReportStatus.RESOLVED,
+				linked_known_issue_id=manager_redirect_issue.id,
+				context=_web_context(route="/dashboard"),
+				created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=6),
+				updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=7),
+			)
+		)
+
+	# 5) Mobile, second organization's auditor — for account-isolation tests.
+	#    Won't-fix to exercise that status.
+	if secondary_auditor_user is not None:
+		bug_reports.append(
+			BugReport(
+				id=_stable_uuid("bug-report", "device-content-mismatch"),
+				account_id=SECONDARY_MANAGER_ACCOUNT_ID,
+				reporter_user_id=secondary_auditor_user.id,
+				reporter_email=secondary_auditor_user.email,
+				reporter_role=AccountType.AUDITOR.value,
+				surface=BugReportSurface.MOBILE,
+				title="My phone shows different questions than my colleague's",
+				description="Two of us are on the same app version but see slightly different audit content.",
+				severity=BugReportSeverity.MAJOR,
+				status=BugReportStatus.WONT_FIX,
+				context=_mobile_context(
+					route="execute/[placeId]/section",
+					screen="execute",
+					online=True,
+					sync_phase="synced",
+				),
+				created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=8),
+				updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=9),
+			)
+		)
+
+	# 6) Desktop COPA Tool, auditor — duplicate of #2, to exercise that status and
+	#    the desktop surface end to end.
+	if primary_auditor_user is not None:
+		bug_reports.append(
+			BugReport(
+				id=_stable_uuid("bug-report", "desktop-submit-duplicate"),
+				account_id=DEMO_ACCOUNT_ID,
+				reporter_user_id=primary_auditor_user.id,
+				reporter_email=primary_auditor_user.email,
+				reporter_role=AccountType.AUDITOR.value,
+				surface=BugReportSurface.DESKTOP,
+				title="Submit action is buried on the desktop tool too",
+				description="Same as on mobile — the submit button is hard to find on the COPA desktop app.",
+				severity=BugReportSeverity.MINOR,
+				status=BugReportStatus.DUPLICATE,
+				context={
+					"app_version": "0.4.0",
+					"platform": "desktop",
+					"os_version": "macOS 15",
+					"route": "/execute",
+					"screen": "execute",
+					"locale": "en",
+					"network_online": True,
+					"client_timestamp": BASE_BUG_REPORT_CREATED_AT.isoformat(),
+				},
+				created_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=10),
+				updated_at=BASE_BUG_REPORT_CREATED_AT + timedelta(hours=10),
+			)
+		)
+
+	return known_issues, bug_reports
 
 
 def _build_auditor_contexts(

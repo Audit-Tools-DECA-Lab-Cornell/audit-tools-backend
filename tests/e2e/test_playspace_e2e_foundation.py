@@ -81,3 +81,45 @@ def test_auditor_can_create_or_resume_seeded_place_audit(
 	assert payload["place_id"] == target_place["place_id"]
 	assert payload["project_id"] == target_place["project_id"]
 	assert payload["status"] in {"PAUSED", "IN_PROGRESS", "SUBMITTED"}
+
+
+def test_admin_sees_seeded_bug_reports_and_published_known_issues(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""The seed ships bug reports across every status/surface plus a known-issues library."""
+
+	admin_headers = _bearer(_login(playspace_client, ADMIN_EMAIL))
+
+	reports_response = playspace_client.get("/playspace/admin/bug-reports?page_size=200", headers=admin_headers)
+	assert reports_response.status_code == 200
+	reports_body = reports_response.json()
+	assert reports_body["total_count"] >= 6
+	seeded_statuses = {item["status"] for item in reports_body["items"]}
+	assert {"new", "triaged", "in_progress", "resolved", "wont_fix", "duplicate"} <= seeded_statuses
+	seeded_surfaces = {item["surface"] for item in reports_body["items"]}
+	assert {"web", "mobile", "desktop"} <= seeded_surfaces
+
+	# The matcher only ever returns published known issues — never the seeded draft.
+	match_response = playspace_client.get(
+		"/playspace/known-issues/match?q=submit%20offline&surface=mobile",
+		headers=admin_headers,
+	)
+	assert match_response.status_code == 200
+	match_titles = {match["title"].lower() for match in match_response.json()}
+	assert any("offline" in title for title in match_titles)
+	assert all("different content" not in title for title in match_titles)
+
+
+def test_seeded_reporter_can_read_their_own_bug_reports(
+	playspace_client: TestClient,
+	playspace_seed_snapshot: PlayspaceSeedSnapshot,
+) -> None:
+	"""``/bug-reports/mine`` returns the caller's seeded reports and only theirs."""
+
+	admin_headers = _bearer(_login(playspace_client, ADMIN_EMAIL))
+	mine_response = playspace_client.get("/playspace/bug-reports/mine", headers=admin_headers)
+	assert mine_response.status_code == 200
+	mine = mine_response.json()
+	assert mine, "the seeded admin filed at least one bug report"
+	assert any("dashboard" in report["title"].lower() for report in mine)
