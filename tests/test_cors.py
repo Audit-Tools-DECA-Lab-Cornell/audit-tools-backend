@@ -21,7 +21,7 @@ def _preflight(origin: str) -> Response:
 def test_cors_allows_credentialed_web_frontend_origins() -> None:
 	for origin in [
 		"http://localhost:3000",
-		"https://audit-tools-playspace-frontend.vercel.app",
+		"https://copa-frontend.vercel.app",
 		"https://copa-tool.vercel.app",
 		"https://audit-tools-feature-cleverhugs.vercel.app",
 	]:

@@ -13,13 +13,13 @@ from html import escape
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 
-_WEB_APP_URL = "https://audit-tools-playspace-frontend.vercel.app/"
+_WEB_APP_URL = "https://copa-tool.vercel.app/"
 _IOS_APP_URL = "https://apps.apple.com/app/id6755903317"
 _ANDROID_APP_URL = "https://play.google.com/apps/internaltest/4701144847649057394"
 
 _BRAND_NAME = "Audit Tools"
 _DEFAULT_PLATFORM = "Audit Tools"
-_LOGO_URL = "https://audit-tools-playspace-frontend.vercel.app/icon.png"
+_LOGO_URL = "https://copa-tool.vercel.app/icon.png"
 
 # Email clients are inconsistent. Keep the core layout inline, then use this
 # style block only for progressive enhancement: normalization, dark mode, and
