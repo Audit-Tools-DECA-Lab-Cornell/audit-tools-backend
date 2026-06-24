@@ -11,7 +11,7 @@ Creates two Playspace-only tables behind the internal bug-reporting workflow:
 Both tables live ONLY in the Playspace database (registered in
 ``PLAYSPACE_ONLY_TABLE_NAMES``) and are created on the ``playspace`` branch:
 
-    alembic -x product=playspace upgrade head
+    alembic -x product=playspace upgrade playspace@head
 
 The migration is hand-written and idempotent (guards on table/type existence),
 so it is safe on fresh, partially-migrated, and rerun states.

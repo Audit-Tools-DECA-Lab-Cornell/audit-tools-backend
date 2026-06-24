@@ -41,8 +41,8 @@ def _resolve_environment() -> DatabaseEnvironment:
 	then ``development``.
 
 	Usage:
-	  alembic -x product=playspace -x environment=test upgrade head
-	  alembic -x product=yee -x environment=production upgrade head
+	  alembic -x product=playspace -x environment=test upgrade playspace@head
+	  alembic -x product=yee -x environment=production upgrade yee@head
 	"""
 
 	x_args = context.get_x_argument(as_dictionary=True)
@@ -55,8 +55,8 @@ def _resolve_product_key() -> ProductKey:
 	Resolve the target product database for this migration run.
 
 	Usage:
-	  alembic -x product=yee environment=production upgrade head
-	  alembic -x product=playspace environment=production upgrade head
+	  alembic -x product=yee -x environment=production upgrade yee@head
+	  alembic -x product=playspace -x environment=production upgrade playspace@head
 	"""
 
 	x_args = context.get_x_argument(as_dictionary=True)
