@@ -100,7 +100,7 @@ def test_admin_sees_seeded_bug_reports_and_published_known_issues(
 	seeded_surfaces = {item["surface"] for item in reports_body["items"]}
 	assert {"web", "mobile", "desktop"} <= seeded_surfaces
 
-	# The matcher only ever returns published known issues — never the seeded draft.
+	# The matcher only ever returns published known issues - never the seeded draft.
 	match_response = playspace_client.get(
 		"/playspace/known-issues/match?q=submit%20offline&surface=mobile",
 		headers=admin_headers,

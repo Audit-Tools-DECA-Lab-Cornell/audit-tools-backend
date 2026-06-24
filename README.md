@@ -42,6 +42,7 @@ Implemented today:
 - Playspace enum types for structured field values
 - YEE instrument metadata enrichment for section intros, comment prompts, and grouped question rendering
 - manager-scoped YEE edit APIs for projects and places
+- Playspace bug report submission and admin/manager review flows
 - seeded test data and product-scoped migration support
 
 Still evolving:
@@ -61,10 +62,15 @@ audit-tools-backend/
 │   ├── auth_security.py
 │   ├── core/
 │   ├── database.py
+│   ├── email_service/
 │   ├── main.py
 │   ├── models.py
 │   ├── products/
 │   │   ├── playspace/
+│   │   │   ├── jobs/
+│   │   │   ├── routes/
+│   │   │   ├── schemas/
+│   │   │   └── services/
 │   │   └── yee/
 │   └── seed.py
 ├── docs/
@@ -266,5 +272,5 @@ When changing this repository, double-check:
 - `app/models.py` and `alembic/versions/`: schema/code alignment, especially `playspace_submissions`
 - `app/core/actors.py`: Playspace header-based actor resolution
 - `app/products/playspace/seed_data.py` and `app/seed.py`: demo credentials and seeded contracts
-- `app/products/playspace/schemas/` and `app/products/playspace/services/`: Playspace API contracts consumed by mobile
+- `app/products/playspace/routes/`, `app/products/playspace/schemas/`, and `app/products/playspace/services/`: Playspace API contracts consumed by mobile
 - `tests/products/playspace/`: API contract coverage for the mobile-facing surface

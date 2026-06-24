@@ -704,14 +704,14 @@ def _build_known_issues_and_bug_reports(
 	)
 	riverside_reporter = users_by_id.get(riverside_reporter_id) if riverside_reporter_id is not None else None
 
-	# Known issues — curated, platform-wide. The first three are published (visible
+	# Known issues - curated, platform-wide. The first three are published (visible
 	# to reporters); the last is an unpublished draft so tests can prove the matcher
 	# only returns published rows.
 	offline_submit_issue = KnownIssue(
 		id=_stable_uuid("known-issue", "offline-submit-greyed-out"),
 		title="Submit button stays greyed out while offline",
 		symptoms="On the audit submit screen the Submit button is disabled when the device has no connection, even after every section is complete.",
-		workaround="Finish any remaining sections, then submit once the device is back online — drafts are saved locally until then.",
+		workaround="Finish any remaining sections, then submit once the device is back online - drafts are saved locally until then.",
 		status=KnownIssueStatus.MONITORING,
 		tags=["submit", "offline", "audit"],
 		surfaces=[BugReportSurface.MOBILE.value],
@@ -888,7 +888,7 @@ def _build_known_issues_and_bug_reports(
 			)
 		)
 
-	# 5) Mobile, second organization's auditor — for account-isolation tests.
+	# 5) Mobile, second organization's auditor - for account-isolation tests.
 	#    Won't-fix to exercise that status.
 	if secondary_auditor_user is not None:
 		bug_reports.append(
@@ -914,7 +914,7 @@ def _build_known_issues_and_bug_reports(
 			)
 		)
 
-	# 6) Desktop COPA Tool, auditor — duplicate of #2, to exercise that status and
+	# 6) Desktop COPA Tool, auditor - duplicate of #2, to exercise that status and
 	#    the desktop surface end to end.
 	if primary_auditor_user is not None:
 		bug_reports.append(
@@ -926,7 +926,7 @@ def _build_known_issues_and_bug_reports(
 				reporter_role=AccountType.AUDITOR.value,
 				surface=BugReportSurface.DESKTOP,
 				title="Submit action is buried on the desktop tool too",
-				description="Same as on mobile — the submit button is hard to find on the COPA desktop app.",
+				description="Same as on mobile - the submit button is hard to find on the COPA desktop app.",
 				severity=BugReportSeverity.MINOR,
 				status=BugReportStatus.DUPLICATE,
 				context={
