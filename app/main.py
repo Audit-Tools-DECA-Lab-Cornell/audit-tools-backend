@@ -28,7 +28,6 @@ from app.limiter import limiter
 from app.notifications_router import router as notifications_router
 from app.products.playspace.routes import router as playspace_router
 from app.products.yee.routes import router as yee_shared_router
-from app.yee_router import router as yee_router
 
 
 def _resolve_cors_origins() -> list[str]:
@@ -36,6 +35,7 @@ def _resolve_cors_origins() -> list[str]:
 
 	default_origins = [
 		"http://localhost:3000",
+		"http://localhost:3001",
 		"http://localhost:8000",
 		"http://localhost:8081",
 		"https://audit-tools-backend.onrender.com",
@@ -94,7 +94,6 @@ app.include_router(yee_shared_router, prefix="/yee")
 app.include_router(playspace_router, prefix="/playspace")
 app.include_router(notifications_router, prefix="/playspace")
 app.include_router(dashboard_router, prefix="/yee")
-app.include_router(yee_router)
 
 
 @app.get("/health")

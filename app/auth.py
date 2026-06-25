@@ -1112,6 +1112,10 @@ async def signup(
 		await _send_or_log_verification_email(request=request, user=user, session=session)
 		return SignupResponse(message="Account created. Please verify your email before logging in.")
 
+	# An already-verified manager confirming a new organization skips email
+	# verification, so persist the org switch here (the request session does not
+	# auto-commit). Without this, the unlink/relink is silently discarded.
+	await session.commit()
 	return SignupResponse(
 		message="Organization created. Complete your manager profile to continue.",
 		email_verification_required=False,

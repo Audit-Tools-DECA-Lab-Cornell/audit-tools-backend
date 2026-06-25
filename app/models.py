@@ -1202,6 +1202,11 @@ class PlayspaceScaleAnswer(Base):
 class YeeAuditSubmission(Base):
 	__tablename__ = "yee_audit_submissions"
 
+	# One final submission per auditor/place. This is the durability backstop
+	# behind the route-level duplicate check: a retry or race that reaches the
+	# database directly still cannot create a second submission for the pair.
+	__table_args__ = (UniqueConstraint("auditor_id", "place_id", name="uq_yee_audit_submissions_auditor_place"),)
+
 	id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 	auditor_id: Mapped[uuid.UUID] = mapped_column(
 		UUID(as_uuid=True),
@@ -1220,6 +1225,10 @@ class YeeAuditSubmission(Base):
 	responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	total_score: Mapped[int] = mapped_column(nullable=False)
+	# Idempotency key from the submitting client. A replay carrying this same key
+	# after an ambiguous network failure returns this submission instead of a
+	# 409 conflict, so the auditor never loses a completed audit.
+	submit_idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 	auditor: Mapped[AuditorProfile] = relationship(lazy="raise")
 	place: Mapped[Place] = relationship(lazy="raise")

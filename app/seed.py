@@ -268,6 +268,7 @@ def _build_yee_entities() -> list[object]:
 	)
 
 	users = [
+		# Primary manager - Demo Manager (linked to YEE_MANAGER_PROFILE_PRIMARY_ID)
 		User(
 			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd7"),
 			email="manager-demo@yee.local",
@@ -284,7 +285,7 @@ def _build_yee_entities() -> list[object]:
 			profile_completed_at=_utc_datetime("2026-02-20T08:06:00Z"),
 			created_at=_utc_datetime("2026-02-20T08:03:00Z"),
 		),
-		# Primary manager - Dr. Farah Khan (linked to YEE_MANAGER_PROFILE_PRIMARY_ID)
+		# Secondary manager - Dr. Farah Khan (linked to YEE_MANAGER_PROFILE_SECONDARY_ID)
 		User(
 			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd1"),
 			email="farah.khan@example.org",
@@ -301,7 +302,7 @@ def _build_yee_entities() -> list[object]:
 			profile_completed_at=_utc_datetime("2026-02-20T08:10:00Z"),
 			created_at=_utc_datetime("2026-02-20T08:00:00Z"),
 		),
-		# Secondary manager - Jordan Alvarez (linked to YEE_MANAGER_PROFILE_SECONDARY_ID)
+		# Secondary manager - Jordan Alvarez
 		User(
 			id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd6"),
 			email="jordan.alvarez@example.org",
@@ -386,20 +387,20 @@ def _build_yee_entities() -> list[object]:
 
 	manager_profiles = [
 		ManagerProfile(
-			id=uuid.UUID("77777777-7777-4777-8777-777777777770"),
+			id=YEE_MANAGER_PROFILE_PRIMARY_ID,
 			account_id=DEMO_ACCOUNT_ID,
 			user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd7"),
 			full_name="Demo Manager",
 			email="manager-demo@yee.local",
-			phone=None,
+			phone="+1 607 555 0100",
 			position="Demo account reviewer",
 			profession_disciplines=["Evaluation", "Program management"],
 			organization=YEE_ORGANIZATION_NAME,
-			is_primary=False,
+			is_primary=True,
 			created_at=_utc_datetime("2026-02-20T08:06:00Z"),
 		),
 		ManagerProfile(
-			id=YEE_MANAGER_PROFILE_PRIMARY_ID,
+			id=YEE_MANAGER_PROFILE_SECONDARY_ID,
 			account_id=DEMO_ACCOUNT_ID,
 			user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd1"),
 			full_name="Dr. Farah Khan",
@@ -408,11 +409,11 @@ def _build_yee_entities() -> list[object]:
 			position="Principal Investigator",
 			profession_disciplines=["Public health", "Environmental design"],
 			organization=YEE_ORGANIZATION_NAME,
-			is_primary=True,
+			is_primary=False,
 			created_at=_utc_datetime("2026-02-20T08:10:00Z"),
 		),
 		ManagerProfile(
-			id=YEE_MANAGER_PROFILE_SECONDARY_ID,
+			id=uuid.UUID("77777777-7777-4777-8777-777777777770"),
 			account_id=DEMO_ACCOUNT_ID,
 			user_id=uuid.UUID("dddddddd-dddd-4ddd-8ddd-ddddddddddd6"),
 			full_name="Jordan Alvarez",

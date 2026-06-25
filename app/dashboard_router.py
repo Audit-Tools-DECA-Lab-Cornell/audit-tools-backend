@@ -7,7 +7,6 @@ import re
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest, Response, status
 from pydantic import BaseModel, Field
@@ -43,7 +42,33 @@ from app.models import (
 	User,
 	YeeAuditSubmission,
 )
-from app.yee_scoring import score_yee_responses
+from app.products.yee.schemas.dashboard import (
+	ManagerAuditEditRequest,
+	ManagerAuditEditState,
+	PlaceComparisonGroup,
+	RawDataExportRow,
+)
+from app.products.yee.services.dashboard import (
+	_build_submission_scores,
+	_display_auditor_code,
+	_empty_domain_scores,
+	_extract_domain_weights,
+	_extract_score,
+	_format_timestamp,
+	_repair_missing_yee_submission,
+)
+from app.products.yee.services.dashboard import (
+	fetch_manager_audit_edit_state as _service_fetch_manager_audit_edit_state,
+)
+from app.products.yee.services.dashboard import (
+	fetch_place_comparison_groups as _service_fetch_place_comparison_groups,
+)
+from app.products.yee.services.dashboard import (
+	fetch_raw_data_rows as _service_fetch_raw_data_rows,
+)
+from app.products.yee.services.dashboard import (
+	update_manager_audit_edit_state as _service_update_manager_audit_edit_state,
+)
 
 router: APIRouter = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -70,33 +95,6 @@ class AuditListItem(BaseModel):
 	total_weighted_score: float = 0.0
 	domain_weights: dict[str, int] = Field(default_factory=dict)
 	status: str
-
-
-class DashboardScoreResult(BaseModel):
-	total_score: int
-	section_scores: dict[str, int]
-	category_scores: dict[str, int]
-	matched_scored_answers: int
-
-
-class ManagerAuditEditState(BaseModel):
-	audit_id: str
-	submission_id: str | None = None
-	place_id: str
-	place_name: str | None = None
-	auditor_id: str
-	auditor_generated_id: str | None = None
-	submitted_at: str | None = None
-	participant_info: dict[str, Any] = Field(default_factory=dict)
-	responses: dict[str, Any] = Field(default_factory=dict)
-	score: DashboardScoreResult
-
-
-class ManagerAuditEditRequest(BaseModel):
-	submission_id: str | None = None
-	participant_info: dict[str, Any] = Field(default_factory=dict)
-	responses: dict[str, Any] = Field(default_factory=dict)
-	resubmit: bool = False
 
 
 class DashboardOverviewResponse(BaseModel):
@@ -335,29 +333,6 @@ class PlaceAuditorItem(BaseModel):
 	last_audit: str
 
 
-class PlaceComparisonAuditItem(BaseModel):
-	audit_id: str
-	auditor_id: str
-	place_id: str
-	place_name: str
-	project_id: str
-	project_name: str
-	date: str
-	total_raw_score: int
-	total_weighted_score: float
-	domain_weights: dict[str, int]
-	raw_domain_scores: dict[str, int]
-	weighted_domain_scores: dict[str, float]
-
-
-class PlaceComparisonGroup(BaseModel):
-	place_id: str
-	place_name: str
-	project_id: str
-	project_name: str
-	audits: list[PlaceComparisonAuditItem]
-
-
 class PlaceDetailResponse(BaseModel):
 	id: str
 	name: str
@@ -387,41 +362,6 @@ class PlaceDetailResponse(BaseModel):
 	comparisons: PlaceComparisonGroup
 
 
-class RawDataExportRow(BaseModel):
-	audit_id: str
-	auditor_generated_id: str
-	organization: str
-	place_id: str
-	place_name: str
-	project_id: str
-	project_name: str
-	date: str
-	submitted_at: str
-	start_time: str
-	finish_time: str
-	total_minutes: int
-	visit_frequency: str
-	season: str
-	weather: str
-	comments: str
-	raw_access: int
-	raw_activity_spaces: int
-	raw_amenities: int
-	raw_experience_of_space: int
-	raw_aesthetics_and_care: int
-	raw_use_and_usability: int
-	weighted_access: float
-	weighted_activity_spaces: float
-	weighted_amenities: float
-	weighted_experience_of_space: float
-	weighted_aesthetics_and_care: float
-	weighted_use_and_usability: float
-	total_raw_score: int
-	total_weighted_score: float
-	domain_weights: dict[str, int]
-	responses: dict[str, str]
-
-
 class OrganizationSummaryItem(BaseModel):
 	organization: str
 	users: int
@@ -447,7 +387,10 @@ class ManagerProfileResponse(BaseModel):
 class UpdateManagerProfileRequest(BaseModel):
 	full_name: str = Field(..., min_length=1, max_length=200)
 	job_title: str = Field(..., min_length=1, max_length=200)
-	profession_disciplines: list[str] = Field(..., min_length=1)
+	# Required, but validated in the handler so the empty case returns a friendly
+	# "Profession / discipline is required." 400 (matching the phone-number rule)
+	# instead of a raw 422, and so whitespace-only entries are caught too.
+	profession_disciplines: list[str] = Field(default_factory=list)
 	organization: str = Field(..., min_length=1, max_length=200)
 	phone_number: str | None = Field(default=None, max_length=50)
 
@@ -502,27 +445,6 @@ def _status_for_user(user: User) -> str:
 	return "Active"
 
 
-def _format_timestamp(value: datetime | None) -> str:
-	if value is None:
-		return "Not yet"
-	return value.strftime("%b %d, %Y")
-
-
-def _display_auditor_code(code: str | None) -> str:
-	if not code:
-		return "AUD000"
-	normalized = code.strip().upper()
-	if normalized.startswith(("AUD", "ADT", "A")) and re.search(r"\d+$", normalized):
-		digits_match = re.search(r"(\d+)$", normalized)
-		if digits_match is not None:
-			return f"AUD{int(digits_match.group(1)):03d}"
-		return normalized
-	digits_match = re.search(r"(\d+)$", normalized)
-	if digits_match is not None:
-		return f"AUD{int(digits_match.group(1)):03d}"
-	return normalized
-
-
 def _project_scope_filter(user: User) -> ColumnElement[bool] | None:
 	if user.account_type == AccountType.ADMIN:
 		return None
@@ -537,11 +459,6 @@ def _manager_invited_auditor_ids_subquery(user: User):
 	if user.account_type == AccountType.ADMIN:
 		return select(Auditor.id).distinct()
 	return select(Auditor.id).where(Auditor.account_id == _manager_account_id(user)).distinct()
-
-
-def _extract_score(scores_json: dict[str, object]) -> int:
-	score = scores_json.get("total_score")
-	return score if isinstance(score, int) else 0
 
 
 def _normalize_text_list(values: list[str]) -> list[str]:
@@ -593,306 +510,6 @@ def _deserialize_auditor_profile(value: str | None) -> tuple[list[str], str, str
 		inclusion_exclusion_criteria.strip() if isinstance(inclusion_exclusion_criteria, str) else "",
 		notes.strip() if isinstance(notes, str) else "",
 	)
-
-
-REPORT_DOMAIN_ORDER = (
-	"access",
-	"activitySpaces",
-	"amenities",
-	"experienceOfSpace",
-	"aestheticsAndCare",
-	"useAndUsability",
-)
-
-REPORT_DOMAIN_SCORE_MAXIMUMS: dict[str, int] = {
-	"access": 14,
-	"activitySpaces": 26,
-	"amenities": 23,
-	"experienceOfSpace": 20,
-	"aestheticsAndCare": 24,
-	"useAndUsability": 18,
-}
-
-REPORT_DOMAIN_ITEM_COUNTS: dict[str, int] = {
-	"access": 8,
-	"activitySpaces": 16,
-	"amenities": 13,
-	"experienceOfSpace": 10,
-	"aestheticsAndCare": 14,
-	"useAndUsability": 10,
-}
-
-
-def _empty_domain_scores() -> dict[str, int]:
-	return {domain: 0 for domain in REPORT_DOMAIN_ORDER}
-
-
-def _round_2(value: float) -> float:
-	return round(value + 1e-9, 2)
-
-
-def _empty_weighted_domain_scores() -> dict[str, float]:
-	return {domain: 0.0 for domain in REPORT_DOMAIN_ORDER}
-
-
-def _section_to_domain(section_name: str) -> str | None:
-	normalized = section_name.lower()
-	if "access" in normalized:
-		return "access"
-	if "activity spaces" in normalized:
-		return "activitySpaces"
-	if "amenities" in normalized:
-		return "amenities"
-	if "experience" in normalized:
-		return "experienceOfSpace"
-	if "aesthetics" in normalized:
-		return "aestheticsAndCare"
-	if "use & usability" in normalized:
-		return "useAndUsability"
-	return None
-
-
-def _coerce_weight(value: object) -> int:
-	if isinstance(value, int):
-		return value if value in {1, 2, 3} else 0
-	if isinstance(value, str) and value.isdigit():
-		numeric = int(value)
-		return numeric if numeric in {1, 2, 3} else 0
-	return 0
-
-
-def _extract_domain_weights(participant_info: dict[str, Any]) -> dict[str, int]:
-	raw_weights = participant_info.get("domain_weights")
-	if not isinstance(raw_weights, dict):
-		return _empty_domain_scores()
-	return {domain: _coerce_weight(raw_weights.get(domain)) for domain in REPORT_DOMAIN_ORDER}
-
-
-def _build_submission_scores(
-	section_scores: dict[str, Any],
-	participant_info: dict[str, Any],
-) -> tuple[dict[str, int], dict[str, float], float]:
-	raw_domain_scores = _empty_domain_scores()
-	for section_name, score in section_scores.items():
-		domain = _section_to_domain(section_name)
-		if domain is None or not isinstance(score, int):
-			continue
-		raw_domain_scores[domain] += score
-
-	weights = _extract_domain_weights(participant_info)
-	total_weight_sum = sum(weights.values())
-	if total_weight_sum <= 0:
-		return raw_domain_scores, _empty_weighted_domain_scores(), 0.0
-
-	normalized_weights = {domain: _round_2(weights[domain] / total_weight_sum) for domain in REPORT_DOMAIN_ORDER}
-	weighted_domain_scores = {
-		domain: _round_2(normalized_weights[domain] * (raw_domain_scores[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
-		for domain in REPORT_DOMAIN_ORDER
-	}
-	total_weighted_score = _round_2(sum(weighted_domain_scores.values()))
-	return raw_domain_scores, weighted_domain_scores, total_weighted_score
-
-
-def _decode_audit_participant_payload(audit: Audit) -> tuple[dict[str, Any], dict[str, Any]]:
-	raw_payload = audit.responses_json if isinstance(audit.responses_json, dict) else {}
-	participant_info = raw_payload.get("participant_info")
-	responses = raw_payload.get("responses")
-	if isinstance(participant_info, dict) and isinstance(responses, dict):
-		return participant_info, responses
-	return {}, raw_payload if isinstance(raw_payload, dict) else {}
-
-
-def _dashboard_score_result(score: dict[str, Any]) -> DashboardScoreResult:
-	return DashboardScoreResult(
-		total_score=int(score.get("total_score", 0)),
-		section_scores={str(key): int(value) for key, value in dict(score.get("section_scores", {})).items()},
-		category_scores={str(key): int(value) for key, value in dict(score.get("category_scores", {})).items()},
-		matched_scored_answers=int(score.get("matched_scored_answers", 0)),
-	)
-
-
-async def _repair_missing_yee_submission(
-	session: AsyncSession,
-	*,
-	audit: Audit,
-	place: Place,
-	auditor: Auditor,
-) -> YeeAuditSubmission | None:
-	if audit.status != AuditStatus.SUBMITTED:
-		return None
-
-	participant_info, responses = _decode_audit_participant_payload(audit)
-	if not responses:
-		return None
-
-	if not participant_info:
-		participant_info = {
-			"auditor_id": _display_auditor_code(auditor.auditor_code),
-			"place_id": str(place.id),
-			"place_name": place.name,
-			"audit_date": audit.submitted_at.date().isoformat() if audit.submitted_at else None,
-			"start_time": "",
-			"finish_time": "",
-			"total_minutes": audit.total_minutes or 0,
-			"visit_frequency": "",
-			"season": "",
-			"weather": "",
-			"domain_weights": _empty_domain_scores(),
-			"comments": "",
-			"section_comments": _empty_domain_scores(),
-		}
-
-	score = score_yee_responses(responses)
-	submission = YeeAuditSubmission(
-		auditor_id=audit.auditor_profile_id,
-		place_id=audit.place_id,
-		submitted_at=audit.submitted_at or datetime.now(timezone.utc),
-		participant_info_json=participant_info,
-		responses_json=responses,
-		section_scores_json=score["section_scores"],
-		total_score=score["total_score"],
-	)
-	session.add(submission)
-	await session.flush()
-	return submission
-
-
-def _flatten_responses(responses: dict[str, Any]) -> dict[str, str]:
-	flat: dict[str, str] = {}
-	for key, value in responses.items():
-		if isinstance(value, dict):
-			for nested_key, nested_value in value.items():
-				flat[f"response_{key}__{nested_key}"] = str(nested_value)
-		else:
-			flat[f"response_{key}"] = str(value)
-	return flat
-
-
-async def _fetch_reporting_rows(
-	session: AsyncSession,
-	user: User,
-) -> list[tuple[YeeAuditSubmission, Place, Project, str, str]]:
-	stmt = (
-		select(YeeAuditSubmission, Place, Project, Auditor.auditor_code, Account.name)
-		.join(Place, YeeAuditSubmission.place_id == Place.id)
-		.join(ProjectPlace, ProjectPlace.place_id == Place.id)
-		.join(Project, ProjectPlace.project_id == Project.id)
-		.join(Account, Project.account_id == Account.id)
-		.join(Auditor, YeeAuditSubmission.auditor_id == Auditor.id)
-		.order_by(Project.name.asc(), Place.name.asc(), YeeAuditSubmission.submitted_at.desc())
-	)
-	project_scope = _project_scope_filter(user)
-	if project_scope is not None:
-		stmt = stmt.where(project_scope)
-	rows = (await session.execute(stmt)).all()
-	return [
-		(submission, place, project, auditor_code, organization_name)
-		for submission, place, project, auditor_code, organization_name in rows
-	]
-
-
-async def _fetch_place_comparison_groups(
-	session: AsyncSession,
-	user: User,
-) -> list[PlaceComparisonGroup]:
-	rows = await _fetch_reporting_rows(session, user)
-	grouped: dict[str, dict[str, Any]] = defaultdict(dict)
-
-	for submission, place, project, auditor_code, _organization_name in rows:
-		group = grouped.setdefault(
-			str(place.id),
-			{
-				"place_id": str(place.id),
-				"place_name": place.name,
-				"project_id": str(project.id),
-				"project_name": project.name,
-				"audits": [],
-			},
-		)
-		weights = _extract_domain_weights(submission.participant_info_json)
-		raw_domain_scores, weighted_domain_scores, total_weighted_score = _build_submission_scores(
-			submission.section_scores_json,
-			submission.participant_info_json,
-		)
-		group["audits"].append(
-			PlaceComparisonAuditItem(
-				audit_id=str(submission.id),
-				auditor_id=_display_auditor_code(auditor_code),
-				place_id=str(place.id),
-				place_name=place.name,
-				project_id=str(project.id),
-				project_name=project.name,
-				date=_format_timestamp(submission.submitted_at),
-				total_raw_score=submission.total_score,
-				total_weighted_score=total_weighted_score,
-				domain_weights=weights,
-				raw_domain_scores=raw_domain_scores,
-				weighted_domain_scores=weighted_domain_scores,
-			)
-		)
-
-	return [
-		PlaceComparisonGroup(
-			place_id=group["place_id"],
-			place_name=group["place_name"],
-			project_id=group["project_id"],
-			project_name=group["project_name"],
-			audits=group["audits"],
-		)
-		for group in grouped.values()
-		if group["audits"]
-	]
-
-
-async def _fetch_raw_data_rows(
-	session: AsyncSession,
-	user: User,
-) -> list[RawDataExportRow]:
-	rows = await _fetch_reporting_rows(session, user)
-	export_rows: list[RawDataExportRow] = []
-	for submission, place, project, auditor_code, organization_name in rows:
-		participant_info = submission.participant_info_json
-		raw_domain_scores, weighted_domain_scores, total_weighted_score = _build_submission_scores(
-			submission.section_scores_json,
-			participant_info,
-		)
-		export_rows.append(
-			RawDataExportRow(
-				audit_id=str(submission.id),
-				auditor_generated_id=_display_auditor_code(auditor_code),
-				organization=organization_name,
-				place_id=str(place.id),
-				place_name=place.name,
-				project_id=str(project.id),
-				project_name=project.name,
-				date=str(participant_info.get("audit_date") or submission.submitted_at.date().isoformat()),
-				submitted_at=submission.submitted_at.isoformat(),
-				start_time=str(participant_info.get("start_time") or ""),
-				finish_time=str(participant_info.get("finish_time") or ""),
-				total_minutes=int(cast(int | str, participant_info.get("total_minutes") or 0)),
-				visit_frequency=str(participant_info.get("visit_frequency") or ""),
-				season=str(participant_info.get("season") or ""),
-				weather=str(participant_info.get("weather") or ""),
-				comments=str(participant_info.get("comments") or ""),
-				raw_access=raw_domain_scores["access"],
-				raw_activity_spaces=raw_domain_scores["activitySpaces"],
-				raw_amenities=raw_domain_scores["amenities"],
-				raw_experience_of_space=raw_domain_scores["experienceOfSpace"],
-				raw_aesthetics_and_care=raw_domain_scores["aestheticsAndCare"],
-				raw_use_and_usability=raw_domain_scores["useAndUsability"],
-				weighted_access=weighted_domain_scores["access"],
-				weighted_activity_spaces=weighted_domain_scores["activitySpaces"],
-				weighted_amenities=weighted_domain_scores["amenities"],
-				weighted_experience_of_space=weighted_domain_scores["experienceOfSpace"],
-				weighted_aesthetics_and_care=weighted_domain_scores["aestheticsAndCare"],
-				weighted_use_and_usability=weighted_domain_scores["useAndUsability"],
-				total_raw_score=submission.total_score,
-				total_weighted_score=total_weighted_score,
-				domain_weights=_extract_domain_weights(participant_info),
-				responses=_flatten_responses(submission.responses_json),
-			)
-		)
-	return export_rows
 
 
 async def _count_rows(
@@ -1282,7 +899,7 @@ async def _fetch_place_detail(
 		place.auditor_description
 	)
 
-	comparisons = await _fetch_place_comparison_groups(session, user)
+	comparisons = await _service_fetch_place_comparison_groups(session, _project_scope_filter(user))
 	comparison_group = next((group for group in comparisons if group.place_id == str(place.id)), None)
 	if comparison_group is None:
 		comparison_group = PlaceComparisonGroup(
@@ -1793,87 +1410,12 @@ async def get_manager_audit_edit_state(
 	session: AsyncSession = Depends(get_auth_session),
 ) -> ManagerAuditEditState:
 	_require_manager_or_admin(user)
-
-	stmt = (
-		select(Audit, Project, Place, Auditor, YeeAuditSubmission)
-		.join(Project, Audit.project_id == Project.id)
-		.join(Place, Audit.place_id == Place.id)
-		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
-		.outerjoin(
-			YeeAuditSubmission,
-			and_(
-				YeeAuditSubmission.auditor_id == Audit.auditor_profile_id,
-				YeeAuditSubmission.place_id == Audit.place_id,
-			),
-		)
-		.where(Audit.id == audit_id)
-	)
-	row = (await session.execute(stmt)).first()
-	if row is None:
-		raise HTTPException(status_code=404, detail="Audit not found.")
-
-	audit, project, place, auditor, submission = row
-	if user.account_type != AccountType.ADMIN and project.account_id != _manager_account_id(user):
-		raise HTTPException(status_code=403, detail="You do not have access to this audit.")
-
-	if submission is None and audit.status == AuditStatus.SUBMITTED:
-		submission = await _repair_missing_yee_submission(session, audit=audit, place=place, auditor=auditor)
-		if submission is not None:
-			await session.commit()
-
-	if submission is not None:
-		score = score_yee_responses(submission.responses_json)
-		return ManagerAuditEditState(
-			audit_id=str(audit.id),
-			submission_id=str(submission.id),
-			place_id=str(place.id),
-			place_name=place.name,
-			auditor_id=str(auditor.id),
-			auditor_generated_id=_display_auditor_code(auditor.auditor_code),
-			submitted_at=submission.submitted_at.isoformat(),
-			participant_info=submission.participant_info_json,
-			responses=submission.responses_json,
-			score=_dashboard_score_result(score),
-		)
-
-	participant_info, responses = _decode_audit_participant_payload(audit)
-	score = (
-		score_yee_responses(responses)
-		if responses
-		else {
-			"total_score": _extract_score(audit.scores_json),
-			"section_scores": {},
-			"category_scores": {},
-			"matched_scored_answers": 0,
-		}
-	)
-	if not participant_info:
-		participant_info = {
-			"auditor_id": _display_auditor_code(auditor.auditor_code),
-			"place_id": str(place.id),
-			"place_name": place.name,
-			"audit_date": audit.submitted_at.date().isoformat() if audit.submitted_at else None,
-			"start_time": "",
-			"finish_time": "",
-			"total_minutes": audit.total_minutes or 0,
-			"visit_frequency": "",
-			"season": "",
-			"weather": "",
-			"domain_weights": {},
-			"comments": "",
-			"section_comments": {},
-		}
-	return ManagerAuditEditState(
-		audit_id=str(audit.id),
-		submission_id=None,
-		place_id=str(place.id),
-		place_name=place.name,
-		auditor_id=str(auditor.id),
-		auditor_generated_id=_display_auditor_code(auditor.auditor_code),
-		submitted_at=audit.submitted_at.isoformat() if audit.submitted_at is not None else None,
-		participant_info=participant_info,
-		responses=responses,
-		score=_dashboard_score_result(score),
+	is_admin = user.account_type == AccountType.ADMIN
+	return await _service_fetch_manager_audit_edit_state(
+		session,
+		audit_id,
+		is_admin=is_admin,
+		manager_account_id=None if is_admin else _manager_account_id(user),
 	)
 
 
@@ -1885,91 +1427,13 @@ async def update_manager_audit_edit_state(
 	session: AsyncSession = Depends(get_auth_session),
 ) -> ManagerAuditEditState:
 	_require_manager_or_admin(user)
-
-	stmt = (
-		select(Audit, Project, Place, Auditor, YeeAuditSubmission)
-		.join(Project, Audit.project_id == Project.id)
-		.join(Place, Audit.place_id == Place.id)
-		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
-		.outerjoin(
-			YeeAuditSubmission,
-			and_(
-				YeeAuditSubmission.auditor_id == Audit.auditor_profile_id,
-				YeeAuditSubmission.place_id == Audit.place_id,
-			),
-		)
-		.where(Audit.id == audit_id)
-	)
-	row = (await session.execute(stmt)).first()
-	if row is None:
-		raise HTTPException(status_code=404, detail="Audit not found.")
-
-	audit, project, place, auditor, submission = row
-	if user.account_type != AccountType.ADMIN and project.account_id != _manager_account_id(user):
-		raise HTTPException(status_code=403, detail="You do not have access to this audit.")
-
-	if payload.submission_id:
-		target_submission = await session.get(YeeAuditSubmission, uuid.UUID(payload.submission_id))
-		if target_submission is None:
-			raise HTTPException(status_code=404, detail="YEE submission not found for this audit.")
-		if target_submission.place_id != audit.place_id or target_submission.auditor_id != audit.auditor_profile_id:
-			raise HTTPException(status_code=400, detail="Submission does not belong to the selected audit.")
-		submission = target_submission
-
-	score = score_yee_responses(payload.responses)
-	submitted_at = (
-		datetime.now(timezone.utc)
-		if payload.resubmit
-		else submission.submitted_at
-		if submission is not None
-		else audit.submitted_at or datetime.now(timezone.utc)
-	)
-
-	audit.status = AuditStatus.SUBMITTED
-	audit.submitted_at = submitted_at
-	audit.total_minutes = int(payload.participant_info.get("total_minutes") or 0) if payload.participant_info else None
-	audit.responses_json = payload.responses
-	audit.summary_score = float(cast(int, score["total_score"]))
-	audit.scores_json = {
-		"total_score": score["total_score"],
-		"section_scores": score["section_scores"],
-		"category_scores": score["category_scores"],
-		"matched_scored_answers": score["matched_scored_answers"],
-	}
-
-	if submission is None:
-		submission = YeeAuditSubmission(
-			auditor_id=audit.auditor_profile_id,
-			place_id=audit.place_id,
-			submitted_at=submitted_at,
-			participant_info_json=payload.participant_info,
-			responses_json=payload.responses,
-			section_scores_json=score["section_scores"],
-			total_score=score["total_score"],
-		)
-		session.add(submission)
-	else:
-		submission.submitted_at = submitted_at
-		submission.participant_info_json = payload.participant_info
-		submission.responses_json = payload.responses
-		submission.section_scores_json = score["section_scores"]
-		submission.total_score = score["total_score"]
-
-	await session.commit()
-	await session.refresh(audit)
-	await session.refresh(submission)
-
-	return ManagerAuditEditState(
-		audit_id=str(audit.id),
-		submission_id=str(submission.id),
-		place_id=str(place.id),
-		place_name=place.name,
-		auditor_id=str(auditor.id),
-		auditor_generated_id=_display_auditor_code(auditor.auditor_code),
-		submitted_at=submission.submitted_at.isoformat(),
-		participant_info=submission.participant_info_json,
-		responses=submission.responses_json,
-		score=_dashboard_score_result(score),
+	is_admin = user.account_type == AccountType.ADMIN
+	return await _service_update_manager_audit_edit_state(
+		session,
+		audit_id,
+		payload,
+		is_admin=is_admin,
+		manager_account_id=None if is_admin else _manager_account_id(user),
 	)
 
 
@@ -2224,7 +1688,7 @@ async def list_place_comparisons(
 	session: AsyncSession = Depends(get_auth_session),
 ) -> list[PlaceComparisonGroup]:
 	_require_manager_or_admin(user)
-	return await _fetch_place_comparison_groups(session, user)
+	return await _service_fetch_place_comparison_groups(session, _project_scope_filter(user))
 
 
 @router.get("/raw-data", response_model=list[RawDataExportRow])
@@ -2233,7 +1697,7 @@ async def list_raw_data(
 	session: AsyncSession = Depends(get_auth_session),
 ) -> list[RawDataExportRow]:
 	_require_manager_or_admin(user)
-	return await _fetch_raw_data_rows(session, user)
+	return await _service_fetch_raw_data_rows(session, _project_scope_filter(user))
 
 
 @router.post("/projects", response_model=ProjectListItem)

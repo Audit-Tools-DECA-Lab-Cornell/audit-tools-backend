@@ -1,192 +1,31 @@
-"""YEE endpoint integration tests.
+"""YEE manager workflow integration tests.
 
-These verify the YEE routes work against the per-product YEE schema produced by
-the `yee` Alembic branch (shared core tables + `yee_audit_submissions`, and no
-Playspace tables). They exercise the seeded auditor flow end to end:
-instrument → audit-state → draft → submit → list → fetch.
+These cover manager authentication, public manager signup and the primary/
+secondary organization rules, manager-invite management and limits, self-service
+auditor profiles, and the protections that keep the seeded demo manager stable.
 """
 
 from __future__ import annotations
 
 import asyncio
-import uuid
-from datetime import datetime, timedelta, timezone
-from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.auth as auth_module
-from app.auth_security import hash_verification_token
-from app.demo_account_reconciler import reconcile_protected_yee_demo_accounts
-from app.models import Account, Auditor, Instrument, ManagerInvite, ManagerProfile, User
-from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
-
-# Matches the deterministic YEE seed (see app/seed.py).
-SEED_AUDITOR_EMAIL = "auditor-demo-1@yee.local"
-SEED_MANAGER_EMAIL = "manager-demo@yee.local"
-SEED_AUDITOR_THREE_EMAIL = "auditor-demo-3@yee.local"
-SEED_PASSWORD = "DemoPass123!"
-
-
-def _bearer_headers(access_token: str) -> dict[str, str]:
-	"""Build bearer auth headers for session-backed authorization."""
-
-	return {"Authorization": f"bearer {access_token}"}
-
-
-def _login_auditor(client: TestClient, email: str = SEED_AUDITOR_EMAIL, password: str = SEED_PASSWORD) -> str:
-	"""Login a seeded YEE auditor account and return a bearer token."""
-
-	response = client.post("/yee/auth/login", json={"email": email, "password": password})
-	assert response.status_code == 200, response.text
-	return response.json()["access_token"]
-
-
-async def _load_manager_signup_snapshot(
-	session_factory: async_sessionmaker[AsyncSession],
-	email: str,
-) -> tuple[User | None, int, str | None]:
-	"""Return the signed-up user, current account count, and linked account name."""
-
-	async with session_factory() as session:
-		user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
-		account_count = int((await session.execute(select(func.count(Account.id)))).scalar_one() or 0)
-		account_name = None
-		if user is not None and user.account_id is not None:
-			account = await session.get(Account, user.account_id)
-			account_name = account.name if account is not None else None
-	return user, account_count, account_name
-
-
-async def _create_verified_manager_user(
-	session_factory: async_sessionmaker[AsyncSession],
-	*,
-	email: str,
-	password: str,
-	name: str,
-) -> None:
-	"""Create a disposable verified manager account for auth-flow assertions."""
-
-	async with session_factory() as session:
-		account = Account(
-			id=uuid.uuid4(),
-			name=f"{name} Organization",
-			email=email,
-			account_type=auth_module.AccountType.MANAGER,
-		)
-		user = User(
-			id=uuid.uuid4(),
-			email=email,
-			password_hash=auth_module.hash_password(password),
-			account_id=account.id,
-			account_type=auth_module.AccountType.MANAGER,
-			name=name,
-			email_verified=True,
-			email_verified_at=datetime.now(timezone.utc),
-			failed_login_attempts=0,
-			approved=True,
-			approved_at=datetime.now(timezone.utc),
-			profile_completed=False,
-		)
-		profile = ManagerProfile(
-			id=uuid.uuid4(),
-			account_id=account.id,
-			user_id=user.id,
-			full_name=name,
-			email=email,
-			organization=account.name,
-			is_primary=True,
-		)
-		session.add_all([account, user, profile])
-		await session.commit()
-
-
-async def _create_legacy_manager_invite_for_existing_manager(
-	session_factory: async_sessionmaker[AsyncSession],
-	*,
-	email: str,
-	account_id: str,
-	invited_by_user_id: str,
-	token: str,
-) -> None:
-	"""Create a pending invite to simulate a legacy/stray manager invite row."""
-
-	async with session_factory() as session:
-		invite = ManagerInvite(
-			account_id=account_id,
-			invited_by_user_id=invited_by_user_id,
-			email=email,
-			token_hash=hash_verification_token(token),
-			expires_at=datetime.now(timezone.utc) + timedelta(days=7),
-		)
-		session.add(invite)
-		await session.commit()
-
-
-async def _delete_user_by_email(
-	session_factory: async_sessionmaker[AsyncSession],
-	email: str,
-) -> None:
-	"""Delete one user row to simulate auth drift in the live database."""
-
-	async with session_factory() as session:
-		await session.execute(delete(User).where(User.email == email))
-		await session.commit()
-
-
-async def _reconcile_demo_accounts(session_factory: async_sessionmaker[AsyncSession]) -> dict[str, int]:
-	"""Run protected demo reconciliation through a real async session."""
-
-	async with session_factory() as session:
-		return await reconcile_protected_yee_demo_accounts(session)
-
-
-async def _load_manager_profile_by_email(
-	session_factory: async_sessionmaker[AsyncSession],
-	email: str,
-) -> ManagerProfile | None:
-	"""Fetch one manager profile row by email for assertions."""
-
-	async with session_factory() as session:
-		return (await session.execute(select(ManagerProfile).where(ManagerProfile.email == email))).scalar_one_or_none()
-
-
-async def _load_auditor_profile_by_user_email(
-	session_factory: async_sessionmaker[AsyncSession],
-	email: str,
-) -> Auditor | None:
-	"""Fetch one self-created auditor profile via the linked user email."""
-
-	async with session_factory() as session:
-		user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
-		if user is None:
-			return None
-		return (await session.execute(select(Auditor).where(Auditor.user_id == user.id))).scalar_one_or_none()
-
-
-def test_yee_status_is_isolated(yee_client: TestClient) -> None:
-	"""The YEE namespace status stub responds without touching Playspace."""
-
-	response = yee_client.get("/yee/status")
-	assert response.status_code == 200, response.text
-	assert response.json()["product"] == "yee"
-
-
-def test_yee_instrument_available(yee_client: TestClient) -> None:
-	"""The instrument endpoint returns scoring metadata (no DB dependency)."""
-
-	response = yee_client.get("/yee/instrument")
-	assert response.status_code == 200, response.text
-	assert isinstance(response.json(), dict)
-
-
-def test_seeded_auditor_can_login(yee_client: TestClient) -> None:
-	"""A seeded YEE auditor authenticates against the rebuilt YEE schema."""
-
-	token = _login_auditor(yee_client)
-	assert token
+from tests.products.yee._helpers import (
+	SEED_MANAGER_EMAIL,
+	SEED_PASSWORD,
+	_bearer_headers,
+	_create_legacy_manager_invite_for_existing_manager,
+	_delete_user_by_email,
+	_load_auditor_profile_by_user_email,
+	_load_manager_profile_by_email,
+	_load_manager_signup_snapshot,
+	_login_auditor,
+	_reconcile_demo_accounts,
+	_signup_primary_manager,
+)
 
 
 def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -> None:
@@ -286,7 +125,7 @@ def test_demo_manager_seed_has_manager_profile(
 	profile = asyncio.run(_load_manager_profile_by_email(yee_test_session_factory, SEED_MANAGER_EMAIL))
 	assert profile is not None
 	assert profile.user_id is not None
-	assert profile.is_primary is False
+	assert profile.is_primary is True
 
 
 def test_primary_manager_profile_requires_phone_and_profession(yee_client: TestClient) -> None:
@@ -327,6 +166,7 @@ def test_primary_manager_profile_requires_phone_and_profession(yee_client: TestC
 
 def test_secondary_manager_must_confirm_before_creating_new_organization(
 	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
 	monkeypatch,
 ) -> None:
 	"""A secondary manager cannot create a new org without the explicit confirmation flag."""
@@ -339,9 +179,7 @@ def test_secondary_manager_must_confirm_before_creating_new_organization(
 
 	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
 
-	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
-	assert manager_login.status_code == 200, manager_login.text
-	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+	manager_headers = _signup_primary_manager(yee_client, yee_test_session_factory)["headers"]
 
 	create_response = yee_client.post(
 		"/yee/dashboard/manager-invites",
@@ -389,9 +227,7 @@ def test_secondary_manager_can_create_new_organization_after_confirmation(
 
 	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
 
-	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
-	assert manager_login.status_code == 200, manager_login.text
-	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+	manager_headers = _signup_primary_manager(yee_client, yee_test_session_factory)["headers"]
 
 	email = "secondary-confirmed@example.org"
 	create_response = yee_client.post(
@@ -426,122 +262,6 @@ def test_secondary_manager_can_create_new_organization_after_confirmation(
 	assert user is not None
 	assert account_name == "Secondary Spinoff Org"
 	assert user.profile_completed is False
-
-
-def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
-	"""An assigned-but-unstarted place reports NOT_STARTED."""
-
-	token = _login_auditor(yee_client)
-	response = yee_client.get(
-		f"/yee/places/{YEE_PLACE_PLAZA_ID}/audit-state",
-		headers=_bearer_headers(token),
-	)
-	assert response.status_code == 200, response.text
-	assert response.json()["status"] == "NOT_STARTED"
-
-
-def test_seeded_in_progress_audit_reports_draft_state(yee_client: TestClient) -> None:
-	"""Seeded in-progress audits remain resumable even with fallback seed keys."""
-
-	token = _login_auditor(yee_client, email=SEED_AUDITOR_THREE_EMAIL)
-	response = yee_client.get(
-		f"/yee/places/{YEE_PLACE_COMMONS_ID}/audit-state",
-		headers=_bearer_headers(token),
-	)
-	assert response.status_code == 200, response.text
-	assert response.json()["status"] == "DRAFT"
-	assert response.json()["audit_id"] is not None
-
-
-def test_seeded_in_progress_audit_can_be_saved_again(yee_client: TestClient) -> None:
-	"""Auditor 3 can update the seeded Commons draft without tripping the save path."""
-
-	token = _login_auditor(yee_client, email=SEED_AUDITOR_THREE_EMAIL)
-	response = yee_client.put(
-		f"/yee/places/{YEE_PLACE_COMMONS_ID}/draft",
-		headers=_bearer_headers(token),
-		json={
-			"participant_info": {"total_minutes": 24},
-			"responses": {
-				"QID22": "3",
-				"QID24": "1",
-			},
-		},
-	)
-	assert response.status_code == 200, response.text
-	assert response.json()["status"] == "DRAFT"
-	assert response.json()["audit_id"] is not None
-	assert response.json()["participant_info"]["total_minutes"] == 24
-	assert response.json()["responses"]["QID22"] == "3"
-
-
-def test_password_reset_flow_updates_password(
-	yee_client: TestClient,
-	yee_test_session_factory: async_sessionmaker[AsyncSession],
-	monkeypatch,
-) -> None:
-	"""A verified YEE user can request a reset link and log in with the new password."""
-
-	reset_email = "resettable-manager@example.org"
-	asyncio.run(
-		_create_verified_manager_user(
-			yee_test_session_factory,
-			email=reset_email,
-			password=SEED_PASSWORD,
-			name="Resettable Manager",
-		)
-	)
-	captured_reset_url: dict[str, str] = {}
-
-	def _capture_reset_email(*, to_email: str, reset_url: str) -> bool:
-		captured_reset_url["to_email"] = to_email
-		captured_reset_url["reset_url"] = reset_url
-		return True
-
-	monkeypatch.setattr(auth_module, "send_password_reset_email", _capture_reset_email)
-
-	forgot = yee_client.post(
-		"/yee/auth/forgot-password",
-		json={"email": reset_email, "website": ""},
-		headers={"X-Frontend-Origin": "http://localhost:3000"},
-	)
-	assert forgot.status_code == 200, forgot.text
-	assert captured_reset_url["to_email"] == reset_email
-
-	token = parse_qs(urlparse(captured_reset_url["reset_url"]).query)["token"][0]
-	new_password = "EvenBetterPass123!"
-	reset = yee_client.post(
-		"/yee/auth/reset-password",
-		json={"token": token, "password": new_password, "website": ""},
-	)
-	assert reset.status_code == 200, reset.text
-
-	login = yee_client.post("/yee/auth/login", json={"email": reset_email, "password": new_password})
-	assert login.status_code == 200, login.text
-	assert login.json()["user"]["account_type"] == "MANAGER"
-
-
-def test_protected_demo_password_reset_is_blocked(yee_client: TestClient, monkeypatch) -> None:
-	"""Protected seeded demo accounts do not drift through self-service reset."""
-
-	sent_reset_emails: list[dict[str, str]] = []
-
-	def _capture_reset_email(*, to_email: str, reset_url: str) -> bool:
-		sent_reset_emails.append({"to_email": to_email, "reset_url": reset_url})
-		return True
-
-	monkeypatch.setattr(auth_module, "send_password_reset_email", _capture_reset_email)
-
-	forgot = yee_client.post(
-		"/yee/auth/forgot-password",
-		json={"email": SEED_MANAGER_EMAIL, "website": ""},
-		headers={"X-Frontend-Origin": "http://localhost:3000"},
-	)
-	assert forgot.status_code == 200, forgot.text
-	assert sent_reset_emails == []
-
-	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
-	assert login.status_code == 200, login.text
 
 
 def test_primary_manager_can_manage_secondary_manager_invites(
@@ -579,12 +299,8 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 		_capture_manager_invite_email,
 	)
 
-	manager_login = yee_client.post(
-		"/yee/auth/login",
-		json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD},
-	)
-	assert manager_login.status_code == 200, manager_login.text
-	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+	manager = _signup_primary_manager(yee_client, yee_test_session_factory)
+	manager_headers = manager["headers"]
 
 	initial_list = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
 	assert initial_list.status_code == 200, initial_list.text
@@ -601,7 +317,7 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	assert created["email"] == invite_email
 	assert created["status"] == "PENDING"
 	assert sent_invites[-1]["to_email"] == invite_email
-	assert sent_invites[-1]["organization_name"] == "Youth Enabling Environments Collaborative"
+	assert sent_invites[-1]["organization_name"] == manager["organization"]
 	invite_token = created["invite_url"].rsplit("/", 1)[-1]
 
 	list_response = yee_client.get("/yee/dashboard/manager-invites", headers=manager_headers)
@@ -619,6 +335,11 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 	assert resend_response.json()["id"] == invite_id
 	assert resend_response.json()["status"] == "PENDING"
 
+	# Resending rotates the invite token, so the auditor accepts with the link
+	# from the most recent email rather than the original create-time token.
+	latest_invite_url = sent_invites[-1]["invite_url"]
+	assert latest_invite_url is not None
+	invite_token = latest_invite_url.rsplit("/", 1)[-1]
 	accept_response = yee_client.post(
 		f"/yee/auth/manager-invites/{invite_token}/accept",
 		json={"name": "Secondary Manager", "password": SEED_PASSWORD},
@@ -691,6 +412,7 @@ def test_primary_manager_can_manage_secondary_manager_invites(
 
 def test_primary_manager_invite_limit_is_five_secondary_managers(
 	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
 	monkeypatch,
 ) -> None:
 	"""Primary managers cannot create more than five secondary-manager slots."""
@@ -703,11 +425,10 @@ def test_primary_manager_invite_limit_is_five_secondary_managers(
 
 	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
 
-	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
-	assert manager_login.status_code == 200, manager_login.text
-	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+	manager_headers = _signup_primary_manager(yee_client, yee_test_session_factory)["headers"]
 
-	for index in range(4):
+	# A fresh org starts with zero secondary slots, so five invites fill the cap.
+	for index in range(5):
 		response = yee_client.post(
 			"/yee/dashboard/manager-invites",
 			headers=manager_headers,
@@ -766,9 +487,7 @@ def test_primary_manager_can_remove_secondary_manager(
 
 	monkeypatch.setattr(dashboard_router_module, "send_manager_invite_email", _capture_manager_invite_email)
 
-	manager_login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
-	assert manager_login.status_code == 200, manager_login.text
-	manager_headers = _bearer_headers(manager_login.json()["access_token"])
+	manager_headers = _signup_primary_manager(yee_client, yee_test_session_factory)["headers"]
 
 	email = "removable-secondary@example.org"
 	create_response = yee_client.post(
@@ -819,72 +538,3 @@ def test_existing_manager_invite_acceptance_cannot_overwrite_existing_manager_pa
 
 	login = yee_client.post("/yee/auth/login", json={"email": SEED_MANAGER_EMAIL, "password": SEED_PASSWORD})
 	assert login.status_code == 200, login.text
-
-
-def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient) -> None:
-	"""Full flow: save a draft, submit, then read it back via list + detail.
-
-	This is the regression guard for the previously-missing
-	``yee_audit_submissions`` table: submit writes one row and the list/detail
-	endpoints read it back.
-	"""
-
-	token = _login_auditor(yee_client)
-	headers = _bearer_headers(token)
-	place_path = f"/yee/places/{YEE_PLACE_PLAZA_ID}"
-	responses_payload = {"QID22": "3"}
-
-	# Save a backend draft (creates an Audit row with instrument_key="yee").
-	draft = yee_client.put(
-		f"{place_path}/draft",
-		headers=headers,
-		json={"participant_info": {"total_minutes": 12}, "responses": responses_payload},
-	)
-	assert draft.status_code == 200, draft.text
-	assert draft.json()["status"] == "DRAFT"
-
-	# Submit the audit (creates exactly one yee_audit_submissions row).
-	submit = yee_client.post(
-		"/yee/audits",
-		headers=headers,
-		json={
-			"place_id": str(YEE_PLACE_PLAZA_ID),
-			"participant_info": {"total_minutes": 12},
-			"responses": responses_payload,
-		},
-	)
-	assert submit.status_code == 201, submit.text
-	submission_id = submit.json()["id"]
-
-	# A second submit for the same place is rejected.
-	duplicate = yee_client.post(
-		"/yee/audits",
-		headers=headers,
-		json={"place_id": str(YEE_PLACE_PLAZA_ID), "responses": responses_payload},
-	)
-	assert duplicate.status_code == 409, duplicate.text
-
-	# The submission appears in the auditor's list.
-	listing = yee_client.get("/yee/my-audits", headers=headers)
-	assert listing.status_code == 200, listing.text
-	assert any(item["id"] == submission_id for item in listing.json())
-
-	# And is fetchable by id.
-	detail = yee_client.get(f"/yee/audits/{submission_id}", headers=headers)
-	assert detail.status_code == 200, detail.text
-	assert detail.json()["place_id"] == str(YEE_PLACE_PLAZA_ID)
-
-	# audit-state now reports the submitted record.
-	state = yee_client.get(f"{place_path}/audit-state", headers=headers)
-	assert state.status_code == 200, state.text
-	assert state.json()["status"] == "SUBMITTED"
-
-
-def test_build_yee_entities_instrument_is_active_root_version() -> None:
-	"""The seeded YEE instrument is the active root of version history."""
-
-	entities = _build_yee_entities()
-	instruments = [entity for entity in entities if isinstance(entity, Instrument)]
-
-	assert len(instruments) >= 1
-	assert any(instrument.is_active is True and instrument.parent_instrument_id is None for instrument in instruments)
