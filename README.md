@@ -244,21 +244,28 @@ TEST_DATABASE_URL_PLAYSPACE=postgresql://... ./.venv/bin/pytest tests/products/p
 
 ## Deployment Notes
 
-- Run migrations for **both** products before serving new code
-- The checked-in `render.yaml` starts the app but does not itself guarantee that
-  Alembic ran, so your deployment process must include the migration step
-- Treat one-way compatibility migrations as production operations: back up first
+- Run migrations for **both** products before serving new code.
+- The checked-in `render.yaml` runs both product migrations automatically in its
+  `preDeployCommand` (`alembic -x product=yee upgrade yee@head && alembic -x
+product=playspace upgrade playspace@head`) before the new release takes traffic.
+  Keep that command in place when editing `render.yaml`. If you deploy outside
+  Render, your own release process must run both migrations before traffic shifts.
+- Treat one-way compatibility migrations as production operations: back up first.
 
-Recommended release sequence:
+Release sequence on Render:
 
-1. Deploy code
-2. Run `alembic -x product=yee upgrade yee@head`
-3. Run `alembic -x product=playspace upgrade playspace@head`
-4. Verify `/health`, auth, and one product-specific flow per namespace
+1. Push code; Render builds, then `preDeployCommand` migrates `yee` then `playspace`.
+2. The new instance starts `uvicorn` and serves once `/health` passes.
+3. Verify auth and one product-specific flow per namespace.
+
+For the full topology, env keys, cron job, and a manual (non-Render) runbook, see
+`docs/deployment.md`. For which clients consume each namespace, see
+`docs/client-map.md`.
 
 ## Documentation Map
 
 - `docs/architecture.md`: product boundaries, runtime model, and request flows
+- `docs/client-map.md`: which clients consume `/yee/*` vs `/playspace/*`
 - `docs/deployment.md`: production setup and migration runbook
 - `docs/scoring.md`: YEE scoring behavior
 - `docs/roles-and-permissions.md`: role matrix

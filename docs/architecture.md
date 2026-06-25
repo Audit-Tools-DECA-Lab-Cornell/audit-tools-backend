@@ -28,7 +28,7 @@ The repository is organized around a shared core plus product-specific modules:
 
 - shared platform code in `app/`
 - Playspace product logic in `app/products/playspace/`
-- YEE product logic in `app/products/yee/` plus `app/yee_router.py`
+- YEE product logic in `app/products/yee/`, with YEE dashboard routes in `app/dashboard_router.py`
 - unified schema history in `alembic/versions/`
 
 ### Shared Core
@@ -88,9 +88,10 @@ Owns:
 - dashboard and management services
 - Playspace-specific seed generation
 
-### `app/yee_router.py` and `app/dashboard_router.py`
+### `app/products/yee/routes/` and `app/dashboard_router.py`
 
-Own the YEE-heavy routes for:
+`app/products/yee/routes/` (`audits.py`, `instrument.py`, `dashboard.py`) and
+`app/dashboard_router.py` own the YEE-heavy routes for:
 
 - auth-adjacent dashboard operations
 - approvals

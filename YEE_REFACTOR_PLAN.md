@@ -28,6 +28,12 @@ isProject: false
 
 # YEE Offline-Safe Backend Catch-up
 
+> Status note: Phase 2 module extraction has partially landed. `app/products/yee/`
+> exists with `routes/{audits,instrument,dashboard}.py`, and `app/yee_router.py` no
+> longer exists. The `todos` in the frontmatter above are the original plan state
+> and have not been re-verified item by item. For the current backend shape see
+> `docs/architecture.md` and `docs/client-map.md`.
+
 **Goal:** Make YEE reliably offline-safe for the chosen mobile model: drafts stay local on the device, same-device recovery is enough, and the backend only needs to be durable at final submit time.
 
 **Recommended architecture:**

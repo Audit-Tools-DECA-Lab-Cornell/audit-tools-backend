@@ -1,4 +1,13 @@
 YEE Backend Gap Report
+
+> Status note: YEE backend module extraction has progressed since this report was
+> written. YEE product routes now live under `app/products/yee/routes/`
+> (`audits.py`, `instrument.py`, `dashboard.py`), with `app/dashboard_router.py`
+> still holding `/yee/dashboard/*`; `app/yee_router.py` no longer exists. Read the
+> "concentrated in top-level routers" framing below as the earlier baseline. For the
+> current shape see `docs/architecture.md` and `docs/client-map.md`. This report is
+> retained as planning context.
+
 Comparison target: the current Playspace backend inside the same repository. Focus: architecture shape, route surface, schema depth, and test maturity.
 
 Bottom line

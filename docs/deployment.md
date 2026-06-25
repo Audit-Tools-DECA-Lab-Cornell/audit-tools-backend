@@ -118,18 +118,29 @@ Important notes:
 
 ## Render Note
 
-The checked-in `render.yaml` installs dependencies and starts `uvicorn`, but it
-does not itself guarantee that Alembic ran first.
+The checked-in `render.yaml` installs dependencies, runs both product migrations
+in its `preDeployCommand`, and then starts `uvicorn`:
 
-If you deploy on Render, make sure your release process includes the two product
-migration commands above, either through:
+```yaml
+preDeployCommand: "alembic -x product=yee upgrade yee@head && alembic -x product=playspace upgrade playspace@head"
+```
+
+`preDeployCommand` runs after the build and before the new release receives
+traffic, so on Render both databases are migrated automatically as part of every
+deploy. Keep that command present whenever you edit `render.yaml`; removing it
+lets merged code reach production before the matching schema exists.
+
+The same `render.yaml` also defines an hourly `cron` service
+(`audit-tools-stalled-submission-detector`) for the offline-durability
+never-arrived detector. It needs `DATABASE_URL_PLAYSPACE` plus the email/Brevo
+keys set in the Render dashboard (ideally a shared env group).
+
+If you deploy somewhere other than Render, make sure your own release process
+runs the two product migration commands above before traffic shifts, through:
 
 - a release/pre-deploy command
 - a CI job that runs before traffic is shifted
 - a manual runbook step
-
-If you skip that step, merged code can reach production before the matching
-schema exists.
 
 ## Production Checklist
 
