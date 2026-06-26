@@ -1524,12 +1524,20 @@ async def accept_invite(
 			account_id=invite.account_id,
 			auditor_code=await _generate_unique_auditor_code(session),
 			user_id=user.id,
+			email=email,
+			full_name=clean_name,
 		)
 		session.add(auditor)
 		await session.flush()
 		invite.auditor_id = auditor.id
 	else:
 		auditor.user_id = user.id
+		if auditor.account_id is None:
+			auditor.account_id = invite.account_id
+		if not auditor.email:
+			auditor.email = email
+		if not auditor.full_name or not auditor.full_name.strip():
+			auditor.full_name = clean_name
 
 	invite.accepted_at = now
 	token_value, expires_at = generate_access_token(str(user.id))
