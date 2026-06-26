@@ -244,6 +244,32 @@ def test_invited_auditor_can_complete_profile_after_acceptance(
 	assert completed_user["profile_completed"] is True
 	assert completed_user["next_step"] == "DASHBOARD"
 
+	# Verify the response reflects persisted state, not a stale/cached payload:
+	# the User row is marked complete and the linked auditor profile is intact.
+	persisted_user, persisted_auditor = asyncio.run(
+		_load_user_and_auditor_by_email(yee_test_session_factory, invite_email)
+	)
+	assert persisted_user is not None
+	assert persisted_user.profile_completed is True
+	assert persisted_user.profile_completed_at is not None
+	assert persisted_user.name == "Test Auditor 01"
+	assert persisted_auditor is not None
+	assert persisted_auditor.full_name == "Test Auditor 01"
+
+
+async def _load_user_and_auditor_by_email(
+	session_factory: async_sessionmaker[AsyncSession],
+	email: str,
+) -> tuple[User | None, Auditor | None]:
+	"""Fetch the user row and its linked auditor profile by email for DB assertions."""
+
+	async with session_factory() as session:
+		user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+		auditor = None
+		if user is not None:
+			auditor = (await session.execute(select(Auditor).where(Auditor.user_id == user.id))).scalar_one_or_none()
+	return user, auditor
+
 
 async def _load_auditor_and_invite_by_email(
 	session_factory: async_sessionmaker[AsyncSession],
