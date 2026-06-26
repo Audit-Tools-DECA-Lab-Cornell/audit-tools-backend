@@ -21,6 +21,7 @@ import app.dashboard_router as dashboard_router_module
 from app.models import Auditor, AuditorInvite, User
 from tests.products.yee._helpers import (
 	SEED_PASSWORD,
+	_bearer_headers,
 	_signup_primary_manager,
 	_unique_suffix,
 )
@@ -193,6 +194,55 @@ def test_auditor_invite_acceptance_rejects_manager_email(
 	)
 	assert accept.status_code == 409, accept.text
 	assert accept.json()["detail"] == "This email is already used by a manager account."
+
+
+def test_invited_auditor_can_complete_profile_after_acceptance(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+	monkeypatch,
+) -> None:
+	"""The second step of onboarding (complete-profile) works for a fresh auditor.
+
+	After accepting the invite, the auditor lands on the profile form and submits
+	their details. The backend contract uses ``name`` (the frontend maps its own
+	``full_name`` field across); posting it must mark the profile complete rather
+	than 422 on a missing field.
+	"""
+
+	manager = _signup_primary_manager(yee_client, yee_test_session_factory)
+	invite_email = f"invited-auditor-{_unique_suffix()}@example.org"
+	token = _create_auditor_invite(
+		yee_client,
+		manager["headers"],
+		monkeypatch,
+		email=invite_email,
+	)
+
+	accept = yee_client.post(
+		f"/yee/auth/invite/{token}/accept",
+		json={"name": "Test Auditor 01", "password": SEED_PASSWORD},
+	)
+	assert accept.status_code == 200, accept.text
+	auditor_headers = _bearer_headers(accept.json()["access_token"])
+
+	# Mirror the exact payload the onboarding form submits for an auditor.
+	complete = yee_client.post(
+		"/yee/auth/complete-profile",
+		headers=auditor_headers,
+		json={
+			"name": "Test Auditor 01",
+			"job_title": "Tester",
+			"profession_disciplines": ["Environmental design", "Recreation"],
+			"organization": manager["organization"],
+			"phone_number": "6072794794",
+		},
+	)
+	assert complete.status_code == 200, complete.text
+	completed_user = complete.json()["user"]
+	assert completed_user["name"] == "Test Auditor 01"
+	assert completed_user["account_type"] == "AUDITOR"
+	assert completed_user["profile_completed"] is True
+	assert completed_user["next_step"] == "DASHBOARD"
 
 
 async def _load_auditor_and_invite_by_email(
