@@ -12,8 +12,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import uuid
-from datetime import date, datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse
 from alembic.config import Config
 from sqlalchemy import delete
@@ -53,7 +55,7 @@ from app.models import (
 	YeeAuditSubmission,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
-from app.yee_scoring import get_yee_instrument_data
+from app.yee_scoring import TOTAL_CATEGORY_NAME, get_yee_instrument_data, score_yee_responses
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -75,6 +77,9 @@ YEE_PLACE_HUB_ID = uuid.UUID("99999999-9999-4999-8999-999999999991")
 YEE_PLACE_PLAZA_ID = uuid.UUID("99999999-9999-4999-8999-999999999992")
 YEE_PLACE_LIBRARY_ID = uuid.UUID("99999999-9999-4999-8999-999999999993")
 YEE_PLACE_COMMONS_ID = uuid.UUID("99999999-9999-4999-8999-999999999994")
+# An assigned-but-unaudited place auditor 1 still has to visit. Kept free of any
+# seeded audit/submission so the submit-flow durability test has a clean slot.
+YEE_PLACE_GREEN_ID = uuid.UUID("99999999-9999-4999-8999-999999999995")
 
 YEE_AUDITOR_PROFILE_01_ID = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1")
 YEE_AUDITOR_PROFILE_02_ID = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2")
@@ -90,6 +95,20 @@ YEE_AUDIT_HUB_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1")
 YEE_AUDIT_PLAZA_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2")
 YEE_AUDIT_LIBRARY_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3")
 YEE_AUDIT_COMMONS_IN_PROGRESS_ID = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4")
+
+YEE_SUBMISSION_HUB_ID = uuid.UUID("cccccccc-cccc-4ccc-8ccc-ccccccccccc1")
+YEE_SUBMISSION_PLAZA_ID = uuid.UUID("cccccccc-cccc-4ccc-8ccc-ccccccccccc2")
+YEE_SUBMISSION_LIBRARY_ID = uuid.UUID("cccccccc-cccc-4ccc-8ccc-ccccccccccc3")
+
+# Domain weights keyed by the report domain order the dashboard expects.
+YEE_SEED_DOMAIN_WEIGHTS: dict[str, int] = {
+	"access": 3,
+	"activitySpaces": 2,
+	"amenities": 2,
+	"experienceOfSpace": 3,
+	"aestheticsAndCare": 2,
+	"useAndUsability": 2,
+}
 
 
 def _utc_datetime(value: str) -> datetime:
@@ -211,6 +230,7 @@ async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -
 		PlayspaceSubmission,
 		# PlayspaceSubmissionContext,
 		Audit,
+		YeeAuditSubmission,
 		# Known issues before bug reports: a report may FK a known issue.
 		KnownIssue,
 		BugReport,
@@ -237,6 +257,95 @@ def _build_playspace_entities() -> list[object]:
 	"""Create deterministic Playspace ORM objects for seeding."""
 
 	return list(build_playspace_seed_entities())
+
+
+def _build_yee_submission_responses(quality: float) -> dict[str, dict[str, str]]:
+	"""Build a deterministic instrument-valid YEE response set.
+
+	For each matrix scoring item, pick — per choice — the answer whose
+	total-category score sits at the requested ``quality`` percentile (1.0 = best
+	answer, lower = a more middling answer). This yields realistic, reproducible
+	responses that the real scorer grades, so seeded submissions carry sensible
+	section scores instead of placeholder data.
+	"""
+
+	instrument = get_yee_instrument_data()
+	scoring_items: list[dict[str, object]] = instrument["scoring_items"]  # type: ignore[assignment]
+	category_names_by_id: dict[str, str] = instrument["scoring_categories"]  # type: ignore[assignment]
+
+	def _total_for_row(row: dict[str, object]) -> int:
+		score_map = row.get("scores_by_category_id", {})
+		if not isinstance(score_map, dict):
+			return 0
+		return sum(
+			int(value)
+			for category_id, value in score_map.items()
+			if category_names_by_id.get(str(category_id)) == TOTAL_CATEGORY_NAME
+		)
+
+	responses: dict[str, dict[str, str]] = {}
+	for item in scoring_items:
+		item_id = str(item["item_id"])
+		rows = item.get("score_entries", [])
+		if not isinstance(rows, list):
+			continue
+		rows_by_choice: dict[str, list[dict[str, object]]] = defaultdict(list)
+		for row in rows:
+			choice_id = row.get("choice_id")
+			if isinstance(choice_id, str):
+				rows_by_choice[choice_id].append(row)
+		answers: dict[str, str] = {}
+		for choice_id, choice_rows in rows_by_choice.items():
+			ranked = sorted(choice_rows, key=_total_for_row)
+			pick = ranked[min(len(ranked) - 1, int((len(ranked) - 1) * quality))]
+			answer_id = pick.get("answer_id")
+			if isinstance(answer_id, str):
+				answers[choice_id] = answer_id
+		if answers:
+			responses[item_id] = answers
+	return responses
+
+
+def _build_yee_submission(
+	*,
+	submission_id: uuid.UUID,
+	auditor_id: uuid.UUID,
+	auditor_code: str,
+	place_id: uuid.UUID,
+	place_name: str,
+	submitted_at: datetime,
+	total_minutes: int,
+	quality: float,
+) -> YeeAuditSubmission:
+	"""Assemble one scored YEE submission row matching a submitted seed audit."""
+
+	responses = _build_yee_submission_responses(quality)
+	score = score_yee_responses(cast(dict[str, object], responses))
+	participant_info = {
+		"auditor_id": auditor_code,
+		"place_id": str(place_id),
+		"place_name": place_name,
+		"audit_date": submitted_at.date().isoformat(),
+		"start_time": submitted_at.strftime("%H:%M"),
+		"finish_time": (submitted_at + timedelta(minutes=total_minutes)).strftime("%H:%M"),
+		"total_minutes": total_minutes,
+		"visit_frequency": "Weekly",
+		"season": "Spring",
+		"weather": "Clear",
+		"domain_weights": dict(YEE_SEED_DOMAIN_WEIGHTS),
+		"comments": "Seeded demo submission.",
+		"section_comments": {},
+	}
+	return YeeAuditSubmission(
+		id=submission_id,
+		auditor_id=auditor_id,
+		place_id=place_id,
+		submitted_at=submitted_at,
+		participant_info_json=participant_info,
+		responses_json=responses,
+		section_scores_json=score["section_scores"],
+		total_score=int(cast(int, score["total_score"])),
+	)
 
 
 def _build_yee_entities() -> list[object]:
@@ -565,10 +674,27 @@ def _build_yee_entities() -> list[object]:
 			auditor_description="In-progress site focused on use and usability patterns.",
 			created_at=_utc_datetime("2026-03-02T11:10:00Z"),
 		),
+		Place(
+			id=YEE_PLACE_GREEN_ID,
+			name="Eastside Community Green",
+			city="Ithaca",
+			province=NEW_YORK,
+			country=UNITED_STATES,
+			postal_code="14850",
+			place_type="public plaza",
+			lat=42.4415,
+			lng=-76.4881,
+			start_date=date(2026, 3, 10),
+			end_date=date(2026, 6, 30),
+			est_auditors=2,
+			auditor_description="Newly assigned site auditor 1 has not visited yet.",
+			created_at=_utc_datetime("2026-03-02T11:20:00Z"),
+		),
 	]
 	project_places = [
 		ProjectPlace(project_id=YEE_PROJECT_CORE_ID, place_id=YEE_PLACE_HUB_ID),
 		ProjectPlace(project_id=YEE_PROJECT_CORE_ID, place_id=YEE_PLACE_PLAZA_ID),
+		ProjectPlace(project_id=YEE_PROJECT_CORE_ID, place_id=YEE_PLACE_GREEN_ID),
 		ProjectPlace(project_id=YEE_PROJECT_FOLLOW_UP_ID, place_id=YEE_PLACE_LIBRARY_ID),
 		ProjectPlace(project_id=YEE_PROJECT_FOLLOW_UP_ID, place_id=YEE_PLACE_COMMONS_ID),
 	]
@@ -623,6 +749,13 @@ def _build_yee_entities() -> list[object]:
 			project_id=YEE_PROJECT_CORE_ID,
 			place_id=YEE_PLACE_PLAZA_ID,
 			assigned_at=_utc_datetime("2026-02-26T09:00:00Z"),
+		),
+		AuditorAssignment(
+			id=uuid.UUID("d2000000-0000-4000-8000-000000000006"),
+			auditor_profile_id=YEE_AUDITOR_PROFILE_01_ID,
+			project_id=YEE_PROJECT_CORE_ID,
+			place_id=YEE_PLACE_GREEN_ID,
+			assigned_at=_utc_datetime("2026-03-10T08:00:00Z"),
 		),
 		AuditorAssignment(
 			id=uuid.UUID("d2000000-0000-4000-8000-000000000003"),
@@ -768,6 +901,43 @@ def _build_yee_entities() -> list[object]:
 		),
 	]
 
+	# Submitted audits must have a matching YeeAuditSubmission: the auditor's own
+	# dashboard, the per-place audit state, and manager reporting all read from
+	# yee_audit_submissions, so a SUBMITTED Audit without one renders as
+	# "not started" and disappears from reporting.
+	submissions = [
+		_build_yee_submission(
+			submission_id=YEE_SUBMISSION_HUB_ID,
+			auditor_id=YEE_AUDITOR_PROFILE_01_ID,
+			auditor_code="AUD001",
+			place_id=YEE_PLACE_HUB_ID,
+			place_name="Westside Youth Hub",
+			submitted_at=_utc_datetime("2026-03-02T14:05:00Z"),
+			total_minutes=65,
+			quality=1.0,
+		),
+		_build_yee_submission(
+			submission_id=YEE_SUBMISSION_PLAZA_ID,
+			auditor_id=YEE_AUDITOR_PROFILE_02_ID,
+			auditor_code="AUD002",
+			place_id=YEE_PLACE_PLAZA_ID,
+			place_name="South Transit Plaza",
+			submitted_at=_utc_datetime("2026-03-03T11:10:00Z"),
+			total_minutes=55,
+			quality=1.0,
+		),
+		_build_yee_submission(
+			submission_id=YEE_SUBMISSION_LIBRARY_ID,
+			auditor_id=YEE_AUDITOR_PROFILE_03_ID,
+			auditor_code="AUD003",
+			place_id=YEE_PLACE_LIBRARY_ID,
+			place_name="Maple Library Plaza",
+			submitted_at=_utc_datetime("2026-03-07T12:50:00Z"),
+			total_minutes=50,
+			quality=0.7,
+		),
+	]
+
 	return [
 		canonical_instrument,
 		*users,
@@ -780,6 +950,7 @@ def _build_yee_entities() -> list[object]:
 		*auditor_invites,
 		*assignments,
 		*audits,
+		*submissions,
 	]
 
 

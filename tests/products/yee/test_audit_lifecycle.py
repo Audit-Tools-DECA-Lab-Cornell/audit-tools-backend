@@ -10,8 +10,13 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.models import Instrument
-from app.seed import YEE_PLACE_COMMONS_ID, YEE_PLACE_PLAZA_ID, _build_yee_entities
+from app.models import Audit, AuditStatus, Instrument, YeeAuditSubmission
+from app.seed import (
+	YEE_PLACE_COMMONS_ID,
+	YEE_PLACE_LIBRARY_ID,
+	YEE_PLACE_PLAZA_ID,
+	_build_yee_entities,
+)
 from tests.products.yee._helpers import (
 	SEED_AUDITOR_THREE_EMAIL,
 	_bearer_headers,
@@ -146,6 +151,49 @@ def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient
 	state = yee_client.get(f"{place_path}/audit-state", headers=headers)
 	assert state.status_code == 200, state.text
 	assert state.json()["status"] == "SUBMITTED"
+
+
+def test_seeded_submitted_audit_is_visible_to_auditor(yee_client: TestClient) -> None:
+	"""A seeded SUBMITTED audit shows up for its auditor instead of NOT_STARTED.
+
+	Regression guard: the seed used to create SUBMITTED ``Audit`` rows with no
+	matching ``yee_audit_submissions`` row, so Demo Auditor 3's Maple Library
+	Plaza audit (which exists in the DB) rendered as "not started" on the auditor
+	dashboard and was missing from ``/my-audits``.
+	"""
+
+	token = _login_auditor(yee_client, email=SEED_AUDITOR_THREE_EMAIL)
+	headers = _bearer_headers(token)
+
+	listing = yee_client.get("/yee/my-audits", headers=headers)
+	assert listing.status_code == 200, listing.text
+	library_items = [item for item in listing.json() if item["place_id"] == str(YEE_PLACE_LIBRARY_ID)]
+	assert len(library_items) == 1, listing.json()
+	assert library_items[0]["place_name"] == "Maple Library Plaza"
+	assert library_items[0]["total_score"] > 0
+
+	state = yee_client.get(f"/yee/places/{YEE_PLACE_LIBRARY_ID}/audit-state", headers=headers)
+	assert state.status_code == 200, state.text
+	assert state.json()["status"] == "SUBMITTED"
+	assert state.json()["submission_id"] is not None
+
+
+def test_every_seeded_submitted_audit_has_a_submission() -> None:
+	"""No seeded SUBMITTED audit may be missing its (auditor, place) submission."""
+
+	entities = _build_yee_entities()
+	submitted_audit_keys = {
+		(audit.auditor_profile_id, audit.place_id)
+		for audit in entities
+		if isinstance(audit, Audit) and audit.status == AuditStatus.SUBMITTED
+	}
+	submission_keys = {
+		(submission.auditor_id, submission.place_id)
+		for submission in entities
+		if isinstance(submission, YeeAuditSubmission)
+	}
+	assert submitted_audit_keys, "expected the seed to contain submitted audits"
+	assert submitted_audit_keys <= submission_keys, submitted_audit_keys - submission_keys
 
 
 def test_build_yee_entities_instrument_is_active_root_version() -> None:
