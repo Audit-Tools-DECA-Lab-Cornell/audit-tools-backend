@@ -69,8 +69,8 @@ from app.models import (
 MANAGER_EMAIL = "manager-demo@yee.local"
 AUDITOR_PASSWORD = "DemoPass123!"
 EMAIL_DOMAIN = "example.org"
-START_INDEX = 3
-END_INDEX = 20  # inclusive -> 03..20 == 18 auditors
+START_INDEX = 1
+END_INDEX = 30  # inclusive -> 01..30 == 30 auditors
 
 # Random profile data used to "complete" each auditor's onboarding fields.
 INDUSTRIES = [
