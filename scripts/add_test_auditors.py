@@ -174,10 +174,20 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 	skipped = 0
 
 	for email, name, index in _planned_auditors():
-		# Idempotency: skip if a user with this email already exists.
+		# Idempotency: skip if a user OR an auditor profile with this email
+		# already exists. Checking both tables avoids an integrity error when a
+		# partial cleanup left an orphaned auditor_profiles row (its email and
+		# auditor_code are unique) behind a deleted users row.
 		existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
 		if existing_user is not None:
 			print(f"SKIP   {email} -> user already exists")
+			skipped += 1
+			continue
+		existing_profile = (
+			await session.execute(select(AuditorProfile).where(AuditorProfile.email == email))
+		).scalar_one_or_none()
+		if existing_profile is not None:
+			print(f"SKIP   {email} -> auditor profile already exists (orphaned; no user row)")
 			skipped += 1
 			continue
 
