@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models import YeeAuditSubmission
 from app.seed import (
 	YEE_AUDITOR_PROFILE_01_ID,
-	YEE_PLACE_HUB_ID,
+	YEE_PLACE_GREEN_ID,
 	YEE_PLACE_LIBRARY_ID,
 )
 from tests.products.yee._helpers import _bearer_headers, _login_auditor
@@ -38,7 +38,9 @@ def test_submit_idempotent_replay_and_conflict_matrix(yee_client: TestClient) ->
 	"""Same-key replay returns the submission; different/no key stays a 409."""
 
 	headers = _bearer_headers(_login_auditor(yee_client))
-	place_id = str(YEE_PLACE_HUB_ID)
+	# A place auditor 1 is assigned to but has not submitted, so the first submit
+	# below starts from a clean slot (the seeded Hub audit is already submitted).
+	place_id = str(YEE_PLACE_GREEN_ID)
 	responses_payload = {"QID22": "3"}
 	idempotency_key = f"yee-idem-{uuid.uuid4().hex[:12]}"
 
@@ -92,8 +94,8 @@ def test_submit_idempotent_replay_and_conflict_matrix(yee_client: TestClient) ->
 	# Exactly one submission exists for this auditor/place across all replays.
 	listing = yee_client.get("/yee/my-audits", headers=headers)
 	assert listing.status_code == 200, listing.text
-	hub_submissions = [item for item in listing.json() if item["place_id"] == place_id]
-	assert len(hub_submissions) == 1
+	place_submissions = [item for item in listing.json() if item["place_id"] == place_id]
+	assert len(place_submissions) == 1
 
 	# Reads that managers/admins depend on still resolve after submit.
 	state = yee_client.get(f"/yee/places/{place_id}/audit-state", headers=headers)
