@@ -43,7 +43,6 @@ import os
 import re
 import secrets
 import sys
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from dotenv import find_dotenv, load_dotenv
@@ -151,15 +150,11 @@ def _planned_auditors() -> list[tuple[str, str, int]]:
 
 async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 	# 1. Resolve the manager and their account.
-	manager = (
-		await session.execute(select(User).where(User.email == MANAGER_EMAIL))
-	).scalar_one_or_none()
+	manager = (await session.execute(select(User).where(User.email == MANAGER_EMAIL))).scalar_one_or_none()
 	if manager is None:
 		raise SystemExit(f"Manager user '{MANAGER_EMAIL}' was not found in this database.")
 	if manager.account_type not in {AccountType.MANAGER, AccountType.ADMIN}:
-		raise SystemExit(
-			f"User '{MANAGER_EMAIL}' is a {manager.account_type.value}, not a manager/admin."
-		)
+		raise SystemExit(f"User '{MANAGER_EMAIL}' is a {manager.account_type.value}, not a manager/admin.")
 	account_id = manager.account_id
 	if account_id is None:
 		raise SystemExit(f"Manager '{MANAGER_EMAIL}' has no account/organization configured.")
@@ -180,9 +175,7 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 
 	for email, name, index in _planned_auditors():
 		# Idempotency: skip if a user with this email already exists.
-		existing_user = (
-			await session.execute(select(User).where(User.email == email))
-		).scalar_one_or_none()
+		existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
 		if existing_user is not None:
 			print(f"SKIP   {email} -> user already exists")
 			skipped += 1
