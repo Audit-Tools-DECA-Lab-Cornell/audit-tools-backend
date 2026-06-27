@@ -26,13 +26,13 @@ client calls `/playspace/*`.
 
 ## Clients
 
-| Client        | Repo                            | Namespace                       | How it calls the backend                                                                         | API base env key                                                |
-| ------------- | ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| yee-frontend  | `yee/audit-tools-yee-frontend/` | `/yee/*`                        | Next.js route handlers under `src/app/api/**` proxy to the backend                               | `BACKEND_API_URL` / `API_BASE_URL` / `NEXT_PUBLIC_API_BASE_URL` |
-| yee-mobile    | `yee/audit-tools-yee-mobile/`   | `/yee/*`                        | Direct HTTP from the app (`lib/yee-api.ts`, `lib/auth/api.ts`)                                   | `EXPO_PUBLIC_API_BASE_URL`                                      |
-| copa-frontend | `playspace/copa-frontend/`      | `/playspace/*`                  | Direct HTTP (`src/lib/api/playspace.ts`, `src/lib/auth/auth-api.ts`)                             | `NEXT_PUBLIC_API_BASE_URL`                                      |
-| copa-mobile   | `playspace/copa-mobile/`        | `/playspace/*`                  | Direct HTTP (`lib/auth/api.ts`, `lib/audit/api.ts`, `lib/notifications/api.ts`)                  | `EXPO_PUBLIC_API_BASE_URL`                                      |
-| copa-desktop  | `playspace/copa-desktop/`       | `/playspace/*` (auditor subset) | Main-process client (`src/main/api/playspace-client.ts`); the renderer is CORS-blocked by design | `PLAYSPACE_API_URL`                                             |
+| Client        | Repo                       | Namespace                       | How it calls the backend                                                                         | API base env key                                                |
+| ------------- | -------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| yee-frontend  | `yee/yee-frontend/`        | `/yee/*`                        | Next.js route handlers under `src/app/api/**` proxy to the backend                               | `BACKEND_API_URL` / `API_BASE_URL` / `NEXT_PUBLIC_API_BASE_URL` |
+| yee-mobile    | `yee/yee-mobile/`          | `/yee/*`                        | Direct HTTP from the app (`lib/yee-api.ts`, `lib/auth/api.ts`)                                   | `EXPO_PUBLIC_API_BASE_URL`                                      |
+| copa-frontend | `playspace/copa-frontend/` | `/playspace/*`                  | Direct HTTP (`src/lib/api/playspace.ts`, `src/lib/auth/auth-api.ts`)                             | `NEXT_PUBLIC_API_BASE_URL`                                      |
+| copa-mobile   | `playspace/copa-mobile/`   | `/playspace/*`                  | Direct HTTP (`lib/auth/api.ts`, `lib/audit/api.ts`, `lib/notifications/api.ts`)                  | `EXPO_PUBLIC_API_BASE_URL`                                      |
+| copa-desktop  | `playspace/copa-desktop/`  | `/playspace/*` (auditor subset) | Main-process client (`src/main/api/playspace-client.ts`); the renderer is CORS-blocked by design | `PLAYSPACE_API_URL`                                             |
 
 Client-side env key names are owned by each client repo. This table is a pointer,
 not the source of truth for those values.
