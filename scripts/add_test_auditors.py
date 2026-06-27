@@ -257,16 +257,17 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 	print(f"\nDone. Created {created} auditor(s), skipped {skipped} existing.")
 
 
-async def _main_async(dry_run: bool) -> None:
+def _resolve_target_url():
+	"""Load .env and resolve the YEE database URL + asyncpg connect args."""
+
 	load_dotenv(find_dotenv())
 	raw_url = os.getenv("DATABASE_URL_YEE", "").strip()
 	if not raw_url:
 		raise SystemExit("DATABASE_URL_YEE is not set in your environment / .env file.")
+	return _normalize_async_url(raw_url)
 
-	url, connect_args = _normalize_async_url(raw_url)
-	print(f"Target DB:    {url.host}/{url.database}")
-	print()
 
+async def _main_async(url, connect_args, *, dry_run: bool) -> None:
 	engine = create_async_engine(url, connect_args=connect_args, pool_pre_ping=True)
 	session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
 	try:
@@ -282,19 +283,25 @@ def main() -> None:
 	parser.add_argument("--dry-run", action="store_true", help="Show what would happen without writing.")
 	args = parser.parse_args()
 
+	# Resolve and show the actual target database BEFORE prompting, so the
+	# operator can see which host/database a (possibly stale) .env points at
+	# instead of confirming a production write blindly.
+	url, connect_args = _resolve_target_url()
+
 	planned = _planned_auditors()
 	print("About to add the following test auditors (idempotent; existing emails are skipped):")
 	print(f"  {planned[0][0]} ('{planned[0][1]}') ... {planned[-1][0]} ('{planned[-1][1]}')")
 	print(f"  {len(planned)} auditors, manager '{MANAGER_EMAIL}', password '{AUDITOR_PASSWORD}'")
+	print(f"  Target DB: {url.host}/{url.database}")
 	print()
 
 	if not args.dry_run and not args.yes:
-		answer = input("This writes to the database in DATABASE_URL_YEE. Continue? [y/N] ").strip().lower()
+		answer = input("This writes to the database shown above. Continue? [y/N] ").strip().lower()
 		if answer not in {"y", "yes"}:
 			print("Aborted.")
 			sys.exit(1)
 
-	asyncio.run(_main_async(dry_run=args.dry_run))
+	asyncio.run(_main_async(url, connect_args, dry_run=args.dry_run))
 
 
 if __name__ == "__main__":
