@@ -296,11 +296,21 @@ def _build_yee_submission_responses(quality: float) -> dict[str, dict[str, str]]
 				rows_by_choice[choice_id].append(row)
 		answers: dict[str, str] = {}
 		for choice_id, choice_rows in rows_by_choice.items():
-			ranked = sorted(choice_rows, key=_total_for_row)
-			pick = ranked[min(len(ranked) - 1, int((len(ranked) - 1) * quality))]
-			answer_id = pick.get("answer_id")
-			if isinstance(answer_id, str):
-				answers[choice_id] = answer_id
+			# Rank whole answers, not individual category rows: an answer can span
+			# several grading rows, so score each answer by the sum of its rows'
+			# total-category contribution before taking the quality percentile.
+			rows_by_answer: dict[str, list[dict[str, object]]] = defaultdict(list)
+			for row in choice_rows:
+				answer_id = row.get("answer_id")
+				if isinstance(answer_id, str):
+					rows_by_answer[answer_id].append(row)
+			if not rows_by_answer:
+				continue
+			ranked = sorted(
+				rows_by_answer.items(),
+				key=lambda answer_rows: sum(_total_for_row(row) for row in answer_rows[1]),
+			)
+			answers[choice_id] = ranked[min(len(ranked) - 1, int((len(ranked) - 1) * quality))][0]
 		if answers:
 			responses[item_id] = answers
 	return responses
