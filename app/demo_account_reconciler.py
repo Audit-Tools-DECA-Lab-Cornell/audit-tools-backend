@@ -189,6 +189,16 @@ async def reconcile_protected_yee_demo_accounts(session: AsyncSession) -> dict[s
 			existing_profile.position = seed_profile.position
 			existing_profile.profession_disciplines = list(seed_profile.profession_disciplines or [])
 			existing_profile.organization = seed_profile.organization
+			if seed_profile.is_primary:
+				await session.execute(
+					sa.update(ManagerProfile)
+					.where(
+						ManagerProfile.account_id == seed_profile.account_id,
+						ManagerProfile.id != existing_profile.id,
+						ManagerProfile.is_primary.is_(True),
+					)
+					.values(is_primary=False)
+				)
 			existing_profile.is_primary = seed_profile.is_primary
 			summary["manager_profiles_updated"] += 1
 	else:
