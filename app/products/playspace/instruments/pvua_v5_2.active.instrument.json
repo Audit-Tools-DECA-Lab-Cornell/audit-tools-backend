@@ -12070,10 +12070,15 @@
             "key": "cookies-analytics",
             "body": [
               "The web platform and mobile app may use cookies, local storage, device storage, crash logs, diagnostics, or similar technologies to keep users signed in, remember preferences, support offline drafts, measure reliability, and protect the platform from abuse.",
-              "Where required, the organization or platform operator will provide additional choices for non-essential cookies or analytics."
+              "To understand how the web dashboard is used and to improve it, we also use third-party analytics services. These may set cookies and process usage data such as pages viewed, actions taken, approximate location derived from your IP address, and device or browser details.",
+              "If you are in the European Economic Area, the United Kingdom, or Switzerland, we show a consent banner and do not run non-essential analytics until you accept it. In other regions, analytics runs by default and you can turn it off using the banner. To change a previous choice, clear this site's stored data in your browser.",
+              "Where required, the organization or platform operator may provide additional choices for non-essential cookies or analytics."
             ],
             "title": "11. Cookies, analytics, and diagnostics",
-            "bullets": []
+            "bullets": [
+              "Microsoft Clarity: captures how you use and interact with the dashboard through product-usage metrics, heatmaps, and session replay so we can improve it. This data is collected using first- and third-party cookies and similar technologies. To learn how Microsoft collects and uses it, see the Microsoft Privacy Statement (https://privacy.microsoft.com/privacystatement).",
+              "Google Analytics 4: helps us measure traffic and understand how features are used. In the European Economic Area, the United Kingdom, and Switzerland it runs under Google Consent Mode, so analytics cookies are set only after you accept the consent banner. To learn how Google uses this data, see Google's Privacy Policy (https://policies.google.com/privacy)."
+            ]
           },
           {
             "key": "changes-contact",
@@ -12086,7 +12091,7 @@
           }
         ],
         "short_title": "Privacy",
-        "last_updated": "April 30, 2026"
+        "last_updated": "July 1, 2026"
       }
     ],
     "instrument_version": "5.31",
