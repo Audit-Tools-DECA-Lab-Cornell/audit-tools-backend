@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.seed import YEE_PLACE_HUB_ID
 from tests.products.yee._helpers import (
 	SEED_MANAGER_EMAIL,
 	SEED_PASSWORD,
@@ -129,6 +130,20 @@ def test_manager_place_comparisons_contain_seeded_submitted_audits(yee_client: T
 	assert sample_item["total_raw_score"] >= 0
 	assert isinstance(sample_item["date"], str)
 	assert len(sample_item["date"]) > 0
+
+
+def test_manager_place_comparisons_include_three_auditor_seeded_hub_set(yee_client: TestClient) -> None:
+	token = _login_manager(yee_client)
+	resp = yee_client.get(PLACE_COMPARISONS_URL, headers=_bearer_headers(token))
+	assert resp.status_code == 200, resp.text
+
+	hub_group = next((group for group in resp.json() if group["place_id"] == str(YEE_PLACE_HUB_ID)), None)
+	assert hub_group is not None, resp.json()
+	assert hub_group["place_name"] == "Westside Youth Hub"
+	assert len(hub_group["audits"]) == 3
+	assert len({audit["auditor_id"] for audit in hub_group["audits"]}) == 3
+	assert len({audit["total_raw_score"] for audit in hub_group["audits"]}) > 1
+	assert len({audit["total_weighted_score"] for audit in hub_group["audits"]}) > 1
 
 
 # ---------------------------------------------------------------------------

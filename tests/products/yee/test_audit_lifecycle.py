@@ -8,11 +8,27 @@ version metadata.
 
 from __future__ import annotations
 
+from collections import Counter
+from typing import cast
+
 from fastapi.testclient import TestClient
 
-from app.models import Audit, AuditStatus, Instrument, YeeAuditSubmission
+from app.models import (
+	AccountType,
+	Audit,
+	AuditorInvite,
+	AuditStatus,
+	Instrument,
+	ManagerInvite,
+	User,
+	YeeAuditSubmission,
+)
+from app.products.yee.schemas.audits import CanonicalScoreSnapshot
+from app.products.yee.services.audits import _decode_draft_payload
+from app.products.yee.services.scoring import score_yee_responses
 from app.seed import (
 	YEE_PLACE_COMMONS_ID,
+	YEE_PLACE_GREEN_ID,
 	YEE_PLACE_LIBRARY_ID,
 	YEE_PLACE_PLAZA_ID,
 	_build_yee_entities,
@@ -52,7 +68,7 @@ def test_audit_state_starts_not_started(yee_client: TestClient) -> None:
 
 	token = _login_auditor(yee_client)
 	response = yee_client.get(
-		f"/yee/places/{YEE_PLACE_PLAZA_ID}/audit-state",
+		f"/yee/places/{YEE_PLACE_GREEN_ID}/audit-state",
 		headers=_bearer_headers(token),
 	)
 	assert response.status_code == 200, response.text
@@ -179,21 +195,90 @@ def test_seeded_submitted_audit_is_visible_to_auditor(yee_client: TestClient) ->
 
 
 def test_every_seeded_submitted_audit_has_a_submission() -> None:
-	"""No seeded SUBMITTED audit may be missing its (auditor, place) submission."""
-
 	entities = _build_yee_entities()
-	submitted_audit_keys = {
-		(audit.auditor_profile_id, audit.place_id)
-		for audit in entities
-		if isinstance(audit, Audit) and audit.status == AuditStatus.SUBMITTED
-	}
-	submission_keys = {
-		(submission.auditor_id, submission.place_id)
+	submitted_audits = [
+		audit for audit in entities if isinstance(audit, Audit) and audit.status == AuditStatus.SUBMITTED
+	]
+	submissions_by_key = {
+		(submission.auditor_id, submission.place_id): submission
 		for submission in entities
 		if isinstance(submission, YeeAuditSubmission)
 	}
-	assert submitted_audit_keys, "expected the seed to contain submitted audits"
-	assert submitted_audit_keys <= submission_keys, submitted_audit_keys - submission_keys
+	assert submitted_audits, "expected the seed to contain submitted audits"
+
+	for audit in submitted_audits:
+		key = (audit.auditor_profile_id, audit.place_id)
+		submission = submissions_by_key.get(key)
+		assert submission is not None, f"missing YeeAuditSubmission for {key}"
+		assert audit.summary_score == float(submission.total_score)
+		assert audit.submitted_at == submission.submitted_at
+		assert audit.total_minutes == submission.participant_info_json["total_minutes"]
+		assert audit.responses_json == submission.responses_json
+		assert audit.scores_json["canonical_score"] == submission.scores_json
+		CanonicalScoreSnapshot.model_validate(audit.scores_json["canonical_score"])
+
+		recomputed = score_yee_responses(
+			cast(dict[str, object], submission.responses_json),
+			cast(dict[str, object], submission.participant_info_json),
+		)
+		assert audit.scores_json["total_score"] == recomputed["total_score"]
+		assert submission.total_score == recomputed["total_score"]
+
+
+def test_seeded_draft_uses_real_draft_payload_shape() -> None:
+	entities = _build_yee_entities()
+	drafts = [audit for audit in entities if isinstance(audit, Audit) and audit.status == AuditStatus.IN_PROGRESS]
+	assert drafts, "expected at least one realistic seeded draft"
+
+	for draft in drafts:
+		participant_info, responses = _decode_draft_payload(draft)
+		assert participant_info
+		assert responses
+		assert draft.responses_json == {
+			"participant_info": participant_info,
+			"responses": responses,
+		}
+		assert isinstance(participant_info.get("domain_weights"), dict)
+		assert draft.total_minutes == participant_info["total_minutes"]
+		recomputed = score_yee_responses(cast(dict[str, object], responses), participant_info)
+		assert draft.summary_score == float(int(recomputed["total_score"]))
+		assert draft.scores_json["total_score"] == recomputed["total_score"]
+		assert draft.scores_json["canonical_score"] == recomputed["canonical_score"]
+		assert recomputed["matched_scored_answers"] > 0
+
+
+def test_seeded_reports_have_same_place_multi_auditor_comparison_set() -> None:
+	entities = _build_yee_entities()
+	submissions = [entity for entity in entities if isinstance(entity, YeeAuditSubmission)]
+	counts_by_place = Counter(submission.place_id for submission in submissions)
+	assert any(count >= 3 for count in counts_by_place.values()), counts_by_place
+
+	for place_id, count in counts_by_place.items():
+		if count < 3:
+			continue
+		place_scores = [submission.total_score for submission in submissions if submission.place_id == place_id]
+		assert len(set(place_scores)) > 1, "comparison set should include scoring variation"
+		break
+
+
+def test_seeded_identity_matrix_includes_pending_and_expired_states() -> None:
+	entities = _build_yee_entities()
+	auditor_invites = [entity for entity in entities if isinstance(entity, AuditorInvite)]
+	manager_invites = [entity for entity in entities if isinstance(entity, ManagerInvite)]
+	users = [entity for entity in entities if isinstance(entity, User)]
+
+	assert any(invite.accepted_at is None and invite.auditor_id is None for invite in auditor_invites)
+	assert any(invite.accepted_at is None and invite.expires_at.year <= 2026 for invite in auditor_invites)
+	assert any(invite.accepted_at is None and invite.accepted_by_user_id is None for invite in manager_invites)
+	assert any(invite.accepted_at is not None and invite.accepted_by_user_id is not None for invite in manager_invites)
+	assert any(
+		user.account_type == AccountType.AUDITOR
+		and user.account_id is None
+		and not user.email_verified
+		and not user.approved
+		and not user.profile_completed
+		for user in users
+	)
 
 
 def test_build_yee_entities_instrument_is_active_root_version() -> None:

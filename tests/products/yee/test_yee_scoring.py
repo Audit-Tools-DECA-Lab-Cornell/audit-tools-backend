@@ -11,8 +11,8 @@ Layer 2 — ``_build_submission_scores`` (weighted scoring)
     The dashboard audit-edit state (``GET /yee/dashboard/audits/{id}/edit``)
     exposes score and participant_info that match what ``_build_submission_scores``
     computes from the stored ``section_scores`` and ``participant_info``.
-    Verified end-to-end via the seeded HUB submission (quality=1.0) which has
-    real instrument-valid responses.
+    Verified end-to-end via the seeded HUB submission (all-domain max profile)
+    which has real instrument-valid responses.
 
 Golden edge cases:
     Empty / zero domain weights produce ``total_weighted_score == 0.0`` and
@@ -282,8 +282,8 @@ def test_build_submission_scores_internal_consistency() -> None:
 def test_seeded_hub_submission_scoring_end_to_end(yee_client: TestClient) -> None:
 	"""Verify Layer 1 + Layer 2 scoring on the seeded HUB submission.
 
-	The seeded HUB submission (auditor-1, quality=1.0) has instrument-valid
-	responses built by ``_build_yee_submission_responses``. The manager fetches
+	The seeded HUB submission (auditor-1, all-domain max profile) has instrument-valid
+	responses built by ``_build_yee_domain_scored_responses``. The manager fetches
 	the audit via the dashboard edit endpoint; the test re-scores the stored
 	responses with the ``score_yee_responses`` oracle and verifies the result
 	matches what the endpoint returns. Then ``_build_submission_scores`` is used
