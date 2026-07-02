@@ -27,8 +27,14 @@ from app.models import (
 	User,
 	YeeAuditSubmission,
 )
-from app.products.yee.schemas.audits import ScoreResult, YeeAuditStateResponse, YeeAuditSubmissionResponse
+from app.products.yee.schemas.audits import (
+	CanonicalScoreSnapshot,
+	ScoreResult,
+	YeeAuditStateResponse,
+	YeeAuditSubmissionResponse,
+)
 from app.products.yee.services.scoring import score_yee_responses
+from app.products.yee.services.scoring_types import LegacyScoreResult
 
 
 def _public_auditor_id(code: str) -> str:
@@ -44,12 +50,13 @@ def _public_auditor_id(code: str) -> str:
 	return normalized
 
 
-def _score_result_from_dict(score: dict[str, Any]) -> ScoreResult:
+def _score_result_from_dict(score: LegacyScoreResult) -> ScoreResult:
 	return ScoreResult(
 		total_score=int(score.get("total_score", 0)),
 		section_scores={str(key): int(value) for key, value in dict(score.get("section_scores", {})).items()},
 		category_scores={str(key): int(value) for key, value in dict(score.get("category_scores", {})).items()},
 		matched_scored_answers=int(score.get("matched_scored_answers", 0)),
+		canonical_score=CanonicalScoreSnapshot.model_validate(score["canonical_score"]),
 	)
 
 
@@ -61,7 +68,7 @@ def _submission_response(
 ) -> YeeAuditSubmissionResponse:
 	"""Assemble the submission response, recomputing the full scoring shape."""
 
-	score = score_yee_responses(submission.responses_json)
+	score = score_yee_responses(submission.responses_json, submission.participant_info_json)
 	return YeeAuditSubmissionResponse(
 		id=submission.id,
 		place_id=submission.place_id,
@@ -71,7 +78,7 @@ def _submission_response(
 		submitted_at=submission.submitted_at,
 		participant_info=submission.participant_info_json,
 		responses=submission.responses_json,
-		score=ScoreResult(**score),
+		score=_score_result_from_dict(score),
 	)
 
 
@@ -97,12 +104,7 @@ def _resolve_existing_submission(
 
 
 def _build_empty_score() -> ScoreResult:
-	return ScoreResult(
-		total_score=0,
-		section_scores={},
-		category_scores={},
-		matched_scored_answers=0,
-	)
+	return _score_result_from_dict(score_yee_responses({}))
 
 
 async def _get_current_auditor(session: AsyncSession, user: User) -> Auditor:

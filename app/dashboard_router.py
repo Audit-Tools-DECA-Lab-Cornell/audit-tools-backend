@@ -50,6 +50,7 @@ from app.products.yee.schemas.dashboard import (
 )
 from app.products.yee.services.dashboard import (
 	_build_submission_scores,
+	_canonical_score_from_submission,
 	_display_auditor_code,
 	_empty_domain_scores,
 	_extract_domain_weights,
@@ -536,11 +537,7 @@ async def _fetch_audits(
 			Project,
 			Place,
 			Auditor,
-			submission_alias.id,
-			submission_alias.submitted_at,
-			submission_alias.total_score,
-			submission_alias.participant_info_json,
-			submission_alias.section_scores_json,
+			submission_alias,
 		)
 		.join(Project, Audit.project_id == Project.id)
 		.join(Place, Audit.place_id == Place.id)
@@ -569,19 +566,21 @@ async def _fetch_audits(
 		project,
 		place,
 		auditor,
-		submission_id,
-		submitted_at,
-		submission_total_score,
-		submission_participant_info,
-		submission_section_scores,
+		submission,
 	) in rows:
-		resolved_submission_id = submission_id
-		resolved_submitted_at = submitted_at
-		resolved_total_raw_score = (
-			submission_total_score if isinstance(submission_total_score, int) else _extract_score(audit.scores_json)
-		)
+		resolved_submission_id = submission.id if submission is not None else None
+		resolved_submitted_at = submission.submitted_at if submission is not None else None
+		resolved_total_raw_score = _extract_score(audit.scores_json)
 		resolved_total_weighted_score = 0.0
 		resolved_domain_weights = _empty_domain_scores()
+		resolved_participant_info = submission.participant_info_json if submission is not None else None
+		resolved_section_scores = submission.section_scores_json if submission is not None else None
+
+		if submission is not None:
+			canonical_score = _canonical_score_from_submission(submission)
+			resolved_total_raw_score = canonical_score["raw"]["total_score"]
+			resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+			resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
 
 		if audit.status == AuditStatus.SUBMITTED and resolved_submission_id is None:
 			repaired_submission = await _repair_missing_yee_submission(
@@ -594,16 +593,23 @@ async def _fetch_audits(
 				needs_commit = True
 				resolved_submission_id = repaired_submission.id
 				resolved_submitted_at = repaired_submission.submitted_at
-				resolved_total_raw_score = repaired_submission.total_score
-				submission_participant_info = repaired_submission.participant_info_json
-				submission_section_scores = repaired_submission.section_scores_json
+				canonical_score = _canonical_score_from_submission(repaired_submission)
+				resolved_total_raw_score = canonical_score["raw"]["total_score"]
+				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+				resolved_participant_info = repaired_submission.participant_info_json
+				resolved_section_scores = repaired_submission.section_scores_json
 
-		if isinstance(submission_participant_info, dict) and isinstance(submission_section_scores, dict):
+		if (
+			resolved_submission_id is None
+			and isinstance(resolved_participant_info, dict)
+			and isinstance(resolved_section_scores, dict)
+		):
 			_, _, resolved_total_weighted_score = _build_submission_scores(
-				submission_section_scores,
-				submission_participant_info,
+				resolved_section_scores,
+				resolved_participant_info,
 			)
-			resolved_domain_weights = _extract_domain_weights(submission_participant_info)
+			resolved_domain_weights = _extract_domain_weights(resolved_participant_info)
 
 		items.append(
 			AuditListItem(

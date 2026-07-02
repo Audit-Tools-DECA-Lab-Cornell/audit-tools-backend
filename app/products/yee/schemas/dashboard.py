@@ -10,12 +10,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.products.yee.schemas.audits import CanonicalScoreSnapshot
+
 
 class DashboardScoreResult(BaseModel):
 	total_score: int
 	section_scores: dict[str, int]
 	category_scores: dict[str, int]
 	matched_scored_answers: int
+	canonical_score: CanonicalScoreSnapshot
 
 
 class ManagerAuditEditState(BaseModel):
@@ -51,6 +54,7 @@ class PlaceComparisonAuditItem(BaseModel):
 	domain_weights: dict[str, int]
 	raw_domain_scores: dict[str, int]
 	weighted_domain_scores: dict[str, float]
+	canonical_score: CanonicalScoreSnapshot
 
 
 class PlaceComparisonGroup(BaseModel):
@@ -94,3 +98,4 @@ class RawDataExportRow(BaseModel):
 	total_weighted_score: float
 	domain_weights: dict[str, int]
 	responses: dict[str, str]
+	canonical_score: CanonicalScoreSnapshot

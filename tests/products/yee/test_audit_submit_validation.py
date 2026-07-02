@@ -24,8 +24,6 @@ Pytest collects in file order, so the functions are arranged accordingly.
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi.testclient import TestClient
 
 from app.seed import (
@@ -34,7 +32,6 @@ from app.seed import (
 )
 from tests.products.yee._helpers import (
 	SEED_AUDITOR_THREE_EMAIL,
-	SEED_PASSWORD,
 	_bearer_headers,
 	_login_auditor,
 )

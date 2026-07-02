@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
@@ -29,6 +30,7 @@ from app.models import (
 	ProjectPlace,
 	YeeAuditSubmission,
 )
+from app.products.yee.schemas.audits import CanonicalScoreSnapshot
 from app.products.yee.schemas.dashboard import (
 	DashboardScoreResult,
 	ManagerAuditEditRequest,
@@ -37,33 +39,19 @@ from app.products.yee.schemas.dashboard import (
 	PlaceComparisonGroup,
 	RawDataExportRow,
 )
-from app.yee_scoring import score_yee_responses
+from app.products.yee.services.scoring import score_yee_responses
+from app.products.yee.services.scoring_engine import build_weighted_score_snapshot
+from app.products.yee.services.scoring_spec import DOMAIN_ORDER, ITEM_SPECS, SCORING_VERSION
+from app.products.yee.services.scoring_types import LegacyScoreResult
 
-REPORT_DOMAIN_ORDER = (
-	"access",
-	"activitySpaces",
-	"amenities",
-	"experienceOfSpace",
-	"aestheticsAndCare",
-	"useAndUsability",
-)
+REPORT_DOMAIN_ORDER = DOMAIN_ORDER
 
 REPORT_DOMAIN_SCORE_MAXIMUMS: dict[str, int] = {
-	"access": 14,
-	"activitySpaces": 26,
-	"amenities": 23,
-	"experienceOfSpace": 20,
-	"aestheticsAndCare": 24,
-	"useAndUsability": 18,
+	domain: sum(spec.max_score for spec in ITEM_SPECS if spec.domain == domain) for domain in REPORT_DOMAIN_ORDER
 }
 
 REPORT_DOMAIN_ITEM_COUNTS: dict[str, int] = {
-	"access": 8,
-	"activitySpaces": 16,
-	"amenities": 13,
-	"experienceOfSpace": 10,
-	"aestheticsAndCare": 14,
-	"useAndUsability": 10,
+	domain: sum(1 for spec in ITEM_SPECS if spec.domain == domain) for domain in REPORT_DOMAIN_ORDER
 }
 
 
@@ -154,13 +142,8 @@ def _build_submission_scores(
 	if total_weight_sum <= 0:
 		return raw_domain_scores, _empty_weighted_domain_scores(), 0.0
 
-	normalized_weights = {domain: _round_2(weights[domain] / total_weight_sum) for domain in REPORT_DOMAIN_ORDER}
-	weighted_domain_scores = {
-		domain: _round_2(normalized_weights[domain] * (raw_domain_scores[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
-		for domain in REPORT_DOMAIN_ORDER
-	}
-	total_weighted_score = _round_2(sum(weighted_domain_scores.values()))
-	return raw_domain_scores, weighted_domain_scores, total_weighted_score
+	weighted = build_weighted_score_snapshot(raw_domain_scores, participant_info)
+	return raw_domain_scores, weighted["weighted_domain_scores"], weighted["total_weighted_score"]
 
 
 def _decode_audit_participant_payload(audit: Audit) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -172,13 +155,74 @@ def _decode_audit_participant_payload(audit: Audit) -> tuple[dict[str, Any], dic
 	return {}, raw_payload if isinstance(raw_payload, dict) else {}
 
 
-def _dashboard_score_result(score: dict[str, Any]) -> DashboardScoreResult:
+def _dashboard_score_result(score: LegacyScoreResult) -> DashboardScoreResult:
 	return DashboardScoreResult(
 		total_score=int(score.get("total_score", 0)),
 		section_scores={str(key): int(value) for key, value in dict(score.get("section_scores", {})).items()},
 		category_scores={str(key): int(value) for key, value in dict(score.get("category_scores", {})).items()},
 		matched_scored_answers=int(score.get("matched_scored_answers", 0)),
+		canonical_score=CanonicalScoreSnapshot.model_validate(score["canonical_score"]),
 	)
+
+
+def _validated_canonical_score(value: object) -> dict[str, Any] | None:
+	if not isinstance(value, dict):
+		return None
+	try:
+		canonical = CanonicalScoreSnapshot.model_validate(value)
+	except ValidationError:
+		return None
+	if canonical.scoring_version != SCORING_VERSION:
+		return None
+	return canonical.model_dump(mode="python")
+
+
+def _stored_canonical_score(scores_json: object) -> dict[str, Any] | None:
+	if not isinstance(scores_json, dict):
+		return None
+	direct_canonical = _validated_canonical_score(scores_json)
+	if direct_canonical is not None:
+		return direct_canonical
+	return _validated_canonical_score(scores_json.get("canonical_score"))
+
+
+def _legacy_score_result_from_canonical_score(canonical_score: dict[str, Any]) -> LegacyScoreResult:
+	canonical = CanonicalScoreSnapshot.model_validate(canonical_score)
+	return cast(
+		LegacyScoreResult,
+		{
+			"total_score": canonical.raw.total_score,
+			"section_scores": dict(canonical.raw.section_scores),
+			"category_scores": dict(canonical.raw.category_scores),
+			"matched_scored_answers": canonical.raw.matched_scored_answers,
+			"canonical_score": canonical.model_dump(mode="python"),
+		},
+	)
+
+
+def _score_from_audit_fallback(
+	*,
+	audit_scores_json: object,
+	participant_info: dict[str, Any],
+	responses: dict[str, Any],
+) -> LegacyScoreResult:
+	if responses:
+		return score_yee_responses(responses, participant_info)
+	stored_canonical = _stored_canonical_score(audit_scores_json)
+	if stored_canonical is not None:
+		return _legacy_score_result_from_canonical_score(stored_canonical)
+	return score_yee_responses({}, participant_info)
+
+
+def _canonical_score_from_submission(submission: YeeAuditSubmission) -> dict[str, Any]:
+	stored_score = _stored_canonical_score(submission.scores_json)
+	if stored_score is not None:
+		return stored_score
+	return dict(score_yee_responses(submission.responses_json, submission.participant_info_json)["canonical_score"])
+
+
+def _canonical_score_model(canonical_score: dict[str, Any]) -> CanonicalScoreSnapshot:
+	return CanonicalScoreSnapshot.model_validate(canonical_score)
 
 
 async def _repair_missing_yee_submission(
@@ -212,7 +256,7 @@ async def _repair_missing_yee_submission(
 			"section_comments": _empty_domain_scores(),
 		}
 
-	score = score_yee_responses(responses)
+	score = score_yee_responses(responses, participant_info)
 	submission = YeeAuditSubmission(
 		auditor_id=audit.auditor_profile_id,
 		place_id=audit.place_id,
@@ -220,6 +264,8 @@ async def _repair_missing_yee_submission(
 		participant_info_json=participant_info,
 		responses_json=responses,
 		section_scores_json=score["section_scores"],
+		scores_json=score["canonical_score"],
+		scoring_version=SCORING_VERSION,
 		total_score=score["total_score"],
 	)
 	session.add(submission)
@@ -278,11 +324,10 @@ async def fetch_place_comparison_groups(
 				"audits": [],
 			},
 		)
-		weights = _extract_domain_weights(submission.participant_info_json)
-		raw_domain_scores, weighted_domain_scores, total_weighted_score = _build_submission_scores(
-			submission.section_scores_json,
-			submission.participant_info_json,
-		)
+		canonical_score = _canonical_score_from_submission(submission)
+		total_raw_score = canonical_score["raw"]["total_score"]
+		raw_domain_scores = canonical_score["raw"]["domain_scores"]
+		weighted_score = canonical_score["weighted"]
 		group["audits"].append(
 			PlaceComparisonAuditItem(
 				audit_id=str(submission.id),
@@ -292,11 +337,12 @@ async def fetch_place_comparison_groups(
 				project_id=str(project.id),
 				project_name=project.name,
 				date=_format_timestamp(submission.submitted_at),
-				total_raw_score=submission.total_score,
-				total_weighted_score=total_weighted_score,
-				domain_weights=weights,
+				total_raw_score=total_raw_score,
+				total_weighted_score=weighted_score["total_weighted_score"],
+				domain_weights=weighted_score["raw_domain_weights"],
 				raw_domain_scores=raw_domain_scores,
-				weighted_domain_scores=weighted_domain_scores,
+				weighted_domain_scores=weighted_score["weighted_domain_scores"],
+				canonical_score=_canonical_score_model(canonical_score),
 			)
 		)
 
@@ -321,10 +367,10 @@ async def fetch_raw_data_rows(
 	export_rows: list[RawDataExportRow] = []
 	for submission, place, project, auditor_code, organization_name in rows:
 		participant_info = submission.participant_info_json
-		raw_domain_scores, weighted_domain_scores, total_weighted_score = _build_submission_scores(
-			submission.section_scores_json,
-			participant_info,
-		)
+		canonical_score = _canonical_score_from_submission(submission)
+		total_raw_score = canonical_score["raw"]["total_score"]
+		raw_domain_scores = canonical_score["raw"]["domain_scores"]
+		weighted_score = canonical_score["weighted"]
 		export_rows.append(
 			RawDataExportRow(
 				audit_id=str(submission.id),
@@ -349,16 +395,17 @@ async def fetch_raw_data_rows(
 				raw_experience_of_space=raw_domain_scores["experienceOfSpace"],
 				raw_aesthetics_and_care=raw_domain_scores["aestheticsAndCare"],
 				raw_use_and_usability=raw_domain_scores["useAndUsability"],
-				weighted_access=weighted_domain_scores["access"],
-				weighted_activity_spaces=weighted_domain_scores["activitySpaces"],
-				weighted_amenities=weighted_domain_scores["amenities"],
-				weighted_experience_of_space=weighted_domain_scores["experienceOfSpace"],
-				weighted_aesthetics_and_care=weighted_domain_scores["aestheticsAndCare"],
-				weighted_use_and_usability=weighted_domain_scores["useAndUsability"],
-				total_raw_score=submission.total_score,
-				total_weighted_score=total_weighted_score,
-				domain_weights=_extract_domain_weights(participant_info),
+				weighted_access=weighted_score["weighted_domain_scores"]["access"],
+				weighted_activity_spaces=weighted_score["weighted_domain_scores"]["activitySpaces"],
+				weighted_amenities=weighted_score["weighted_domain_scores"]["amenities"],
+				weighted_experience_of_space=weighted_score["weighted_domain_scores"]["experienceOfSpace"],
+				weighted_aesthetics_and_care=weighted_score["weighted_domain_scores"]["aestheticsAndCare"],
+				weighted_use_and_usability=weighted_score["weighted_domain_scores"]["useAndUsability"],
+				total_raw_score=total_raw_score,
+				total_weighted_score=weighted_score["total_weighted_score"],
+				domain_weights=weighted_score["raw_domain_weights"],
 				responses=_flatten_responses(submission.responses_json),
+				canonical_score=_canonical_score_model(canonical_score),
 			)
 		)
 	return export_rows
@@ -399,7 +446,7 @@ async def fetch_manager_audit_edit_state(
 			await session.commit()
 
 	if submission is not None:
-		score = score_yee_responses(submission.responses_json)
+		score = score_yee_responses(submission.responses_json, submission.participant_info_json)
 		return ManagerAuditEditState(
 			audit_id=str(audit.id),
 			submission_id=str(submission.id),
@@ -414,15 +461,10 @@ async def fetch_manager_audit_edit_state(
 		)
 
 	participant_info, responses = _decode_audit_participant_payload(audit)
-	score = (
-		score_yee_responses(responses)
-		if responses
-		else {
-			"total_score": _extract_score(audit.scores_json),
-			"section_scores": {},
-			"category_scores": {},
-			"matched_scored_answers": 0,
-		}
+	score = _score_from_audit_fallback(
+		audit_scores_json=audit.scores_json,
+		participant_info=participant_info,
+		responses=responses,
 	)
 	if not participant_info:
 		participant_info = {
@@ -492,7 +534,7 @@ async def update_manager_audit_edit_state(
 			raise HTTPException(status_code=400, detail="Submission does not belong to the selected audit.")
 		submission = target_submission
 
-	score = score_yee_responses(payload.responses)
+	score = score_yee_responses(payload.responses, payload.participant_info)
 	submitted_at = (
 		datetime.now(timezone.utc)
 		if payload.resubmit
@@ -511,6 +553,7 @@ async def update_manager_audit_edit_state(
 		"section_scores": score["section_scores"],
 		"category_scores": score["category_scores"],
 		"matched_scored_answers": score["matched_scored_answers"],
+		"canonical_score": score["canonical_score"],
 	}
 
 	if submission is None:
@@ -521,6 +564,8 @@ async def update_manager_audit_edit_state(
 			participant_info_json=payload.participant_info,
 			responses_json=payload.responses,
 			section_scores_json=score["section_scores"],
+			scores_json=score["canonical_score"],
+			scoring_version=SCORING_VERSION,
 			total_score=score["total_score"],
 		)
 		session.add(submission)
@@ -529,6 +574,8 @@ async def update_manager_audit_edit_state(
 		submission.participant_info_json = payload.participant_info
 		submission.responses_json = payload.responses
 		submission.section_scores_json = score["section_scores"]
+		submission.scores_json = score["canonical_score"]
+		submission.scoring_version = SCORING_VERSION
 		submission.total_score = score["total_score"]
 
 	await session.commit()

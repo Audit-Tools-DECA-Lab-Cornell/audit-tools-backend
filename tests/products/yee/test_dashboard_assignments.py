@@ -12,15 +12,12 @@ graph is not corrupted for other test files in the session-scoped DB.
 
 from __future__ import annotations
 
-import asyncio
-
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.dashboard_router as dashboard_router_module
 from tests.products.yee._helpers import (
 	SEED_AUDITOR_EMAIL,
-	SEED_MANAGER_EMAIL,
 	SEED_PASSWORD,
 	_bearer_headers,
 	_login_auditor,

@@ -55,6 +55,7 @@ from app.models import (
 	YeeAuditSubmission,
 )
 from app.products.playspace.seed_data import build_playspace_seed_entities
+from app.products.yee.services.scoring_spec import SCORING_VERSION
 from app.yee_scoring import TOTAL_CATEGORY_NAME, get_yee_instrument_data, score_yee_responses
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -330,7 +331,6 @@ def _build_yee_submission(
 	"""Assemble one scored YEE submission row matching a submitted seed audit."""
 
 	responses = _build_yee_submission_responses(quality)
-	score = score_yee_responses(cast(dict[str, object], responses))
 	participant_info = {
 		"auditor_id": auditor_code,
 		"place_id": str(place_id),
@@ -346,6 +346,7 @@ def _build_yee_submission(
 		"comments": "Seeded demo submission.",
 		"section_comments": {},
 	}
+	score = score_yee_responses(cast(dict[str, object], responses), participant_info)
 	return YeeAuditSubmission(
 		id=submission_id,
 		auditor_id=auditor_id,
@@ -354,6 +355,8 @@ def _build_yee_submission(
 		participant_info_json=participant_info,
 		responses_json=responses,
 		section_scores_json=score["section_scores"],
+		scores_json=score["canonical_score"],
+		scoring_version=SCORING_VERSION,
 		total_score=int(cast(int, score["total_score"])),
 	)
 

@@ -50,26 +50,25 @@ The frontend uses route guards and role-aware layouts, but backend access checks
 
 ### Manager
 
-- `/dashboard`
-- `/dashboard/projects`
-- `/dashboard/projects/new`
-- `/dashboard/projects/[projectId]`
-- `/dashboard/places`
-- `/dashboard/places/new`
-- `/dashboard/places/[placeId]`
-- `/dashboard/auditors`
-- `/dashboard/auditors/invite`
-- `/dashboard/audits`
-- `/dashboard/raw-data`
-- `/dashboard/reports`
-- `/dashboard/settings`
+- `/manager`
+- `/manager/projects`
+- `/manager/projects/new`
+- `/manager/projects/[projectId]`
+- `/manager/places`
+- `/manager/places/new`
+- `/manager/places/[placeId]`
+- `/manager/auditors`
+- `/manager/auditors/invite`
+- `/manager/audits`
+- `/manager/raw-data`
+- `/manager/reports`
+- `/manager/settings`
 
 ### Auditor
 
-- `/my-dashboard`
-- `/my-dashboard/places`
-- `/my-dashboard/audits`
-- `/my-dashboard/settings`
+- `/auditor`
+- `/auditor/places`
+- `/auditor/settings`
 - `/yee/introduction`
 - `/yee/audit/[placeId]/page/1` through `/page/8`
 - `/yee/audit/[placeId]/review`
@@ -98,8 +97,8 @@ Expected routing behavior:
 Role dashboard mapping:
 
 - `ADMIN -> /admin`
-- `MANAGER -> /dashboard`
-- `AUDITOR -> /my-dashboard`
+- `MANAGER -> /manager`
+- `AUDITOR -> /auditor`
 
 ## Account Scope Rules
 

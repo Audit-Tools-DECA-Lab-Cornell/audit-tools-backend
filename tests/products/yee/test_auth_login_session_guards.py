@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 
 from tests.products.yee._helpers import (
-	SEED_AUDITOR_EMAIL,
 	SEED_MANAGER_EMAIL,
 	SEED_PASSWORD,
 	_bearer_headers,
@@ -119,7 +118,6 @@ def test_login_unapproved_user_gets_token_with_waiting_approval(
 	managers), verify the email, then flip ``approved`` to False in the DB
 	before logging in.
 	"""
-	import app.auth as auth_module
 	from sqlalchemy import select
 	from app.models import User
 

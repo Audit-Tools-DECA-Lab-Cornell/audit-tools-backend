@@ -35,7 +35,7 @@ def test_seeded_manager_can_login_to_manager_dashboard(yee_client: TestClient) -
 	assert response.status_code == 200, response.text
 	assert response.json()["user"]["account_type"] == "MANAGER"
 	assert response.json()["user"]["is_primary_manager"] is True
-	assert response.json()["user"]["dashboard_path"] == "/dashboard"
+	assert response.json()["user"]["dashboard_path"] == "/manager"
 
 
 def test_demo_manager_login_is_restored_if_user_row_drifts(
@@ -467,7 +467,7 @@ def test_manager_can_create_auditor_profile_for_self(
 	session_response = yee_client.get("/yee/auth/me", headers=manager_headers)
 	assert session_response.status_code == 200, session_response.text
 	assert session_response.json()["user"]["has_auditor_profile"] is True
-	assert session_response.json()["user"]["auditor_dashboard_path"] == "/my-dashboard"
+	assert session_response.json()["user"]["auditor_dashboard_path"] == "/auditor"
 	my_audits = yee_client.get("/yee/my-audits", headers=manager_headers)
 	assert my_audits.status_code == 200, my_audits.text
 

@@ -10,10 +10,8 @@ latest_audits entries.
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.products.yee._helpers import (
-	SEED_AUDITOR_EMAIL,
 	SEED_MANAGER_EMAIL,
 	SEED_PASSWORD,
 	_bearer_headers,

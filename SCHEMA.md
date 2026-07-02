@@ -279,6 +279,8 @@ execution flow can evolve independently.
 | `participant_info_json` | JSONB participant metadata                     |
 | `responses_json`        | JSONB response payload                         |
 | `section_scores_json`   | JSONB per-section scores                       |
+| `scores_json`           | JSONB canonical score snapshot                 |
+| `scoring_version`       | Score algorithm version, defaults to `yee_v2`  |
 | `total_score`           | Integer total                                  |
 
 ---

@@ -126,6 +126,8 @@ def test_duplicate_submission_rows_blocked_at_database_level(
 						participant_info_json={},
 						responses_json={"QID22": "3"},
 						section_scores_json={},
+						scores_json={},
+						scoring_version="yee_v2",
 						total_score=0,
 					)
 				)

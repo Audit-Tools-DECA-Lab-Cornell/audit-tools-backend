@@ -16,14 +16,12 @@ the real source in dashboard_router.py and products/yee/routes/instrument.py.
 
 from __future__ import annotations
 
-import uuid
 from typing import Literal
 
 import pytest
 from fastapi.testclient import TestClient
 
 from tests.products.yee._helpers import (
-	SEED_AUDITOR_EMAIL,
 	SEED_MANAGER_EMAIL,
 	SEED_PASSWORD,
 	_bearer_headers,

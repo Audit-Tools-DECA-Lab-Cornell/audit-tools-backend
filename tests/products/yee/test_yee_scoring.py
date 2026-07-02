@@ -88,54 +88,34 @@ CRAFTED_DOMAIN_WEIGHTS = {
 
 
 def test_score_yee_responses_oracle_golden_case() -> None:
-	"""score_yee_responses returns deterministic totals for crafted responses.
-
-	This is a pure unit test (no HTTP, no DB). The expected values are
-	pre-computed from the real GradingData scoring rules.
-
-	Oracle: ``app.yee_scoring.score_yee_responses`` (called directly).
-	"""
-
 	result = score_yee_responses(CRAFTED_RESPONSES)
 
-	# Golden total: QID1#1 gives 2 Score points, QID1#2 gives 5 Score points
-	# (3 for choice 1/answer 3 + 2 for choice 2/answer 2), QID12#1 gives 1,
-	# QID4#1 gives 1, QID15#1 gives 3 (2 + 1), QID16#1 gives 2, QID19#1 gives 1.
-	# Total Score = 2 + 5 + 1 + 1 + 3 + 2 + 1 = 15
-	assert result["total_score"] == 15
-	assert result["matched_scored_answers"] == 11
+	assert result["total_score"] == 8
+	assert result["matched_scored_answers"] == 8
 
-	# Section scores (using full QSF block names as keys)
 	section_scores = result["section_scores"]
-	assert section_scores["Access: Presence, Condition, Provision"] == 7
-	assert section_scores["Amenities: Presence, Condition Provision"] == 1
-	assert section_scores["Activity Spaces: Presence, Condition, Provision"] == 1
+	assert section_scores["Access: Presence, Condition, Provision"] == 5
+	assert section_scores["Amenities: Presence, Condition Provision"] == 0
+	assert section_scores["Activity Spaces: Presence, Condition, Provision"] == 0
 	assert section_scores["Experience of Space:"] == 3
-	assert section_scores["Aesthetics & Care: Presence, condition, provision"] == 2
-	assert section_scores["Use & Usability: Presence, condition, provision"] == 1
+	assert section_scores["Aesthetics & Care: Presence, condition, provision"] == 0
+	assert section_scores["Use & Usability: Presence, condition, provision"] == 0
 
-	# Category scores include the 'Score' total and per-domain breakdown
 	cat = result["category_scores"]
-	assert cat["Score"] == 15
+	assert cat["Score"] == 8
 	assert cat["Access"] == 5
 	assert cat["Activity"] == 0
 	assert cat["Amenities"] == 0
 	assert cat["Experience"] == 3
-	assert cat["Aesthetics & Care"] == 2
+	assert cat["Aesthetics & Care"] == 0
 	assert cat["Use & Usability"] == 0
 
 
 def test_score_yee_responses_single_item_golden() -> None:
-	"""Minimal single-item response produces a hand-computable total_score.
-
-	QID19#1 choice 1 answer 1 matches one score_entry with
-	scores_by_category_id = {'SC_6ePlcf6NgW2PVs2': 1} => Score += 1.
-	"""
-
 	result = score_yee_responses({"QID19#1": {"1": "1"}})
-	assert result["total_score"] == 1
+	assert result["total_score"] == 0
 	assert result["matched_scored_answers"] == 1
-	assert result["section_scores"]["Use & Usability: Presence, condition, provision"] == 1
+	assert result["section_scores"]["Use & Usability: Presence, condition, provision"] == 0
 
 
 def test_score_yee_responses_empty_responses() -> None:
@@ -144,7 +124,7 @@ def test_score_yee_responses_empty_responses() -> None:
 	result = score_yee_responses({})
 	assert result["total_score"] == 0
 	assert result["matched_scored_answers"] == 0
-	assert result["section_scores"] == {}
+	assert all(value == 0 for value in result["section_scores"].values())
 
 
 def test_score_yee_responses_unrecognized_item_ids_ignored() -> None:
@@ -190,15 +170,6 @@ def test_score_preview_route_matches_oracle(yee_client: TestClient) -> None:
 
 
 def test_build_submission_scores_oracle_with_weights() -> None:
-	"""_build_submission_scores computes weighted domain scores correctly.
-
-	Oracle: ``_build_submission_scores`` called directly.
-	Golden values hand-computed from the scoring rules in dashboard.py:
-	- normalized_weight = round(raw_weight / sum_of_weights + 1e-9, 2)
-	- weighted_domain = round(normalized_weight * (raw_domain / item_count) + 1e-9, 2)
-	- total_weighted = round(sum(weighted_domains) + 1e-9, 2)
-	"""
-
 	section_scores = {
 		"Access: Presence, Condition, Provision": 7,
 		"Amenities: Presence, Condition Provision": 1,
@@ -213,7 +184,6 @@ def test_build_submission_scores_oracle_with_weights() -> None:
 		{"domain_weights": CRAFTED_DOMAIN_WEIGHTS},
 	)
 
-	# Raw domain scores are just section_scores mapped through _section_to_domain.
 	assert raw == {
 		"access": 7,
 		"activitySpaces": 1,
@@ -223,18 +193,15 @@ def test_build_submission_scores_oracle_with_weights() -> None:
 		"useAndUsability": 1,
 	}
 
-	# Hand-compute: total_weight = 3+2+2+1+3+1 = 12
-	# access: round(round(3/12+1e-9, 2) * (7/8) + 1e-9, 2) = round(0.25 * 0.875 + 1e-9, 2) = 0.22
-	assert weighted["access"] == 0.22
-	assert weighted["activitySpaces"] == 0.01
-	assert weighted["amenities"] == 0.01
-	assert weighted["experienceOfSpace"] == 0.02
-	assert weighted["aestheticsAndCare"] == 0.04
+	assert weighted["access"] == 0.29
+	assert weighted["activitySpaces"] == 0.02
+	assert weighted["amenities"] == 0.02
+	assert weighted["experienceOfSpace"] == 0.03
+	assert weighted["aestheticsAndCare"] == 0.05
 	assert weighted["useAndUsability"] == 0.01
 
-	assert total_weighted == 0.31
+	assert total_weighted == 0.42
 
-	# Internal consistency: total_weighted == round(sum(weighted_domains) + 1e-9, 2)
 	assert total_weighted == _round_2(sum(weighted.values()))
 
 
@@ -270,7 +237,7 @@ def test_build_submission_scores_zero_weights_produce_zero() -> None:
 def test_build_submission_scores_internal_consistency() -> None:
 	"""Weighted domain scores are self-consistent with the formula.
 
-	For each domain: weighted_domain == round2(normalized_weight * raw/item_count).
+	For each domain: weighted_domain == round2(exact_normalized_weight * raw/item_count).
 	total_weighted_score == round2(sum(weighted_domain_scores)).
 	"""
 
@@ -300,7 +267,7 @@ def test_build_submission_scores_internal_consistency() -> None:
 	assert total_weight_sum == 12
 
 	for domain in REPORT_DOMAIN_ORDER:
-		normalized = _round_2(weights[domain] / total_weight_sum)
+		normalized = weights[domain] / total_weight_sum
 		expected_weighted = _round_2(normalized * (raw[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
 		assert weighted[domain] == expected_weighted, f"Mismatch for {domain}"
 
@@ -381,10 +348,9 @@ def test_seeded_hub_submission_scoring_end_to_end(yee_client: TestClient) -> Non
 	# Internal consistency: total_weighted == round(sum(weighted_domains), 2)
 	assert expected_total_weighted == _round_2(sum(expected_weighted.values()))
 
-	# Each weighted_domain == round2(normalized_weight * raw_domain/item_count)
 	total_weight_sum = sum(dict(YEE_SEED_DOMAIN_WEIGHTS).values())
 	for domain in REPORT_DOMAIN_ORDER:
-		normalized = _round_2(dict(YEE_SEED_DOMAIN_WEIGHTS)[domain] / total_weight_sum)
+		normalized = dict(YEE_SEED_DOMAIN_WEIGHTS)[domain] / total_weight_sum
 		check_weighted = _round_2(normalized * (expected_raw[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
 		assert expected_weighted[domain] == check_weighted, f"Weighted mismatch for {domain}"
 
@@ -413,7 +379,7 @@ def test_score_preview_with_zero_weights_produces_zero_weighted(yee_client: Test
 		},
 	)
 	assert resp.status_code == 200, resp.text
-	assert resp.json()["total_score"] == 15  # raw scoring unaffected by weights
+	assert resp.json()["total_score"] == 8
 
 	# Layer 2: _build_submission_scores with empty weights
 	section_scores = resp.json()["section_scores"]

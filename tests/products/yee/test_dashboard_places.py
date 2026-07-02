@@ -21,7 +21,6 @@ from app.seed import (
 	YEE_PROJECT_CORE_ID,
 )
 from tests.products.yee._helpers import (
-	SEED_AUDITOR_EMAIL,
 	SEED_MANAGER_EMAIL,
 	SEED_PASSWORD,
 	_bearer_headers,

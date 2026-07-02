@@ -1224,6 +1224,8 @@ class YeeAuditSubmission(Base):
 	participant_info_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	responses_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+	scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
+	scoring_version: Mapped[str] = mapped_column(String(32), default="yee_v2", nullable=False)
 	total_score: Mapped[int] = mapped_column(nullable=False)
 	# Idempotency key from the submitting client. A replay carrying this same key
 	# after an ambiguous network failure returns this submission instead of a

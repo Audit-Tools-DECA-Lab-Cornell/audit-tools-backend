@@ -213,8 +213,8 @@ def _dashboard_path_for_account_type(account_type: AccountType) -> str:
 	if account_type == AccountType.ADMIN:
 		return "/admin"
 	if account_type == AccountType.AUDITOR:
-		return "/my-dashboard"
-	return "/dashboard"
+		return "/auditor"
+	return "/manager"
 
 
 def _next_step_for_user(user: User) -> str:
@@ -258,7 +258,7 @@ async def _serialize_auth_user(session: AsyncSession, user: User) -> AuthUser:
 		account_type=user.account_type,
 		is_primary_manager=await _is_primary_manager(session, user),
 		has_auditor_profile=has_auditor_profile,
-		auditor_dashboard_path="/my-dashboard" if has_auditor_profile else None,
+		auditor_dashboard_path="/auditor" if has_auditor_profile else None,
 		email_verified=user.email_verified,
 		approved=user.approved,
 		profile_completed=user.profile_completed,

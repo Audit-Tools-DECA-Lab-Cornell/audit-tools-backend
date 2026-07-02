@@ -47,6 +47,7 @@ from app.products.yee.services.audits import (
 	_score_result_from_dict,
 	_submission_response,
 )
+from app.products.yee.services.scoring_spec import SCORING_VERSION
 from app.products.yee.services.scoring import score_yee_responses
 
 router = APIRouter()
@@ -74,7 +75,7 @@ async def list_my_yee_audits(
 			place_id=submission.place_id,
 			place_name=place_name,
 			submitted_at=submission.submitted_at,
-			total_score=submission.total_score,
+			total_score=score_yee_responses(submission.responses_json, submission.participant_info_json)["total_score"],
 		)
 		for submission, place_name in rows
 	]
@@ -101,7 +102,7 @@ async def get_yee_audit_state(
 	)
 	submission = (await session.execute(submission_stmt)).scalars().first()
 	if submission is not None:
-		score = score_yee_responses(submission.responses_json)
+		score = score_yee_responses(submission.responses_json, submission.participant_info_json)
 		return _build_state_response(
 			place=place,
 			auditor=auditor,
@@ -116,7 +117,7 @@ async def get_yee_audit_state(
 	draft_audit = await _get_draft_audit(session, auditor=auditor, place_id=place_id)
 	if draft_audit is not None:
 		participant_info, responses = _decode_draft_payload(draft_audit)
-		score = score_yee_responses(responses)
+		score = score_yee_responses(responses, participant_info)
 		return _build_state_response(
 			place=place,
 			auditor=auditor,
@@ -159,7 +160,7 @@ async def save_yee_draft(
 	if existing_audit is not None and existing_audit.status == AuditStatus.SUBMITTED:
 		raise HTTPException(status_code=409, detail="This audit has already been submitted and is locked.")
 
-	score = score_yee_responses(payload.responses)
+	score = score_yee_responses(payload.responses, payload.participant_info)
 	if existing_audit is None:
 		existing_audit = Audit(
 			project_id=assignment.project_id,
@@ -183,6 +184,7 @@ async def save_yee_draft(
 		"section_scores": score["section_scores"],
 		"category_scores": score["category_scores"],
 		"matched_scored_answers": score["matched_scored_answers"],
+		"canonical_score": score["canonical_score"],
 	}
 
 	await session.commit()
@@ -203,8 +205,8 @@ async def save_yee_draft(
 def preview_yee_score(payload: SubmitYeeAuditRequest) -> ScoreResult:
 	"""Compute scores without persisting an audit submission."""
 
-	score = score_yee_responses(payload.responses)
-	return ScoreResult(**score)
+	score = score_yee_responses(payload.responses, payload.participant_info)
+	return _score_result_from_dict(score)
 
 
 @router.post(
@@ -243,7 +245,7 @@ async def submit_yee_audit(
 			response=response,
 		)
 
-	score = score_yee_responses(payload.responses)
+	score = score_yee_responses(payload.responses, payload.participant_info)
 	audit = await _get_latest_yee_audit(session, auditor=auditor, place_id=payload.place_id)
 	if audit is None:
 		audit = Audit(
@@ -268,6 +270,7 @@ async def submit_yee_audit(
 		"section_scores": score["section_scores"],
 		"category_scores": score["category_scores"],
 		"matched_scored_answers": score["matched_scored_answers"],
+		"canonical_score": score["canonical_score"],
 	}
 	audit.summary_score = float(int(score["total_score"]))
 
@@ -277,6 +280,8 @@ async def submit_yee_audit(
 		participant_info_json=payload.participant_info,
 		responses_json=payload.responses,
 		section_scores_json=score["section_scores"],
+		scores_json=score["canonical_score"],
+		scoring_version=SCORING_VERSION,
 		total_score=score["total_score"],
 		submit_idempotency_key=payload.idempotency_key,
 	)
@@ -330,7 +335,7 @@ async def get_yee_submission(
 
 	# Recompute score from stored responses so this endpoint always returns
 	# the same full scoring shape as /yee/audits and /yee/audits/score.
-	score = score_yee_responses(submission.responses_json)
+	score = score_yee_responses(submission.responses_json, submission.participant_info_json)
 	return YeeAuditSubmissionResponse(
 		id=submission.id,
 		place_id=submission.place_id,
@@ -340,5 +345,5 @@ async def get_yee_submission(
 		submitted_at=submission.submitted_at,
 		participant_info=submission.participant_info_json,
 		responses=submission.responses_json,
-		score=ScoreResult(**score),
+		score=_score_result_from_dict(score),
 	)
