@@ -19,6 +19,15 @@ Parsing and score application are implemented in:
 
 - `app/yee_scoring.py`
 
+> **Note (2026-07, stale section):** The live scoring engine no longer interprets
+> the QSF at runtime. Question scoring is computed from the hardcoded spec in
+> `app/products/yee/services/scoring_spec.py` (`SCORING_VERSION = "yee_v2"`), and
+> the `app/yee_scoring.py` QSF loader now only feeds instrument
+> **rendering/versioning** (the `instruments` table + admin editor), not score
+> computation. Editing instrument content therefore does not change computed
+> scores; the algorithm tag is stamped on each submission as
+> `yee_audit_submissions.scoring_version`.
+
 ## Layer 1: Question-Level Scoring
 
 ### What happens

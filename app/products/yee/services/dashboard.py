@@ -312,10 +312,18 @@ async def fetch_place_comparison_groups(
 ) -> list[PlaceComparisonGroup]:
 	rows = await fetch_reporting_rows(session, project_scope)
 	grouped: dict[str, dict[str, Any]] = defaultdict(dict)
+	# A place linked to more than one project in scope yields the same submission
+	# once per ProjectPlace row (the join in fetch_reporting_rows). Track the
+	# submissions already added to each place group so a report is listed once.
+	seen_submissions: dict[str, set[str]] = defaultdict(set)
 
 	for submission, place, project, auditor_code, _organization_name in rows:
+		place_key = str(place.id)
+		if str(submission.id) in seen_submissions[place_key]:
+			continue
+		seen_submissions[place_key].add(str(submission.id))
 		group = grouped.setdefault(
-			str(place.id),
+			place_key,
 			{
 				"place_id": str(place.id),
 				"place_name": place.name,

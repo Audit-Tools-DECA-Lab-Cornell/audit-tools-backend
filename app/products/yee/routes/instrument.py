@@ -17,10 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_auth_session, get_current_user
 from app.models import User
 from app.products.yee.schemas.instrument import (
+	ScoringCompatibilityReport,
 	SiteCopyCreateRequest,
 	SiteCopyVersionResponse,
 	YeeInstrumentActivateRequest,
 	YeeInstrumentCreateRequest,
+	YeeInstrumentValidateRequest,
 	YeeInstrumentVersionResponse,
 )
 from app.products.yee.services.instrument import (
@@ -34,6 +36,7 @@ from app.products.yee.services.instrument import (
 	_update_yee_instrument_status,
 )
 from app.products.yee.services.scoring import get_yee_instrument_data
+from app.products.yee.services.scoring_contract import validate_scoring_compatibility
 from app.yee_instrument_schema import YeeInstrumentResponse
 
 router = APIRouter()
@@ -135,10 +138,26 @@ async def admin_update_site_copy_version(
 	return SiteCopyVersionResponse.model_validate(row)
 
 
+@router.post("/admin/instruments/validate", response_model=ScoringCompatibilityReport)
+async def admin_validate_yee_instrument_scoring(
+	data: YeeInstrumentValidateRequest,
+	user: User = Depends(get_current_user),
+) -> ScoringCompatibilityReport:
+	"""Dry-run scoring-compatibility check for a candidate instrument content.
+
+	Lets the admin editor confirm a draft can be scored before publishing,
+	without creating a version.
+	"""
+
+	_require_admin(user)
+	return validate_scoring_compatibility(data.content)
+
+
 @router.post("/admin/instruments", response_model=YeeInstrumentVersionResponse, status_code=status.HTTP_201_CREATED)
 async def admin_create_yee_instrument(
 	data: YeeInstrumentCreateRequest,
 	activate: bool = True,
+	force: bool = False,
 	user: User = Depends(get_current_user),
 	session: AsyncSession = Depends(get_auth_session),
 ) -> YeeInstrumentVersionResponse:
@@ -149,7 +168,7 @@ async def admin_create_yee_instrument(
 		instrument_version=data.instrument_version,
 		content=validated_content,
 	)
-	row = await _create_yee_instrument_version(session, validated_data, activate)
+	row = await _create_yee_instrument_version(session, validated_data, activate, force=force)
 	return YeeInstrumentVersionResponse.model_validate(
 		{
 			"id": row.id,
@@ -167,11 +186,12 @@ async def admin_create_yee_instrument(
 async def admin_update_yee_instrument(
 	instrument_id: uuid.UUID,
 	data: YeeInstrumentActivateRequest,
+	force: bool = False,
 	user: User = Depends(get_current_user),
 	session: AsyncSession = Depends(get_auth_session),
 ) -> YeeInstrumentVersionResponse:
 	_require_admin(user)
-	row = await _update_yee_instrument_status(session, instrument_id, data)
+	row = await _update_yee_instrument_status(session, instrument_id, data, force=force)
 	if row is None:
 		raise HTTPException(status_code=404, detail="Instrument not found")
 	return YeeInstrumentVersionResponse.model_validate(

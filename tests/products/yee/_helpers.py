@@ -14,13 +14,13 @@ from datetime import datetime, timedelta, timezone
 from typing import TypedDict
 
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.auth as auth_module
 from app.auth_security import hash_verification_token
 from app.demo_account_reconciler import reconcile_protected_yee_demo_accounts
-from app.models import Account, Auditor, ManagerInvite, ManagerProfile, User
+from app.models import Account, Auditor, ManagerInvite, ManagerProfile, Project, User
 
 # Matches the deterministic YEE seed (see app/seed.py).
 SEED_AUDITOR_EMAIL = "auditor-demo-1@yee.local"
@@ -197,7 +197,28 @@ async def _delete_user_by_email(
 	"""Delete one user row to simulate auth drift in the live database."""
 
 	async with session_factory() as session:
-		await session.execute(delete(User).where(User.email == email))
+		user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+		if user is None:
+			return
+		if user.account_id is not None:
+			replacement_id = (
+				await session.execute(
+					select(User.id)
+					.where(
+						User.account_id == user.account_id,
+						User.id != user.id,
+					)
+					.order_by(User.created_at.asc())
+					.limit(1)
+				)
+			).scalar_one_or_none()
+			if replacement_id is not None:
+				await session.execute(
+					update(Project)
+					.where(Project.created_by_user_id == user.id)
+					.values(created_by_user_id=replacement_id)
+				)
+		await session.execute(delete(User).where(User.id == user.id))
 		await session.commit()
 
 

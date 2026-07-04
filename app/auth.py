@@ -241,10 +241,23 @@ async def _is_primary_manager(session: AsyncSession, user: User) -> bool:
 
 
 async def _has_auditor_profile(session: AsyncSession, user: User) -> bool:
-	"""Return whether the user already has an auditor profile row."""
+	"""Return whether the user has a usable auditor profile row.
 
-	result = await session.execute(select(Auditor.id).where(Auditor.user_id == user.id).limit(1))
-	return result.scalar_one_or_none() is not None
+	A manager's self auditor profile only counts when it belongs to their own
+	organization, mirroring the field-access gate in
+	``_get_current_yee_auditor_actor``. Otherwise the auditor-view switch (web)
+	and mobile field workflows would admit a manager whose profile every audit
+	endpoint then rejects with a 403.
+	"""
+
+	result = await session.execute(select(Auditor.account_id).where(Auditor.user_id == user.id).limit(1))
+	row = result.first()
+	if row is None:
+		return False
+	if user.account_type == AccountType.MANAGER and user.account_id is not None:
+		(auditor_account_id,) = row
+		return auditor_account_id == user.account_id
+	return True
 
 
 async def _serialize_auth_user(session: AsyncSession, user: User) -> AuthUser:

@@ -45,6 +45,24 @@ tables. Ownership of a table is the single source of truth in
 
 ## 1. Shared Core Tables
 
+> **Tenancy & ownership model — product invariant (NOT a database constraint).**
+> Accounts, projects, and places form a strict ownership tree:
+>
+> - a **place** belongs to exactly **one project**,
+> - a **project** belongs to exactly **one account**,
+> - therefore a **place** belongs to exactly **one account**.
+>
+> No place is ever shared across projects, and no project or place is ever
+> shared across accounts. This holds by how the product is operated — it is
+> **not** enforced by DB constraints (`project_places` is physically a
+> many-to-many join, but is only ever used one-to-one). **Do not add
+> enforcement, and do not write code (or file review findings) for
+> "shared place / cross-account" edge cases.** Because of this, an access check
+> of the form "the submission's place sits in one of my account's projects" is
+> equivalent to "this submission belongs to my account" (see
+> `_manager_can_view_submission`). Applies to **both** YEE and Playspace; the
+> same rule lives in the yee auto-memory and `playspace/.claude/memory/`.
+
 ### `accounts`
 
 Workspace/account record shared across products.
@@ -193,7 +211,10 @@ Places are shared place records that can be linked to multiple projects.
 
 ### `project_places`
 
-Join table linking places to projects.
+Join table linking places to projects. Physically many-to-many, but by product
+invariant used strictly one-to-one — a place is linked to exactly one project
+(see the tenancy note at the top of section 1). Do not rely on, or code for,
+a place being linked to more than one project.
 
 | Column       | Notes                                   |
 | ------------ | --------------------------------------- |
@@ -237,7 +258,7 @@ Shared instrument-version table used by both products. Playspace admins manage P
 | `updated_at`           |                                                                   |
 | `activated_at`         | Nullable timestamp for the active transition                      |
 
-Active seed instruments are root versions (`parent_instrument_id = NULL`). Draft versions created from an existing version store that parent id while inactive; activating a draft clears the parent id. Deleting an inactive parent leaves child drafts as root versions because the self-FK uses `ON DELETE SET NULL`. Active versions are protected from deletion by the service layer.
+Active seed instruments are root versions (`parent_instrument_id = NULL`). Draft versions created from an existing version store that parent id while inactive; activating a draft clears the parent id. Deleting an inactive parent leaves child drafts as root versions because the self-FK uses `ON DELETE SET NULL`. Active versions are protected from deletion by the service layer. For YEE, inactive versions still referenced by any audit (a submitted `yee_audit_submissions` row or an in-progress `audits` draft) are likewise protected (`409`), so historical reports keep the instrument definition they were taken against.
 
 ### `audits`
 
@@ -281,7 +302,15 @@ execution flow can evolve independently.
 | `section_scores_json`   | JSONB per-section scores                       |
 | `scores_json`           | JSONB canonical score snapshot                 |
 | `scoring_version`       | Score algorithm version, defaults to `yee_v2`  |
+| `instrument_key`        | Instrument key stamped at submit (nullable)    |
+| `instrument_version`    | Instrument definition version the audit used (nullable) |
 | `total_score`           | Integer total                                  |
+
+New submissions (and their drafts) are stamped with the then-active instrument's
+`(instrument_key, instrument_version)` at creation, mirroring `playspace_submissions`,
+so historical audits resolve against the version they were taken on. A version
+referenced by any YEE audit — a submitted row here or an in-progress `audits`
+draft — cannot be deleted (`409`).
 
 ---
 

@@ -50,6 +50,15 @@ Mounted in `app/main.py`:
 | `/playspace/api/notifications/*`   | `app/notifications_router.py`    | Playspace in-app notifications                                          |
 | `/health`, `/`                     | `app/main.py`                    | Health check + root                                                     |
 
+Cross-surface notes:
+
+- `GET /yee/audits/{submission_id}` serves both product surfaces: auditors read
+  their own submissions (owner-gated); managers read any submission whose place
+  is in a project their account owns (no auditor profile needed); admins read all.
+  The web report viewer at `/yee/submissions/[id]` relies on this for all roles.
+- YEE auth responses expose `has_auditor_profile`; `yee-mobile` uses it to accept
+  manager users who own a self auditor profile into the auditor field workflows.
+
 ## CORS
 
 `app/main.py` → `_resolve_cors_origins()` allow-lists localhost, the Render

@@ -4,8 +4,10 @@ Database engines and async session dependencies for product databases.
 
 from __future__ import annotations
 
+import ssl
 from collections.abc import AsyncIterator
 
+import certifi
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import (
@@ -53,7 +55,7 @@ def _normalize_postgres_sqlalchemy_url(raw_url: str) -> tuple[URL, dict[str, obj
 		"verify-ca",
 		"verify-full",
 	}:
-		connect_args["ssl"] = True
+		connect_args["ssl"] = ssl.create_default_context(cafile=certifi.where())
 		connect_args["statement_cache_size"] = 0
 
 	return sqlalchemy_url.set(query=url_query), connect_args

@@ -1089,10 +1089,8 @@ async def _fetch_users(session: AsyncSession, current_user: User) -> list[UserLi
 		UserListItem(
 			id=str(user.id),
 			name=(
-				_display_auditor_code(auditor_code)
-				if current_user.account_type == AccountType.ADMIN
-				and user.account_type == AccountType.AUDITOR
-				and auditor_code
+				_display_auditor_code(auditor_code or "AUD-PENDING")
+				if current_user.account_type == AccountType.ADMIN and user.account_type == AccountType.AUDITOR
 				else user.name or user.email
 			),
 			email=""

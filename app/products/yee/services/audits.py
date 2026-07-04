@@ -23,6 +23,7 @@ from app.models import (
 	AuditStatus,
 	Auditor,
 	Place,
+	Project,
 	ProjectPlace,
 	User,
 	YeeAuditSubmission,
@@ -33,6 +34,7 @@ from app.products.yee.schemas.audits import (
 	YeeAuditStateResponse,
 	YeeAuditSubmissionResponse,
 )
+from app.products.yee.services.instrument import _get_active_yee_instrument
 from app.products.yee.services.scoring import score_yee_responses
 from app.products.yee.services.scoring_types import LegacyScoreResult
 
@@ -130,6 +132,35 @@ async def _get_current_yee_auditor_actor(session: AsyncSession, user: User) -> A
 	return auditor
 
 
+async def _manager_can_view_submission(
+	session: AsyncSession,
+	*,
+	account_id: uuid.UUID,
+	place_id: uuid.UUID,
+) -> bool:
+	"""True when the submission's place sits in a project owned by the manager's account.
+
+	Mirrors the dashboard reporting scope (``Project.account_id`` match), so a
+	manager can open exactly the submissions their reports pages list.
+
+	By product invariant a place belongs to exactly one project and a project to
+	exactly one account (no shared places / cross-account sharing — see SCHEMA.md
+	section 1), so "place is in one of my account's projects" is equivalent to
+	"this submission belongs to my account." Do not add shared-place handling here.
+	"""
+
+	stmt = (
+		select(ProjectPlace.place_id)
+		.join(Project, Project.id == ProjectPlace.project_id)
+		.where(
+			ProjectPlace.place_id == place_id,
+			Project.account_id == account_id,
+		)
+		.limit(1)
+	)
+	return (await session.execute(stmt)).first() is not None
+
+
 async def _get_assigned_place(
 	session: AsyncSession,
 	*,
@@ -156,6 +187,19 @@ async def _get_assigned_place(
 	if row is None:
 		raise HTTPException(status_code=403, detail="This place is not assigned to you.")
 	return row._tuple()
+
+
+async def _resolve_active_instrument_stamp(session: AsyncSession, instrument_key: str = "yee") -> tuple[str, str]:
+	"""Return the (key, version) to stamp on a new audit, from the active instrument.
+
+	Stamps are copied by value at audit-creation time so a submission stays bound
+	to the instrument version it was started on, even if a newer version is
+	published later. Falls back to version "1" (the bootstrap version) when no
+	active instrument row exists yet, so audit creation never fails on a fresh DB.
+	"""
+	active = await _get_active_yee_instrument(session, instrument_key)
+	version = active.instrument_version if active is not None else "1"
+	return instrument_key, version
 
 
 def _decode_draft_payload(audit: Audit) -> tuple[dict[str, Any], dict[str, Any]]:

@@ -42,7 +42,9 @@ from app.products.yee.services.audits import (
 	_get_current_yee_auditor_actor,
 	_get_draft_audit,
 	_get_latest_yee_audit,
+	_manager_can_view_submission,
 	_public_auditor_id,
+	_resolve_active_instrument_stamp,
 	_resolve_existing_submission,
 	_score_result_from_dict,
 	_submission_response,
@@ -162,13 +164,14 @@ async def save_yee_draft(
 
 	score = score_yee_responses(payload.responses, payload.participant_info)
 	if existing_audit is None:
+		instrument_key, instrument_version = await _resolve_active_instrument_stamp(session)
 		existing_audit = Audit(
 			project_id=assignment.project_id,
 			place_id=place_id,
 			auditor_profile_id=auditor.id,
 			audit_code=f"YEE-{uuid.uuid4().hex[:8].upper()}",
-			instrument_key="yee",
-			instrument_version="1",
+			instrument_key=instrument_key,
+			instrument_version=instrument_version,
 			status=AuditStatus.IN_PROGRESS,
 		)
 		session.add(existing_audit)
@@ -246,6 +249,7 @@ async def submit_yee_audit(
 		)
 
 	score = score_yee_responses(payload.responses, payload.participant_info)
+	active_instrument_key, active_instrument_version = await _resolve_active_instrument_stamp(session)
 	audit = await _get_latest_yee_audit(session, auditor=auditor, place_id=payload.place_id)
 	if audit is None:
 		audit = Audit(
@@ -253,8 +257,8 @@ async def submit_yee_audit(
 			place_id=payload.place_id,
 			auditor_profile_id=auditor.id,
 			audit_code=f"YEE-{uuid.uuid4().hex[:8].upper()}",
-			instrument_key="yee",
-			instrument_version="1",
+			instrument_key=active_instrument_key,
+			instrument_version=active_instrument_version,
 			status=AuditStatus.SUBMITTED,
 		)
 		session.add(audit)
@@ -284,6 +288,8 @@ async def submit_yee_audit(
 		scoring_version=SCORING_VERSION,
 		total_score=score["total_score"],
 		submit_idempotency_key=payload.idempotency_key,
+		instrument_key=audit.instrument_key or active_instrument_key,
+		instrument_version=audit.instrument_version or active_instrument_version,
 	)
 	session.add(submission)
 	try:
@@ -322,11 +328,25 @@ async def get_yee_submission(
 		raise HTTPException(status_code=404, detail="YEE submission not found.")
 
 	auditor: Auditor | None
-	if user.account_type in {AccountType.AUDITOR, AccountType.MANAGER}:
+	if user.account_type == AccountType.AUDITOR:
 		auditor = await _get_current_yee_auditor_actor(session, user)
-		if auditor is None or submission.auditor_id != auditor.id:
+		if submission.auditor_id != auditor.id:
 			raise HTTPException(status_code=403, detail="You do not have access to this submission.")
 	else:
+		if user.account_type == AccountType.MANAGER:
+			# Managers read any submission whose place sits in a project their
+			# account owns — the same scope the dashboard reports expose. A
+			# manager's own submissions (self auditor profile) live in their
+			# org's projects, so this path covers them too. By product invariant
+			# a place/project belongs to exactly one account (no shared places or
+			# cross-account sharing — see SCHEMA.md section 1), so this never
+			# grants access to another account's submission.
+			if user.account_id is None or not await _manager_can_view_submission(
+				session,
+				account_id=user.account_id,
+				place_id=submission.place_id,
+			):
+				raise HTTPException(status_code=403, detail="You do not have access to this submission.")
 		auditor = (
 			await session.execute(select(Auditor).where(Auditor.id == submission.auditor_id))
 		).scalar_one_or_none()

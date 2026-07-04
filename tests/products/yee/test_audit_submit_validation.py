@@ -12,7 +12,7 @@ Auditor/place choices:
 - AUD003 (auditor-demo-3@yee.local) -> Commons (9999...94): has a seeded
   IN_PROGRESS audit but NO yee_audit_submissions row, so submit is clean. No
   other test file submits this pair.
-- AUD002 (auditor-demo-2@yee.local) -> Hub (9999...91): NOT assigned to AUD002,
+- AUD001 (auditor-demo-1@yee.local) -> Commons (9999...94): NOT assigned to AUD001,
   used for the "unassigned place" 403 test.
 - Draft-save edge cases reuse AUD003 -> Commons (idempotent saves on an
   existing draft are safe) and complete before any submit in this file.
@@ -117,16 +117,16 @@ def test_submit_unknown_response_items_are_silently_ignored(yee_client: TestClie
 def test_submit_unassigned_place_returns_403(yee_client: TestClient) -> None:
 	"""POST /yee/audits for a place the auditor is NOT assigned to -> 403.
 
-	AUD002 is only assigned to Plaza. Hub is not one of their assigned places.
+	AUD001 is not assigned to Commons, which belongs to the follow-up project.
 	``_get_assigned_place`` raises 403 "This place is not assigned to you."
 	"""
 
-	headers = _bearer_headers(_login_auditor(yee_client, email="auditor-demo-2@yee.local"))
+	headers = _bearer_headers(_login_auditor(yee_client))
 	resp = yee_client.post(
 		"/yee/audits",
 		headers=headers,
 		json={
-			"place_id": str(YEE_PLACE_HUB_ID),
+			"place_id": str(YEE_PLACE_COMMONS_ID),
 			"responses": {"QID22": "3"},
 		},
 	)
@@ -214,9 +214,9 @@ def test_draft_save_empty_responses_on_submitted_place_returns_409(
 def test_draft_save_unassigned_place_returns_403(yee_client: TestClient) -> None:
 	"""PUT /yee/places/{place_id}/draft for an unassigned place -> 403."""
 
-	headers = _bearer_headers(_login_auditor(yee_client, email="auditor-demo-2@yee.local"))
+	headers = _bearer_headers(_login_auditor(yee_client))
 	resp = yee_client.put(
-		f"/yee/places/{YEE_PLACE_HUB_ID}/draft",
+		f"/yee/places/{YEE_PLACE_COMMONS_ID}/draft",
 		headers=headers,
 		json={"participant_info": {}, "responses": {}},
 	)

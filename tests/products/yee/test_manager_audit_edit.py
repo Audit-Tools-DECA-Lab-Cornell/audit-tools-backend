@@ -132,6 +132,8 @@ def test_patch_edit_state_as_manager_updates_responses(yee_client: TestClient) -
 	assert get_resp.status_code == 200, get_resp.text
 	current_state = get_resp.json()
 	submission_id = current_state["submission_id"]
+	original_responses = current_state["responses"]
+	original_participant_info = current_state["participant_info"]
 
 	# PATCH with updated responses
 	updated_responses = {"QID22": "2"}
@@ -163,6 +165,21 @@ def test_patch_edit_state_as_manager_updates_responses(yee_client: TestClient) -
 	verified = verify_resp.json()
 	assert verified["responses"] == updated_responses
 	assert verified["participant_info"]["total_minutes"] == 99
+
+	restore_resp = yee_client.patch(
+		EDIT_URL,
+		headers=headers,
+		json={
+			"submission_id": submission_id,
+			"participant_info": original_participant_info,
+			"responses": original_responses,
+			"resubmit": False,
+		},
+	)
+	assert restore_resp.status_code == 200, restore_resp.text
+	restored = restore_resp.json()
+	assert restored["responses"] == original_responses
+	assert restored["participant_info"] == original_participant_info
 
 
 def test_patch_edit_state_as_auditor_returns_403(yee_client: TestClient) -> None:

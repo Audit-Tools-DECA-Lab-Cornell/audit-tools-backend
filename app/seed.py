@@ -12,19 +12,25 @@ from __future__ import annotations
 import argparse
 import asyncio
 import uuid
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
-from urllib.parse import urlparse
 from alembic.config import Config
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from alembic import command
 from app.auth_security import hash_password
 from app.core.demo_data import DEMO_ACCOUNT_ID
-from app.database import ASYNC_SESSION_FACTORY_BY_PRODUCT, ProductKey, get_database_url
+from app.database import normalize_postgres_sqlalchemy_url
+from app.db_urls import (
+	DatabaseEnvironment,
+	ProductKey,
+	describe_database_target,
+	parse_database_environment,
+	resolve_raw_database_url,
+)
 from app.models import (
 	Account,
 	AccountType,
@@ -213,20 +219,36 @@ async def _clear_product_tables(session: AsyncSession, product: ProductKey) -> N
 	await _clear_core_tables(session)
 
 
-def _run_product_upgrade(product: ProductKey) -> None:
-	"""Run Alembic for one product in a synchronous context."""
+def _run_product_upgrade(product: ProductKey, environment: DatabaseEnvironment) -> None:
+	"""Run Alembic for one product/tier in a synchronous context."""
 
 	alembic_config = Config(str(REPO_ROOT / "alembic.ini"))
-	alembic_config.cmd_opts = argparse.Namespace(x=[f"product={product.value}"])
+	# Pass both product and environment so Alembic targets the same tier the seed
+	# writes to (mirrors the test harness `-x product=... -x environment=...`).
+	alembic_config.cmd_opts = argparse.Namespace(x=[f"product={product.value}", f"environment={environment.value}"])
 	# Each product has its own Alembic branch head (label == product value), so the
 	# generic "head" is ambiguous; target the product-scoped branch head explicitly.
 	command.upgrade(alembic_config, f"{product.value}@head")
 
 
-async def _upgrade_product_database(product: ProductKey) -> None:
-	"""Ensure the selected product database schema exists before seeding."""
+async def _upgrade_product_database(product: ProductKey, environment: DatabaseEnvironment) -> None:
+	"""Ensure the selected product/tier database schema exists before seeding."""
 
-	await asyncio.to_thread(_run_product_upgrade, product)
+	await asyncio.to_thread(_run_product_upgrade, product, environment)
+
+
+def _build_seed_engine(product: ProductKey, environment: DatabaseEnvironment) -> AsyncEngine:
+	"""Build a one-off engine bound to the chosen (product, environment) database.
+
+	The seed resolves its target from ``--environment`` directly rather than the
+	process-wide engines in ``app.database`` (which are built from the import-time
+	``ENVIRONMENT``), so the flag alone decides which tier is wiped and reseeded.
+	Mirrors the test harness in ``tests/products/*/conftest.py``.
+	"""
+
+	raw_url = resolve_raw_database_url(product, environment)
+	normalized_url, connect_args = normalize_postgres_sqlalchemy_url(raw_url)
+	return create_async_engine(normalized_url, pool_pre_ping=True, connect_args=connect_args)
 
 
 async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -> None:
@@ -271,6 +293,42 @@ async def _insert_seed_entities(session: AsyncSession, entities: list[object]) -
 	if remaining_entities:
 		session.add_all(remaining_entities)
 		await session.flush()
+
+
+async def _upsert_seed_entities(session: AsyncSession, entities: list[object]) -> None:
+	ordered_types: tuple[type[object], ...] = (
+		Account,
+		User,
+		Instrument,
+		ManagerProfile,
+		AuditorProfile,
+		Project,
+		Place,
+		ProjectPlace,
+		AuditorAssignment,
+		PlayspaceSubmission,
+		Audit,
+		YeeAuditSubmission,
+		KnownIssue,
+		BugReport,
+	)
+	merged_entity_ids: set[int] = set()
+
+	for model_type in ordered_types:
+		batch = [
+			entity for entity in entities if isinstance(entity, model_type) and id(entity) not in merged_entity_ids
+		]
+		if not batch:
+			continue
+		for entity in batch:
+			await session.merge(entity)
+			merged_entity_ids.add(id(entity))
+		await session.flush()
+
+	remaining_entities = [entity for entity in entities if id(entity) not in merged_entity_ids]
+	for entity in remaining_entities:
+		await session.merge(entity)
+	await session.flush()
 
 
 def _build_playspace_entities() -> list[object]:
@@ -515,6 +573,8 @@ def build_realistic_yee_submission(
 		scoring_version=SCORING_VERSION,
 		total_score=total_score,
 		submit_idempotency_key=idempotency_key,
+		instrument_key=audit.instrument_key,
+		instrument_version=audit.instrument_version,
 	)
 	_assert_yee_audit_submission_match(audit, submission)
 	return audit, submission
@@ -1035,7 +1095,7 @@ def _build_yee_entities() -> list[object]:
 	canonical_instrument = Instrument(
 		id=YEE_INSTRUMENT_ID,
 		instrument_key="yee",
-		instrument_version=str(yee_instrument_content.get("version", "1")),
+		instrument_version="1",
 		parent_instrument_id=None,
 		is_active=True,
 		content=yee_instrument_content,
@@ -2055,18 +2115,31 @@ def _build_yee_entities() -> list[object]:
 	]
 
 
-async def _seed_product(product: ProductKey, *, skip_migrate: bool = False) -> dict[str, int]:
-	"""Clear and repopulate one product database."""
+async def _seed_product(
+	product: ProductKey,
+	environment: DatabaseEnvironment,
+	*,
+	skip_migrate: bool = False,
+	reset: bool = True,
+) -> dict[str, int]:
+	"""Clear and repopulate one product database on the given tier."""
 
 	if not skip_migrate:
-		await _upgrade_product_database(product)
-	session_factory = ASYNC_SESSION_FACTORY_BY_PRODUCT[product]
+		await _upgrade_product_database(product, environment)
+	engine = _build_seed_engine(product, environment)
+	session_factory = async_sessionmaker(engine, autoflush=False, expire_on_commit=False)
 	entities = _build_playspace_entities() if product is ProductKey.PLAYSPACE else _build_yee_entities()
 
-	async with session_factory() as session:
-		await _clear_product_tables(session, product)
-		await _insert_seed_entities(session, entities)
-		await session.commit()
+	try:
+		async with session_factory() as session:
+			if reset:
+				await _clear_product_tables(session, product)
+				await _insert_seed_entities(session, entities)
+			else:
+				await _upsert_seed_entities(session, entities)
+			await session.commit()
+	finally:
+		await engine.dispose()
 
 	audit_count = sum(1 for entity in entities if isinstance(entity, Audit))
 	project_count = sum(1 for entity in entities if isinstance(entity, Project))
@@ -2080,7 +2153,7 @@ async def _seed_product(product: ProductKey, *, skip_migrate: bool = False) -> d
 	}
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	"""Parse command line options for the seeding entry point."""
 
 	parser = argparse.ArgumentParser(description="Seed deterministic shared-core demo data.")
@@ -2091,10 +2164,28 @@ def _parse_args() -> argparse.Namespace:
 		help="Seed one product database or both.",
 	)
 	parser.add_argument(
+		"--environment",
+		"-e",
+		default="test",
+		help=(
+			"Target database tier: test, development, or production (aliases: dev, prod, local). "
+			"Defaults to test so a bare run never touches dev or prod."
+		),
+	)
+	parser.add_argument(
 		"--skip-migrate",
 		action="store_true",
 		default=False,
 		help="Skip the Alembic upgrade step (use when the schema is already current).",
+	)
+	parser.add_argument(
+		"--reset",
+		action=argparse.BooleanOptionalAction,
+		default=True,
+		help=(
+			"Whether to clear the target product database before seeding. "
+			"Defaults to true; pass --no-reset to seed on top of existing rows."
+		),
 	)
 	parser.add_argument(
 		"--allow-destructive",
@@ -2102,27 +2193,34 @@ def _parse_args() -> argparse.Namespace:
 		default=False,
 		help="Acknowledge that seeding deletes existing product data before re-inserting demo records.",
 	)
-	return parser.parse_args()
+	return parser.parse_args(argv)
 
 
-def _host_for_database_url(raw_url: str) -> str:
-	"""Extract one database hostname from a SQLAlchemy-style URL."""
+def _require_destructive_confirmation(
+	products: list[ProductKey],
+	environment: DatabaseEnvironment,
+	*,
+	allow_destructive: bool,
+	reset: bool,
+) -> None:
+	"""Block destructive seeding unless the caller opted in explicitly.
 
-	normalized = raw_url.replace("postgresql+asyncpg://", "postgresql://", 1)
-	normalized = normalized.replace("postgres://", "postgresql://", 1)
-	return urlparse(normalized).hostname or ""
-
-
-def _require_destructive_confirmation(products: list[ProductKey], *, allow_destructive: bool) -> None:
-	"""Block destructive seeding unless the caller opted in explicitly."""
+	The target tier and host/database are named so the operator can confirm they
+	are wiping the intended database before passing ``--allow-destructive``.
+	"""
 
 	if allow_destructive:
 		return
 
-	targets = ", ".join(
-		f"{product.value} ({_host_for_database_url(get_database_url(product)) or 'unknown-host'})"
-		for product in products
-	)
+	if not reset:
+		return
+
+	targets = []
+	for product in products:
+		database_url = resolve_raw_database_url(product, environment)
+		database_target = describe_database_target(database_url)
+		targets.append(f"{product.value} [{environment.value}] ({database_target})")
+
 	raise SystemExit(
 		"Refusing to seed because this command deletes existing data. "
 		f"Targets: {targets}. Re-run with --allow-destructive if you intend to reset those databases."
@@ -2133,12 +2231,27 @@ async def _run() -> None:
 	"""Execute the seed flow for the selected product databases."""
 
 	args = _parse_args()
+	try:
+		environment = parse_database_environment(args.environment)
+	except ValueError as error:
+		raise SystemExit(str(error)) from error
 	products = [ProductKey.YEE, ProductKey.PLAYSPACE] if args.product == "all" else [ProductKey(args.product)]
-	_require_destructive_confirmation(products, allow_destructive=args.allow_destructive)
+	_require_destructive_confirmation(
+		products,
+		environment,
+		allow_destructive=args.allow_destructive,
+		reset=args.reset,
+	)
+	print(f"Seeding tier: {environment.value} (reset={'yes' if args.reset else 'no'})")
 	for product in products:
-		summary = await _seed_product(product, skip_migrate=args.skip_migrate)
+		summary = await _seed_product(
+			product,
+			environment,
+			skip_migrate=args.skip_migrate,
+			reset=args.reset,
+		)
 		print(
-			f"Seeded {product.value}: "
+			f"Seeded {product.value} [{environment.value}]: "
 			f"{summary['projects']} projects, "
 			f"{summary['places']} places, "
 			f"{summary['auditors']} auditors, "

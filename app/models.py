@@ -796,7 +796,7 @@ class Audit(Base):
 	)
 	audit_code: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
 	instrument_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
-	instrument_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+	instrument_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	status: Mapped[AuditStatus] = mapped_column(
 		AUDIT_STATUS_ENUM,
 		nullable=False,
@@ -876,7 +876,7 @@ class PlayspaceSubmission(Base):
 	)
 	audit_code: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
 	instrument_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
-	instrument_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+	instrument_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	execution_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
 	draft_progress_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
 	status: Mapped[AuditStatus] = mapped_column(
@@ -1226,6 +1226,12 @@ class YeeAuditSubmission(Base):
 	section_scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	scores_json: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	scoring_version: Mapped[str] = mapped_column(String(32), default="yee_v2", nullable=False)
+	# Instrument definition version this audit was taken against, stamped at submit
+	# time from the then-active instrument. Plain strings (no FK) so the record is
+	# self-contained and survives later version edits/deletion — mirrors
+	# PlayspaceSubmission. Distinct from scoring_version (the scoring algorithm tag).
+	instrument_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+	instrument_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	total_score: Mapped[int] = mapped_column(nullable=False)
 	# Idempotency key from the submitting client. A replay carrying this same key
 	# after an ambiguous network failure returns this submission instead of a

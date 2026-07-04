@@ -35,6 +35,25 @@ class YeeInstrumentActivateRequest(BaseModel):
 	is_active: bool
 
 
+class YeeInstrumentValidateRequest(BaseModel):
+	content: dict[str, Any]
+
+
+class ScoringCompatibilityReport(BaseModel):
+	"""Whether an instrument content can be fully scored by the active engine.
+
+	``ok`` is false when the content is missing scored questions the engine
+	reads, in which case publishing is blocked (unless explicitly overridden).
+	"""
+
+	ok: bool
+	scoring_version: str
+	required_item_count: int
+	present_item_count: int
+	missing_items: list[str] = Field(default_factory=list)
+	missing_choices: list[str] = Field(default_factory=list)
+
+
 class SiteCopyVersionResponse(BaseModel):
 	model_config = ConfigDict(from_attributes=True)
 
