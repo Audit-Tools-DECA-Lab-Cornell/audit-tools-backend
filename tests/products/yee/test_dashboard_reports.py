@@ -35,10 +35,14 @@ _AUDIT_ITEM_FIELDS = {
 	"project_name",
 	"date",
 	"total_raw_score",
+	"total_raw_maximum",
 	"total_weighted_score",
+	"total_weighted_maximum",
 	"domain_weights",
 	"raw_domain_scores",
+	"raw_domain_maximums",
 	"weighted_domain_scores",
+	"weighted_domain_maximums",
 	"canonical_score",
 }
 
@@ -88,10 +92,14 @@ def test_manager_can_list_place_comparisons(yee_client: TestClient) -> None:
 				f"Missing keys in audit item: {_AUDIT_ITEM_FIELDS - audit_item.keys()}"
 			)
 			assert isinstance(audit_item["total_raw_score"], int)
+			assert isinstance(audit_item["total_raw_maximum"], int)
 			assert isinstance(audit_item["total_weighted_score"], (int, float))
+			assert isinstance(audit_item["total_weighted_maximum"], (int, float))
 			assert isinstance(audit_item["domain_weights"], dict)
 			assert isinstance(audit_item["raw_domain_scores"], dict)
+			assert isinstance(audit_item["raw_domain_maximums"], dict)
 			assert isinstance(audit_item["weighted_domain_scores"], dict)
+			assert isinstance(audit_item["weighted_domain_maximums"], dict)
 
 
 def test_admin_can_list_place_comparisons(yee_client: TestClient) -> None:
@@ -128,6 +136,10 @@ def test_manager_place_comparisons_contain_seeded_submitted_audits(yee_client: T
 	# Verify score fields on a real audit item
 	sample_item = groups_with_audits[0]["audits"][0]
 	assert sample_item["total_raw_score"] >= 0
+	assert sample_item["total_raw_maximum"] == 125
+	assert sample_item["total_weighted_maximum"] > 0
+	assert sample_item["raw_domain_maximums"]["access"] > 0
+	assert sample_item["weighted_domain_maximums"]["access"] >= 0
 	assert isinstance(sample_item["date"], str)
 	assert len(sample_item["date"]) > 0
 

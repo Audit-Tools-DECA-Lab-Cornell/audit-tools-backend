@@ -30,7 +30,7 @@ from app.models import (
 	ProjectPlace,
 	YeeAuditSubmission,
 )
-from app.products.yee.schemas.audits import CanonicalScoreSnapshot
+from app.products.yee.schemas.audits import CanonicalScoreSnapshot, flatten_canonical_score
 from app.products.yee.schemas.dashboard import (
 	DashboardScoreResult,
 	ManagerAuditEditRequest,
@@ -333,6 +333,7 @@ async def fetch_place_comparison_groups(
 			},
 		)
 		canonical_score = _canonical_score_from_submission(submission)
+		flat_score = flatten_canonical_score(canonical_score)
 		total_raw_score = canonical_score["raw"]["total_score"]
 		raw_domain_scores = canonical_score["raw"]["domain_scores"]
 		weighted_score = canonical_score["weighted"]
@@ -346,10 +347,14 @@ async def fetch_place_comparison_groups(
 				project_name=project.name,
 				date=_format_timestamp(submission.submitted_at),
 				total_raw_score=total_raw_score,
+				total_raw_maximum=int(flat_score.get("total_raw_maximum", 0)),
 				total_weighted_score=weighted_score["total_weighted_score"],
+				total_weighted_maximum=float(flat_score.get("total_weighted_maximum", 0.0)),
 				domain_weights=weighted_score["raw_domain_weights"],
 				raw_domain_scores=raw_domain_scores,
+				raw_domain_maximums=flat_score.get("raw_domain_maximums", {}),
 				weighted_domain_scores=weighted_score["weighted_domain_scores"],
+				weighted_domain_maximums=flat_score.get("weighted_domain_maximums", {}),
 				canonical_score=_canonical_score_model(canonical_score),
 			)
 		)
@@ -376,6 +381,7 @@ async def fetch_raw_data_rows(
 	for submission, place, project, auditor_code, organization_name in rows:
 		participant_info = submission.participant_info_json
 		canonical_score = _canonical_score_from_submission(submission)
+		flat_score = flatten_canonical_score(canonical_score)
 		total_raw_score = canonical_score["raw"]["total_score"]
 		raw_domain_scores = canonical_score["raw"]["domain_scores"]
 		weighted_score = canonical_score["weighted"]
@@ -410,7 +416,9 @@ async def fetch_raw_data_rows(
 				weighted_aesthetics_and_care=weighted_score["weighted_domain_scores"]["aestheticsAndCare"],
 				weighted_use_and_usability=weighted_score["weighted_domain_scores"]["useAndUsability"],
 				total_raw_score=total_raw_score,
+				total_raw_maximum=int(flat_score.get("total_raw_maximum", 0)),
 				total_weighted_score=weighted_score["total_weighted_score"],
+				total_weighted_maximum=float(flat_score.get("total_weighted_maximum", 0.0)),
 				domain_weights=weighted_score["raw_domain_weights"],
 				responses=_flatten_responses(submission.responses_json),
 				canonical_score=_canonical_score_model(canonical_score),

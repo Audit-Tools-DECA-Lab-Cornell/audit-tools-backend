@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.products.yee.schemas.audits import CanonicalScoreSnapshot
+from app.products.yee.schemas.audits import CanonicalScoreSnapshot, flatten_canonical_score
 
 
 class DashboardScoreResult(BaseModel):
@@ -19,6 +19,27 @@ class DashboardScoreResult(BaseModel):
 	category_scores: dict[str, int]
 	matched_scored_answers: int
 	canonical_score: CanonicalScoreSnapshot
+	total_raw_score: int = 0
+	total_raw_maximum: int = 0
+	raw_domain_scores: dict[str, int] = Field(default_factory=dict)
+	raw_domain_maximums: dict[str, int] = Field(default_factory=dict)
+	total_weighted_score: float = 0.0
+	total_weighted_maximum: float = 0.0
+	weighted_domain_scores: dict[str, float] = Field(default_factory=dict)
+	weighted_domain_maximums: dict[str, float] = Field(default_factory=dict)
+	selected_weights: dict[str, int] = Field(default_factory=dict)
+	normalized_weights: dict[str, float] = Field(default_factory=dict)
+	priority_gaps: dict[str, float] = Field(default_factory=dict)
+
+	@model_validator(mode="before")
+	@classmethod
+	def fill_flattened_score_fields(cls, data: Any) -> Any:
+		if not isinstance(data, dict):
+			return data
+		canonical_score = data.get("canonical_score")
+		if canonical_score is None:
+			return data
+		return {**flatten_canonical_score(canonical_score), **data}
 
 
 class ManagerAuditEditState(BaseModel):
@@ -50,10 +71,14 @@ class PlaceComparisonAuditItem(BaseModel):
 	project_name: str
 	date: str
 	total_raw_score: int
+	total_raw_maximum: int
 	total_weighted_score: float
+	total_weighted_maximum: float
 	domain_weights: dict[str, int]
 	raw_domain_scores: dict[str, int]
+	raw_domain_maximums: dict[str, int]
 	weighted_domain_scores: dict[str, float]
+	weighted_domain_maximums: dict[str, float]
 	canonical_score: CanonicalScoreSnapshot
 
 
@@ -95,7 +120,9 @@ class RawDataExportRow(BaseModel):
 	weighted_aesthetics_and_care: float
 	weighted_use_and_usability: float
 	total_raw_score: int
+	total_raw_maximum: int
 	total_weighted_score: float
+	total_weighted_maximum: float
 	domain_weights: dict[str, int]
 	responses: dict[str, str]
 	canonical_score: CanonicalScoreSnapshot

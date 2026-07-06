@@ -54,7 +54,9 @@ _RAW_DATA_FIELDS = {
 	"weighted_aesthetics_and_care",
 	"weighted_use_and_usability",
 	"total_raw_score",
+	"total_raw_maximum",
 	"total_weighted_score",
+	"total_weighted_maximum",
 	"domain_weights",
 	"canonical_score",
 	"responses",
@@ -98,7 +100,9 @@ def test_manager_can_list_raw_data(yee_client: TestClient) -> None:
 		# Type spot-checks on key fields
 		assert isinstance(row["audit_id"], str)
 		assert isinstance(row["total_raw_score"], int)
+		assert isinstance(row["total_raw_maximum"], int)
 		assert isinstance(row["total_weighted_score"], (int, float))
+		assert isinstance(row["total_weighted_maximum"], (int, float))
 		assert isinstance(row["domain_weights"], dict)
 		assert isinstance(row["responses"], dict)
 		assert isinstance(row["total_minutes"], int)
