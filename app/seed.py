@@ -164,6 +164,8 @@ async def _clear_core_tables(session: AsyncSession) -> None:
 	"""
 
 	for model in (
+		BugReport,
+		KnownIssue,
 		Notification,
 		Audit,
 		AuditorAssignment,
@@ -186,8 +188,6 @@ async def _clear_playspace_tables(session: AsyncSession) -> None:
 	"""Remove Playspace-only records (child rows first). Playspace database only."""
 
 	for model in (
-		BugReport,
-		KnownIssue,
 		PlayspaceChecklistAnswer,
 		PlayspaceScaleAnswer,
 		PlayspaceQuestionResponse,

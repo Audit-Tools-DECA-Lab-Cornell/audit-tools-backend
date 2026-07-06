@@ -1369,9 +1369,10 @@ class BugReport(Base):
 
 	Reports are private to the reporter's organization (``account_id``) and the
 	administrator. Entity references (``project_id``/``place_id``/
-	``playspace_submission_id``) are only persisted as foreign keys after the
-	service verifies the reporter has access to them; otherwise they are kept
-	loosely inside ``context``.
+	``playspace_submission_id``/``yee_submission_id``) are only persisted as foreign
+	keys after the service verifies the reporter has access to them; otherwise they
+	are kept loosely inside ``context``. A report carries at most one product's
+	submission reference (Playspace or YEE), matching the database it lives in.
 	The diagnostic ``context`` is a privacy-filtered allow-list - it never holds
 	audit answers, notes, tokens, or other sensitive content. Screenshots, when
 	provided, live in Cloudinary; only the URL and public id are stored here.
@@ -1428,6 +1429,11 @@ class BugReport(Base):
 		ForeignKey("playspace_submissions.id", ondelete="SET NULL"),
 		nullable=True,
 	)
+	yee_submission_id: Mapped[uuid.UUID | None] = mapped_column(
+		UUID(as_uuid=True),
+		ForeignKey("yee_audit_submissions.id", ondelete="SET NULL"),
+		nullable=True,
+	)
 	context: Mapped[JSONDict] = mapped_column(JSONB, default=dict, nullable=False)
 	screenshot_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 	screenshot_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -1461,6 +1467,10 @@ class BugReport(Base):
 # (``playspace`` and ``yee``); see ``alembic/versions/``.
 
 # Tables that live ONLY in the Playspace database.
+#
+# ``known_issues`` and ``bug_reports`` are shared core: both product databases get
+# them physically (Playspace via ps_0006, YEE via yee_0008), so they are absent
+# here. The internal bug-reporting workflow is offered by both products.
 PLAYSPACE_ONLY_TABLE_NAMES: frozenset[str] = frozenset(
 	{
 		"playspace_submissions",
@@ -1470,8 +1480,6 @@ PLAYSPACE_ONLY_TABLE_NAMES: frozenset[str] = frozenset(
 		"playspace_question_responses",
 		"playspace_scale_answers",
 		"playspace_checklist_answers",
-		"known_issues",
-		"bug_reports",
 	}
 )
 
