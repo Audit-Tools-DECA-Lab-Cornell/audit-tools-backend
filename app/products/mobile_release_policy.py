@@ -31,12 +31,12 @@ PLAYSPACE_RELEASE_POLICY = MobileReleasePolicyResponse(
 	product="playspace",
 	message="Install the latest COPA app to keep using field audits.",
 	android=PlatformReleasePolicy(
-		latest_version="0.6.0",
+		latest_version="0.6.1",
 		minimum_supported_version="0.6.0",
 		update_url="https://play.google.com/store/apps/details?id=com.pratyush.sudhakar.audittoolsplayspacemobile",
 	),
 	ios=PlatformReleasePolicy(
-		latest_version="0.6.0",
+		latest_version="0.6.1",
 		minimum_supported_version="0.6.0",
 		update_url="https://apps.apple.com/",
 	),
