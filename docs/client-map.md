@@ -50,6 +50,13 @@ Mounted in `app/main.py`:
 | `/playspace/api/notifications/*`   | `app/notifications_router.py`    | Playspace in-app notifications                                          |
 | `/health`, `/`                     | `app/main.py`                    | Health check + root                                                     |
 
+Mobile apps also read public binary-gate policy before login:
+
+| Route                              | Client              | Purpose                                  |
+| ---------------------------------- | ------------------- | ---------------------------------------- |
+| `/playspace/mobile-release-policy` | `copa-mobile`       | Minimum supported COPA native app build  |
+| `/yee/mobile-release-policy`       | `yee-mobile`        | Minimum supported YEE native app build   |
+
 Cross-surface notes:
 
 - `GET /yee/audits/{submission_id}` serves both product surfaces: auditors read

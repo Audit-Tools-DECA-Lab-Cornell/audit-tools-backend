@@ -296,6 +296,7 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/me/complete-onboarding"),
 		("POST", "/playspace/me/complete-manager-onboarding"),
 		("GET", "/playspace/instrument"),
+		("GET", "/playspace/mobile-release-policy"),
 		("PATCH", "/playspace/accounts/{account_id}"),
 		("POST", "/playspace/projects"),
 		("PATCH", "/playspace/projects/{project_id}"),
@@ -320,6 +321,17 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 	}
 
 	assert _route_inventory() == expected_routes
+
+
+def test_playspace_mobile_release_policy_is_public() -> None:
+	client = TestClient(app)
+	response = client.get("/playspace/mobile-release-policy")
+
+	assert response.status_code == 200
+	body = response.json()
+	assert body["product"] == "playspace"
+	assert body["android"]["minimum_supported_version"] == "0.5.8"
+	assert body["android"]["update_url"].startswith("https://play.google.com/")
 
 
 def test_export_notify_ready_requires_manager_or_admin(

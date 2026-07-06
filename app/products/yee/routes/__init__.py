@@ -16,6 +16,7 @@ from fastapi import APIRouter
 from app.products.yee.routes.audits import router as audits_router
 from app.products.yee.routes.dashboard import router as dashboard_router
 from app.products.yee.routes.instrument import router as instrument_router
+from app.products.yee.routes.release_policy import router as release_policy_router
 
 router = APIRouter(tags=["yee"])
 
@@ -36,3 +37,4 @@ async def get_yee_status() -> dict[str, str]:
 router.include_router(audits_router)
 router.include_router(instrument_router)
 router.include_router(dashboard_router)
+router.include_router(release_policy_router)

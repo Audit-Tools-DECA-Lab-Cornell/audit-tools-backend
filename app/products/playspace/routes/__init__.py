@@ -12,6 +12,7 @@ from app.products.playspace.routes.exports import router as exports_router
 from app.products.playspace.routes.instrument import router as instrument_router
 from app.products.playspace.routes.management import router as management_router
 from app.products.playspace.routes.me import router as me_router
+from app.products.playspace.routes.release_policy import router as release_policy_router
 
 ######################################################################################
 ############################### Playspace Route Tree #################################
@@ -26,5 +27,6 @@ router.include_router(me_router)
 router.include_router(management_router)
 router.include_router(exports_router)
 router.include_router(bug_reports_router)
+router.include_router(release_policy_router)
 
 __all__ = ["router"]
