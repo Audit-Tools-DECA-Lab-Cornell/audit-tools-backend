@@ -1,0 +1,2831 @@
+{
+  "survey_id": "SV_0v6bpCh9Lk1gvMG",
+  "survey_name": "Youth Enabling Environments Audit Tool",
+  "version": "2026-02-26 08:36:29",
+  "scoring_categories": {
+    "SC_6ePlcf6NgW2PVs2": "Score",
+    "SC_5vdMLqSobr6wyBU": "Access",
+    "SC_3WVrMu6aac3MP8a": "Activity",
+    "SC_6YcvcguikM50GDc": "Amenities",
+    "SC_3klgQiPShpDEAU6": "Experience",
+    "SC_3pC7TfoxmvcX71k": "Aesthetics & Care",
+    "SC_3jTbWdWMHrws1kq": "Use & Usability"
+  },
+  "sections": [
+    {
+      "block": "Youth Participant Info",
+      "title": "Youth Participant Info",
+      "intro_text": "",
+      "comment_prompt": "Are there any comments you want to add about the Youth Participant Info of this space? (optional)"
+    },
+    {
+      "block": "Access: Presence, Condition, Provision",
+      "title": "Access",
+      "intro_text": "<strong>Access:</strong> this section asks about access to the park/space and about the surrounding area. Do your best to look around the space and its entrances to answer the questions. If asked to rate the condition of a feature consider whether it is <strong>poor</strong> <em>(Ex: poorly maintained, unsafe, broken and/or dirty</em>), <strong>acceptable</strong> <em>(Ex: clean, in good shape, well maintained and/or relatively safe)</em> or <strong>great</strong> <em>(Ex: in really good shape, really well maintained, feels very safe)</em>",
+      "comment_prompt": "Are there any comments you want to add about the Access of this space? (optional)"
+    },
+    {
+      "block": "Activity Spaces: Presence, Condition, Provision",
+      "title": "Activity Spaces",
+      "intro_text": "<strong>Activity Spaces</strong>: This section asks you to evaluate opportunities and spaces for recreational and social activities. If asked to rate the condition of a feature consider whether it is <strong>poor</strong> <em>(Ex: poorly maintained, unsafe, broken and/or dirty</em>), <strong>acceptable</strong> <em>(Ex: clean, in good shape, well maintained and/or relatively safe)</em> or <strong>great</strong> <em>(Ex: in really good shape, really well maintained, feels very safe)</em>",
+      "comment_prompt": "Are there any comments you want to add about the Activity Spaces of this space? (optional)"
+    },
+    {
+      "block": "Amenities: Presence, Condition Provision",
+      "title": "Amenities",
+      "intro_text": "<strong>Amenities:</strong> This section asks about the presence and conditions of different amenities within the space. If asked to rate the condition of a feature consider whether it is <strong>poor</strong> <em>(Ex: poorly maintained, unsafe, broken and/or dirty</em>), <strong>acceptable</strong> <em>(Ex: clean, in good shape, well maintained and/or relatively safe)</em> or <strong>great</strong> <em>(Ex: in really good shape, really well maintained, feels very safe)</em>",
+      "comment_prompt": "Are there any comments you want to add about the Amenities of this space? (optional)"
+    },
+    {
+      "block": "Experience of Space:",
+      "title": "Experience of Space",
+      "intro_text": "<strong>EXPERIENCE OF THE SPACE:</strong> This section asks about how you feel in or experience the space.",
+      "comment_prompt": "Are there any comments you want to add about the Experience of Space of this space? (optional)"
+    },
+    {
+      "block": "Aesthetics & Care: Presence, condition, provision",
+      "title": "Aesthetics & Care",
+      "intro_text": "<strong>Aesthetics & Care:</strong> This section asks about how the space looks and how well it is cared for or maintained. If asked to rate the condition of a feature consider whether it is <strong>poor</strong> <em>(Ex: poorly maintained, unsafe, broken and/or dirty</em>), <strong>acceptable</strong> <em>(Ex: clean, in good shape, well maintained and/or relatively safe)</em> or <strong>great</strong> <em>(Ex: in really good shape, really well maintained, feels very safe)</em>",
+      "comment_prompt": "Are there any comments you want to add about the Aesthetics & Care of this space? (optional)"
+    },
+    {
+      "block": "Use & Usability: Presence, condition, provision",
+      "title": "Use & Usability",
+      "intro_text": "<strong>Use & Usability:</strong> This section asks about how the space can be or is used. If asked to rate the condition of a feature consider whether it is <strong>poor</strong> <em>(Ex: poorly maintained, unsafe, broken and/or dirty</em>), <strong>acceptable</strong> <em>(Ex: clean, in good shape, well maintained and/or relatively safe)</em> or <strong>great</strong> <em>(Ex: in really good shape, really well maintained, feels very safe)</em>",
+      "comment_prompt": "Are there any comments you want to add about the Use & Usability of this space? (optional)"
+    }
+  ],
+  "scoring_items": [
+    {
+      "item_id": "QID1#1",
+      "base_question_id": "QID1",
+      "block": "Access: Presence, Condition, Provision",
+      "block_title": "Access",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Is there at least 1 public transportation stop (Ex: bus or metro/subway stop) nearby?"
+        },
+        "2": {
+          "Display": "Are there sidewalks leading to the main entrance to the space?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes"
+        },
+        "2": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID1#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID1#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID1#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID1#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID1#2",
+      "base_question_id": "QID1",
+      "block": "Access: Presence, Condition, Provision",
+      "block_title": "Access",
+      "question_text": "If yes, please rate the condition that this feature or area is in.",
+      "item_kind": "condition",
+      "choices": {
+        "1": {
+          "Display": "Is there at least 1 public transportation stop (Ex: bus or metro/subway stop) nearby?"
+        },
+        "2": {
+          "Display": "Are there sidewalks leading to the main entrance to the space?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Poor"
+        },
+        "2": {
+          "Display": "Acceptable"
+        },
+        "3": {
+          "Display": "Great"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID1#2",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID1#2",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID1#2",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID1#2",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID1#2",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID1#2",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID11#1",
+      "base_question_id": "QID11",
+      "block": "Access: Presence, Condition, Provision",
+      "block_title": "Access",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Does this space feel near to or well connected to other community spaces that you like to use?"
+        },
+        "2": {
+          "Display": "Does the area or neighborhood surrounding the space feel safe (Ex: from traffic, from strangers, from dangerous people or activities)"
+        },
+        "3": {
+          "Display": "Is there signage with details about the space on it (Ex: name of space, open/closing times, space map, event program information, etc)"
+        },
+        "4": {
+          "Display": "Are there posted rules about using the space? (Ex: who can use the space or when; activities not allowed, etc)"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes, a lot"
+        },
+        "2": {
+          "Display": "Yes, a little"
+        },
+        "3": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID11#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID11#1",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID12#1",
+      "base_question_id": "QID12",
+      "block": "Amenities: Presence, Condition Provision",
+      "block_title": "Amenities",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Are there public bathrooms?"
+        },
+        "2": {
+          "Display": "Are there paths for walking and/or cycling?"
+        },
+        "3": {
+          "Display": "Is there public WiFi access?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes"
+        },
+        "2": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID12#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID12#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID12#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID12#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID12#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID12#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID12#2",
+      "base_question_id": "QID12",
+      "block": "Amenities: Presence, Condition Provision",
+      "block_title": "Amenities",
+      "question_text": "If yes, please rate the condition that this feature or area is in.",
+      "item_kind": "condition",
+      "choices": {
+        "1": {
+          "Display": "Are there public bathrooms?"
+        },
+        "2": {
+          "Display": "Are there paths for walking and/or cycling?"
+        },
+        "3": {
+          "Display": "Is there public WiFi access?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Poor"
+        },
+        "2": {
+          "Display": "Acceptable"
+        },
+        "3": {
+          "Display": "Great"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID12#2",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID12#2",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_6YcvcguikM50GDc": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID13#1",
+      "base_question_id": "QID13",
+      "block": "Amenities: Presence, Condition Provision",
+      "block_title": "Amenities",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Are there places where you can buy food or drinks?"
+        },
+        "2": {
+          "Display": "Are there trash and/or recycling bins available?"
+        },
+        "3": {
+          "Display": "Are there any structures that could protect you from the rain or the sun (Ex: covered patio, gazebo, shade sails)?"
+        },
+        "4": {
+          "Display": "Are there places to sit on your own or with a small group?"
+        },
+        "5": {
+          "Display": "Are there places to sit with larger groups?"
+        },
+        "6": {
+          "Display": "Are there any tables with seats/chairs (Ex: for eating or playing games)?"
+        },
+        "7": {
+          "Display": "Is there seating that is movable or rearrangeable?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes, a lot"
+        },
+        "2": {
+          "Display": "Yes, a little"
+        },
+        "3": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID13#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "5",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "6",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "7",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 1,
+            "SC_6YcvcguikM50GDc": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "5",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "6",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "7",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 2,
+            "SC_6YcvcguikM50GDc": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "5",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "6",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID13#1",
+          "choice_id": "7",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_5vdMLqSobr6wyBU": 0,
+            "SC_6YcvcguikM50GDc": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID15#1",
+      "base_question_id": "QID15",
+      "block": "Experience of Space:",
+      "block_title": "Experience of Space",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Are there loud or unpleasant noises?"
+        },
+        "2": {
+          "Display": "Is there an opportunity to hear nature sounds (Ex: water, birds, animals)?"
+        },
+        "3": {
+          "Display": "Are there interesting and/or colorful things to look at in this space?"
+        },
+        "4": {
+          "Display": "Are there scenic views from this space?"
+        },
+        "5": {
+          "Display": "Does this place give you opportunities to interact with nature (plants and/or wildlife)?"
+        },
+        "6": {
+          "Display": "Is there evidence that the community is involved in or cares about the space (Ex: signs for community events, a community garden, a free book library, etc.)?"
+        },
+        "7": {
+          "Display": "Are there historical or educational features in the space (Ex: monuments, displays, educational signs, etc.)?"
+        },
+        "8": {
+          "Display": "Are there spaces or features that feel unsafe to use (Ex: tripping hazards, unsafe equipment)"
+        },
+        "9": {
+          "Display": "Are there generally people in the space that make you feel afraid or uncomfortable?"
+        },
+        "10": {
+          "Display": "Is there evidence of alcohol/drug use that makes this space feel unsafe or uncomfortable?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes, a lot"
+        },
+        "2": {
+          "Display": "Yes, a little"
+        },
+        "3": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID15#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "5",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "6",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "7",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "9",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "8",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "10",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "5",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "6",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "7",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "8",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "9",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "10",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "5",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "6",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "7",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "8",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "9",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID15#1",
+          "choice_id": "10",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3klgQiPShpDEAU6": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID16#1",
+      "base_question_id": "QID16",
+      "block": "Aesthetics & Care: Presence, condition, provision",
+      "block_title": "Aesthetics & Care",
+      "question_text": "If yes, please rate the condition that this feature or area is in.",
+      "item_kind": "condition",
+      "choices": {
+        "1": {
+          "Display": "Are there landscaped areas in the space (Ex: flower beds, planters, gardens)?"
+        },
+        "2": {
+          "Display": "Are there natural or wild areas that include greenery, flowers, or other natural elements?"
+        },
+        "3": {
+          "Display": "Is there a water feature in the space (Ex: pond, river, fountain)?"
+        },
+        "4": {
+          "Display": "Does the place feel well maintained / cared for (Ex: feels like someone is taking care of the space, grass is being cut, no overgrown or unhealthy plants/gardens, clear/clean paths, etc.)"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Poor"
+        },
+        "2": {
+          "Display": "Acceptable"
+        },
+        "3": {
+          "Display": "Great"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID16#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID16#1",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID16#2",
+      "base_question_id": "QID16",
+      "block": "Aesthetics & Care: Presence, condition, provision",
+      "block_title": "Aesthetics & Care",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Are there landscaped areas in the space (Ex: flower beds, planters, gardens)?"
+        },
+        "2": {
+          "Display": "Are there natural or wild areas that include greenery, flowers, or other natural elements?"
+        },
+        "3": {
+          "Display": "Is there a water feature in the space (Ex: pond, river, fountain)?"
+        },
+        "4": {
+          "Display": "Does the place feel well maintained / cared for (Ex: feels like someone is taking care of the space, grass is being cut, no overgrown or unhealthy plants/gardens, clear/clean paths, etc.)"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes"
+        },
+        "2": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID16#2",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID16#2",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID17#1",
+      "base_question_id": "QID17",
+      "block": "Aesthetics & Care: Presence, condition, provision",
+      "block_title": "Aesthetics & Care",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Is there evidence of vandalism (Ex: deliberate destruction or defacement of property)?"
+        },
+        "2": {
+          "Display": "Is there litter in the space?"
+        },
+        "3": {
+          "Display": "Are there trees in the space?"
+        },
+        "4": {
+          "Display": "Are there dangerous spots in the space (tripping hazards, holes in the ground)?"
+        },
+        "5": {
+          "Display": "Is there any damaged/broken equipment or features?"
+        },
+        "6": {
+          "Display": "Is there public art in this space (Ex: sculptures, murals)"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes, a lot"
+        },
+        "2": {
+          "Display": "Yes, a little"
+        },
+        "3": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID17#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "5",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "6",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "5",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "6",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "5",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 0,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID17#1",
+          "choice_id": "6",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3pC7TfoxmvcX71k": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID19#1",
+      "base_question_id": "QID19",
+      "block": "Use & Usability: Presence, condition, provision",
+      "block_title": "Use & Usability",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Is there a designated area for pets (Ex: dog park or off-leash area)?"
+        },
+        "2": {
+          "Display": "Is the space suitable for youth activity programs or events?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes"
+        },
+        "2": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID19#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID19#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID19#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID19#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID19#2",
+      "base_question_id": "QID19",
+      "block": "Use & Usability: Presence, condition, provision",
+      "block_title": "Use & Usability",
+      "question_text": "If yes, please rate the condition that this feature or area is in.",
+      "item_kind": "condition",
+      "choices": {
+        "1": {
+          "Display": "Is there a designated area for pets (Ex: dog park or off-leash area)?"
+        },
+        "2": {
+          "Display": "Is the space suitable for youth activity programs or events?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Poor"
+        },
+        "2": {
+          "Display": "Acceptable"
+        },
+        "3": {
+          "Display": "Great"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID19#2",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID19#2",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID19#2",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID19#2",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID19#2",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID19#2",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID20#1",
+      "base_question_id": "QID20",
+      "block": "Use & Usability: Presence, condition, provision",
+      "block_title": "Use & Usability",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Does the layout / design of the space feel appropriate for community needs (Ex: is there enough space for activities? Are there some areas that are not used a lot? Are there some spaces / features that feel unnecessary)?"
+        },
+        "2": {
+          "Display": "Is there a variety of spaces for different types of activities?"
+        },
+        "3": {
+          "Display": "Are there lights present that would allow activity areas to be used at night?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes, a lot"
+        },
+        "2": {
+          "Display": "Yes, a little"
+        },
+        "3": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID20#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID20#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID21#1",
+      "base_question_id": "QID21",
+      "block": "Use & Usability: Presence, condition, provision",
+      "block_title": "Use & Usability",
+      "question_text": "",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Looking at the recreation facilities or activity areas, would someone who has difficulty walking, seeing, or hearing be able to comfortably use the space?"
+        },
+        "2": {
+          "Display": "Can the space always be accessed for use (Ex: the space and all its activity areas are not locked/fenced off at any time)?"
+        },
+        "3": {
+          "Display": "Do you have to pay a fee to enter or use this space or any of its activity areas?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes"
+        },
+        "2": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID21#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID21#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID21#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 1,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID21#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 0,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID21#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID21#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3jTbWdWMHrws1kq": 0,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID4#1",
+      "base_question_id": "QID4",
+      "block": "Activity Spaces: Presence, Condition, Provision",
+      "block_title": "Activity Spaces",
+      "question_text": "Please answer the following questions about activity spaces.",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Are there sports fields (Ex: football, soccer, baseball, etc.)?"
+        },
+        "2": {
+          "Display": "Are there any sports/game courts (Ex: basketball, tennis, wall/handball, etc.)?"
+        },
+        "3": {
+          "Display": "Is there an open field or space (where you could walk, play games, etc.)?"
+        },
+        "4": {
+          "Display": "Is there a playground or play structure (typically for younger kids)?"
+        },
+        "5": {
+          "Display": "Is there fixed equipment/features you can play with (Ex: climbing wall, fitness equipment, skate rails or ramps, etc.)?"
+        },
+        "6": {
+          "Display": "Is there loose equipment available (Ex: basketballs, soccer balls, nets, etc.)?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes"
+        },
+        "2": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID4#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "5",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "6",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "5",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID4#1",
+          "choice_id": "6",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID4#2",
+      "base_question_id": "QID4",
+      "block": "Activity Spaces: Presence, Condition, Provision",
+      "block_title": "Activity Spaces",
+      "question_text": "If yes, please rate the condition that this feature or area is in.",
+      "item_kind": "condition",
+      "choices": {
+        "1": {
+          "Display": "Are there sports fields (Ex: football, soccer, baseball, etc.)?"
+        },
+        "2": {
+          "Display": "Are there any sports/game courts (Ex: basketball, tennis, wall/handball, etc.)?"
+        },
+        "3": {
+          "Display": "Is there an open field or space (where you could walk, play games, etc.)?"
+        },
+        "4": {
+          "Display": "Is there a playground or play structure (typically for younger kids)?"
+        },
+        "5": {
+          "Display": "Is there fixed equipment/features you can play with (Ex: climbing wall, fitness equipment, skate rails or ramps, etc.)?"
+        },
+        "6": {
+          "Display": "Is there loose equipment available (Ex: basketballs, soccer balls, nets, etc.)?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Poor"
+        },
+        "2": {
+          "Display": "Acceptable"
+        },
+        "3": {
+          "Display": "Great"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID4#2",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "5",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "6",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "5",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "6",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "5",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        },
+        {
+          "item_id": "QID4#2",
+          "choice_id": "6",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 3,
+            "SC_6ePlcf6NgW2PVs2": 3
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "QID7#1",
+      "base_question_id": "QID7",
+      "block": "Activity Spaces: Presence, Condition, Provision",
+      "block_title": "Activity Spaces",
+      "question_text": "Please answer the following questions about activity spaces.",
+      "item_kind": "presence",
+      "choices": {
+        "1": {
+          "Display": "Are there places where you could hang out with a small group of friends?"
+        },
+        "2": {
+          "Display": "Are there places where you could gather with a larger group of people (Ex. family parties, community events)?"
+        },
+        "3": {
+          "Display": "Are there places where you could be by yourself if you wanted to?"
+        },
+        "4": {
+          "Display": "Are there places where you could have privacy if you wanted it (on your own or with others)?"
+        }
+      },
+      "answers": {
+        "1": {
+          "Display": "Yes, a lot"
+        },
+        "2": {
+          "Display": "Yes, a little"
+        },
+        "3": {
+          "Display": "No"
+        }
+      },
+      "score_entries": [
+        {
+          "item_id": "QID7#1",
+          "choice_id": "1",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "2",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "3",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "4",
+          "answer_id": "2",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 1,
+            "SC_6ePlcf6NgW2PVs2": 1
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "1",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "2",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "3",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "4",
+          "answer_id": "1",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 2,
+            "SC_6ePlcf6NgW2PVs2": 2
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "1",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "2",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "3",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        },
+        {
+          "item_id": "QID7#1",
+          "choice_id": "4",
+          "answer_id": "3",
+          "scores_by_category_id": {
+            "SC_3WVrMu6aac3MP8a": 0,
+            "SC_6ePlcf6NgW2PVs2": 0
+          }
+        }
+      ]
+    }
+  ],
+  "preamble": [
+    "The YEE instrument is completed through a nine-step auditor flow: visit context, importance weighting, six domain sections, and final comments.",
+    "Section question wording comes from the survey definition itself, while visit details and importance-weighting prompts are part of the broader YEE audit workflow used in the web app.",
+    "Each saved instrument version is a complete snapshot. When a manager or auditor opens the YEE survey, the currently active version is the one the app uses."
+  ],
+  "pre_audit_questions": [
+    {
+      "id": "auditor_id",
+      "title": "Auditor ID",
+      "prompt": "Generated auditor ID",
+      "description": "Automatically populated from the auditor profile at the start of the audit.",
+      "options": [],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": true
+    },
+    {
+      "id": "audit_date",
+      "title": "Date of the audit",
+      "prompt": "Audit date",
+      "description": "Recorded when the auditor begins the audit and editable in the visit details step.",
+      "options": [],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": true
+    },
+    {
+      "id": "visit_frequency",
+      "title": "Visit frequency",
+      "prompt": "How often have you been to / visited this space in the last 6 months?",
+      "description": "Single-select visit context question shown before the scored YEE sections begin.",
+      "options": [
+        {
+          "value": "never-before",
+          "label": "I have never been here before",
+          "notes": null
+        },
+        {
+          "value": "every-or-almost-every-day",
+          "label": "Every day or Almost every day",
+          "notes": null
+        },
+        {
+          "value": "once-or-twice-a-week",
+          "label": "One or twice a week",
+          "notes": null
+        },
+        {
+          "value": "once-or-twice-a-month",
+          "label": "Once or twice a month",
+          "notes": null
+        },
+        {
+          "value": "few-times-less-than-monthly",
+          "label": "Only a few times (less than once a month)",
+          "notes": null
+        },
+        {
+          "value": "not-in-last-6-months",
+          "label": "I have not been here in the last 6 months",
+          "notes": null
+        }
+      ],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": false
+    },
+    {
+      "id": "public_access",
+      "title": "Public access",
+      "prompt": "Is this place open to the public (or can only certain people use it)?",
+      "description": "Single-select visit context question shown before the scored YEE sections begin.",
+      "options": [
+        {
+          "value": "yes",
+          "label": "Yes",
+          "notes": null
+        },
+        {
+          "value": "no",
+          "label": "No",
+          "notes": null
+        },
+        {
+          "value": "not-sure",
+          "label": "I'm not sure",
+          "notes": null
+        }
+      ],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": false
+    },
+    {
+      "id": "open_hours_access",
+      "title": "Open all hours",
+      "prompt": "Is this place open all hours? (Ex: if it doesn't get closed or locked at certain times, like after 11pm)",
+      "description": "Single-select visit context question shown before the scored YEE sections begin.",
+      "options": [
+        {
+          "value": "yes",
+          "label": "Yes",
+          "notes": null
+        },
+        {
+          "value": "no",
+          "label": "No",
+          "notes": null
+        },
+        {
+          "value": "not-sure",
+          "label": "I'm not sure",
+          "notes": null
+        }
+      ],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": false
+    },
+    {
+      "id": "season",
+      "title": "Season",
+      "prompt": "What is the current season?",
+      "description": "Single-select context question used in raw data and reporting.",
+      "options": [
+        {
+          "value": "spring",
+          "label": "Spring",
+          "notes": null
+        },
+        {
+          "value": "summer",
+          "label": "Summer",
+          "notes": null
+        },
+        {
+          "value": "autumn",
+          "label": "Autumn",
+          "notes": null
+        },
+        {
+          "value": "winter",
+          "label": "Winter",
+          "notes": null
+        }
+      ],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": false
+    },
+    {
+      "id": "weather",
+      "title": "Weather",
+      "prompt": "What is the weather like today?",
+      "description": "Multi-select visit context question shown before the scored YEE sections begin.",
+      "options": [
+        {
+          "value": "sunny-mostly-sunny",
+          "label": "Sunny / Mostly sunny",
+          "notes": null
+        },
+        {
+          "value": "mostly-cloudy-overcast",
+          "label": "Mostly cloudy / Overcast",
+          "notes": null
+        },
+        {
+          "value": "rainy-drizzling",
+          "label": "Rainy / drizzling",
+          "notes": null
+        },
+        {
+          "value": "windy",
+          "label": "Windy",
+          "notes": null
+        },
+        {
+          "value": "snowy-flurries",
+          "label": "Snowy / Flurries",
+          "notes": null
+        },
+        {
+          "value": "stormy",
+          "label": "Stormy",
+          "notes": null
+        },
+        {
+          "value": "feels-hot",
+          "label": "Feels hot / very hot",
+          "notes": null
+        },
+        {
+          "value": "feels-cold",
+          "label": "Feels cold / very cold",
+          "notes": null
+        }
+      ],
+      "multi_select": true,
+      "required": true,
+      "auto_generated": false
+    },
+    {
+      "id": "importance_weighting",
+      "title": "Importance weighting",
+      "prompt": "Please start by telling us how important each of the following issues are to you.",
+      "description": "Auditors assign a weight to each YEE domain before answering the section questions. These weights drive the youth-weighted score outputs in reports.",
+      "options": [
+        {
+          "value": "3",
+          "label": "Very important to me",
+          "notes": null
+        },
+        {
+          "value": "2",
+          "label": "Somewhat important to me",
+          "notes": null
+        },
+        {
+          "value": "1",
+          "label": "Not really important to me",
+          "notes": null
+        }
+      ],
+      "multi_select": false,
+      "required": true,
+      "auto_generated": false
+    }
+  ],
+  "scale_guidance": [
+    {
+      "id": "provision",
+      "title": "Provision",
+      "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+      "description": "Provision refers to the presence or quantity of an environmental feature or characteristic.",
+      "rules": [
+        {
+          "value": "0",
+          "label": "No",
+          "add": 0,
+          "boost": 0,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "1",
+          "label": "Some",
+          "add": 1,
+          "boost": 1,
+          "follow_up_behavior": "Unlocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "2",
+          "label": "A lot",
+          "add": 2,
+          "boost": 2,
+          "follow_up_behavior": "Unlocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "na",
+          "label": "Not applicable",
+          "add": 0,
+          "boost": 0,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": "N/A"
+        }
+      ]
+    },
+    {
+      "id": "variety",
+      "title": "Variety",
+      "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+      "description": "Variety evaluates whether the provided feature offers variety in type, form, or opportunity rather than all options being the same.",
+      "rules": [
+        {
+          "value": "na",
+          "label": "Not applicable",
+          "add": 0,
+          "boost": 1,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": "N/A"
+        },
+        {
+          "value": "1",
+          "label": "No Variety",
+          "add": 1,
+          "boost": 1,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "2",
+          "label": "Some Variety",
+          "add": 2,
+          "boost": 2,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "3",
+          "label": "A lot of Variety",
+          "add": 3,
+          "boost": 3,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge Opportunities",
+      "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+      "description": "Challenge opportunities assess whether the feature provides opportunities with different levels of difficulty.",
+      "rules": [
+        {
+          "value": "na",
+          "label": "Not applicable",
+          "add": 0,
+          "boost": 1,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": "N/A"
+        },
+        {
+          "value": "1",
+          "label": "No Challenge",
+          "add": 1,
+          "boost": 1,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "2",
+          "label": "Some Challenge",
+          "add": 2,
+          "boost": 2,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "3",
+          "label": "A lot of Challenge",
+          "add": 3,
+          "boost": 3,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        }
+      ]
+    },
+    {
+      "id": "sociability",
+      "title": "Sociability Support",
+      "prompt": "Can more than one child or person use this feature/environmental characteristic together?",
+      "description": "Sociability support assesses whether the feature can be used by more than one person at once, individually, in small groups, or in larger groups.",
+      "rules": [
+        {
+          "value": "na",
+          "label": "Not applicable",
+          "add": 0,
+          "boost": 1,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": "N/A"
+        },
+        {
+          "value": "1",
+          "label": "No",
+          "add": 1,
+          "boost": 1,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "2",
+          "label": "Yes - a pair",
+          "add": 2,
+          "boost": 2,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        },
+        {
+          "value": "3",
+          "label": "Yes - more than two children",
+          "add": 3,
+          "boost": 3,
+          "follow_up_behavior": "Blocks follow-up",
+          "tag": null
+        }
+      ]
+    }
+  ],
+  "legal_documents": [
+    {
+      "id": "service-agreement",
+      "title": "Service agreement",
+      "last_updated": "2026-06-14",
+      "content": "This YEE account may be used by invited managers and auditors to manage projects, places, audits, reports, and related field workflows. Managers control project and auditor access within their own organization, while platform admins have cross-organization reporting access. Auditors may complete only the audits assigned to them and may not reconfigure organization, project, place, or instrument settings.",
+      "document_type": "service_agreement"
+    },
+    {
+      "id": "privacy-guidance",
+      "title": "Privacy guidance",
+      "last_updated": "2026-06-14",
+      "content": "Auditor personal details should remain visible only to managers inside the same organization. Platform administrators may view manager details and aggregate audit records, but auditor names and email addresses should remain restricted in admin-facing experiences.",
+      "document_type": "privacy_guidance"
+    }
+  ],
+  "weighting": {
+    "title": "Youth weighting",
+    "description": "Tell us how important each of the following issues are to you, especially about the play/recreation and green spaces in your community.",
+    "options": [
+      {
+        "value": "3",
+        "label": "Very important to me",
+        "notes": null
+      },
+      {
+        "value": "2",
+        "label": "Somewhat important to me",
+        "notes": null
+      },
+      {
+        "value": "1",
+        "label": "Not really important to me",
+        "notes": null
+      }
+    ],
+    "domains": [
+      {
+        "key": "access",
+        "label": "Access",
+        "prompt": "How important is it to you that you can easily and safely get to these spaces?"
+      },
+      {
+        "key": "activitySpaces",
+        "label": "Activity Spaces",
+        "prompt": "How important is it to you that these places have the spaces and/or equipment that allow you to do the activities you like (Ex: have spaces for sports/games, for hanging out with friends, for spending quiet time on your own, etc)?"
+      },
+      {
+        "key": "amenities",
+        "label": "Amenities",
+        "prompt": "How important is it to you that these places have amenities that make the space more comfortable and suitable (like bathrooms, WiFi, garbage bins, places to buy food/drinks, seating for groups, shade, etc)?"
+      },
+      {
+        "key": "experienceOfSpace",
+        "label": "Experience of the Space",
+        "prompt": "How important is it to you that these places feel pleasant and safe to be in (Ex: feel peaceful, have lots of nature or nice views, feel safe and comfortable, where you will not be bothered or feel out of place, etc)?"
+      },
+      {
+        "key": "aestheticsAndCare",
+        "label": "Aesthetics & Care",
+        "prompt": "How important is it to you that these places look nice and well cared for (Ex: have lots of greenery, have gardens or art to look at, are free from litter and graffiti, look like someone is taking good care of it, etc)?"
+      },
+      {
+        "key": "useAndUsability",
+        "label": "Use & Usability",
+        "prompt": "How important is it to you that these places are suitable for many activities for youth and/or the community (Ex: allow for lots of different types of activities, have lights that allow for night use, are good for youth programming or dog walking, etc)?"
+      }
+    ]
+  },
+  "condition_prompt": "If yes, please rate the condition that this feature or area is in.",
+  "final_comments_prompt": "Overall survey comments"
+}

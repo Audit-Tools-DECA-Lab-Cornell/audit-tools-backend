@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,11 +105,22 @@ async def _get_yee_instrument_by_id(session: AsyncSession, instrument_id: uuid.U
 
 
 def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
-	canonical = YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
-	if not isinstance(raw_content, dict):
-		return canonical
-	merged = {**canonical, **raw_content}
-	return YeeInstrumentResponse.model_validate(merged).model_dump()
+	"""Return the stored instrument content, validated against the response schema.
+
+	The database row is authoritative: what an admin publishes is exactly what
+	clients receive. We validate the row against ``YeeInstrumentResponse`` (which
+	fills defaults for any optional keys) but never overlay the canonical snapshot
+	on top. The old overlay masked edits — a canonical key the row didn't carry
+	would silently win, so editing the source alone appeared to do nothing. The
+	snapshot is now only a fallback when the row is missing or cannot be validated.
+	"""
+
+	if isinstance(raw_content, dict):
+		try:
+			return YeeInstrumentResponse.model_validate(raw_content).model_dump()
+		except ValidationError:
+			pass
+	return YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
 
 
 async def _create_yee_instrument_version(

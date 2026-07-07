@@ -70,6 +70,22 @@ class YeeInstrumentLegalDocument(BaseModel):
 	document_type: str | None = None
 
 
+class YeeInstrumentWeightingDomain(BaseModel):
+	# ``key`` matches the mobile/web domain keys exactly (access, activitySpaces,
+	# amenities, experienceOfSpace, aestheticsAndCare, useAndUsability) so clients
+	# can bind a per-domain importance prompt without any text parsing.
+	key: str
+	label: str
+	prompt: str
+
+
+class YeeInstrumentWeighting(BaseModel):
+	title: str = ""
+	description: str = ""
+	options: list[YeeInstrumentOption] = Field(default_factory=list)
+	domains: list[YeeInstrumentWeightingDomain] = Field(default_factory=list)
+
+
 class YeeInstrumentResponse(BaseModel):
 	survey_id: str | None = None
 	survey_name: str
@@ -81,3 +97,9 @@ class YeeInstrumentResponse(BaseModel):
 	pre_audit_questions: list[YeeInstrumentPreAuditQuestion] = Field(default_factory=list)
 	scale_guidance: list[YeeInstrumentScaleGuidance] = Field(default_factory=list)
 	legal_documents: list[YeeInstrumentLegalDocument] = Field(default_factory=list)
+	# Per-domain youth-weighting prompts + scale, shown on the weighting step.
+	weighting: YeeInstrumentWeighting | None = None
+	# Shared "If yes, please rate the condition…" follow-up prompt (domain steps).
+	condition_prompt: str = ""
+	# Prompt for the overall/final comments field before review & submit.
+	final_comments_prompt: str = ""
