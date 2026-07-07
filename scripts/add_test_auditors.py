@@ -42,8 +42,12 @@ import asyncio
 import os
 import re
 import secrets
+import ssl
 import sys
+import uuid
 from datetime import datetime, timedelta, timezone
+
+import certifi
 
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy import select
@@ -57,8 +61,11 @@ from app.auth_security import hash_password, hash_verification_token
 from app.models import (
 	Account,
 	AccountType,
+	AuditorAssignment,
 	AuditorInvite,
 	AuditorProfile,
+	Project,
+	ProjectPlace,
 	User,
 )
 
@@ -69,8 +76,13 @@ from app.models import (
 MANAGER_EMAIL = "manager-demo@yee.local"
 AUDITOR_PASSWORD = "DemoPass123!"
 EMAIL_DOMAIN = "example.org"
-START_INDEX = 1
-END_INDEX = 30  # inclusive -> 01..30 == 30 auditors
+START_INDEX = 2
+END_INDEX = 30  # inclusive -> 02..30 == 29 auditors
+
+# Optional place assignment for every created (or existing) auditor.
+ASSIGNMENT_ACCOUNT_ID = uuid.UUID("11111111-1111-4111-8111-111111111111")
+ASSIGNMENT_PROJECT_ID = uuid.UUID("fa77ef3d-29de-4982-a4e1-08adff99f242")
+ASSIGNMENT_PLACE_ID = uuid.UUID("411ab922-7432-49f0-b607-3c5fa87dc6ad")
 
 # Random profile data used to "complete" each auditor's onboarding fields.
 INDUSTRIES = [
@@ -120,7 +132,7 @@ def _normalize_async_url(raw_url: str):
 
 	connect_args: dict[str, object] = {}
 	if isinstance(sslmode, str) and sslmode.lower() in {"require", "verify-ca", "verify-full"}:
-		connect_args["ssl"] = True
+		connect_args["ssl"] = ssl.create_default_context(cafile=certifi.where())
 		connect_args["statement_cache_size"] = 0
 
 	return url.set(query=query), connect_args
@@ -148,6 +160,69 @@ def _planned_auditors() -> list[tuple[str, str, int]]:
 	return planned
 
 
+async def _ensure_assignment_target(
+	session: AsyncSession,
+	*,
+	account_id: uuid.UUID,
+	project_id: uuid.UUID,
+	place_id: uuid.UUID,
+) -> None:
+	"""Verify the project/place pair exists under the account before assigning."""
+
+	project = await session.get(Project, project_id)
+	if project is None or project.account_id != account_id:
+		raise SystemExit(f"Project {project_id} was not found under account {account_id}.")
+
+	link = (
+		await session.execute(
+			select(ProjectPlace).where(
+				ProjectPlace.project_id == project_id,
+				ProjectPlace.place_id == place_id,
+			)
+		)
+	).scalar_one_or_none()
+	if link is None:
+		raise SystemExit(f"project_places row missing for project={project_id}, place={place_id}.")
+
+
+async def _ensure_auditor_assignment(
+	session: AsyncSession,
+	*,
+	profile: AuditorProfile,
+	project_id: uuid.UUID,
+	place_id: uuid.UUID,
+	now: datetime,
+	dry_run: bool,
+) -> bool:
+	"""Create the assignment row when missing; return True if one was added."""
+
+	existing_assignment = (
+		await session.execute(
+			select(AuditorAssignment).where(
+				AuditorAssignment.auditor_profile_id == profile.id,
+				AuditorAssignment.project_id == project_id,
+				AuditorAssignment.place_id == place_id,
+			)
+		)
+	).scalar_one_or_none()
+	if existing_assignment is not None:
+		return False
+
+	if dry_run:
+		return True
+
+	session.add(
+		AuditorAssignment(
+			auditor_profile_id=profile.id,
+			project_id=project_id,
+			place_id=place_id,
+			assigned_at=now,
+		)
+	)
+	await session.flush()
+	return True
+
+
 async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 	# 1. Resolve the manager and their account.
 	manager = (await session.execute(select(User).where(User.email == MANAGER_EMAIL))).scalar_one_or_none()
@@ -163,7 +238,20 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 	org_name = account.name if account is not None else "(unknown organization)"
 	print(f"Manager:      {MANAGER_EMAIL} (user_id={manager.id})")
 	print(f"Organization: {org_name} (account_id={account_id})")
+	print(f"Assignment:   project={ASSIGNMENT_PROJECT_ID}, place={ASSIGNMENT_PLACE_ID}")
 	print()
+
+	if account_id != ASSIGNMENT_ACCOUNT_ID:
+		raise SystemExit(
+			f"Manager account {account_id} does not match configured assignment account {ASSIGNMENT_ACCOUNT_ID}."
+		)
+
+	await _ensure_assignment_target(
+		session,
+		account_id=ASSIGNMENT_ACCOUNT_ID,
+		project_id=ASSIGNMENT_PROJECT_ID,
+		place_id=ASSIGNMENT_PLACE_ID,
+	)
 
 	# 2. Seed the auditor_code counter from existing codes.
 	existing_codes = list((await session.execute(select(AuditorProfile.auditor_code))).scalars().all())
@@ -172,6 +260,7 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 	now = datetime.now(timezone.utc)
 	created = 0
 	skipped = 0
+	assigned = 0
 
 	for email, name, index in _planned_auditors():
 		# Idempotency: skip if a user OR an auditor profile with this email
@@ -180,7 +269,27 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 		# auditor_code are unique) behind a deleted users row.
 		existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
 		if existing_user is not None:
-			print(f"SKIP   {email} -> user already exists")
+			profile = (
+				await session.execute(select(AuditorProfile).where(AuditorProfile.user_id == existing_user.id))
+			).scalar_one_or_none()
+			if profile is None:
+				print(f"SKIP   {email} -> user exists but has no auditor profile")
+				skipped += 1
+				continue
+
+			added_assignment = await _ensure_auditor_assignment(
+				session,
+				profile=profile,
+				project_id=ASSIGNMENT_PROJECT_ID,
+				place_id=ASSIGNMENT_PLACE_ID,
+				now=now,
+				dry_run=dry_run,
+			)
+			if added_assignment:
+				assigned += 1
+				print(f"ASSIGN {email} -> {profile.auditor_code}")
+			else:
+				print(f"SKIP   {email} -> user already exists")
 			skipped += 1
 			continue
 		existing_profile = (
@@ -203,8 +312,9 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 		country = COUNTRIES[index % len(COUNTRIES)]
 
 		if dry_run:
-			print(f"DRYRUN {email} -> name='{name}', code={auditor_code}, role='{role}'")
+			print(f"DRYRUN {email} -> name='{name}', code={auditor_code}, role='{role}', assign place")
 			created += 1
+			assigned += 1
 			continue
 
 		# --- users row (accept invite + complete profile end state) ---------- #
@@ -255,16 +365,27 @@ async def _create_auditors(session: AsyncSession, *, dry_run: bool) -> None:
 		session.add(invite)
 		await session.flush()
 
-		print(f"CREATE {email} -> name='{name}', code={auditor_code}, role='{role}'")
+		added_assignment = await _ensure_auditor_assignment(
+			session,
+			profile=profile,
+			project_id=ASSIGNMENT_PROJECT_ID,
+			place_id=ASSIGNMENT_PLACE_ID,
+			now=now,
+			dry_run=False,
+		)
+		if added_assignment:
+			assigned += 1
+
+		print(f"CREATE {email} -> name='{name}', code={auditor_code}, role='{role}', assigned")
 		created += 1
 
 	if dry_run:
 		await session.rollback()
-		print(f"\nDry run complete. Would create {created}, skip {skipped}. No changes written.")
+		print(f"\nDry run complete. Would create {created}, assign {assigned}, skip {skipped}. No changes written.")
 		return
 
 	await session.commit()
-	print(f"\nDone. Created {created} auditor(s), skipped {skipped} existing.")
+	print(f"\nDone. Created {created} auditor(s), assigned {assigned}, skipped {skipped} existing.")
 
 
 def _resolve_target_url():
