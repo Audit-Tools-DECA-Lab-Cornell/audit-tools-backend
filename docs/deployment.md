@@ -93,6 +93,34 @@ policy decisions. Latest release metadata resolves in this order:
 default Google Play track name. For closed alpha testing, leave them unset or set
 them to `alpha`.
 
+### `minimum_supported_version` is a hand-maintained gate
+
+Only `latest_version` is auto-resolved from the sources above. The
+**`minimum_supported_version`** / `minimum_supported_build` values are backend
+**policy constants**, hardcoded per product and platform in
+`PLAYSPACE_RELEASE_POLICY` and `YEE_RELEASE_POLICY` in
+`app/products/mobile_release_policy.py`. Clients below this floor are forced to
+update, so it is a deliberate decision — never auto-derived from a store release.
+
+**Review this floor on every mobile version bump.** Whenever either mobile app
+(`copa-mobile` / COPA or `yee-mobile` / YEE) bumps its version — or an agent
+finishes a mobile work session that ships to users — decide whether the floor
+must rise for the matching product/platform block:
+
+- **Raise it** when older installs would break or behave incorrectly against the
+  current backend: a data/terminology migration, an offline-sync or contract
+  change, a dropped/renamed API field, a required native capability, or a fix
+  that older clients must not skip.
+- **Leave it** for backward-compatible changes: theme/copy/i18n, minor UI, or
+  additive changes older clients tolerate. Raising it needlessly force-updates
+  users, so default to leaving it and justify any raise.
+
+An agent wrapping up a mobile change must **evaluate and propose** the
+new floor (or explicitly state "no change needed") with a one-line rationale, and
+apply it only after the user confirms. The client-side trigger and post-task
+convention live in the `mobile-version-bump` skill and each mobile app's README;
+this file owns the backend policy itself.
+
 ### Supplying `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
 
 The Google Play API call authenticates with a service-account key (the JSON you
