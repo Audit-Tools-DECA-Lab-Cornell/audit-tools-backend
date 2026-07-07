@@ -8,7 +8,6 @@ from app.products.mobile_release_models import (
 	PlatformReleasePolicy,
 )
 
-
 PLAYSPACE_RELEASE_POLICY = MobileReleasePolicyResponse(
 	product="playspace",
 	message="Install the latest COPA app to keep using field audits.",
@@ -44,7 +43,6 @@ async def get_mobile_release_policy(product: MobileProduct) -> MobileReleasePoli
 	base_policy = _get_static_release_policy(product)
 	google_release = await release_sources.fetch_google_play_release(product)
 	github_release = await release_sources.fetch_github_release(product)
-
 	android_policy = release_sources.resolve_platform_release_policy(
 		base_policy=base_policy.android,
 		google_release=google_release,

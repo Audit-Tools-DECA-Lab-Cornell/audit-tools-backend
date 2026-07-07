@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import logging
+import os
 import re
 from typing import Final, TypeAlias
 
@@ -20,8 +20,6 @@ GOOGLE_PLAY_RELEASES_URL: Final = (
 )
 PUBLISHED_GOOGLE_RELEASE_STATE: Final = "RELEASE_LIFECYCLE_STATE_PUBLISHED"
 VERSION_RE: Final = re.compile(r"\b\d+\.\d+\.\d+(?:[-.][0-9A-Za-z]+)?\b")
-
-logger = logging.getLogger(__name__)
 
 
 class GoogleArtifactSummary(BaseModel):
@@ -49,9 +47,10 @@ def fetch_google_play_release_sync(config: ProductReleaseConfig) -> MobileReleas
 	if access_token is None:
 		return None
 
+	track = config.google_play_track()
 	url = GOOGLE_PLAY_RELEASES_URL.format(
 		package_name=config.android_package_name,
-		track=config.google_play_track(),
+		track=track,
 	)
 	try:
 		response = requests.get(
@@ -61,13 +60,13 @@ def fetch_google_play_release_sync(config: ProductReleaseConfig) -> MobileReleas
 		)
 		response.raise_for_status()
 	except requests.RequestException as exc:
-		logger.warning("Google Play release lookup failed for %s: %s", config.product, exc)
+		print(f"Google Play release lookup failed for {config.product}: {exc}")
 		return None
 
 	try:
 		payload = response.json()
 	except requests.JSONDecodeError as exc:
-		logger.warning("Google Play release lookup returned invalid JSON for %s: %s", config.product, exc)
+		print(f"Google Play release lookup returned invalid JSON for {config.product}: {exc}")
 		return None
 
 	if not isinstance(payload, dict):
@@ -91,15 +90,16 @@ def parse_google_release_payload(raw_payload: JsonObject) -> MobileReleaseSnapsh
 		return None
 
 	release, version_code = max(artifact_candidates, key=lambda item: item[1])
+	version = _extract_version_from_release_name(release.release_name)
 	return MobileReleaseSnapshot(
-		latest_version=_extract_version_from_release_name(release.release_name),
+		latest_version=version,
 		latest_build=version_code,
 		source="google_play",
 	)
 
 
 def _get_google_access_token() -> str | None:
-	service_account_json = env_value(GOOGLE_SERVICE_ACCOUNT_JSON_ENV)
+	service_account_json = _load_google_service_account_json()
 	if service_account_json is None:
 		return None
 
@@ -108,7 +108,6 @@ def _get_google_access_token() -> str | None:
 		from google.auth.transport.requests import Request
 		from google.oauth2 import service_account
 	except ModuleNotFoundError:
-		logger.warning("google-auth is not installed; Google Play release lookup is disabled.")
 		return None
 
 	try:
@@ -119,10 +118,35 @@ def _get_google_access_token() -> str | None:
 		)
 		credentials.refresh(Request())
 	except (json.JSONDecodeError, ValueError, GoogleAuthError) as exc:
-		logger.warning("Google Play service account token refresh failed: %s", exc)
+		print(f"Google Play service account token refresh failed: {exc}")
 		return None
 
 	return credentials.token
+
+
+def _load_google_service_account_json() -> str | None:
+	"""Resolve the service-account credentials from the env var.
+
+	The value may be either the raw JSON of the key, or a path to a file
+	containing it (e.g. a Render Secret File mounted at ``/etc/secrets/...``).
+	"""
+	value = env_value(GOOGLE_SERVICE_ACCOUNT_JSON_ENV)
+	if value is None:
+		return None
+
+	if value.startswith("{"):
+		return value
+
+	if os.path.isfile(value):
+		try:
+			with open(value, encoding="utf-8") as handle:
+				return handle.read().strip() or None
+		except OSError:
+			return None
+
+	# Not JSON and not an existing path — hand it back so json.loads can
+	# surface a clear parse error to the caller.
+	return value
 
 
 def _extract_version_from_release_name(release_name: str | None) -> str | None:

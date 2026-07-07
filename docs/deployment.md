@@ -93,6 +93,24 @@ policy decisions. Latest release metadata resolves in this order:
 default Google Play track name. For closed alpha testing, leave them unset or set
 them to `alpha`.
 
+### Supplying `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+
+The Google Play API call authenticates with a service-account key (the JSON you
+download from Google Cloud Console). The backend accepts it in two forms:
+
+- **Inline JSON** - paste the entire contents of the key file as the env var
+  value. Fine for local `.env` files; on some dashboards the multi-line JSON is
+  awkward to paste.
+- **File path** - set the value to a path that holds the JSON. On Render, add a
+  **Secret File** (e.g. named `google-play-service-account.json`); Render mounts
+  it at `/etc/secrets/google-play-service-account.json`. Then set
+  `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=/etc/secrets/google-play-service-account.json`.
+
+The resolver treats a value starting with `{` as inline JSON and otherwise reads
+it as a file path (see `_load_google_service_account_json` in
+`app/products/mobile_release_google.py`). If the variable is unset, the Google
+Play source is skipped and release metadata falls back to the next source.
+
 Configure EAS Build webhooks to POST to:
 
 - `/playspace/mobile-release-policy/eas-webhook`

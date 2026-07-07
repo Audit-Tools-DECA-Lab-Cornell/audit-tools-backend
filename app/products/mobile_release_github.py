@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 import re
 
 import requests
 
 from app.products.mobile_release_config import GITHUB_TOKEN_ENV, ProductReleaseConfig, env_value
 from app.products.mobile_release_sources import MobileReleaseSnapshot
-
-logger = logging.getLogger(__name__)
 
 
 def fetch_github_release_sync(config: ProductReleaseConfig) -> MobileReleaseSnapshot | None:
@@ -21,7 +18,7 @@ def fetch_github_release_sync(config: ProductReleaseConfig) -> MobileReleaseSnap
 		response = requests.get(config.github_app_config_url, headers=headers, timeout=(3.05, 8.0))
 		response.raise_for_status()
 	except requests.RequestException as exc:
-		logger.warning("GitHub app config lookup failed for %s: %s", config.product, exc)
+		print(f"Github release lookup failed: {exc}")
 		return None
 
 	version = parse_github_app_config_version(response.text)
