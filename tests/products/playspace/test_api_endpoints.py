@@ -6,12 +6,16 @@ import asyncio
 import uuid
 
 from fastapi.routing import APIRoute
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models import AuditorAssignment, AuditStatus, PlayspaceSubmission
+from app.products import mobile_release_sources
+from app.products.mobile_release_eas import clear_eas_release_cache
+from app.products.mobile_release_models import MobileProduct
 from tests.products.playspace.conftest import PlayspaceSeedSnapshot
 
 MANAGER_EMAIL = "amelia.carter@example.org"
@@ -297,6 +301,7 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/me/complete-manager-onboarding"),
 		("GET", "/playspace/instrument"),
 		("GET", "/playspace/mobile-release-policy"),
+		("POST", "/playspace/mobile-release-policy/eas-webhook"),
 		("PATCH", "/playspace/accounts/{account_id}"),
 		("POST", "/playspace/projects"),
 		("PATCH", "/playspace/projects/{project_id}"),
@@ -323,14 +328,22 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 	assert _route_inventory() == expected_routes
 
 
-def test_playspace_mobile_release_policy_is_public() -> None:
+def test_playspace_mobile_release_policy_is_public(monkeypatch: pytest.MonkeyPatch) -> None:
+	async def empty_release(_: MobileProduct) -> None:
+		return None
+
+	monkeypatch.setattr(mobile_release_sources, "fetch_google_play_release", empty_release)
+	monkeypatch.setattr(mobile_release_sources, "fetch_github_release", empty_release)
+	clear_eas_release_cache()
+
 	client = TestClient(app)
 	response = client.get("/playspace/mobile-release-policy")
 
 	assert response.status_code == 200
 	body = response.json()
 	assert body["product"] == "playspace"
-	assert body["android"]["minimum_supported_version"] == "0.5.8"
+	assert body["android"]["latest_version"] == "0.6.4"
+	assert body["android"]["minimum_supported_version"] == "0.6.2"
 	assert body["android"]["update_url"].startswith("https://play.google.com/")
 
 

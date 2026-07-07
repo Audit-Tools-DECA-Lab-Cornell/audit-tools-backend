@@ -57,6 +57,13 @@ Recommended:
 
 Optional but important in production:
 
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- `PLAYSPACE_GOOGLE_PLAY_TRACK`
+- `YEE_GOOGLE_PLAY_TRACK`
+- `PLAYSPACE_EAS_WEBHOOK_SECRET`
+- `YEE_EAS_WEBHOOK_SECRET`
+- `MOBILE_RELEASE_POLICY_GITHUB_TOKEN`
+- `MOBILE_RELEASE_POLICY_CACHE_TTL_SECONDS`
 - `SMTP_HOST`
 - `SMTP_PORT`
 - `SMTP_USERNAME`
@@ -70,6 +77,28 @@ Optional but important in production:
 - `ADMIN_NOTIFICATION_EMAIL`
 - `TURNSTILE_SECRET_KEY`
 - `PROTECTED_YEE_DEMO_EMAILS`
+
+## Mobile Release Policy Sources
+
+The public `/playspace/mobile-release-policy` and `/yee/mobile-release-policy`
+routes keep `minimum_supported_version` and `minimum_supported_build` as backend
+policy decisions. Latest release metadata resolves in this order:
+
+1. Google Play Developer API for Android closed testing (`alpha` by default)
+2. Signed EAS Build webhook metadata cached by the backend
+3. Public GitHub `app.config.js`
+4. Static last-known backend fallback values
+
+`PLAYSPACE_GOOGLE_PLAY_TRACK` and `YEE_GOOGLE_PLAY_TRACK` can override the
+default Google Play track name. For closed alpha testing, leave them unset or set
+them to `alpha`.
+
+Configure EAS Build webhooks to POST to:
+
+- `/playspace/mobile-release-policy/eas-webhook`
+- `/yee/mobile-release-policy/eas-webhook`
+
+Each webhook must use the matching product secret variable listed above.
 
 ## Migration Runbook
 

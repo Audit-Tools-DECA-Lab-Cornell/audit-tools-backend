@@ -77,10 +77,16 @@ app/products/
 │   ├── routes/
 │   ├── services/
 │   └── schemas/
+├── mobile_release_*.py
 └── yee/
     ├── __init__.py
     └── routes.py
 ```
+
+`mobile_release_*.py` owns the shared public mobile release-policy gate consumed
+before login by COPA and YEE mobile. Product routes expose the namespace-specific
+URLs; the shared modules resolve latest release metadata from Google Play, EAS,
+GitHub, and static backend fallback policy.
 
 ---
 

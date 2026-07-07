@@ -52,10 +52,17 @@ Mounted in `app/main.py`:
 
 Mobile apps also read public binary-gate policy before login:
 
-| Route                              | Client              | Purpose                                  |
-| ---------------------------------- | ------------------- | ---------------------------------------- |
-| `/playspace/mobile-release-policy` | `copa-mobile`       | Minimum supported COPA native app build  |
-| `/yee/mobile-release-policy`       | `yee-mobile`        | Minimum supported YEE native app build   |
+| Route                                             | Client        | Purpose                                           |
+| ------------------------------------------------- | ------------- | ------------------------------------------------- |
+| `/playspace/mobile-release-policy`                | `copa-mobile` | Minimum supported COPA native app build           |
+| `/playspace/mobile-release-policy/eas-webhook`    | EAS Build     | Signed COPA build metadata fallback cache         |
+| `/yee/mobile-release-policy`                      | `yee-mobile`  | Minimum supported YEE native app build            |
+| `/yee/mobile-release-policy/eas-webhook`          | EAS Build     | Signed YEE build metadata fallback cache          |
+
+For Android, the policy resolver treats Google Play's closed-testing track as
+the primary source of the latest deployed build. EAS webhook metadata, GitHub
+`app.config.js`, and static backend fallback values are used only when the more
+authoritative source cannot provide a field.
 
 Cross-surface notes:
 
