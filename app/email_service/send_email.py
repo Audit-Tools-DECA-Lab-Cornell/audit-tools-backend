@@ -30,6 +30,39 @@ logger = logging.getLogger(__name__)
 
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
+# Per-product sender display names. The username the recipient sees is classified
+# by product so YEE mail reads as "YEE Audit Tools" and Playspace mail as
+# "Playspace Audit Tools", instead of a single generic "Audit Tools" for both.
+# Each is individually overridable; BREVO_SENDER_NAME remains the catch-all
+# default when a product-specific override is unset.
+_DEFAULT_SENDER_NAMES: dict[str, str] = {
+	"yee": "YEE Audit Tools",
+	"playspace": "Playspace Audit Tools",
+}
+_SENDER_NAME_ENV_VARS: dict[str, str] = {
+	"yee": "BREVO_SENDER_NAME_YEE",
+	"playspace": "BREVO_SENDER_NAME_PLAYSPACE",
+}
+
+
+def _resolve_sender_name(product: str) -> str:
+	"""Return the sender display name for a product.
+
+	Resolution order: the product-specific env override (e.g. ``BREVO_SENDER_NAME_YEE``),
+	then the built-in per-product default so classification always happens out of
+	the box, then the legacy generic ``BREVO_SENDER_NAME`` for unknown products,
+	then a final ``"Audit Tools"`` fallback.
+	"""
+	key = product.strip().lower()
+	specific = os.getenv(_SENDER_NAME_ENV_VARS.get(key, ""), "").strip()
+	if specific:
+		return specific
+	default = _DEFAULT_SENDER_NAMES.get(key)
+	if default:
+		return default
+	return os.getenv("BREVO_SENDER_NAME", "").strip() or "Audit Tools"
+
+
 # Retries on connection failures, 429 rate-limit, and transient 5xx server errors.
 # Brevo's Retry-After header (present on 429) is respected automatically.
 # Backoff schedule: 1 s, 2 s, 4 s (3 total attempts).
@@ -186,12 +219,13 @@ def _send_email(
 	fallback_url: str,
 	email_type: str,
 	tags: list[str],
+	product: str,
 	track_clicks: bool = True,
 	track_opens: bool = True,
 ) -> bool:
 	api_key = os.getenv("BREVO_API_KEY", "").strip()
 	sender_email = os.getenv("BREVO_SENDER_EMAIL", "").strip()
-	sender_name = os.getenv("BREVO_SENDER_NAME", "Audit Tools").strip()
+	sender_name = _resolve_sender_name(product)
 	# Falls back to the sender address when no separate reply-to is configured,
 	# but set BREVO_REPLY_TO_EMAIL to a monitored inbox in production.
 	reply_to_email = os.getenv("BREVO_REPLY_TO_EMAIL", sender_email).strip()
@@ -299,6 +333,7 @@ def send_verification_email(*, to_email: str, verify_url: str) -> bool:
 		fallback_url=verify_url,
 		email_type="email_verification",
 		tags=["auth", "verification"],
+		product="yee",
 	)
 
 
@@ -318,6 +353,7 @@ def send_password_reset_email(*, to_email: str, reset_url: str) -> bool:
 		fallback_url=reset_url,
 		email_type="password_reset",
 		tags=["auth", "password_reset"],
+		product="yee",
 	)
 
 
@@ -332,11 +368,12 @@ def send_auditor_invite_email(*, to_email: str, invite_url: str) -> bool:
 			f"{invite_url}\n\n"
 			"If you were not expecting this invite, you can ignore this email."
 		),
-		html_body=invite_html(invite_url, "auditor"),
+		html_body=invite_html(invite_url, "auditor", product="yee"),
 		log_label="Auditor invite link",
 		fallback_url=invite_url,
 		email_type="auditor_invite",
 		tags=["auth", "invite", "auditor"],
+		product="yee",
 	)
 
 
@@ -346,12 +383,14 @@ def send_manager_invite_email(
 	invite_url: str,
 	organization_name: str | None = None,
 	invited_by_name: str | None = None,
+	product: str = "yee",
 ) -> bool:
 	"""Send a manager invite email.
 
 	Optionally include the workspace organisation name and the inviting
 	manager's display name so the recipient can immediately identify who and
-	what org sent the invitation.
+	what org sent the invitation. ``product`` selects the sender identity and
+	the email design system (YEE vs Playspace); both surfaces invite managers.
 	"""
 	org_line = f" from {organization_name}" if organization_name else ""
 	body_parts = [
@@ -375,11 +414,13 @@ def send_manager_invite_email(
 			"manager",
 			organization_name=organization_name,
 			invited_by_name=invited_by_name,
+			product=product,
 		),
 		log_label="Manager invite link",
 		fallback_url=invite_url,
 		email_type="manager_invite",
 		tags=["auth", "invite", "manager"],
+		product=product,
 	)
 
 
@@ -416,6 +457,7 @@ def send_auditor_credentials_email(
 		fallback_url="",
 		email_type="auditor_credentials",
 		tags=["onboarding", "credentials", "auditor"],
+		product="playspace",
 	)
 
 
@@ -458,6 +500,7 @@ def send_audit_submit_failure_email(
 		fallback_url="",
 		email_type="audit_submit_failure",
 		tags=["audit", "submit_failure", "auditor"],
+		product="playspace",
 		track_clicks=False,
 	)
 
@@ -511,4 +554,5 @@ def send_export_ready_email(
 		fallback_url=dashboard_url,
 		email_type="raw_data_export_ready",
 		tags=["export", "raw_data"],
+		product="playspace",
 	)

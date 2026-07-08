@@ -995,6 +995,7 @@ class PlayspaceManagementService:
 			invite_url=invite_url,
 			organization_name=organization_name,
 			invited_by_name=invited_by_name,
+			product="playspace",
 		)
 		await self._session.commit()
 		await self._session.refresh(invite)
@@ -1099,6 +1100,7 @@ class PlayspaceManagementService:
 			invite_url=invite_url,
 			organization_name=organization_name,
 			invited_by_name=invited_by_name,
+			product="playspace",
 		)
 		await self._session.commit()
 		await self._session.refresh(invite)
