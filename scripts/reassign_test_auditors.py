@@ -109,9 +109,7 @@ def _is_test_auditor_email(email: str | None) -> bool:
 
 
 async def _resolve_source_account(session: AsyncSession) -> tuple[User, uuid.UUID]:
-	manager = (
-		await session.execute(select(User).where(User.email == SOURCE_MANAGER_EMAIL))
-	).scalar_one_or_none()
+	manager = (await session.execute(select(User).where(User.email == SOURCE_MANAGER_EMAIL))).scalar_one_or_none()
 	if manager is None:
 		raise SystemExit(f"Source manager '{SOURCE_MANAGER_EMAIL}' was not found in this database.")
 	if manager.account_id is None:
@@ -135,14 +133,16 @@ async def _resolve_target_account(session: AsyncSession) -> tuple[ManagerProfile
 
 async def _resolve_target_project(session: AsyncSession, *, account_id) -> Project:
 	projects = (
-		await session.execute(
-			select(Project).where(Project.account_id == account_id, Project.name == TARGET_PROJECT_NAME)
+		(
+			await session.execute(
+				select(Project).where(Project.account_id == account_id, Project.name == TARGET_PROJECT_NAME)
+			)
 		)
-	).scalars().all()
+		.scalars()
+		.all()
+	)
 	if not projects:
-		raise SystemExit(
-			f"No project named '{TARGET_PROJECT_NAME}' was found under account {account_id}."
-		)
+		raise SystemExit(f"No project named '{TARGET_PROJECT_NAME}' was found under account {account_id}.")
 	if len(projects) > 1:
 		raise SystemExit(
 			f"Multiple projects named '{TARGET_PROJECT_NAME}' were found under account {account_id}; "
@@ -153,20 +153,28 @@ async def _resolve_target_project(session: AsyncSession, *, account_id) -> Proje
 
 async def _resolve_target_place(session: AsyncSession, *, project: Project) -> Place:
 	places = (
-		await session.execute(
-			select(Place)
-			.join(ProjectPlace, ProjectPlace.place_id == Place.id)
-			.where(ProjectPlace.project_id == project.id, Place.name == TARGET_PLACE_NAME)
+		(
+			await session.execute(
+				select(Place)
+				.join(ProjectPlace, ProjectPlace.place_id == Place.id)
+				.where(ProjectPlace.project_id == project.id, Place.name == TARGET_PLACE_NAME)
+			)
 		)
-	).scalars().all()
+		.scalars()
+		.all()
+	)
 	if not places:
 		known = (
-			await session.execute(
-				select(Place.name).join(ProjectPlace, ProjectPlace.place_id == Place.id).where(
-					ProjectPlace.project_id == project.id
+			(
+				await session.execute(
+					select(Place.name)
+					.join(ProjectPlace, ProjectPlace.place_id == Place.id)
+					.where(ProjectPlace.project_id == project.id)
 				)
 			)
-		).scalars().all()
+			.scalars()
+			.all()
+		)
 		raise SystemExit(
 			f"No place named '{TARGET_PLACE_NAME}' is linked to project '{project.name}' ({project.id}). "
 			f"Places currently linked: {sorted(known) or '(none)'}"
@@ -198,8 +206,10 @@ async def _reassign(session: AsyncSession, *, dry_run: bool) -> None:
 		raise SystemExit("Source and target account are the same; nothing to move.")
 
 	profiles = (
-		await session.execute(select(AuditorProfile).where(AuditorProfile.account_id == source_account_id))
-	).scalars().all()
+		(await session.execute(select(AuditorProfile).where(AuditorProfile.account_id == source_account_id)))
+		.scalars()
+		.all()
+	)
 	test_profiles = [profile for profile in profiles if _is_test_auditor_email(profile.email)]
 
 	if not test_profiles:
@@ -223,10 +233,10 @@ async def _reassign(session: AsyncSession, *, dry_run: bool) -> None:
 			continue
 
 		existing_assignments = (
-			await session.execute(
-				select(AuditorAssignment).where(AuditorAssignment.auditor_profile_id == profile.id)
-			)
-		).scalars().all()
+			(await session.execute(select(AuditorAssignment).where(AuditorAssignment.auditor_profile_id == profile.id)))
+			.scalars()
+			.all()
+		)
 		stale_assignments = [
 			assignment
 			for assignment in existing_assignments
