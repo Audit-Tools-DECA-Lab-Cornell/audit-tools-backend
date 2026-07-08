@@ -377,7 +377,9 @@ def _header(*, eyebrow: str, heading: str, theme: EmailTheme) -> str:
         </tr>"""
 
 
-def _paragraph(html: str, *, theme: EmailTheme, margin: str = "0 0 18px 0", muted: bool = False, align: str = "left") -> str:
+def _paragraph(
+	html: str, *, theme: EmailTheme, margin: str = "0 0 18px 0", muted: bool = False, align: str = "left"
+) -> str:
 	"""Render a paragraph. ``html`` may contain trusted markup (e.g. <strong>);
 	any dynamic values it embeds must already be escaped by the caller via _h()."""
 	class_name = "email-muted" if muted else "email-text"
@@ -957,7 +959,13 @@ def verification_html(verify_url: str) -> str:
 	body_rows = f"""\
         <tr>
           <td class="email-content" style="padding:36px 40px 0 40px;">
-{_paragraph(f"Welcome to {_h(theme.brand_name)}! You are one step away from activating your account.", theme=theme, margin="0 0 16px 0")}
+{
+		_paragraph(
+			f"Welcome to {_h(theme.brand_name)}! You are one step away from activating your account.",
+			theme=theme,
+			margin="0 0 16px 0",
+		)
+	}
 {
 		_paragraph(
 			"Confirm your email address using the button below. This ensures your account is secure and that you receive important notifications.",

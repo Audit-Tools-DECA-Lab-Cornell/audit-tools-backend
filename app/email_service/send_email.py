@@ -62,6 +62,7 @@ def _resolve_sender_name(product: str) -> str:
 		return default
 	return os.getenv("BREVO_SENDER_NAME", "").strip() or "Audit Tools"
 
+
 # Retries on connection failures, 429 rate-limit, and transient 5xx server errors.
 # Brevo's Retry-After header (present on 429) is respected automatically.
 # Backoff schedule: 1 s, 2 s, 4 s (3 total attempts).
