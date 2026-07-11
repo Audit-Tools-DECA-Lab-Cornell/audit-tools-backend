@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import KnownIssue, KnownIssueStatus
-from app.seed import YEE_PLACE_GREEN_ID
+from app.seed import YEE_PLACE_HUB_ID, YEE_SUBMISSION_HUB_ID
 from tests.products.yee._helpers import (
 	SEED_AUDITOR_EMAIL,
 	_bearer_headers,
@@ -83,22 +83,15 @@ def test_auditor_can_file_bug_report(yee_client: TestClient) -> None:
 
 
 def test_report_persists_owned_yee_submission_ref(yee_client: TestClient) -> None:
-	"""An auditor's reference to their own YEE submission is trusted and stored."""
+	"""An auditor's reference to their own YEE submission is trusted and stored.
+
+	Uses the seeded Hub submission (owned by this auditor) instead of creating
+	one: submitting here used to consume the seeded Green slot that
+	``test_submit_durability`` needs untouched, making the suite order-dependent.
+	"""
 
 	headers = _bearer_headers(_login_auditor(yee_client))
-
-	# Create a real submission the auditor owns, then reference it from a report.
-	submit = yee_client.post(
-		"/yee/audits",
-		headers=headers,
-		json={
-			"place_id": str(YEE_PLACE_GREEN_ID),
-			"participant_info": {"total_minutes": 10},
-			"responses": {"QID22": "3"},
-		},
-	)
-	assert submit.status_code == 201, submit.text
-	submission_id = submit.json()["id"]
+	submission_id = str(YEE_SUBMISSION_HUB_ID)
 
 	response = yee_client.post(
 		"/yee/bug-reports",
@@ -106,9 +99,9 @@ def test_report_persists_owned_yee_submission_ref(yee_client: TestClient) -> Non
 		json={
 			"surface": "mobile",
 			"title": "Submit confirmation missing",
-			"description": "No confirmation after submitting the Green audit.",
+			"description": "No confirmation after submitting the Hub audit.",
 			"severity": "minor",
-			"place_id": str(YEE_PLACE_GREEN_ID),
+			"place_id": str(YEE_PLACE_HUB_ID),
 			"yee_submission_id": submission_id,
 		},
 	)
@@ -116,7 +109,7 @@ def test_report_persists_owned_yee_submission_ref(yee_client: TestClient) -> Non
 	body = response.json()
 	# The auditor owns this submission and place, so both references are persisted.
 	assert body["yee_submission_id"] == submission_id
-	assert body["place_id"] == str(YEE_PLACE_GREEN_ID)
+	assert body["place_id"] == str(YEE_PLACE_HUB_ID)
 
 
 def test_unknown_entity_reference_is_dropped(yee_client: TestClient) -> None:
