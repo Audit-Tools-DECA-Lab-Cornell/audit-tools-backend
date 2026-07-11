@@ -297,7 +297,7 @@ execution flow can evolve independently.
 | `auditor_id`            | FK → `auditor_profiles` (`ON DELETE RESTRICT`) |
 | `place_id`              | FK → `places` (`ON DELETE CASCADE`)            |
 | `submitted_at`          | Defaults to `now()`                            |
-| `participant_info_json` | JSONB participant metadata                     |
+| `participant_info_json` | JSONB participant metadata (open dict, stored verbatim) |
 | `responses_json`        | JSONB response payload                         |
 | `section_scores_json`   | JSONB per-section scores                       |
 | `scores_json`           | JSONB canonical score snapshot                 |
@@ -311,6 +311,12 @@ New submissions (and their drafts) are stamped with the then-active instrument's
 so historical audits resolve against the version they were taken on. A version
 referenced by any YEE audit — a submitted row here or an in-progress `audits`
 draft — cannot be deleted (`409`).
+
+`participant_info_json` is an open dict the backend stores verbatim (no key
+whitelist). Beyond the visit-context fields, the YEE mobile app stamps
+`participant_id` into it — an optional free-text ID typed by the auditor so a
+study/workshop can link the audit to a person. This pass-through is pinned by
+`tests/products/yee/test_participant_metadata_passthrough.py`.
 
 ---
 
