@@ -313,12 +313,10 @@ referenced by any YEE audit — a submitted row here or an in-progress `audits`
 draft — cannot be deleted (`409`).
 
 `participant_info_json` is an open dict the backend stores verbatim (no key
-whitelist). Beyond the visit-context fields, the YEE mobile app stamps audit
-identity metadata into it: `participant_id` (optional free-text ID typed by the
-auditor so a study/workshop can link the audit to a person), `tablet_id` (the
-physical device label entered once in the app's Settings → Device), and
-best-effort `os_device_id` / `device_model` backups. This pass-through is
-pinned by `tests/products/yee/test_participant_metadata_passthrough.py`.
+whitelist). Beyond the visit-context fields, the YEE mobile app stamps
+`participant_id` into it — an optional free-text ID typed by the auditor so a
+study/workshop can link the audit to a person. This pass-through is pinned by
+`tests/products/yee/test_participant_metadata_passthrough.py`.
 
 ---
 

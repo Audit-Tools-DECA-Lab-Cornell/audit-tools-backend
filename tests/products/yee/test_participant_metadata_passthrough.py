@@ -1,11 +1,9 @@
 """Contract pin: client-supplied audit identity metadata round-trips verbatim.
 
-The YEE mobile app stamps ``participant_id`` (typed by the auditor) and device
-identity fields (``tablet_id`` entered once in Settings → Device, plus
-best-effort ``os_device_id`` / ``device_model``) into ``participant_info`` so a
-completed audit can be linked to an individual participant and traced back to
-the tablet it was captured on. The backend intentionally treats
-``participant_info`` as an open dict stored verbatim in
+The YEE mobile app stamps ``participant_id`` (an optional free-text ID typed by
+the auditor) into ``participant_info`` so a completed audit can be linked to an
+individual participant. The backend intentionally treats ``participant_info``
+as an open dict stored verbatim in
 ``yee_audit_submissions.participant_info_json`` — these tests pin that pass-
 through so a future schema tightening cannot silently drop the keys.
 
@@ -25,9 +23,6 @@ from tests.products.yee._helpers import (
 
 PARTICIPANT_METADATA = {
 	"participant_id": "P-042",
-	"tablet_id": "TAB-07",
-	"os_device_id": "android-1234abcd",
-	"device_model": "Galaxy Tab A9",
 	"total_minutes": 18,
 }
 
@@ -86,7 +81,7 @@ def _create_assigned_place(
 	return mgr["headers"], place_id
 
 
-def test_draft_preserves_participant_and_device_metadata(
+def test_draft_preserves_participant_metadata(
 	yee_client: TestClient,
 	yee_test_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -110,7 +105,7 @@ def test_draft_preserves_participant_and_device_metadata(
 		assert state.json()["participant_info"][key] == value
 
 
-def test_submission_preserves_participant_and_device_metadata(
+def test_submission_preserves_participant_metadata(
 	yee_client: TestClient,
 	yee_test_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
