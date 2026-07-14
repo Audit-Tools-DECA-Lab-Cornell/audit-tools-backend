@@ -31,13 +31,13 @@ YEE_RELEASE_POLICY = MobileReleasePolicyResponse(
 		# so the fleet's latest installable version is 0.7.3. Advertising an
 		# unpublished version would point the in-app update gate at a store
 		# listing that cannot satisfy it.
-		latest_version="0.7.3",
-		minimum_supported_version="0.7.2",
+		latest_version="0.8.2",
+		minimum_supported_version="0.8.0",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
 	),
 	ios=PlatformReleasePolicy(
-		latest_version="0.7.3",
-		minimum_supported_version="0.7.2",
+		latest_version="0.8.2",
+		minimum_supported_version="0.8.0",
 		update_url="https://apps.apple.com/",
 	),
 )
