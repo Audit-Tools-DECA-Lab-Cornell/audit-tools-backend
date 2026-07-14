@@ -32,12 +32,12 @@ YEE_RELEASE_POLICY = MobileReleasePolicyResponse(
 		# unpublished version would point the in-app update gate at a store
 		# listing that cannot satisfy it.
 		latest_version="0.8.2",
-		minimum_supported_version="0.8.0",
+		minimum_supported_version="0.8.2",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
 	),
 	ios=PlatformReleasePolicy(
 		latest_version="0.8.2",
-		minimum_supported_version="0.8.0",
+		minimum_supported_version="0.8.2",
 		update_url="https://apps.apple.com/",
 	),
 )
