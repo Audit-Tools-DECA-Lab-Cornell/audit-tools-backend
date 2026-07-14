@@ -65,6 +65,7 @@ class ManagerAuditEditRequest(BaseModel):
 class PlaceComparisonAuditItem(BaseModel):
 	audit_id: str
 	auditor_id: str
+	participant_id: str | None = None
 	place_id: str
 	place_name: str
 	project_id: str
@@ -93,6 +94,7 @@ class PlaceComparisonGroup(BaseModel):
 class RawDataExportRow(BaseModel):
 	audit_id: str
 	auditor_generated_id: str
+	participant_id: str | None = None
 	organization: str
 	place_id: str
 	place_name: str

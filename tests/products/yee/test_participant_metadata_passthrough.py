@@ -13,13 +13,38 @@ role auditor profile) so it never perturbs seeded fixtures other suites read.
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.products.yee.services.dashboard import participant_id_from_info
 from tests.products.yee._helpers import (
 	_signup_primary_manager,
 	_unique_suffix,
 )
+
+
+@pytest.mark.parametrize(
+	("participant_info", "expected"),
+	[
+		({"participant_id": "P-042"}, "P-042"),
+		({"participant_id": "  P-042  "}, "P-042"),
+		({"participant_id": "   "}, None),
+		({"participant_id": ""}, None),
+		({}, None),
+		(None, None),
+		# Non-string values from a malformed client are treated as absent, never
+		# coerced into display text like "True", "42", or "['P-042']".
+		({"participant_id": 42}, None),
+		({"participant_id": True}, None),
+		({"participant_id": ["P-042"]}, None),
+	],
+)
+def test_participant_id_from_info_only_accepts_non_blank_strings(
+	participant_info: object, expected: str | None
+) -> None:
+	assert participant_id_from_info(participant_info) == expected
+
 
 PARTICIPANT_METADATA = {
 	"participant_id": "P-042",
@@ -133,3 +158,68 @@ def test_submission_preserves_participant_metadata(
 	assert detail.status_code == 200, detail.text
 	for key, value in PARTICIPANT_METADATA.items():
 		assert detail.json()["participant_info"][key] == value
+
+
+def test_participant_id_surfaces_on_list_and_report_endpoints(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""The frontend display surfaces need ``participant_id`` on the list/report models.
+
+	The individual submission, audit-state, and manager edit-state responses already
+	echo the full ``participant_info`` dict. These four read models flatten only a
+	projection of it, so ``participant_id`` is promoted to an explicit field — pin
+	that it reaches each of them for a submission that carried the ID.
+	"""
+
+	headers, place_id = _create_assigned_place(yee_client, yee_test_session_factory)
+	expected_participant_id = PARTICIPANT_METADATA["participant_id"]
+
+	submit = yee_client.post(
+		"/yee/audits",
+		headers=headers,
+		json={
+			"place_id": place_id,
+			"participant_info": PARTICIPANT_METADATA,
+			"responses": {"QID22": "3"},
+		},
+	)
+	assert submit.status_code == 201, submit.text
+	submission_id = submit.json()["id"]
+
+	def _row_for(rows: list[dict], key: str) -> dict:
+		match = next((row for row in rows if row.get(key) == submission_id), None)
+		assert match is not None, f"submission {submission_id} missing from {rows}"
+		return match
+
+	# Auditor "my audits" list (dual-role account also owns the auditor profile).
+	my_audits = yee_client.get("/yee/my-audits", headers=headers)
+	assert my_audits.status_code == 200, my_audits.text
+	assert _row_for(my_audits.json(), "id")["participant_id"] == expected_participant_id
+
+	# Manager/admin audits list.
+	audits = yee_client.get("/yee/dashboard/audits", headers=headers)
+	assert audits.status_code == 200, audits.text
+	audit_row = _row_for(audits.json(), "submission_id")
+	assert audit_row["participant_id"] == expected_participant_id
+
+	# Project detail latest_audits (reuses AuditListItem; resolves the submission).
+	project_detail = yee_client.get(f"/yee/dashboard/projects/{audit_row['project_id']}", headers=headers)
+	assert project_detail.status_code == 200, project_detail.text
+	latest_for_place = next(
+		(row for row in project_detail.json()["latest_audits"] if row["place_id"] == place_id),
+		None,
+	)
+	assert latest_for_place is not None, project_detail.text
+	assert latest_for_place["participant_id"] == expected_participant_id
+
+	# Place-comparison report rows (manager/admin comparisons).
+	comparisons = yee_client.get("/yee/dashboard/reports/place-comparisons", headers=headers)
+	assert comparisons.status_code == 200, comparisons.text
+	comparison_audits = [audit for group in comparisons.json() for audit in group["audits"]]
+	assert _row_for(comparison_audits, "audit_id")["participant_id"] == expected_participant_id
+
+	# Raw-data export feed.
+	raw_data = yee_client.get("/yee/dashboard/raw-data", headers=headers)
+	assert raw_data.status_code == 200, raw_data.text
+	assert _row_for(raw_data.json(), "audit_id")["participant_id"] == expected_participant_id

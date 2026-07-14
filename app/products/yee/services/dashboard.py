@@ -61,6 +61,24 @@ def _format_timestamp(value: datetime | None) -> str:
 	return value.strftime("%b %d, %Y")
 
 
+def participant_id_from_info(participant_info: Any) -> str | None:
+	"""Extract the optional free-text ``participant_id`` from a participant_info payload.
+
+	``participant_info`` is an open dict stored verbatim (SCHEMA.md); the mobile/web
+	clients may or may not stamp ``participant_id`` into it. ``participant_id`` is a
+	free-text string, so a non-string value (e.g. a number or list from a malformed
+	client) is treated as absent rather than coerced into display text. Returns the
+	trimmed string, or ``None`` when the payload is not a dict, the key is missing or
+	not a string, or the string is blank.
+	"""
+	if not isinstance(participant_info, dict):
+		return None
+	raw = participant_info.get("participant_id")
+	if not isinstance(raw, str):
+		return None
+	return raw.strip() or None
+
+
 def _display_auditor_code(code: str | None) -> str:
 	if not code:
 		return "AUD000"
@@ -341,6 +359,7 @@ async def fetch_place_comparison_groups(
 			PlaceComparisonAuditItem(
 				audit_id=str(submission.id),
 				auditor_id=_display_auditor_code(auditor_code),
+				participant_id=participant_id_from_info(submission.participant_info_json),
 				place_id=str(place.id),
 				place_name=place.name,
 				project_id=str(project.id),
@@ -389,6 +408,7 @@ async def fetch_raw_data_rows(
 			RawDataExportRow(
 				audit_id=str(submission.id),
 				auditor_generated_id=_display_auditor_code(auditor_code),
+				participant_id=participant_id_from_info(participant_info),
 				organization=organization_name,
 				place_id=str(place.id),
 				place_name=place.name,

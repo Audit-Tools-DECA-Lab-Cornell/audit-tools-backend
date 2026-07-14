@@ -407,6 +407,7 @@ def _build_yee_participant_info(
 	section_comments: dict[str, str] | None = None,
 	weighting_comments: dict[str, str] | None = None,
 	seed_scenario: str | None = None,
+	participant_id: str | None = None,
 ) -> dict[str, object]:
 	participant_info: dict[str, object] = {
 		"auditor_id": auditor_code,
@@ -426,6 +427,8 @@ def _build_yee_participant_info(
 	}
 	if seed_scenario is not None:
 		participant_info["seed_scenario"] = seed_scenario
+	if participant_id:
+		participant_info["participant_id"] = participant_id
 	return participant_info
 
 
@@ -528,6 +531,11 @@ def build_realistic_yee_submission(
 	idempotency_key: str | None = None,
 ) -> tuple[Audit, YeeAuditSubmission]:
 	responses = _build_yee_domain_scored_responses(domain_levels)
+	# Populate the optional study/workshop participant ID on a deterministic subset
+	# of seeded submissions so a freshly seeded database shows the field both set and
+	# blank across the reporting surfaces. Keyed off the fixed submission UUID so the
+	# selection is stable across reseeds.
+	seed_participant_id = f"P-{submission_id.int % 900 + 100:03d}" if submission_id.int % 2 == 0 else None
 	participant_info = _build_yee_participant_info(
 		auditor_code=auditor_code,
 		place_id=place_id,
@@ -540,6 +548,7 @@ def build_realistic_yee_submission(
 		section_comments=section_comments,
 		weighting_comments=weighting_comments,
 		seed_scenario=seed_scenario,
+		participant_id=seed_participant_id,
 	)
 	score = score_yee_responses(cast(dict[str, object], responses), participant_info)
 	total_score = int(cast(int, score["total_score"]))
