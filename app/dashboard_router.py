@@ -57,6 +57,7 @@ from app.products.yee.services.dashboard import (
 	_extract_score,
 	_format_timestamp,
 	_repair_missing_yee_submission,
+	participant_id_from_info,
 )
 from app.products.yee.services.dashboard import (
 	fetch_manager_audit_edit_state as _service_fetch_manager_audit_edit_state,
@@ -89,6 +90,7 @@ class AuditListItem(BaseModel):
 	place_id: str
 	place: str
 	auditor: str
+	participant_id: str | None = None
 	date: str
 	submitted_at: str | None = None
 	score: int
@@ -620,6 +622,7 @@ async def _fetch_audits(
 				place_id=str(place.id),
 				place=place.name,
 				auditor=_display_auditor_code(auditor.auditor_code),
+				participant_id=participant_id_from_info(resolved_participant_info),
 				date=_format_timestamp(audit.submitted_at or audit.started_at),
 				submitted_at=resolved_submitted_at.isoformat() if resolved_submitted_at is not None else None,
 				score=resolved_total_raw_score,

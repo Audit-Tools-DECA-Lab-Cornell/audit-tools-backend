@@ -199,3 +199,4 @@ class MyYeeAuditItem(BaseModel):
 	place_name: str
 	submitted_at: datetime
 	total_score: int
+	participant_id: str | None = None

@@ -49,6 +49,7 @@ from app.products.yee.services.audits import (
 	_score_result_from_dict,
 	_submission_response,
 )
+from app.products.yee.services.dashboard import participant_id_from_info
 from app.products.yee.services.scoring_spec import SCORING_VERSION
 from app.products.yee.services.scoring import score_yee_responses
 
@@ -78,6 +79,7 @@ async def list_my_yee_audits(
 			place_name=place_name,
 			submitted_at=submission.submitted_at,
 			total_score=score_yee_responses(submission.responses_json, submission.participant_info_json)["total_score"],
+			participant_id=participant_id_from_info(submission.participant_info_json),
 		)
 		for submission, place_name in rows
 	]
