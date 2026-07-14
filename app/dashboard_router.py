@@ -816,10 +816,22 @@ async def _fetch_project_detail(
 		(Audit.status == AuditStatus.SUBMITTED) & (Audit.project_id == project.id),
 	)
 
+	# Resolve the matching submission so latest_audits carries participant_id like
+	# the audits list does. The unique (auditor_id, place_id) constraint on
+	# yee_audit_submissions means this outer join matches at most one row per audit,
+	# so it cannot fan out the preview.
+	latest_submission_alias = aliased(YeeAuditSubmission)
 	latest_stmt = (
-		select(Audit, Place, Auditor.auditor_code)
+		select(Audit, Place, Auditor.auditor_code, latest_submission_alias)
 		.join(Place, Audit.place_id == Place.id)
 		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
+		.outerjoin(
+			latest_submission_alias,
+			and_(
+				latest_submission_alias.auditor_id == Audit.auditor_profile_id,
+				latest_submission_alias.place_id == Audit.place_id,
+			),
+		)
 		.where(Audit.project_id == project.id)
 		.order_by(Audit.submitted_at.desc().nullslast(), Audit.started_at.desc())
 		.limit(8)
@@ -833,11 +845,14 @@ async def _fetch_project_detail(
 			place_id=str(place.id),
 			place=place.name,
 			auditor=_display_auditor_code(auditor_code),
+			participant_id=participant_id_from_info(
+				submission.participant_info_json if submission is not None else None
+			),
 			date=_format_timestamp(audit.submitted_at or audit.started_at),
 			score=_extract_score(audit.scores_json),
 			status="Submitted" if audit.status == AuditStatus.SUBMITTED else "Draft",
 		)
-		for audit, place, auditor_code in latest_rows
+		for audit, place, auditor_code, submission in latest_rows
 	]
 
 	assigned_places = func.count(func.distinct(ProjectPlace.place_id))
