@@ -43,9 +43,9 @@ def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 		github_release=github_release,
 	)
 
-	assert resolved.latest_version == "0.7.3"
+	assert resolved.latest_version == "0.8.2"
 	assert resolved.latest_build == 203
-	assert resolved.minimum_supported_version == "0.7.1"
+	assert resolved.minimum_supported_version == "0.8.0"
 
 
 def test_resolver_fills_google_version_gap_from_eas_then_static() -> None:
@@ -101,7 +101,7 @@ def test_record_eas_webhook_payload_caches_finished_store_build() -> None:
 		"platform": "android",
 		"status": "finished",
 		"metadata": {
-			"appVersion": "0.7.5",
+			"appVersion": "0.8.2",
 			"appBuildVersion": "205",
 			"distribution": "store",
 			"appIdentifier": "com.andisha2004.audittoolsyeemobile",
@@ -136,7 +136,7 @@ def test_signed_eas_webhook_updates_yee_policy_route(monkeypatch: pytest.MonkeyP
 			"platform": "android",
 			"status": "finished",
 			"metadata": {
-				"appVersion": "0.7.6",
+				"appVersion": "0.8.2",
 				"appBuildVersion": "206",
 				"distribution": "store",
 				"appIdentifier": "com.andisha2004.audittoolsyeemobile",
