@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -45,7 +47,7 @@ from app.products.playspace.schemas.audit import (
 	PreAuditPatchRequest,
 	SectionDraftPatchRequest,
 )
-from app.products.playspace.schemas.instrument import ExecutionMode
+from app.products.playspace.schemas.instrument import ExecutionMode, PlayspaceInstrumentResponse
 from app.products.playspace.services.audit import PlayspaceAuditService
 import app.products.playspace.services.audit_sessions as audit_sessions_module
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
@@ -963,6 +965,48 @@ def test_patch_audit_draft_updates_final_comments_in_canonical_aggregate() -> No
 		)
 	)
 	assert session_response.meta.final_comments == "Observed heavy wear around the south entrance."
+
+
+def test_patch_audit_draft_rejects_scalar_multiple_scale_with_typed_422(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	audit = _build_service_audit(execution_mode=ExecutionMode.BOTH, revision=2)
+	audit.instrument_version = "5.32"
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+	instrument_path = (
+		Path(__file__).parents[3]
+		/ "app"
+		/ "products"
+		/ "playspace"
+		/ "instruments"
+		/ "pvua_v5_2__v5.32.instrument.json"
+	)
+	instrument = PlayspaceInstrumentResponse.model_validate(json.loads(instrument_path.read_text())["en"])
+
+	async def fake_resolve_instrument(*, audit: PlayspaceSubmission) -> PlayspaceInstrumentResponse:
+		return instrument
+
+	monkeypatch.setattr(service, "_resolve_playspace_instrument_for_audit", fake_resolve_instrument)
+	with pytest.raises(HTTPException) as exc_info:
+		asyncio.run(
+			service.patch_audit_draft(
+				actor=actor,
+				audit_id=audit.id,
+				payload=AuditDraftPatchRequest(
+					expected_revision=2,
+					sections={
+						"section_22_playspace_suitability_for_diverse_users": SectionDraftPatchRequest(
+							responses={"q_22_1": {"sociability": "small_group"}}
+						)
+					},
+				),
+			)
+		)
+
+	assert exc_info.value.status_code == 422
+	assert "requires an array" in exc_info.value.detail
+	assert service.commit_count == 0
 
 
 def test_create_or_resume_audit_keeps_existing_draft_execution_mode() -> None:

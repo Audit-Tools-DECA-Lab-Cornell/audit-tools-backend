@@ -2381,6 +2381,18 @@ def _build_question_answers(
 	for scale in question.scales:
 		if scale.key == "provision":
 			continue
+		if scale.selection_mode == "multiple":
+			selectable_options = [
+				option for option in scale.options if not option.is_not_applicable and not option.is_unsure
+			]
+			if not selectable_options:
+				raise ValueError(
+					f"Multiple scale {scale.key!r} for question {question.question_key!r} has no selectable options."
+				)
+			selected_count = randomizer.randint(1, len(selectable_options))
+			selected_keys = {option.key for option in randomizer.sample(selectable_options, selected_count)}
+			answers[scale.key] = [option.key for option in selectable_options if option.key in selected_keys]
+			continue
 		follow_up_target = _bounded_bias(quality_bias + randomizer.uniform(-0.15, 0.12))
 		follow_up_option = _pick_option_for_scale(
 			scale=scale,

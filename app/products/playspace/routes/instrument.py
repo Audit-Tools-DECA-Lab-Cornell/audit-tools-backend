@@ -25,6 +25,7 @@ from app.products.playspace.schemas.management import (
 	InstrumentVersionResponse,
 )
 from app.products.playspace.services.instrument import (
+	InstrumentValidationError,
 	build_instrument_response_from_row,
 	can_delete_instrument_version,
 	create_instrument_version,
@@ -137,7 +138,13 @@ async def admin_create_instrument(
 	"""Create a new instrument version (admin only)."""
 
 	_ = current_user
-	row = await create_instrument_version(session, data, activate)
+	try:
+		row = await create_instrument_version(session, data, activate)
+	except InstrumentValidationError as error:
+		raise HTTPException(
+			status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+			detail=str(error),
+		) from error
 	if row is None:
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,
@@ -159,7 +166,13 @@ async def admin_update_instrument(
 	"""Toggle activation status of a specific instrument version (admin only)."""
 
 	_ = current_user
-	row = await update_instrument_status(session, instrument_id, data)
+	try:
+		row = await update_instrument_status(session, instrument_id, data)
+	except InstrumentValidationError as error:
+		raise HTTPException(
+			status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+			detail=str(error),
+		) from error
 	if row is None:
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,

@@ -5,6 +5,7 @@ Playspace instrument enums and typed response models.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import Field, model_validator
 
@@ -84,6 +85,7 @@ class InstrumentScaleDefinitionResponse(ApiModel):
 	title: str
 	prompt: str
 	description: str
+	selection_mode: Literal["single", "multiple"] = "single"
 	options: list[InstrumentScaleOptionResponse]
 
 
@@ -93,6 +95,7 @@ class InstrumentQuestionScaleResponse(ApiModel):
 	key: ScaleKey
 	title: str
 	prompt: str
+	selection_mode: Literal["single", "multiple"] = "single"
 	options: list[InstrumentScaleOptionResponse]
 
 

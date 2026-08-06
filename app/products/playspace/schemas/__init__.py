@@ -46,6 +46,8 @@ from app.products.playspace.schemas.audit import (
 	PreAuditResponse,
 	ScorePairResponse,
 	SectionDraftPatchRequest,
+	SociabilityBreakdownResponse,
+	SociabilityCategoryTotalsResponse,
 )
 from app.products.playspace.schemas.base import (
 	ApiModel,
@@ -228,4 +230,6 @@ __all__ = [
 	"ScaleKey",
 	"ScorePairResponse",
 	"SectionDraftPatchRequest",
+	"SociabilityBreakdownResponse",
+	"SociabilityCategoryTotalsResponse",
 ]
