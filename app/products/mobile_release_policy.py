@@ -27,10 +27,6 @@ YEE_RELEASE_POLICY = MobileReleasePolicyResponse(
 	product="yee",
 	message="Install the latest YEE app to keep using field audits.",
 	android=PlatformReleasePolicy(
-		# 0.8.0 exists in git only — it was never published to the Play Store,
-		# so the fleet's latest installable version is 0.7.3. Advertising an
-		# unpublished version would point the in-app update gate at a store
-		# listing that cannot satisfy it.
 		latest_version="0.8.2",
 		minimum_supported_version="0.8.2",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
