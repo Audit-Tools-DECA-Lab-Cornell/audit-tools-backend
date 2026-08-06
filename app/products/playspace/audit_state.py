@@ -478,7 +478,7 @@ def _replace_normalized(
 	if aggregate.pre_audit is None:
 		audit.pre_submission_answers.clear()
 	else:
-		_upsert_pre_audit_normalized(audit, aggregate.pre_audit)
+		_upsert_pre_audit_normalized(audit, aggregate.pre_audit, replace=True)
 
 	# Sections: reconcile logical keys in place so repeated aggregate writes do
 	# not delete/reinsert rows that are still present.
@@ -496,10 +496,19 @@ def _replace_normalized(
 		)
 
 
-def _upsert_pre_audit_normalized(audit: PlayspaceSubmission, pre_audit: PreAuditPatchRequest) -> None:
+def _upsert_pre_audit_normalized(
+	audit: PlayspaceSubmission,
+	pre_audit: PreAuditPatchRequest,
+	*,
+	replace: bool = False,
+) -> None:
 	"""Merge pre-audit patch fields into the normalized pre-audit answer rows."""
 
 	fields_set = pre_audit.model_fields_set
+	if replace:
+		audit.pre_submission_answers = [
+			answer for answer in audit.pre_submission_answers if answer.field_key in fields_set
+		]
 	# Determine which fields are being patched so we can delete and recreate them.
 	patch_map: dict[str, list[str]] = {}
 

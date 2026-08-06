@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.models import (
 	AuditStatus,
 	PlayspaceChecklistAnswer,
+	PlayspacePreSubmissionAnswer,
 	PlayspaceQuestionResponse,
 	PlayspaceScaleAnswer,
 	PlayspaceSubmission,
@@ -29,6 +30,7 @@ from app.products.playspace.audit_state import (
 from app.products.playspace.schemas.audit import (
 	AuditAggregateWriteRequest,
 	AuditDraftPatchRequest,
+	PreAuditPatchRequest,
 	SectionDraftPatchRequest,
 )
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
@@ -422,6 +424,41 @@ def test_full_aggregate_prunes_omitted_rows_while_reusing_surviving_natural_keys
 		assert build_responses_json_from_relations(audit)["sections"] == {
 			"section_a": {"responses": {"question_a": {"provision": "a_lot"}}}
 		}
+
+
+def test_full_aggregate_prunes_omitted_pre_audit_fields_without_changing_patch_semantics() -> None:
+	audit = _build_audit()
+	audit.pre_submission_answers = [
+		PlayspacePreSubmissionAnswer(
+			submission_id=audit.id,
+			field_key="season",
+			selected_value="spring",
+			sort_order=0,
+		),
+		PlayspacePreSubmissionAnswer(
+			submission_id=audit.id,
+			field_key="weather_conditions",
+			selected_value="windy",
+			sort_order=0,
+		),
+	]
+
+	with Session() as session:
+		session.add(audit)
+		apply_draft_patch_to_relations(
+			audit=audit,
+			patch=AuditDraftPatchRequest(pre_audit=PreAuditPatchRequest(season="summer")),
+		)
+		assert build_responses_json_from_relations(audit)["pre_audit"] == {
+			"season": "summer",
+			"weather_conditions": ["windy"],
+		}
+
+		replace_audit_aggregate(
+			audit=audit,
+			aggregate=AuditAggregateWriteRequest(pre_audit=PreAuditPatchRequest(season="winter")),
+		)
+		assert build_responses_json_from_relations(audit)["pre_audit"] == {"season": "winter"}
 
 
 def test_score_totals_response_accepts_versioned_sociability_breakdown() -> None:
