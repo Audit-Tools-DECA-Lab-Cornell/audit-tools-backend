@@ -40,6 +40,7 @@ ALL_EXECUTION_MODES = [
 	ExecutionMode.SURVEY,
 	ExecutionMode.BOTH,
 ]
+SOCIABILITY_MULTI_SELECT_KEYS = ("play_alone", "small_group", "large_group")
 
 
 class UnsurePolicy(str, Enum):
@@ -48,6 +49,21 @@ class UnsurePolicy(str, Enum):
 	EXCLUDED = "unsure_as_excluded"
 	ZERO = "unsure_as_zero"
 	MAX = "unsure_as_max"
+
+
+@dataclass(frozen=True)
+class SociabilityCategoryTotals:
+	total: float = 0.0
+	max: float = 0.0
+
+
+@dataclass(frozen=True)
+class SociabilityBreakdown:
+	play_alone: SociabilityCategoryTotals = SociabilityCategoryTotals()
+	small_group: SociabilityCategoryTotals = SociabilityCategoryTotals()
+	large_group: SociabilityCategoryTotals = SociabilityCategoryTotals()
+	captured_question_count: int = 0
+	eligible_question_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -62,6 +78,7 @@ class ScoreTotals:
 	challenge_total_max: float = 0.0
 	sociability_total: float = 0.0
 	sociability_total_max: float = 0.0
+	sociability_breakdown: SociabilityBreakdown | None = None
 	play_value_total: float = 0.0
 	play_value_total_max: float = 0.0
 	usability_total: float = 0.0
@@ -566,10 +583,21 @@ def _is_question_complete(
 		if scale.key == "provision":
 			continue
 		raw_answer = question_answers.get(scale.key)
-		if not isinstance(raw_answer, str):
-			return False
-		if _find_option_by_key(scale.options, raw_answer) is None:
-			return False
+		if scale.selection_mode == "multiple":
+			if not isinstance(raw_answer, list) or len(raw_answer) == 0:
+				return False
+			if not all(isinstance(answer_key, str) for answer_key in raw_answer):
+				return False
+			answer_keys = [answer_key for answer_key in raw_answer if isinstance(answer_key, str)]
+			if len(answer_keys) != len(set(answer_keys)):
+				return False
+			if any(_find_option_by_key(scale.options, answer_key) is None for answer_key in answer_keys):
+				return False
+		else:
+			if not isinstance(raw_answer, str):
+				return False
+			if _find_option_by_key(scale.options, raw_answer) is None:
+				return False
 
 	return True
 
@@ -673,21 +701,31 @@ def _score_question(
 ) -> ScoreTotals:
 	"""Score one question according to the client-approved Playspace rules."""
 
+	sociability_scale = next(
+		(scale for scale in question.scales if scale.key == "sociability"),
+		None,
+	)
+	empty_sociability_breakdown = (
+		SociabilityBreakdown()
+		if sociability_scale is not None and sociability_scale.selection_mode == "multiple"
+		else None
+	)
+
 	if question.question_type != "scaled" or len(question.scales) == 0:
-		return ScoreTotals()
+		return ScoreTotals(sociability_breakdown=empty_sociability_breakdown)
 
 	question_answers = _read_json_dict(section_answers.get(question.question_key))
 	provision_scale = next(scale for scale in question.scales if scale.key == "provision")
 	provision_answer_key = question_answers.get("provision")
 	if not isinstance(provision_answer_key, str):
-		return ScoreTotals()
+		return ScoreTotals(sociability_breakdown=empty_sociability_breakdown)
 
 	provision_option = _find_option_by_key(provision_scale.options, provision_answer_key)
 	if provision_option is None:
-		return ScoreTotals()
+		return ScoreTotals(sociability_breakdown=empty_sociability_breakdown)
 
 	if _is_excluding_option(provision_option, unsure_policy):
-		return ScoreTotals()
+		return ScoreTotals(sociability_breakdown=empty_sociability_breakdown)
 
 	provision_total_max = _read_provision_scale_maximum(question=question)
 	variety_total_max, variety_multiplier_max = _read_multiplier_scale_maximum(
@@ -699,6 +737,7 @@ def _score_question(
 		scale_key="challenge",
 	)
 	sociability_total_max = _read_sociability_scale_maximum(question=question)
+	sociability_breakdown = empty_sociability_breakdown
 
 	if provision_option.is_unsure and unsure_policy is UnsurePolicy.MAX:
 		provision_total = provision_total_max
@@ -707,6 +746,13 @@ def _score_question(
 		challenge_total = challenge_total_max
 		challenge_multiplier = challenge_multiplier_max
 		sociability_total = sociability_total_max
+		if sociability_scale is not None and sociability_scale.selection_mode == "multiple":
+			sociability_breakdown = SociabilityBreakdown(
+				play_alone=SociabilityCategoryTotals(total=1.0, max=1.0),
+				small_group=SociabilityCategoryTotals(total=1.0, max=1.0),
+				large_group=SociabilityCategoryTotals(total=1.0, max=1.0),
+				eligible_question_count=1,
+			)
 	else:
 		provision_total = float(provision_option.addition_value)
 		variety_total = 0.0
@@ -714,6 +760,24 @@ def _score_question(
 		sociability_total = 0.0
 		variety_multiplier = 1.0
 		challenge_multiplier = 1.0
+		if (
+			sociability_scale is not None
+			and sociability_scale.selection_mode == "multiple"
+			and not provision_option.allows_follow_up_scales
+			and not provision_option.is_unsure
+		):
+			sociability_total_max = 0.0
+		if (
+			sociability_scale is not None
+			and sociability_scale.selection_mode == "multiple"
+			and provision_option.is_unsure
+		):
+			sociability_breakdown = SociabilityBreakdown(
+				play_alone=SociabilityCategoryTotals(max=1.0),
+				small_group=SociabilityCategoryTotals(max=1.0),
+				large_group=SociabilityCategoryTotals(max=1.0),
+				eligible_question_count=1,
+			)
 
 		if provision_option.allows_follow_up_scales:
 			(
@@ -735,7 +799,7 @@ def _score_question(
 					unsure_policy=unsure_policy,
 				)
 			)
-			sociability_total, sociability_total_max = _read_sociability_scale_result(
+			sociability_total, sociability_total_max, sociability_breakdown = _read_sociability_scale_result(
 				question=question,
 				question_answers=question_answers,
 				unsure_policy=unsure_policy,
@@ -757,6 +821,7 @@ def _score_question(
 		challenge_total_max=round(challenge_total_max, 2),
 		sociability_total=round(sociability_total, 2),
 		sociability_total_max=round(sociability_total_max, 2),
+		sociability_breakdown=sociability_breakdown,
 		play_value_total=round(play_value_total, 2),
 		play_value_total_max=round(play_value_total_max, 2),
 		usability_total=round(usability_total, 2),
@@ -858,7 +923,7 @@ def _read_sociability_scale_result(
 	question: ScoringQuestion,
 	question_answers: JsonDict,
 	unsure_policy: UnsurePolicy,
-) -> tuple[float, float]:
+) -> tuple[float, float, SociabilityBreakdown | None]:
 	"""Read one sociability answer as total and response-aware max."""
 
 	scale = next(
@@ -866,26 +931,96 @@ def _read_sociability_scale_result(
 		None,
 	)
 	if scale is None:
-		return 0.0, 0.0
+		return 0.0, 0.0, None
 
 	max_total = _read_sociability_scale_maximum(question=question)
+	if scale.selection_mode == "multiple":
+		return _read_multiple_sociability_scale_result(
+			question=question,
+			question_answers=question_answers,
+		)
+
 	answer_key = question_answers.get("sociability")
 	if not isinstance(answer_key, str):
-		return 0.0, max_total
+		return 0.0, max_total, None
 
 	selected_option = _find_option_by_key(scale.options, answer_key)
 	if selected_option is None:
-		return 0.0, max_total
+		return 0.0, max_total, None
 
 	if _is_excluding_option(selected_option, unsure_policy):
-		return 0.0, 0.0
+		return 0.0, 0.0, None
 
 	if selected_option.is_unsure:
 		if unsure_policy is UnsurePolicy.MAX:
-			return max_total, max_total
-		return 0.0, max_total
+			return max_total, max_total, None
+		return 0.0, max_total, None
 
-	return max(float(selected_option.addition_value) - 1.0, 0.0), max_total
+	return max(float(selected_option.addition_value) - 1.0, 0.0), max_total, None
+
+
+def _read_multiple_sociability_scale_result(
+	*,
+	question: ScoringQuestion,
+	question_answers: JsonDict,
+) -> tuple[float, float, SociabilityBreakdown]:
+	scale = next(scale for scale in question.scales if scale.key == "sociability")
+	option_keys = [option.key for option in scale.options]
+	if option_keys != list(SOCIABILITY_MULTI_SELECT_KEYS):
+		raise ValueError(
+			f"Question {question.question_key!r} multiple Sociability options must use the canonical ordered keys."
+		)
+
+	if "sociability" not in question_answers:
+		return (
+			0.0,
+			3.0,
+			SociabilityBreakdown(
+				play_alone=SociabilityCategoryTotals(max=1.0),
+				small_group=SociabilityCategoryTotals(max=1.0),
+				large_group=SociabilityCategoryTotals(max=1.0),
+				eligible_question_count=1,
+			),
+		)
+
+	raw_answer = question_answers["sociability"]
+	if not isinstance(raw_answer, list):
+		raise ValueError(f"Question {question.question_key!r} multiple Sociability answer must be a list.")
+	if len(raw_answer) == 0:
+		raise ValueError(f"Question {question.question_key!r} multiple Sociability answer must be non-empty.")
+	if not all(isinstance(answer_key, str) for answer_key in raw_answer):
+		raise ValueError(f"Question {question.question_key!r} multiple Sociability answer must contain strings only.")
+
+	selected_keys = [answer_key for answer_key in raw_answer if isinstance(answer_key, str)]
+	if len(selected_keys) != len(set(selected_keys)):
+		raise ValueError(f"Question {question.question_key!r} multiple Sociability answer contains duplicate keys.")
+	unknown_keys = [answer_key for answer_key in selected_keys if answer_key not in SOCIABILITY_MULTI_SELECT_KEYS]
+	if unknown_keys:
+		raise ValueError(
+			f"Question {question.question_key!r} multiple Sociability answer contains unknown keys: {unknown_keys!r}."
+		)
+
+	selected_key_set = set(selected_keys)
+	return (
+		float(len(selected_keys)),
+		3.0,
+		SociabilityBreakdown(
+			play_alone=SociabilityCategoryTotals(
+				total=float("play_alone" in selected_key_set),
+				max=1.0,
+			),
+			small_group=SociabilityCategoryTotals(
+				total=float("small_group" in selected_key_set),
+				max=1.0,
+			),
+			large_group=SociabilityCategoryTotals(
+				total=float("large_group" in selected_key_set),
+				max=1.0,
+			),
+			captured_question_count=1,
+			eligible_question_count=1,
+		),
+	)
 
 
 def _read_sociability_scale_maximum(*, question: ScoringQuestion) -> float:
@@ -897,6 +1032,8 @@ def _read_sociability_scale_maximum(*, question: ScoringQuestion) -> float:
 	)
 	if scale is None:
 		return 0.0
+	if scale.selection_mode == "multiple":
+		return 3.0
 	return max(
 		(max(float(option.addition_value) - 1.0, 0.0) for option in _max_candidate_options(scale.options)),
 		default=0.0,
@@ -963,11 +1100,54 @@ def _add_score_totals(left: ScoreTotals, right: ScoreTotals) -> ScoreTotals:
 		challenge_total_max=left.challenge_total_max + right.challenge_total_max,
 		sociability_total=left.sociability_total + right.sociability_total,
 		sociability_total_max=left.sociability_total_max + right.sociability_total_max,
+		sociability_breakdown=_add_sociability_breakdowns(
+			left.sociability_breakdown,
+			right.sociability_breakdown,
+		),
 		play_value_total=left.play_value_total + right.play_value_total,
 		play_value_total_max=left.play_value_total_max + right.play_value_total_max,
 		usability_total=left.usability_total + right.usability_total,
 		usability_total_max=left.usability_total_max + right.usability_total_max,
 	)
+
+
+def _add_sociability_breakdowns(
+	left: SociabilityBreakdown | None,
+	right: SociabilityBreakdown | None,
+) -> SociabilityBreakdown | None:
+	if left is None:
+		return right
+	if right is None:
+		return left
+	return SociabilityBreakdown(
+		play_alone=SociabilityCategoryTotals(
+			total=left.play_alone.total + right.play_alone.total,
+			max=left.play_alone.max + right.play_alone.max,
+		),
+		small_group=SociabilityCategoryTotals(
+			total=left.small_group.total + right.small_group.total,
+			max=left.small_group.max + right.small_group.max,
+		),
+		large_group=SociabilityCategoryTotals(
+			total=left.large_group.total + right.large_group.total,
+			max=left.large_group.max + right.large_group.max,
+		),
+		captured_question_count=left.captured_question_count + right.captured_question_count,
+		eligible_question_count=left.eligible_question_count + right.eligible_question_count,
+	)
+
+
+def _serialize_sociability_breakdown(breakdown: SociabilityBreakdown | None) -> JsonDict | None:
+	if breakdown is None:
+		return None
+	return {
+		"model": "multi_select_v1",
+		"play_alone": {"total": round(breakdown.play_alone.total, 2), "max": round(breakdown.play_alone.max, 2)},
+		"small_group": {"total": round(breakdown.small_group.total, 2), "max": round(breakdown.small_group.max, 2)},
+		"large_group": {"total": round(breakdown.large_group.total, 2), "max": round(breakdown.large_group.max, 2)},
+		"captured_question_count": breakdown.captured_question_count,
+		"eligible_question_count": breakdown.eligible_question_count,
+	}
 
 
 def _serialize_score_totals(
@@ -982,6 +1162,7 @@ def _serialize_score_totals(
 		"variety_total": round(score_totals.variety_total, 2),
 		"challenge_total": round(score_totals.challenge_total, 2),
 		"sociability_total": round(score_totals.sociability_total, 2),
+		"sociability_breakdown": _serialize_sociability_breakdown(score_totals.sociability_breakdown),
 		"play_value_total": round(score_totals.play_value_total, 2),
 		"usability_total": round(score_totals.usability_total, 2),
 	}

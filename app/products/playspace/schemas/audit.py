@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.models import AuditStatus
 from app.products.playspace.schemas.base import ApiModel, PlaceActivityStatus, RequestModel
@@ -116,6 +116,22 @@ class SectionDraftPatchRequest(RequestModel):
 	responses: dict[str, QuestionResponsePayload] = Field(default_factory=dict)
 	note: str | None = None
 
+	@field_validator("responses")
+	@classmethod
+	def validate_scale_array_values(
+		cls,
+		responses: dict[str, QuestionResponsePayload],
+	) -> dict[str, QuestionResponsePayload]:
+		"""Reject empty scale arrays while leaving checklist array semantics unchanged."""
+
+		for question_payload in responses.values():
+			for response_key, response_value in question_payload.items():
+				if response_key == "selected_option_keys" or not isinstance(response_value, list):
+					continue
+				if not response_value or any(not value.strip() for value in response_value):
+					raise ValueError("Multi-select scale answers must contain non-empty option keys.")
+		return responses
+
 
 class AuditSectionStateResponse(ApiModel):
 	"""Typed section payload returned with an audit session."""
@@ -123,6 +139,24 @@ class AuditSectionStateResponse(ApiModel):
 	section_key: str
 	responses: dict[str, QuestionResponsePayload] = Field(default_factory=dict)
 	note: str | None = None
+
+
+class SociabilityCategoryTotalsResponse(ApiModel):
+	"""One sociability category's captured total and available maximum."""
+
+	total: float
+	max: float
+
+
+class SociabilityBreakdownResponse(ApiModel):
+	"""Versioned multi-select sociability detail attached to aggregate totals."""
+
+	model: Literal["multi_select_v1"]
+	play_alone: SociabilityCategoryTotalsResponse
+	small_group: SociabilityCategoryTotalsResponse
+	large_group: SociabilityCategoryTotalsResponse
+	captured_question_count: int = Field(ge=0)
+	eligible_question_count: int = Field(ge=0)
 
 
 class AuditScoreTotalsResponse(ApiModel):
@@ -136,6 +170,7 @@ class AuditScoreTotalsResponse(ApiModel):
 	challenge_total_max: float
 	sociability_total: float
 	sociability_total_max: float
+	sociability_breakdown: SociabilityBreakdownResponse | None = None
 	play_value_total: float
 	play_value_total_max: float
 	usability_total: float

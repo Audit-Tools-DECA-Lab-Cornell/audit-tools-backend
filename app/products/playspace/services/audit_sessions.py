@@ -12,6 +12,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
@@ -71,6 +72,7 @@ from app.products.playspace.schemas import (
 	PreAuditResponse,
 	ScorePairResponse,
 	PlaceActivityStatus,
+	SociabilityBreakdownResponse,
 )
 from app.products.playspace.scoring import (
 	build_audit_progress_for_audit,
@@ -804,23 +806,29 @@ class PlayspaceAuditSessionsMixin:
 				new_started_at=payload.started_at,
 			)
 
-		if payload.aggregate is not None:
-			aggregate_mode = payload.aggregate.meta.execution_mode if payload.aggregate.meta is not None else None
-			self._ensure_mode_allowed(
-				requested_mode=aggregate_mode,
-				allowed_modes=allowed_modes,
-				detail="The requested execution mode is not valid for this audit.",
-			)
-			replace_audit_aggregate(audit=audit, aggregate=payload.aggregate)
-			set_execution_mode_value(
-				audit=audit,
-				execution_mode=(aggregate_mode.value if aggregate_mode is not None else None),
-			)
-		else:
-			apply_draft_patch_to_relations(audit=audit, patch=payload)
+		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
+		try:
+			if payload.aggregate is not None:
+				aggregate_mode = payload.aggregate.meta.execution_mode if payload.aggregate.meta is not None else None
+				self._ensure_mode_allowed(
+					requested_mode=aggregate_mode,
+					allowed_modes=allowed_modes,
+					detail="The requested execution mode is not valid for this audit.",
+				)
+				replace_audit_aggregate(audit=audit, aggregate=payload.aggregate, instrument=instrument)
+				set_execution_mode_value(
+					audit=audit,
+					execution_mode=(aggregate_mode.value if aggregate_mode is not None else None),
+				)
+			else:
+				apply_draft_patch_to_relations(audit=audit, patch=payload, instrument=instrument)
+		except ValueError as error:
+			raise HTTPException(
+				status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+				detail=str(error),
+			) from error
 
 		set_aggregate_revision(audit, get_aggregate_revision(audit) + 1)
-		instrument = await self._resolve_playspace_instrument_for_audit(audit=audit)
 		progress = build_audit_progress_for_audit(audit=audit, instrument=instrument)
 		draft_progress_percent = self._progress_percent(progress)
 		set_draft_progress_percent(audit=audit, draft_progress_percent=draft_progress_percent)
@@ -1794,11 +1802,25 @@ class PlayspaceAuditSessionsMixin:
 			challenge_total_max=float_values[5],
 			sociability_total=float_values[6],
 			sociability_total_max=float_values[7],
+			sociability_breakdown=self._build_sociability_breakdown_response(
+				score_payload.get("sociability_breakdown")
+			),
 			play_value_total=float_values[8],
 			play_value_total_max=float_values[9],
 			usability_total=float_values[10],
 			usability_total_max=float_values[11],
 		)
+
+	@staticmethod
+	def _build_sociability_breakdown_response(raw_breakdown: object) -> SociabilityBreakdownResponse | None:
+		"""Parse one optional versioned sociability breakdown without invalidating aggregate totals."""
+
+		if not isinstance(raw_breakdown, dict):
+			return None
+		try:
+			return SociabilityBreakdownResponse.model_validate(raw_breakdown)
+		except ValidationError:
+			return None
 
 	def _build_live_score_totals_response(
 		self,

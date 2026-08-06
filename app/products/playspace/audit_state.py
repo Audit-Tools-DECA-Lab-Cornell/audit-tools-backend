@@ -43,9 +43,10 @@ from app.products.playspace.schemas.audit import (
 	AuditDraftPatchRequest,
 	AuditMetaPatchRequest,
 	PreAuditPatchRequest,
+	QuestionResponsePayload,
 	SectionDraftPatchRequest,
 )
-from app.products.playspace.schemas.instrument import ExecutionMode
+from app.products.playspace.schemas.instrument import ExecutionMode, PlayspaceInstrumentResponse
 
 CURRENT_AUDIT_SCHEMA_VERSION = 1
 
@@ -260,7 +261,12 @@ def set_aggregate_revision(audit: PlayspaceSubmission, revision: int) -> None:
 	audit.responses_json = responses
 
 
-def apply_draft_patch_to_relations(audit: PlayspaceSubmission, patch: AuditDraftPatchRequest) -> None:
+def apply_draft_patch_to_relations(
+	audit: PlayspaceSubmission,
+	patch: AuditDraftPatchRequest,
+	*,
+	instrument: PlayspaceInstrumentResponse | None = None,
+) -> None:
 	"""Merge one typed draft patch into the submission state.
 
 	For drafts in a session the patch targets the normalized tables.
@@ -268,7 +274,7 @@ def apply_draft_patch_to_relations(audit: PlayspaceSubmission, patch: AuditDraft
 	"""
 
 	if _use_normalized(audit):
-		_apply_patch_normalized(audit, patch)
+		_apply_patch_normalized(audit, patch, instrument=instrument)
 		return
 
 	# JSONB fallback.
@@ -288,6 +294,7 @@ def apply_draft_patch_to_relations(audit: PlayspaceSubmission, patch: AuditDraft
 			payload=next_payload,
 			section_key=section_key,
 			section_patch=section_patch,
+			instrument=instrument,
 		)
 	audit.responses_json = next_payload
 
@@ -296,11 +303,12 @@ def replace_audit_aggregate(
 	*,
 	audit: PlayspaceSubmission,
 	aggregate: AuditAggregateWriteRequest,
+	instrument: PlayspaceInstrumentResponse | None = None,
 ) -> None:
 	"""Replace the entire audit state from a full aggregate write request."""
 
 	if _use_normalized(audit):
-		_replace_normalized(audit, aggregate)
+		_replace_normalized(audit, aggregate, instrument=instrument)
 		return
 
 	# JSONB fallback.
@@ -315,7 +323,7 @@ def replace_audit_aggregate(
 		"revision": _read_non_negative_int(current.get("revision"), default=0),
 		"meta": _serialize_meta_request(aggregate.meta),
 		"pre_audit": _serialize_pre_audit_request(aggregate.pre_audit),
-		"sections": _serialize_sections_request(aggregate.sections),
+		"sections": _serialize_sections_request(aggregate.sections, instrument=instrument),
 	}
 
 
@@ -355,7 +363,14 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 	for section in audit.submission_sections or []:
 		responses: JSONDict = {}
 		for qr in section.question_responses or []:
-			question_payload: JSONDict = {sa.scale_key: sa.option_key for sa in qr.scale_answers or []}
+			question_payload: JSONDict = {}
+			for scale_answer in qr.scale_answers or []:
+				if scale_answer.selected_option_keys is not None:
+					question_payload[scale_answer.scale_key] = _deduplicate_string_values(
+						scale_answer.selected_option_keys
+					)
+				elif scale_answer.option_key is not None:
+					question_payload[scale_answer.scale_key] = scale_answer.option_key
 			_normalize_legacy_checklist_payload(question_payload)
 			if qr.checklist_answer is not None:
 				selected_option_keys = _read_string_list(qr.checklist_answer.selected_option_keys)
@@ -384,7 +399,12 @@ def _build_responses_from_normalized(audit: PlayspaceSubmission) -> JSONDict:
 # ── normalized-table writes ──────────────────────────────────────────────────
 
 
-def _apply_patch_normalized(audit: PlayspaceSubmission, patch: AuditDraftPatchRequest) -> None:
+def _apply_patch_normalized(
+	audit: PlayspaceSubmission,
+	patch: AuditDraftPatchRequest,
+	*,
+	instrument: PlayspaceInstrumentResponse | None,
+) -> None:
 	"""Apply one draft patch to the normalized ORM relations in place."""
 
 	# --- execution metadata ---
@@ -403,7 +423,7 @@ def _apply_patch_normalized(audit: PlayspaceSubmission, patch: AuditDraftPatchRe
 
 	# --- sections ---
 	for section_key, section_patch in patch.sections.items():
-		_upsert_section_normalized(audit, section_key, section_patch)
+		_upsert_section_normalized(audit, section_key, section_patch, instrument=instrument)
 
 
 def _aggregate_request_from_responses_payload(payload: JSONDict) -> AuditAggregateWriteRequest:
@@ -435,7 +455,12 @@ def _aggregate_request_from_responses_payload(payload: JSONDict) -> AuditAggrega
 	)
 
 
-def _replace_normalized(audit: PlayspaceSubmission, aggregate: AuditAggregateWriteRequest) -> None:
+def _replace_normalized(
+	audit: PlayspaceSubmission,
+	aggregate: AuditAggregateWriteRequest,
+	*,
+	instrument: PlayspaceInstrumentResponse | None = None,
+) -> None:
 	"""Rebuild all normalized relations from a full aggregate write request."""
 
 	# Meta / context.
@@ -453,18 +478,37 @@ def _replace_normalized(audit: PlayspaceSubmission, aggregate: AuditAggregateWri
 	if aggregate.pre_audit is None:
 		audit.pre_submission_answers.clear()
 	else:
-		_upsert_pre_audit_normalized(audit, aggregate.pre_audit)
+		_upsert_pre_audit_normalized(audit, aggregate.pre_audit, replace=True)
 
-	# Sections: clear everything and rebuild.
-	audit.submission_sections.clear()
+	# Sections: reconcile logical keys in place so repeated aggregate writes do
+	# not delete/reinsert rows that are still present.
+	wanted_section_keys = set(aggregate.sections)
+	audit.submission_sections = [
+		section for section in audit.submission_sections if section.section_key in wanted_section_keys
+	]
 	for section_key, section_state in aggregate.sections.items():
-		_upsert_section_normalized(audit, section_key, section_state)
+		_upsert_section_normalized(
+			audit,
+			section_key,
+			section_state,
+			instrument=instrument,
+			replace_section=True,
+		)
 
 
-def _upsert_pre_audit_normalized(audit: PlayspaceSubmission, pre_audit: PreAuditPatchRequest) -> None:
+def _upsert_pre_audit_normalized(
+	audit: PlayspaceSubmission,
+	pre_audit: PreAuditPatchRequest,
+	*,
+	replace: bool = False,
+) -> None:
 	"""Merge pre-audit patch fields into the normalized pre-audit answer rows."""
 
 	fields_set = pre_audit.model_fields_set
+	if replace:
+		audit.pre_submission_answers = [
+			answer for answer in audit.pre_submission_answers if answer.field_key in fields_set
+		]
 	# Determine which fields are being patched so we can delete and recreate them.
 	patch_map: dict[str, list[str]] = {}
 
@@ -536,6 +580,9 @@ def _upsert_section_normalized(
 	audit: PlayspaceSubmission,
 	section_key: str,
 	section_patch: SectionDraftPatchRequest,
+	*,
+	instrument: PlayspaceInstrumentResponse | None,
+	replace_section: bool = False,
 ) -> None:
 	"""Upsert one section and its questions/scale-answers in normalized tables."""
 
@@ -547,14 +594,20 @@ def _upsert_section_normalized(
 		section_by_key[section_key] = new_section
 	section = section_by_key[section_key]
 
-	if "note" in section_patch.model_fields_set:
+	if replace_section or "note" in section_patch.model_fields_set:
 		section.note = section_patch.note
+
+	qr_by_key = {qr.question_key: qr for qr in section.question_responses or []}
+	if replace_section:
+		wanted_question_keys = set(section_patch.responses)
+		section.question_responses = [
+			qr for qr in section.question_responses if qr.question_key in wanted_question_keys
+		]
 
 	if not section_patch.responses:
 		return
 
 	# Upsert question response rows.
-	qr_by_key = {qr.question_key: qr for qr in section.question_responses or []}
 	for question_key, scale_answers in section_patch.responses.items():
 		if question_key not in qr_by_key:
 			new_qr = PlayspaceQuestionResponse(
@@ -568,7 +621,7 @@ def _upsert_section_normalized(
 		# Extract the question-level note before iterating scale answer pairs.
 		# Scale values are always plain strings; coerce to be safe.
 		question_note = scale_answers.get("question_note", None)
-		if "question_note" in scale_answers:
+		if replace_section or "question_note" in scale_answers:
 			qr.note = str(question_note) if question_note is not None else None
 
 		# Upsert checklist answer payloads separately from scale answer rows.
@@ -587,25 +640,48 @@ def _upsert_section_normalized(
 					qr.checklist_answer.other_details = other_details
 			else:
 				qr.checklist_answer = None
+		elif replace_section:
+			qr.checklist_answer = None
 
-		# Upsert scale answer rows.
-		sa_by_key = {sa.scale_key: sa for sa in qr.scale_answers or []}
+		canonical_scale_values: dict[str, str | list[str] | None] = {}
 		for raw_scale_key, raw_option_key in scale_answers.items():
 			if raw_scale_key in {"question_note", "selected_option_keys", "other_details"}:
 				continue
 			scale_key = _LEGACY_SCALE_KEY_ALIASES.get(raw_scale_key, raw_scale_key)
-			option_key = str(raw_option_key) if raw_option_key is not None else ""
-			option_key = _LEGACY_OPTION_KEY_ALIASES.get(option_key, option_key)
+			canonical_scale_values[scale_key] = _normalize_scale_answer_value(
+				question_key=question_key,
+				scale_key=scale_key,
+				value=raw_option_key,
+				instrument=instrument,
+			)
+
+		# Reuse the existing logical scale row when switching between scalar and
+		# list storage so the unique key never needs delete/reinsert ordering.
+		sa_by_key = {sa.scale_key: sa for sa in qr.scale_answers or []}
+		if replace_section:
+			wanted_scale_keys = set(canonical_scale_values)
+			qr.scale_answers = [sa for sa in qr.scale_answers if sa.scale_key in wanted_scale_keys]
+		for scale_key, normalized_value in canonical_scale_values.items():
+			if normalized_value is None:
+				existing_answer = sa_by_key.pop(scale_key, None)
+				if existing_answer is not None:
+					qr.scale_answers.remove(existing_answer)
+				continue
 			if scale_key in sa_by_key:
-				sa_by_key[scale_key].option_key = option_key
+				answer = sa_by_key[scale_key]
 			else:
-				new_sa = PlayspaceScaleAnswer(
+				answer = PlayspaceScaleAnswer(
 					question_response_id=qr.id,
 					scale_key=scale_key,
-					option_key=option_key,
 				)
-				qr.scale_answers.append(new_sa)
-				sa_by_key[scale_key] = new_sa
+				qr.scale_answers.append(answer)
+				sa_by_key[scale_key] = answer
+			if isinstance(normalized_value, list):
+				answer.option_key = None
+				answer.selected_option_keys = normalized_value
+			else:
+				answer.option_key = normalized_value
+				answer.selected_option_keys = None
 
 
 # ── JSONB helpers (fallback path) ─────────────────────────────────────────────
@@ -660,6 +736,7 @@ def _merge_section_into_payload(
 	payload: JSONDict,
 	section_key: str,
 	section_patch: SectionDraftPatchRequest,
+	instrument: PlayspaceInstrumentResponse | None,
 ) -> None:
 	"""Merge one section patch into the JSONB aggregate payload."""
 
@@ -668,7 +745,11 @@ def _merge_section_into_payload(
 	next_responses = dict(_read_json_dict(next_section.get("responses")))
 
 	for question_key, scale_answers in section_patch.responses.items():
-		next_responses[question_key] = dict(scale_answers)
+		next_responses[question_key] = _normalize_question_response_payload(
+			question_key=question_key,
+			response_payload=scale_answers,
+			instrument=instrument,
+		)
 
 	next_section["responses"] = next_responses
 	if "note" in section_patch.model_fields_set:
@@ -709,16 +790,111 @@ def _serialize_pre_audit_request(pre_audit: object) -> JSONDict:
 	}
 
 
-def _serialize_sections_request(sections: dict[str, SectionDraftPatchRequest]) -> JSONDict:
+def _serialize_sections_request(
+	sections: dict[str, SectionDraftPatchRequest],
+	*,
+	instrument: PlayspaceInstrumentResponse | None,
+) -> JSONDict:
 	return {
 		section_key: {
 			"note": section_state.note,
 			"responses": {
-				question_key: dict(scale_answers) for question_key, scale_answers in section_state.responses.items()
+				question_key: _normalize_question_response_payload(
+					question_key=question_key,
+					response_payload=scale_answers,
+					instrument=instrument,
+				)
+				for question_key, scale_answers in section_state.responses.items()
 			},
 		}
 		for section_key, section_state in sections.items()
 	}
+
+
+def _normalize_question_response_payload(
+	*,
+	question_key: str,
+	response_payload: QuestionResponsePayload,
+	instrument: PlayspaceInstrumentResponse | None,
+) -> JSONDict:
+	"""Return one response payload with canonical scalar/list scale values."""
+
+	normalized: JSONDict = {}
+	for raw_scale_key, raw_value in response_payload.items():
+		if raw_scale_key in {"question_note", "selected_option_keys", "other_details"}:
+			normalized[raw_scale_key] = raw_value
+			continue
+		scale_key = _LEGACY_SCALE_KEY_ALIASES.get(raw_scale_key, raw_scale_key)
+		normalized[scale_key] = _normalize_scale_answer_value(
+			question_key=question_key,
+			scale_key=scale_key,
+			value=raw_value,
+			instrument=instrument,
+		)
+	return normalized
+
+
+def _normalize_scale_answer_value(
+	*,
+	question_key: str,
+	scale_key: str,
+	value: object,
+	instrument: PlayspaceInstrumentResponse | None,
+) -> str | list[str] | None:
+	"""Validate and canonicalize one scalar or multi-select scale answer."""
+
+	if value is None:
+		return None
+	question_scale = (
+		next(
+			(
+				scale
+				for section in instrument.sections
+				for question in section.questions
+				if question.question_key == question_key
+				for scale in question.scales
+				if scale.key.value == scale_key
+			),
+			None,
+		)
+		if instrument is not None
+		else None
+	)
+	if isinstance(value, str):
+		if question_scale is not None and question_scale.selection_mode == "multiple":
+			raise ValueError(f"Scale {scale_key!r} for question {question_key!r} requires an array of option keys.")
+		return _LEGACY_OPTION_KEY_ALIASES.get(value, value)
+	if not isinstance(value, list):
+		raise ValueError(f"Scale {scale_key!r} for question {question_key!r} must be a string or string array.")
+	if not value or any(not isinstance(option_key, str) or not option_key.strip() for option_key in value):
+		raise ValueError("Multi-select scale answers must contain non-empty option keys.")
+
+	selected_option_keys = _deduplicate_string_values(
+		[_LEGACY_OPTION_KEY_ALIASES.get(option_key, option_key) for option_key in value]
+	)
+	if instrument is None:
+		return selected_option_keys
+
+	if question_scale is None or question_scale.selection_mode != "multiple":
+		raise ValueError(f"Scale {scale_key!r} for question {question_key!r} does not accept multiple options.")
+
+	known_option_keys = [option.key for option in question_scale.options]
+	unknown_option_keys = [option_key for option_key in selected_option_keys if option_key not in known_option_keys]
+	if unknown_option_keys:
+		raise ValueError(
+			f"Scale {scale_key!r} for question {question_key!r} contains unknown option keys: "
+			f"{', '.join(unknown_option_keys)}."
+		)
+	selected_set = set(selected_option_keys)
+	return [option_key for option_key in known_option_keys if option_key in selected_set]
+
+
+def _deduplicate_string_values(values: object) -> list[str]:
+	"""Return string values once each while preserving their current order."""
+
+	if not isinstance(values, list):
+		return []
+	return list(dict.fromkeys(value for value in values if isinstance(value, str)))
 
 
 def _normalize_optional_text(value: object) -> str | None:

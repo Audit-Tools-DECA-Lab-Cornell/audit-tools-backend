@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.actors import CurrentUserContext, CurrentUserRole
 from app.products.playspace.routes import instrument as instrument_routes
 from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
+from app.products.playspace.schemas.management import InstrumentActivateRequest, InstrumentCreateRequest
+from app.products.playspace.services.instrument import InstrumentValidationError
 
 
 def _build_instrument_response(version: str, section_title: str) -> PlayspaceInstrumentResponse:
@@ -217,3 +219,53 @@ def test_admin_delete_instrument_returns_404_for_missing_version(monkeypatch) ->
 		)
 
 	assert exc_info.value.status_code == 404
+
+
+def test_admin_publish_invalid_candidate_returns_typed_422(monkeypatch: pytest.MonkeyPatch) -> None:
+	async def fake_create_instrument_version(
+		_session: object,
+		_data: InstrumentCreateRequest,
+		_activate: bool,
+	) -> None:
+		raise InstrumentValidationError("Candidate Sociability semantics are invalid.")
+
+	monkeypatch.setattr(instrument_routes, "create_instrument_version", fake_create_instrument_version)
+	with pytest.raises(instrument_routes.HTTPException) as exc_info:
+		asyncio.run(
+			instrument_routes.admin_create_instrument(
+				data=InstrumentCreateRequest(
+					instrument_key="pvua_v5_2",
+					instrument_version="5.32",
+					content={},
+				),
+				activate=True,
+				current_user=_build_current_user_context(),
+				session=_build_async_session(),
+			)
+		)
+
+	assert exc_info.value.status_code == 422
+	assert exc_info.value.detail == "Candidate Sociability semantics are invalid."
+
+
+def test_admin_activate_invalid_candidate_returns_typed_422(monkeypatch: pytest.MonkeyPatch) -> None:
+	async def fake_update_instrument_status(
+		_session: object,
+		_instrument_id: uuid.UUID,
+		_data: InstrumentActivateRequest,
+	) -> None:
+		raise InstrumentValidationError("Candidate Sociability semantics are invalid.")
+
+	monkeypatch.setattr(instrument_routes, "update_instrument_status", fake_update_instrument_status)
+	with pytest.raises(instrument_routes.HTTPException) as exc_info:
+		asyncio.run(
+			instrument_routes.admin_update_instrument(
+				instrument_id=uuid.uuid4(),
+				data=InstrumentActivateRequest(is_active=True),
+				current_user=_build_current_user_context(),
+				session=_build_async_session(),
+			)
+		)
+
+	assert exc_info.value.status_code == 422
+	assert exc_info.value.detail == "Candidate Sociability semantics are invalid."

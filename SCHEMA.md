@@ -425,10 +425,13 @@ One row per answered scale inside a question response.
 | `id`                        | UUID primary key                    |
 | `question_response_id`      | FK → `playspace_question_responses` |
 | `scale_key`                 |                                     |
-| `option_key`                |                                     |
+| `option_key`                | Nullable scalar option key for single-select scales |
+| `selected_option_keys`      | Nullable JSONB array for multi-select scales         |
 | `created_at` / `updated_at` |                                     |
 
 **Unique constraint:** `(question_response_id, scale_key)`
+
+**Value constraint:** exactly one of `option_key` or `selected_option_keys` is non-null. Existing scalar answers continue to use `option_key`; an explicitly multi-select scale stores its canonical array in `selected_option_keys` on the same logical row.
 
 ---
 
@@ -462,6 +465,8 @@ Scoring is computed from the audit's JSONB response payload, then serialized int
 | `sociability_total` | `sociability_total_max` | Construct total |
 | `play_value_total`  | `play_value_total_max`  | Construct total |
 | `usability_total`   | `usability_total_max`   | Construct total |
+
+Sociability totals are instrument-version aware. Single-select instruments retain scalar compatibility scoring and return `sociability_breakdown: null`. Explicitly multi-select instruments score `play_alone`, `small_group`, and `large_group` as independent one-point dimensions and return a `multi_select_v1` breakdown with per-dimension total/max pairs plus captured and eligible question counts. The aggregate Sociability fields remain available in both models.
 
 Canonical scoring treats Unsure answers as excluded from the score and maximum. When Unsure answers are present, API score payloads also return `unsure_answer_count` and `unsure_variants` with alternate `unsure_as_zero` and `unsure_as_max` bucket sets so report surfaces can show the interpretation range.
 

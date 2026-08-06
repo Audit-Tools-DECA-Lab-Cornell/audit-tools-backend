@@ -58,6 +58,7 @@ class ScoringScale:
 
 	key: str
 	options: list[ScoringScaleOption]
+	selection_mode: str = "single"
 
 
 @dataclass(frozen=True)
@@ -138,6 +139,7 @@ def _build_scoring_question(question: InstrumentQuestionResponse) -> ScoringQues
 			ScoringScale(
 				key=(scale.key.value if isinstance(scale.key, ScaleKey) else str(scale.key)),
 				options=[_build_scale_option(option) for option in scale.options],
+				selection_mode=scale.selection_mode,
 			)
 			for scale in question.scales
 		],

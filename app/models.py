@@ -14,6 +14,7 @@ from enum import Enum
 
 from sqlalchemy import (
 	Boolean,
+	CheckConstraint,
 	Date,
 	DateTime,
 	Float,
@@ -1160,6 +1161,10 @@ class PlayspaceScaleAnswer(Base):
 
 	__tablename__ = "playspace_scale_answers"
 	__table_args__ = (
+		CheckConstraint(
+			"(option_key IS NOT NULL) <> (selected_option_keys IS NOT NULL)",
+			name="exactly_one_value",
+		),
 		UniqueConstraint(
 			"question_response_id",
 			"scale_key",
@@ -1183,7 +1188,8 @@ class PlayspaceScaleAnswer(Base):
 		nullable=False,
 	)
 	scale_key: Mapped[str] = mapped_column(String(40), nullable=False)
-	option_key: Mapped[str] = mapped_column(String(80), nullable=False)
+	option_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+	selected_option_keys: Mapped[list[str] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True),
 		server_default=func.now(),
