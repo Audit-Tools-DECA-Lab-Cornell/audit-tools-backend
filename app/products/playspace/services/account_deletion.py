@@ -312,8 +312,9 @@ class PlayspaceAccountDeletionService:
 	async def _delete_auditor(self, *, user: User) -> None:
 		profile = await self._load_auditor_profile(user_id=user.id, lock=True)
 
-		# Re-check under the row lock: a submit could have landed between the
-		# preview call and this request.
+		# Submit delivery and submit-intent recording take this same profile lock.
+		# Re-checking while it is held makes deletion and in-flight delivery
+		# mutually exclusive, including submissions started after the preview.
 		if await self._pending_submission_count(auditor_profile_id=profile.id) > 0:
 			raise HTTPException(
 				status_code=status.HTTP_409_CONFLICT,

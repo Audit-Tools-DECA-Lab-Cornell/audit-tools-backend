@@ -858,6 +858,7 @@ class PlayspaceAuditSessionsMixin:
 	) -> AuditSessionResponse:
 		"""Validate completion, calculate scores, and submit an in-progress audit."""
 
+		await self._lock_auditor_profile_for_audit(audit_id=audit_id)
 		audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
 
 		# Idempotent replay: a submit retried after an ambiguous network failure
@@ -951,6 +952,7 @@ class PlayspaceAuditSessionsMixin:
 				detail="Auditor access is required for this endpoint.",
 			)
 
+		await self._lock_auditor_profile_for_audit(audit_id=audit_id)
 		audit = await self._load_accessible_audit(actor=actor, audit_id=audit_id)
 		if audit.status is AuditStatus.SUBMITTED:
 			return
@@ -1124,6 +1126,34 @@ class PlayspaceAuditSessionsMixin:
 		audit = await self._get_audit(audit_id=audit_id)
 		self._ensure_audit_access(actor=actor, audit=audit)
 		return audit
+
+	async def _lock_auditor_profile_for_audit(self, *, audit_id: uuid.UUID) -> None:
+		"""Serialize submission delivery with deletion of the owning auditor.
+
+		Account deletion takes this same profile-row lock before it checks for
+		pending delivery and removes unfinished submissions. Taking the lock before
+		loading the audit guarantees one of two outcomes: submission commits first
+		and deletion preserves it, or deletion commits first and this request finds
+		no audit to submit.
+
+		Only the profile row is locked. Locking the joined submission as well would
+		invert deletion's profile-then-submission order and create a deadlock risk.
+		"""
+
+		result = await self._session.execute(
+			select(AuditorProfile.id)
+			.join(
+				PlayspaceSubmission,
+				PlayspaceSubmission.auditor_profile_id == AuditorProfile.id,
+			)
+			.where(PlayspaceSubmission.id == audit_id)
+			.with_for_update(of=AuditorProfile)
+		)
+		if result.scalar_one_or_none() is None:
+			raise HTTPException(
+				status_code=status.HTTP_404_NOT_FOUND,
+				detail="Audit not found.",
+			)
 
 	async def _get_project_place_pair(
 		self,
