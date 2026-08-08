@@ -100,15 +100,15 @@ def test_candidate_v532_has_exact_multiselect_sociability_contract() -> None:
 	assert any("equal opportunities" in paragraph.lower() for paragraph in parsed.preamble)
 
 
-def test_active_instrument_matches_v532_and_v531_remains_single_select() -> None:
+def test_active_instrument_matches_v533_and_historical_versions_remain_unchanged() -> None:
 	active_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2.active.instrument.json").read_bytes()
-	v532_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.32.instrument.json").read_bytes()
+	v533_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.33.instrument.json").read_bytes()
 	v531_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.31.instrument.json").read_bytes()
 	active = json.loads(active_bytes)["en"]
 	v531 = json.loads(v531_bytes)["en"]
 
-	assert active_bytes == v532_bytes
-	assert active["instrument_version"] == "5.32"
+	assert active_bytes == v533_bytes
+	assert active["instrument_version"] == "5.33"
 	assert (
 		sum(
 			1
@@ -117,7 +117,7 @@ def test_active_instrument_matches_v532_and_v531_remains_single_select() -> None
 			for scale in question.get("scales", [])
 			if scale["key"] == "sociability"
 		)
-		== 34
+		== 33
 	)
 	assert all(
 		scale.get("selection_mode") == "multiple"
@@ -134,9 +134,13 @@ def test_active_instrument_matches_v532_and_v531_remains_single_select() -> None
 		for scale in question.get("scales", [])
 		if scale["key"] == "sociability"
 	)
-	assert any(
-		question["question_key"] == "q_14_4" for section in active["sections"] for question in section["questions"]
+	q_14_4 = next(
+		question
+		for section in active["sections"]
+		for question in section["questions"]
+		if question["question_key"] == "q_14_4"
 	)
+	assert all(scale["key"] != "sociability" for scale in q_14_4["scales"])
 
 
 def test_seed_answer_generation_supports_candidate_multiple_sociability() -> None:

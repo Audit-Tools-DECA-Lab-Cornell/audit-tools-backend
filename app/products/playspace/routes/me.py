@@ -14,13 +14,17 @@ from app.products.playspace.routes.dependencies import (
 	SESSION_DEPENDENCY,
 )
 from app.products.playspace.schemas.me import (
+	AccountDeletionPreviewResponse,
+	AccountDeletionRequest,
 	AuditorProfileSelfUpdateRequest,
 	ChangePasswordRequest,
 	ManagerProfileSelfUpdateRequest,
 	MyAccountResponse,
 	MyAuditorProfileResponse,
 	MyManagerProfileResponse,
+	PrimaryManagerTransferRequest,
 )
+from app.products.playspace.services.account_deletion import PlayspaceAccountDeletionService
 from app.products.playspace.services.me import PlayspaceMeService
 
 router: APIRouter = APIRouter(tags=["playspace-me"])
@@ -227,4 +231,56 @@ async def complete_onboarding(
 		province=profile.province,
 		country=profile.country,
 		role=profile.role,
+	)
+
+
+@router.get("/me/account-deletion")
+async def preview_account_deletion(
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session=SESSION_DEPENDENCY,
+) -> AccountDeletionPreviewResponse:
+	"""Report what deleting this account would preserve, remove, or block."""
+
+	user_id = _require_user_id(current_user)
+	service = PlayspaceAccountDeletionService(session=session)
+	preview = await service.preview(user_id=user_id)
+
+	return AccountDeletionPreviewResponse(
+		role=preview.role,  # type: ignore[arg-type]
+		submitted_audits_preserved=preview.submitted_audits_preserved,
+		draft_audits_to_delete=preview.draft_audits_to_delete,
+		active_assignments_to_delete=preview.active_assignments_to_delete,
+		pending_submissions=preview.pending_submissions,
+		is_primary_manager=preview.is_primary_manager,
+		can_delete=preview.can_delete,
+		blocker=preview.blocker,
+	)
+
+
+@router.post("/me/account-deletion", status_code=204, response_model=None)
+async def delete_my_account(
+	payload: AccountDeletionRequest,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session=SESSION_DEPENDENCY,
+) -> None:
+	"""Delete the authenticated user's account, preserving submitted audits."""
+
+	user_id = _require_user_id(current_user)
+	service = PlayspaceAccountDeletionService(session=session)
+	await service.delete_account(user_id=user_id, current_password=payload.current_password)
+
+
+@router.post("/me/manager-profile/primary-transfer", status_code=204, response_model=None)
+async def transfer_primary_manager(
+	payload: PrimaryManagerTransferRequest,
+	current_user: CurrentUserContext = CURRENT_USER_DEPENDENCY,
+	session=SESSION_DEPENDENCY,
+) -> None:
+	"""Hand the organisation's primary-manager role to another manager."""
+
+	user_id = _require_user_id(current_user)
+	service = PlayspaceAccountDeletionService(session=session)
+	await service.transfer_primary_manager(
+		user_id=user_id,
+		successor_manager_profile_id=payload.successor_manager_profile_id,
 	)

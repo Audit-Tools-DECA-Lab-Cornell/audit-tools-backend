@@ -138,6 +138,18 @@ Auditor identity/profile rows owned by auditor accounts.
 | `full_name` / `age_range` / `gender` / `country` / `role` |                                                             |
 | `created_at`                                              |                                                             |
 
+**This row is never deleted.** Every submitted audit and Playspace submission points
+at it through an `ON DELETE CASCADE` foreign key, and the ORM relationships are
+`delete-orphan`, so removing the profile - or detaching it through
+`Account.auditor_profiles` - would destroy the audits it anchors.
+
+Self-service account deletion therefore rewrites the row in place with a direct
+`UPDATE`: `full_name` becomes `Deleted auditor`, and `account_id`, `user_id`,
+`email`, `phone`, demographics, location, `role`, and `terms_accepted_at` are
+cleared. `id`, `auditor_code`, and `created_at` survive so audit codes printed in
+past reports still resolve. The login `users` row is hard-deleted separately, which
+invalidates its bearer tokens immediately.
+
 ---
 
 ### `auditor_invites`
@@ -180,16 +192,23 @@ Invite rows used to add secondary managers to an existing manager account.
 
 Projects belong to one account.
 
-| Column                        | Notes            |
-| ----------------------------- | ---------------- |
-| `id`                          | UUID primary key |
-| `account_id`                  | FK → `accounts`  |
-| `name` / `overview`           |                  |
-| `place_types`                 |                  |
-| `start_date` / `end_date`     |                  |
-| `est_places` / `est_auditors` |                  |
-| `auditor_description`         |                  |
-| `created_at`                  |                  |
+| Column                        | Notes                                             |
+| ----------------------------- | ------------------------------------------------- |
+| `id`                          | UUID primary key                                  |
+| `account_id`                  | FK → `accounts`                                   |
+| `created_by_user_id`          | Nullable FK → `users`, `ON DELETE SET NULL`       |
+| `name` / `overview`           |                                                   |
+| `place_types`                 |                                                   |
+| `start_date` / `end_date`     |                                                   |
+| `est_places` / `est_auditors` |                                                   |
+| `auditor_description`         |                                                   |
+| `created_at`                  |                                                   |
+
+`created_by_user_id` is nullable so a project outlives the person who created it.
+When a manager deletes their own account the creator reference is cleared while the
+project, its places, and its submitted audits stay with the organisation. Readers
+must treat a missing creator as normal, not as corrupt data (migrations `ps_0011`
+and `yee_0009`).
 
 ---
 
