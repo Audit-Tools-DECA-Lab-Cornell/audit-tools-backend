@@ -83,10 +83,7 @@ def test_confirmation_must_be_the_exact_word_delete() -> None:
 
 	for rejected in ("delete", "Delete", "DELETE ", "DELETE ACCOUNT", "", "YES"):
 		with pytest.raises(ValidationError):
-			# Construct from a dict so mypy does not require Literal["DELETE"] here.
-			AccountDeletionRequest.model_validate(
-				{"current_password": SEED_PASSWORD, "confirmation": rejected}
-			)
+			AccountDeletionRequest.model_validate({"current_password": SEED_PASSWORD, "confirmation": rejected})
 
 
 def test_exact_confirmation_is_accepted() -> None:
@@ -102,10 +99,7 @@ def test_deletion_request_requires_a_password() -> None:
 
 def test_transfer_request_requires_a_successor_uuid() -> None:
 	with pytest.raises(ValidationError):
-		# Invalid input arrives as a string in API JSON; validate the same way.
-		PrimaryManagerTransferRequest.model_validate(
-			{"successor_manager_profile_id": "not-a-uuid"}
-		)
+		PrimaryManagerTransferRequest.model_validate({"successor_manager_profile_id": "not-a-uuid"})
 
 	successor = uuid.uuid4()
 	request = PrimaryManagerTransferRequest(successor_manager_profile_id=successor)
