@@ -27,7 +27,7 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth_security import verify_password
@@ -40,6 +40,7 @@ from app.models import (
 	AuditorProfile,
 	AuditStatus,
 	BugReport,
+	ManagerInvite,
 	ManagerProfile,
 	PlayspaceSubmission,
 	Project,
@@ -395,6 +396,7 @@ class PlayspaceAccountDeletionService:
 				detail=AccountDeletionBlocker.PRIMARY_MANAGER_TRANSFER_REQUIRED.value,
 			)
 
+		await self._delete_manager_invites(user=user, profile=profile)
 		await self._scrub_bug_report_identity(user_id=user.id)
 
 		# The organisation account, its projects, places, and submitted audits all
@@ -402,6 +404,28 @@ class PlayspaceAccountDeletionService:
 		# the ON DELETE SET NULL foreign key on projects.created_by_user_id.
 		await self._session.execute(delete(ManagerProfile).where(ManagerProfile.id == profile.id))
 		await self._session.execute(delete(User).where(User.id == user.id))
+
+	async def _delete_manager_invites(self, *, user: User, profile: ManagerProfile) -> None:
+		"""Invalidate invites created by or accepted by the departing manager.
+
+		Invites are personal access tokens rather than organisation-owned work. A
+		departing inviter's pending links must stop working, and the accepted invite
+		that introduced a departing secondary manager must disappear from the
+		primary manager's invite list. Matching the normalized identity email also
+		cleans up older rows whose ``accepted_by_user_id`` was never populated.
+		"""
+
+		identity_emails = {
+			value.strip().lower() for value in (user.email, profile.email) if value is not None and value.strip()
+		}
+		invite_matches = [
+			ManagerInvite.invited_by_user_id == user.id,
+			ManagerInvite.accepted_by_user_id == user.id,
+		]
+		if identity_emails:
+			invite_matches.append(func.lower(ManagerInvite.email).in_(identity_emails))
+
+		await self._session.execute(delete(ManagerInvite).where(or_(*invite_matches)))
 
 	async def _scrub_bug_report_identity(self, *, user_id: uuid.UUID) -> None:
 		"""Keep the bug report, drop the reporter.

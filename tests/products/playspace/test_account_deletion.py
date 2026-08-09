@@ -293,14 +293,56 @@ def test_secondary_manager_can_delete_themselves_and_the_workspace_survives(
 	assert playspace_seed_snapshot.urban_project_id in project_ids
 
 
+def test_invited_secondary_manager_deletion_removes_their_accepted_invite(
+	playspace_client: TestClient,
+) -> None:
+	"""An accepted invite is personal identity data, not workspace history."""
+
+	primary_headers = _bearer(_login(playspace_client, PRIMARY_MANAGER_EMAIL))
+	invite_email = f"deleting-secondary-{uuid.uuid4().hex[:10]}@example.org"
+	created = playspace_client.post(
+		"/playspace/manager-invites",
+		headers=primary_headers,
+		json={"email": invite_email},
+	)
+	assert created.status_code == 201, created.text
+	invite_token = created.json()["invite_url"].rsplit("/", 1)[-1]
+
+	accepted = playspace_client.post(
+		f"/playspace/auth/manager-invites/{invite_token}/accept",
+		json={"name": "Departing Secondary Manager", "password": SEED_PASSWORD},
+	)
+	assert accepted.status_code == 200, accepted.text
+	secondary_headers = _bearer(accepted.json()["access_token"])
+
+	invites_before = playspace_client.get("/playspace/manager-invites", headers=primary_headers)
+	assert invites_before.status_code == 200, invites_before.text
+	assert any(invite["email"] == invite_email for invite in invites_before.json())
+
+	deleted = playspace_client.post(DELETION_PATH, json=_delete_payload(), headers=secondary_headers)
+	assert deleted.status_code == 204, deleted.text
+
+	invites_after = playspace_client.get("/playspace/manager-invites", headers=primary_headers)
+	assert invites_after.status_code == 200, invites_after.text
+	assert not any(invite["email"] == invite_email for invite in invites_after.json())
+
+
 def test_transferring_ownership_then_deleting_the_former_primary(
 	playspace_client: TestClient,
 	playspace_seed_snapshot: PlayspaceSeedSnapshot,
 ) -> None:
-	"""End-to-end: hand over the organisation, then leave it."""
+	"""Hand over the organisation, leave it, and invalidate authored invites."""
 
 	primary_headers = _bearer(_login(playspace_client, PRIMARY_MANAGER_EMAIL))
 	account_id = playspace_seed_snapshot.manager_account_id
+	pending_invite_email = f"former-primary-invite-{uuid.uuid4().hex[:10]}@example.org"
+	created_invite = playspace_client.post(
+		"/playspace/manager-invites",
+		headers=primary_headers,
+		json={"email": pending_invite_email},
+	)
+	assert created_invite.status_code == 201, created_invite.text
+	pending_invite_token = created_invite.json()["invite_url"].rsplit("/", 1)[-1]
 
 	successor_id = _find_manager_profile_id(
 		playspace_client,
@@ -329,6 +371,11 @@ def test_transferring_ownership_then_deleting_the_former_primary(
 	profile = playspace_client.get("/playspace/me/manager-profile", headers=successor_headers)
 	assert profile.status_code == 200, profile.text
 	assert profile.json()["is_primary"] is True
+	invites = playspace_client.get("/playspace/manager-invites", headers=successor_headers)
+	assert invites.status_code == 200, invites.text
+	assert not any(invite["email"] == pending_invite_email for invite in invites.json())
+	invalidated = playspace_client.get(f"/playspace/auth/manager-invites/{pending_invite_token}")
+	assert invalidated.status_code == 404, invalidated.text
 
 	project_ids = _account_project_ids(playspace_client, successor_headers, account_id)
 	assert playspace_seed_snapshot.urban_project_id in project_ids
