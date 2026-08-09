@@ -1,5 +1,6 @@
 """Playspace service layer exports."""
 
+from app.products.playspace.services.account_deletion import PlayspaceAccountDeletionService
 from app.products.playspace.services.admin import PlayspaceAdminService
 from app.products.playspace.services.audit import PlayspaceAuditService
 from app.products.playspace.services.bug_reports import PlayspaceBugReportService
@@ -8,6 +9,7 @@ from app.products.playspace.services.management import PlayspaceManagementServic
 from app.products.playspace.services.me import PlayspaceMeService
 
 __all__ = [
+	"PlayspaceAccountDeletionService",
 	"PlayspaceAdminService",
 	"PlayspaceAuditService",
 	"PlayspaceBugReportService",

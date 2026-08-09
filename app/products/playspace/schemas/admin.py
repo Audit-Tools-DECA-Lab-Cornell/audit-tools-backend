@@ -226,6 +226,12 @@ class AdminAuditExportRecord(ApiModel):
 	audit_u_score: float | None
 	survey_pv_score: float | None
 	survey_u_score: float | None
+	place_size: str | None
+	current_users_0_5: str | None
+	current_users_6_12: str | None
+	current_users_13_17: str | None
+	current_users_18_plus: str | None
+	weather_conditions: list[str]
 
 
 class AdminAuditsExportResponse(ApiModel):

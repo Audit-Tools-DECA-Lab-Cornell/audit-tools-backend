@@ -58,6 +58,7 @@ from app.products.playspace.services._place_rollup import (
 	round_score_pair,
 )
 from app.products.playspace.services.instrument import get_active_instrument
+from app.products.playspace.services.export_context import extract_audit_context_export_fields
 from app.products.playspace.services.privacy import mask_email
 
 DEFAULT_PAGE_SIZE = 10
@@ -1386,6 +1387,7 @@ class PlayspaceAdminService:
 				PlayspaceSubmission.audit_usability_score.label("audit_u_score"),
 				PlayspaceSubmission.survey_play_value_score.label("survey_pv_score"),
 				PlayspaceSubmission.survey_usability_score.label("survey_u_score"),
+				PlayspaceSubmission.responses_json.label("responses_json"),
 			)
 			.select_from(PlayspaceSubmission)
 			.join(Place, PlayspaceSubmission.place_id == Place.id)
@@ -1445,6 +1447,7 @@ class PlayspaceAdminService:
 				audit_u_score=_round_score(float(row.audit_u_score) if row.audit_u_score is not None else None),
 				survey_pv_score=_round_score(float(row.survey_pv_score) if row.survey_pv_score is not None else None),
 				survey_u_score=_round_score(float(row.survey_u_score) if row.survey_u_score is not None else None),
+				**extract_audit_context_export_fields(row.responses_json),
 			)
 			for row in rows
 		]

@@ -299,6 +299,9 @@ def test_playspace_route_inventory_matches_expected_surface() -> None:
 		("POST", "/playspace/me/change-password"),
 		("POST", "/playspace/me/complete-onboarding"),
 		("POST", "/playspace/me/complete-manager-onboarding"),
+		("GET", "/playspace/me/account-deletion"),
+		("POST", "/playspace/me/account-deletion"),
+		("POST", "/playspace/me/manager-profile/primary-transfer"),
 		("GET", "/playspace/instrument"),
 		("GET", "/playspace/mobile-release-policy"),
 		("POST", "/playspace/mobile-release-policy/eas-webhook"),
@@ -342,8 +345,8 @@ def test_playspace_mobile_release_policy_is_public(monkeypatch: pytest.MonkeyPat
 	assert response.status_code == 200
 	body = response.json()
 	assert body["product"] == "playspace"
-	assert body["android"]["latest_version"] == "0.6.4"
-	assert body["android"]["minimum_supported_version"] == "0.6.2"
+	assert body["android"]["latest_version"] == "0.8.1"
+	assert body["android"]["minimum_supported_version"] == "0.8.0"
 	assert body["android"]["update_url"].startswith("https://play.google.com/")
 
 
@@ -929,6 +932,14 @@ def test_admin_export_bundles(
 	assert audit_export_payload["entity"] == "audits"
 	assert len(audit_export_payload["records"]) >= 1
 	assert all(record["status"] == "SUBMITTED" for record in audit_export_payload["records"])
+	assert {
+		"place_size",
+		"current_users_0_5",
+		"current_users_6_12",
+		"current_users_13_17",
+		"current_users_18_plus",
+		"weather_conditions",
+	} <= audit_export_payload["records"][0].keys()
 
 	# ── Place bundle (Export selected → scoped to one place) ────────────────────
 	place_bundle_response = playspace_client.get(
@@ -1014,6 +1025,14 @@ def test_manager_export_bundles(
 	assert audit_export_payload["entity"] == "audits"
 	assert len(audit_export_payload["records"]) >= 1
 	assert all(record["status"] == "SUBMITTED" for record in audit_export_payload["records"])
+	assert {
+		"place_size",
+		"current_users_0_5",
+		"current_users_6_12",
+		"current_users_13_17",
+		"current_users_18_plus",
+		"weather_conditions",
+	} <= audit_export_payload["records"][0].keys()
 
 	# ── Reports: SUBMITTED-only ─────────────────────────────────────────────────
 	reports_response = playspace_client.get(

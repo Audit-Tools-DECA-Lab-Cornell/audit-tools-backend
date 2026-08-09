@@ -25,6 +25,7 @@ from app.products.playspace.services._place_rollup import (
 	overall_score_pair,
 	round_score_pair,
 )
+from app.products.playspace.services.export_context import extract_audit_context_export_fields
 from app.models import (
 	Account,
 	AuditorAssignment,
@@ -1655,6 +1656,7 @@ class PlayspaceDashboardService:
 				PlayspaceSubmission.audit_usability_score.label("audit_u_score"),
 				PlayspaceSubmission.survey_play_value_score.label("survey_pv_score"),
 				PlayspaceSubmission.survey_usability_score.label("survey_u_score"),
+				PlayspaceSubmission.responses_json.label("responses_json"),
 			)
 			.select_from(PlayspaceSubmission)
 			.join(Place, PlayspaceSubmission.place_id == Place.id)
@@ -1717,6 +1719,7 @@ class PlayspaceDashboardService:
 				audit_u_score=_round_score(float(row.audit_u_score) if row.audit_u_score is not None else None),
 				survey_pv_score=_round_score(float(row.survey_pv_score) if row.survey_pv_score is not None else None),
 				survey_u_score=_round_score(float(row.survey_u_score) if row.survey_u_score is not None else None),
+				**extract_audit_context_export_fields(row.responses_json),
 			)
 			for row in rows
 		]

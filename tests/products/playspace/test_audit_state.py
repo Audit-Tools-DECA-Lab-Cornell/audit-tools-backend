@@ -267,6 +267,7 @@ class _DummyAuditService(PlayspaceAuditService):
 			self._place = place or _build_place()
 			self._auditor_profile = auditor_profile or _build_auditor_profile()
 		self.commit_count = 0
+		self.submit_operation_order: list[str] = []
 
 	async def _commit_and_refresh(self, instance: PlayspaceSubmission | AuditorAssignment) -> None:
 		"""Track commit calls and refresh timestamps without a real session."""
@@ -326,9 +327,15 @@ class _DummyAuditService(PlayspaceAuditService):
 	) -> PlayspaceSubmission:
 		"""Return the preconfigured in-memory Playspace submission."""
 
+		self.submit_operation_order.append("load_audit")
 		if self._audit is None:
 			raise AssertionError("Dummy audit must be configured before loading it.")
 		return self._audit
+
+	async def _lock_auditor_profile_for_audit(self, *, audit_id: uuid.UUID) -> None:
+		"""Record the deletion/submission lock without requiring a database."""
+
+		self.submit_operation_order.append("lock_auditor_profile")
 
 
 def test_apply_draft_patch_merges_pre_audit_into_canonical_aggregate() -> None:
@@ -1065,7 +1072,7 @@ def test_patch_audit_draft_rejects_stale_revision_without_debug_output(
 
 
 def test_submit_audit_rejects_stale_revision() -> None:
-	"""Submit flow should still reject stale expected revisions with HTTP 409."""
+	"""Submit locks its auditor before loading data and rejects stale revisions."""
 
 	audit = _build_service_audit(
 		execution_mode=ExecutionMode.AUDIT,
@@ -1084,6 +1091,7 @@ def test_submit_audit_rejects_stale_revision() -> None:
 		)
 
 	assert exc_info.value.status_code == 409
+	assert service.submit_operation_order == ["lock_auditor_profile", "load_audit"]
 	assert service.commit_count == 0
 
 

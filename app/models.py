@@ -391,11 +391,13 @@ class Project(Base):
 		index=True,
 		nullable=False,
 	)
-	created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+	# Nullable: cleared when the creator deletes their own account. The project and
+	# everything hanging off it belong to the organization and outlive the person.
+	created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
 		UUID(as_uuid=True),
-		ForeignKey("users.id", ondelete="RESTRICT"),
+		ForeignKey("users.id", ondelete="SET NULL"),
 		index=True,
-		nullable=False,
+		nullable=True,
 	)
 	name: Mapped[str] = mapped_column(String(200), nullable=False)
 	overview: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -412,7 +414,7 @@ class Project(Base):
 	)
 
 	account: Mapped[Account] = relationship(back_populates="projects", lazy="raise")
-	created_by_user: Mapped[User] = relationship(
+	created_by_user: Mapped[User | None] = relationship(
 		back_populates="created_projects",
 		foreign_keys=[created_by_user_id],
 		lazy="raise",
