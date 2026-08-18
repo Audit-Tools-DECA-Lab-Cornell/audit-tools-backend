@@ -59,7 +59,7 @@ from sync_canonical_instruments_from_db import (  # noqa: E402
 
 from app.products.playspace.instrument import (  # noqa: E402
 	INSTRUMENT_KEY,
-	get_active_instrument_payload,
+	get_active_instrument_content,
 	get_active_instrument_version,
 )
 from app.products.playspace.schemas.management import InstrumentCreateRequest  # noqa: E402
@@ -80,6 +80,20 @@ def _localized_payloads(content: Any) -> list[dict[str, Any]]:
 	if "instrument_key" in content:
 		return [content]
 	return [payload for payload in content.values() if isinstance(payload, dict)]
+
+
+def _locale_keys(content: Any) -> set[str]:
+	"""Return the locale keys in an instrument content map.
+
+	A bare instrument object (one carrying ``instrument_key`` at the top level)
+	is the un-wrapped English payload, matching how the service layer reads it.
+	"""
+
+	if not isinstance(content, dict):
+		return set()
+	if "instrument_key" in content:
+		return {"en"}
+	return {locale for locale, payload in content.items() if isinstance(payload, dict)}
 
 
 def _without_version_stamps(content: Any) -> Any:
@@ -137,7 +151,7 @@ async def _amain() -> int:
 		return 1
 
 	file_version = get_active_instrument_version()
-	desired_content: dict[str, Any] = {"en": get_active_instrument_payload()}
+	desired_content: dict[str, Any] = get_active_instrument_content()
 
 	url, connect_args = _normalize_postgres_url(raw_url)
 	engine = create_async_engine(url, echo=False, pool_pre_ping=True, connect_args=connect_args)
@@ -151,6 +165,7 @@ async def _amain() -> int:
 
 			print(f"On-disk canonical file: version {file_version}")
 			print(f"  multi-select Sociability scales: {_count_multiselect_sociability(desired_content)}")
+			print(f"  locales: {', '.join(sorted(_locale_keys(desired_content)))}")
 
 			if active is None:
 				# Publishing here would number the new row from an empty history
@@ -164,10 +179,26 @@ async def _amain() -> int:
 
 			print(f"Database active row:    version {active.instrument_version}")
 			print(f"  multi-select Sociability scales: {_count_multiselect_sociability(active.content)}")
+			print(f"  locales: {', '.join(sorted(_locale_keys(active.content)))}")
 
 			if _without_version_stamps(active.content) == _without_version_stamps(desired_content):
 				print("Database already serves the canonical content; nothing to publish.")
 				return 0
+
+			# Publication replaces content outright rather than merging, so a file
+			# carrying fewer locales than the live row would drop the difference.
+			# The script cannot invent the missing translations, so the operator
+			# decides instead of losing them silently.
+			dropped_locales = _locale_keys(active.content) - _locale_keys(desired_content)
+			if dropped_locales:
+				print(
+					f"Refused to publish: the active row carries locale(s) "
+					f"{', '.join(sorted(dropped_locales))} that the canonical file does not. "
+					"Publishing would drop them. Re-export the file with "
+					"scripts/sync_canonical_instruments_from_db.py, add the missing locales, and retry.",
+					file=sys.stderr,
+				)
+				return 1
 
 			resolved_version = next_published_version(published_versions) if published_versions else file_version
 			print(
