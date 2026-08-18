@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -18,23 +19,40 @@ from app.products.playspace.instrument import (
 SCRIPTS_DIRECTORY = Path(__file__).parents[3] / "scripts"
 
 
+@lru_cache(maxsize=1)
 def _load_publish_script() -> ModuleType:
-	"""Import the publish script by path; scripts/ is not an importable package."""
+	"""Import the publish script by path; ``scripts/`` is not an importable package.
 
-	if str(SCRIPTS_DIRECTORY) not in sys.path:
-		sys.path.insert(0, str(SCRIPTS_DIRECTORY))
+	The directory is put on ``sys.path`` only for the duration of the import,
+	because the script reaches sideways to a sibling script, and removed again
+	so the rest of the session resolves imports exactly as it would have.
+	"""
+
 	spec = importlib.util.spec_from_file_location(
 		"publish_active_instrument_from_file",
 		SCRIPTS_DIRECTORY / "publish_active_instrument_from_file.py",
 	)
 	if spec is None or spec.loader is None:
 		raise AssertionError("Could not load the publish script.")
+
 	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
+	scripts_path = str(SCRIPTS_DIRECTORY)
+	added_scripts_path = scripts_path not in sys.path
+	if added_scripts_path:
+		sys.path.insert(0, scripts_path)
+	try:
+		spec.loader.exec_module(module)
+	finally:
+		if added_scripts_path and scripts_path in sys.path:
+			sys.path.remove(scripts_path)
 	return module
 
 
-publish_script = _load_publish_script()
+@pytest.fixture(scope="module")
+def publish_script() -> ModuleType:
+	"""Load the script lazily, so importing this file stays free of side effects."""
+
+	return _load_publish_script()
 
 
 def test_active_instrument_content_returns_every_locale() -> None:
@@ -77,11 +95,15 @@ def test_active_instrument_content_rejects_a_foreign_instrument_key(
 		("not a mapping", set()),
 	],
 )
-def test_locale_keys_reads_both_wrapped_and_bare_payloads(content: Any, expected: set[str]) -> None:
+def test_locale_keys_reads_both_wrapped_and_bare_payloads(
+	publish_script: ModuleType,
+	content: Any,
+	expected: set[str],
+) -> None:
 	assert publish_script._locale_keys(content) == expected
 
 
-def test_locale_keys_drives_the_drop_guard() -> None:
+def test_locale_keys_drives_the_drop_guard(publish_script: ModuleType) -> None:
 	"""Publication replaces content outright, so a narrower file must be refused.
 
 	Going the other way - a file that adds a locale the live row lacks - is a
@@ -95,7 +117,7 @@ def test_locale_keys_drives_the_drop_guard() -> None:
 	assert publish_script._locale_keys(english_only_file) - publish_script._locale_keys(live_row) == set()
 
 
-def test_version_stamps_are_ignored_when_comparing_content() -> None:
+def test_version_stamps_are_ignored_when_comparing_content(publish_script: ModuleType) -> None:
 	left = {"en": {"instrument_key": "k", "instrument_version": "5.33", "sections": []}}
 	right = {"en": {"instrument_key": "k", "instrument_version": "5.32", "sections": []}}
 
@@ -105,7 +127,7 @@ def test_version_stamps_are_ignored_when_comparing_content() -> None:
 	assert left != right
 
 
-def test_multiselect_sociability_counter_matches_the_canonical_file() -> None:
+def test_multiselect_sociability_counter_matches_the_canonical_file(publish_script: ModuleType) -> None:
 	content = get_active_instrument_content()
 
 	assert publish_script._count_multiselect_sociability(content) == 33
