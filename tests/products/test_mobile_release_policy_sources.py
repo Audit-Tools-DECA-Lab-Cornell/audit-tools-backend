@@ -28,13 +28,13 @@ def clear_release_cache() -> None:
 
 def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 	base_policy = PlatformReleasePolicy(
-		latest_version="0.7.1",
-		minimum_supported_version="0.7.1",
+		latest_version="0.8.2",
+		minimum_supported_version="0.8.0",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
 	)
-	google_release = MobileReleaseSnapshot(latest_version="0.7.3", latest_build=203, source="google_play")
-	eas_release = MobileReleaseSnapshot(latest_version="0.7.2", latest_build=202, source="eas")
-	github_release = MobileReleaseSnapshot(latest_version="0.7.2", latest_build=None, source="github")
+	google_release = MobileReleaseSnapshot(latest_version="0.8.3", latest_build=203, source="google_play")
+	eas_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=202, source="eas")
+	github_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=None, source="github")
 
 	resolved = resolve_platform_release_policy(
 		base_policy=base_policy,
@@ -50,12 +50,12 @@ def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 
 def test_resolver_fills_google_version_gap_from_eas_then_static() -> None:
 	base_policy = PlatformReleasePolicy(
-		latest_version="0.6.4",
-		minimum_supported_version="0.6.2",
+		latest_version="0.8.1",
+		minimum_supported_version="0.8.0",
 		update_url="https://play.google.com/store/apps/details?id=com.pratyush.sudhakar.audittoolsplayspacemobile",
 	)
-	google_release = MobileReleaseSnapshot(latest_version=None, latest_build=104, source="google_play")
-	eas_release = MobileReleaseSnapshot(latest_version="0.6.5", latest_build=103, source="eas")
+	google_release = MobileReleaseSnapshot(latest_version="0.8.1", latest_build=104, source="google_play")
+	eas_release = MobileReleaseSnapshot(latest_version="0.8.1", latest_build=103, source="eas")
 
 	resolved = resolve_platform_release_policy(
 		base_policy=base_policy,
@@ -64,7 +64,7 @@ def test_resolver_fills_google_version_gap_from_eas_then_static() -> None:
 		github_release=None,
 	)
 
-	assert resolved.latest_version == "0.6.5"
+	assert resolved.latest_version == "0.8.1"
 	assert resolved.latest_build == 104
 
 
@@ -73,26 +73,26 @@ def test_parse_google_release_payload_ignores_unpublished_releases() -> None:
 		{
 			"releases": [
 				{
-					"releaseName": "0.8.0",
+					"releaseName": "0.8.1",
 					"releaseLifecycleState": "RELEASE_LIFECYCLE_STATE_IN_REVIEW",
-					"activeArtifacts": [{"versionCode": 800}],
+					"activeArtifacts": [{"versionCode": 801}],
 				},
 				{
-					"releaseName": "0.7.4",
+					"releaseName": "0.8.1",
 					"releaseLifecycleState": "RELEASE_LIFECYCLE_STATE_PUBLISHED",
-					"activeArtifacts": [{"versionCode": 704}],
+					"activeArtifacts": [{"versionCode": 801}],
 				},
 			]
 		}
 	)
 
-	assert snapshot == MobileReleaseSnapshot(latest_version="0.7.4", latest_build=704, source="google_play")
+	assert snapshot == MobileReleaseSnapshot(latest_version="0.8.1", latest_build=801, source="google_play")
 
 
 def test_parse_github_app_config_version_extracts_expo_version() -> None:
-	version = parse_github_app_config_version('export default {expo: {name: "COPA", version: "0.6.4"},};')
+	version = parse_github_app_config_version('export default {expo: {name: "COPA", version: "0.8.1"},};')
 
-	assert version == "0.6.4"
+	assert version == "0.8.1"
 
 
 def test_record_eas_webhook_payload_caches_finished_store_build() -> None:
@@ -110,7 +110,7 @@ def test_record_eas_webhook_payload_caches_finished_store_build() -> None:
 
 	snapshot = record_eas_webhook_payload("yee", json.dumps(payload))
 
-	assert snapshot == MobileReleaseSnapshot(latest_version="0.7.5", latest_build=205, source="eas")
+	assert snapshot == MobileReleaseSnapshot(latest_version="0.8.2", latest_build=205, source="eas")
 
 
 def test_eas_webhook_signature_uses_expo_hmac_sha1_header() -> None:
@@ -154,5 +154,5 @@ def test_signed_eas_webhook_updates_yee_policy_route(monkeypatch: pytest.MonkeyP
 	policy_response = client.get("/yee/mobile-release-policy")
 
 	assert webhook_response.status_code == 204
-	assert policy_response.json()["android"]["latest_version"] == "0.7.6"
+	assert policy_response.json()["android"]["latest_version"] == "0.8.2"
 	assert policy_response.json()["android"]["latest_build"] == 206
