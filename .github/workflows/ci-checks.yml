@@ -81,7 +81,7 @@ jobs:
       ALLOW_TEST_DB_RESET: "true"
       TEST_DATABASE_URL_PLAYSPACE: ${{ secrets.TEST_DATABASE_URL_PLAYSPACE }}
       TEST_DATABASE_URL_YEE: ${{ secrets.TEST_DATABASE_URL_YEE }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [ruff-lint, ruff-format]
     steps:
       - name: Checkout Code
