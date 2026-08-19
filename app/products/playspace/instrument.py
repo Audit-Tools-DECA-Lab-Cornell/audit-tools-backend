@@ -69,38 +69,6 @@ def get_active_instrument_payload() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
-def get_active_instrument_content() -> dict[str, Any]:
-	"""Load the on-disk active instrument as a ``locale -> payload`` map.
-
-	``get_active_instrument_payload`` unwraps to the English payload alone, which
-	is what runtime rendering wants. Callers that write the file back into the
-	``instruments`` table need every locale it carries instead, since publishing
-	an English-only map over a multi-locale row would drop the other locales.
-	"""
-
-	with _ACTIVE_INSTRUMENT_PATH.open("r", encoding="utf-8") as instrument_file:
-		raw_payload = json.load(instrument_file)
-
-	if not isinstance(raw_payload, dict):
-		raise ValueError("Expected the Playspace instrument payload to be a JSON object.")
-
-	content: dict[str, Any] = {"en": raw_payload} if "instrument_key" in raw_payload else dict(raw_payload)
-	if not content:
-		raise ValueError("Active Playspace instrument payload contains no locale payloads.")
-
-	for locale, payload in content.items():
-		if not isinstance(payload, dict):
-			raise ValueError(f"Active Playspace instrument locale {locale!r} must be a JSON object.")
-		if _read_required_string(payload, "instrument_key") != INSTRUMENT_KEY:
-			raise ValueError(
-				f"Active Playspace instrument locale {locale!r} metadata does not match {INSTRUMENT_KEY!r}."
-			)
-		_read_required_string(payload, "instrument_version")
-
-	return content
-
-
-@lru_cache(maxsize=1)
 def get_active_instrument_version() -> str:
 	"""Return the version string embedded in the on-disk active instrument JSON."""
 
