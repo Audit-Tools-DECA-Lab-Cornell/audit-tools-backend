@@ -39,6 +39,7 @@ def _resolve_cors_origins() -> list[str]:
 		"http://localhost:8000",
 		"http://localhost:8081",
 		"https://audit-tools-backend.onrender.com",
+		"https://audit-tools-backend-zyde.onrender.com",
 		"https://copa-frontend.vercel.app",
 		"https://copa-mobile.expo.app",
 		"https://copa-tool.vercel.app",
