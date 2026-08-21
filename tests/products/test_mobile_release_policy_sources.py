@@ -32,7 +32,7 @@ def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 		minimum_supported_version="0.8.0",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
 	)
-	google_release = MobileReleaseSnapshot(latest_version="0.8.3", latest_build=203, source="google_play")
+	google_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=203, source="google_play")
 	eas_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=202, source="eas")
 	github_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=None, source="github")
 
