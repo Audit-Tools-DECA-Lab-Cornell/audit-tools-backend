@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, NoReturn
 
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy import update as sqlalchemy_update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AccountType, Audit, AuditStatus, Instrument, User, YeeAuditSubmission
@@ -155,6 +156,54 @@ def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
 	return YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
 
 
+#: Names of the partial unique indexes yee_0010 / ps_0012 put on the shared
+#: instruments table. A violation of either is a lost race between two
+#: activations, not a bug in the request, so it is reported as a conflict the
+#: caller can retry rather than a server error.
+_ACTIVATION_RACE_INDEXES = ("uq_instruments_yee_single_active", "uq_instruments_yee_version_label_ci")
+
+
+async def _lock_instrument_catalog(session: AsyncSession, instrument_key: str) -> None:
+	"""Serialize concurrent activations of one instrument key.
+
+	Activation is deactivate-then-activate. Without this lock two callers can
+	interleave those halves; the unique index then rejects whichever commits
+	second, which is safe but leaves the loser with an opaque failure. Taking the
+	rows first makes the second caller wait and then observe the real state.
+	"""
+
+	await session.execute(select(Instrument.id).where(Instrument.instrument_key == instrument_key).with_for_update())
+
+
+def _raise_activation_race(error: IntegrityError) -> NoReturn:
+	"""Translate a lost activation race into a recoverable conflict."""
+
+	raise HTTPException(
+		status_code=409,
+		detail={
+			"code": "instrument_activation_conflict",
+			"message": "Another activation completed first. Reload the instrument list and try again.",
+		},
+	) from error
+
+
+def _is_activation_race(error: IntegrityError) -> bool:
+	text = str(error.orig) if error.orig is not None else str(error)
+	return any(index in text for index in _ACTIVATION_RACE_INDEXES)
+
+
+async def _commit_activation(session: AsyncSession) -> None:
+	"""Commit an activation, reporting a lost race as a conflict."""
+
+	try:
+		await session.commit()
+	except IntegrityError as error:
+		await session.rollback()
+		if _is_activation_race(error):
+			_raise_activation_race(error)
+		raise
+
+
 async def _create_yee_instrument_version(
 	session: AsyncSession,
 	data: YeeInstrumentCreateRequest,
@@ -195,8 +244,12 @@ async def _create_yee_instrument_version(
 			session,
 			data.content,
 			data.parent_instrument_id,
+			mode=data.publication_mode,
 		)
 	if should_activate:
+		# Lock first, then deactivate: the two halves must not interleave with
+		# another activation of the same key.
+		await _lock_instrument_catalog(session, data.instrument_key)
 		await session.execute(
 			sqlalchemy_update(Instrument)
 			.where(Instrument.instrument_key == data.instrument_key)
@@ -211,7 +264,7 @@ async def _create_yee_instrument_version(
 		content=content,
 	)
 	session.add(new_instrument)
-	await session.commit()
+	await _commit_activation(session)
 	await session.refresh(new_instrument)
 	return new_instrument
 
@@ -239,9 +292,12 @@ async def _update_yee_instrument_status(
 			session,
 			instrument.content,
 			instrument.parent_instrument_id,
+			mode=data.publication_mode,
+			candidate_instrument_id=instrument.id,
 		)
 
 	if data.is_active:
+		await _lock_instrument_catalog(session, instrument.instrument_key)
 		await session.execute(
 			sqlalchemy_update(Instrument)
 			.where(Instrument.instrument_key == instrument.instrument_key)
@@ -250,7 +306,7 @@ async def _update_yee_instrument_status(
 
 	instrument.is_active = data.is_active
 	instrument.updated_at = datetime.now(timezone.utc)
-	await session.commit()
+	await _commit_activation(session)
 	await session.refresh(instrument)
 	return instrument
 

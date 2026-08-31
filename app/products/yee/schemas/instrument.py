@@ -17,6 +17,17 @@ InstrumentLifecycle = Literal["active", "draft", "archived"]
 InstrumentSchemaGeneration = Literal["legacy", "authoring_v2"]
 InstrumentCompatibilityStatus = Literal["legacy", "copy_only", "migration_required", "invalid"]
 
+#: How a candidate version is meant to relate to its parent, declared by the
+#: publisher rather than inferred. ``copy_only`` promises nothing that affects a
+#: score has changed and is held to parity with the parent. ``structural``
+#: declares a deliberate change to the questions themselves: parent parity is
+#: not checked, and the candidate must instead stand on its own — every question
+#: bound, every follow-up reachable, and a scoring contract that builds.
+#:
+#: The default is the safe one. Inferring the mode from whether parity happens to
+#: pass would turn every failed copy-only check into a silent structural publish.
+InstrumentPublicationMode = Literal["copy_only", "structural"]
+
 
 class YeeInstrumentVersionSummaryResponse(BaseModel):
 	model_config = ConfigDict(from_attributes=True)
@@ -43,10 +54,12 @@ class YeeInstrumentCreateRequest(BaseModel):
 	instrument_version: str = Field(min_length=1, max_length=50)
 	parent_instrument_id: uuid.UUID | None = None
 	content: dict[str, Any]
+	publication_mode: InstrumentPublicationMode = "copy_only"
 
 
 class YeeInstrumentActivateRequest(BaseModel):
 	is_active: bool
+	publication_mode: InstrumentPublicationMode = "copy_only"
 
 
 class YeeInstrumentValidateRequest(BaseModel):
@@ -61,10 +74,12 @@ class YeeInstrumentDraftUpdateRequest(BaseModel):
 	expected_updated_at: datetime
 	instrument_version: str = Field(min_length=1, max_length=50)
 	content: dict[str, Any]
+	publication_mode: InstrumentPublicationMode = "copy_only"
 
 
 class YeeInstrumentPublishRequest(BaseModel):
 	expected_updated_at: datetime
+	publication_mode: InstrumentPublicationMode = "copy_only"
 
 
 class ScoringCompatibilityReport(BaseModel):

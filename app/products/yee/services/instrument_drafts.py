@@ -106,6 +106,14 @@ async def _ensure_version_label_available(
 
 
 def _validate_scored_question_deletions(content: YeeInstrumentResponse) -> None:
+	"""Refuse to drop a question the frozen schema-v1 contract still scores.
+
+	Only meaningful for a draft headed for copy-only publication, where the whole
+	promise is that scoring is unchanged. A draft declared ``structural`` is
+	allowed to remove questions — that is what makes it structural — and is held
+	instead to standing on its own at activation time.
+	"""
+
 	authoring = content.authoring
 	if authoring is None:
 		return
@@ -221,7 +229,8 @@ async def update_instrument_draft(
 			status_code=422,
 			detail={"code": "authoring_v2_required", "message": "Draft updates require authoring schema v2."},
 		)
-	_validate_scored_question_deletions(content)
+	if data.publication_mode == "copy_only":
+		_validate_scored_question_deletions(content)
 	row.instrument_version = label
 	row.content = content.model_dump()
 	row.updated_at = datetime.now(timezone.utc)
@@ -311,5 +320,5 @@ async def publish_instrument_draft(
 	return await _update_yee_instrument_status(
 		session,
 		row.id,
-		YeeInstrumentActivateRequest(is_active=True),
+		YeeInstrumentActivateRequest(is_active=True, publication_mode=data.publication_mode),
 	)
