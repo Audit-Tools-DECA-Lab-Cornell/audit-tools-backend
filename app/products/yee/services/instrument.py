@@ -6,6 +6,7 @@ normalization, and site-copy handling.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, NoReturn
@@ -23,9 +24,12 @@ from app.products.yee.schemas.instrument import (
 	YeeInstrumentCreateRequest,
 )
 from app.products.yee.services.instrument_activation import validated_activation_content
+from app.products.yee.services.instrument_authoring import legacy_to_authoring
 from app.products.yee.services.scoring import get_yee_instrument_data
 from app.products.yee.services.scoring_contract import validate_scoring_compatibility
 from app.yee_instrument_schema import YeeInstrumentResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _require_admin(user: User) -> None:
@@ -137,7 +141,7 @@ async def _get_yee_instrument_by_stamp(
 	return rows[0] if rows else None
 
 
-def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
+def _validated_instrument_content(raw_content: Any) -> YeeInstrumentResponse:
 	"""Return the stored instrument content, validated against the response schema.
 
 	The database row is authoritative: what an admin publishes is exactly what
@@ -150,10 +154,58 @@ def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
 
 	if isinstance(raw_content, dict):
 		try:
-			return YeeInstrumentResponse.model_validate(raw_content).model_dump()
+			return YeeInstrumentResponse.model_validate(raw_content)
 		except ValidationError:
 			pass
-	return YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
+	return YeeInstrumentResponse.model_validate(get_yee_instrument_data())
+
+
+def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
+	"""The stored content as a plain dict. See :func:`_validated_instrument_content`."""
+
+	return _validated_instrument_content(raw_content).model_dump()
+
+
+def public_yee_instrument_payload(raw_content: Any) -> dict[str, Any]:
+	"""The instrument as clients receive it, always carrying a logical view.
+
+	An instrument published before authoring schema v2 stores only ``scoring_items``,
+	so every client had to keep its own adapter for deriving questions from the
+	matrix — one adapter per client, each free to disagree with the others and with
+	scoring. Deriving it once here gives them all the same answer.
+
+	The derivation is a READ-TIME view. The stored row is never modified, which is
+	what keeps this safe:
+
+	Scoring is untouched: ``scoring_contract_from_instrument`` resolves from stored
+	content, so an audit taken against a row with no authoring is still scored by
+	the frozen schema-v1 contract, exactly as before. Nothing is written to a
+	version that submitted audits depend on, and the change is undone by a deploy
+	rather than by a data restore.
+
+	A row whose authoring cannot be derived is served as it always was, without one.
+	That degrades to the client's existing adapter instead of failing the request,
+	which is also why those adapters should stay.
+	"""
+
+	return _with_derived_authoring(_validated_instrument_content(raw_content)).model_dump()
+
+
+def _with_derived_authoring(content: YeeInstrumentResponse) -> YeeInstrumentResponse:
+	"""Add a derived authoring document when the content carries none."""
+
+	if content.authoring is not None:
+		return content
+	try:
+		derived = legacy_to_authoring(content).authoring
+	except Exception:  # noqa: BLE001 - a client is better served the raw matrix than a 500
+		logger.warning(
+			"yee_instrument_authoring_derivation_failed",
+			extra={"scoring_item_count": len(content.scoring_items)},
+			exc_info=True,
+		)
+		return content
+	return content.model_copy(update={"authoring": derived}, deep=True)
 
 
 #: Names of the partial unique indexes yee_0010 / ps_0012 put on the shared

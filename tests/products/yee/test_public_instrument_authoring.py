@@ -1,0 +1,111 @@
+"""The public instrument payload always carries a logical view.
+
+Clients used to receive only ``scoring_items`` for any version published before
+authoring schema v2, so each one kept its own adapter for turning the matrix
+into questions. Deriving the authoring document once, at read time, gives every
+client the same answer.
+
+The point of doing it at READ time is that the stored row never changes, so
+scoring cannot move: ``scoring_contract_from_instrument`` resolves from stored
+content and still returns the frozen schema-v1 contract. These tests pin both
+halves — clients see authoring, and the database and scoring see exactly what
+they saw before.
+
+Pure: no database, no HTTP.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from app.products.yee.services.instrument import public_yee_instrument_payload
+from app.products.yee.services.scoring_resolution import scoring_contract_from_instrument
+from app.products.yee.services.scoring_spec import SCHEMA_V1_SCORING_CONTRACT
+from app.yee_instrument_schema import YeeInstrumentResponse
+
+ACTIVE_PATH = Path(__file__).parents[3] / "app/products/yee/instruments/yee.active.instrument.json"
+
+
+def _legacy_content() -> dict[str, Any]:
+	content = json.loads(ACTIVE_PATH.read_text())
+	content.pop("authoring", None)
+	return content
+
+
+def test_a_legacy_instrument_is_served_with_a_derived_authoring_document() -> None:
+	# Given the shipped instrument with no authoring document
+	content = _legacy_content()
+	assert content.get("authoring") is None
+
+	# When a client fetches it
+	payload = public_yee_instrument_payload(content)
+
+	# Then it arrives with the same logical view every other surface uses
+	authoring = payload["authoring"]
+	assert authoring is not None
+	questions = [q for section in authoring["sections"] for q in section["questions"]]
+	assert len(questions) == 54
+
+
+def test_deriving_the_view_does_not_change_how_the_instrument_scores() -> None:
+	# Given the stored (legacy) content and the payload derived from it
+	content = _legacy_content()
+	payload = public_yee_instrument_payload(content)
+
+	# When each is resolved to a scoring contract
+	stored = scoring_contract_from_instrument(YeeInstrumentResponse.model_validate(content))
+	served = scoring_contract_from_instrument(YeeInstrumentResponse.model_validate(payload))
+
+	# Then both are the frozen contract: the derivation is score-neutral, which is
+	# what makes serving it safe for audits already taken under this version.
+	assert stored.item_specs == SCHEMA_V1_SCORING_CONTRACT.item_specs
+	assert served.item_specs == SCHEMA_V1_SCORING_CONTRACT.item_specs
+	assert served.scoring_algorithm == stored.scoring_algorithm
+
+
+def test_the_stored_content_is_never_mutated() -> None:
+	# Given content captured before the call
+	content = _legacy_content()
+	before = json.dumps(content, sort_keys=True)
+
+	# When it is served
+	public_yee_instrument_payload(content)
+
+	# Then the caller's dict is untouched: this is a view, not a migration
+	assert json.dumps(content, sort_keys=True) == before
+
+
+def test_content_that_already_has_authoring_is_left_alone() -> None:
+	# Given content that already carries an authoring document
+	content = json.loads(ACTIVE_PATH.read_text())
+	served_once = public_yee_instrument_payload(content)
+
+	# When it is served again from that output
+	served_twice = public_yee_instrument_payload(served_once)
+
+	# Then deriving is idempotent and never rewrites an authored document
+	assert served_twice["authoring"] == served_once["authoring"]
+
+
+def test_undeducible_content_is_still_served_rather_than_failing() -> None:
+	# Given content whose scoring items cannot produce a logical view
+	content = _legacy_content()
+	content["scoring_items"] = []
+
+	# When a client fetches it
+	payload = public_yee_instrument_payload(content)
+
+	# Then the request still succeeds. A client falls back to its own adapter;
+	# a 500 would take the whole audit flow down instead.
+	assert payload["scoring_items"] == []
+
+
+def test_unusable_input_falls_back_to_the_shipped_snapshot() -> None:
+	# Given a row that is missing or unreadable
+	payload = public_yee_instrument_payload(None)
+
+	# Then the shipped instrument is served, with its logical view attached
+	assert payload["authoring"] is not None
+	assert len(payload["scoring_items"]) > 0

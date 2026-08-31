@@ -38,7 +38,7 @@ from app.products.yee.services.instrument import (
 	_get_yee_instrument_by_id,
 	_get_yee_instrument_by_stamp,
 	_list_yee_instrument_versions,
-	_normalize_yee_instrument_content,
+	public_yee_instrument_payload,
 	_require_admin,
 	_update_yee_instrument_status,
 )
@@ -49,7 +49,6 @@ from app.products.yee.services.instrument_drafts import (
 	update_instrument_draft,
 	validate_instrument_draft,
 )
-from app.products.yee.services.scoring import get_yee_instrument_data
 from app.products.yee.services.scoring_contract import validate_scoring_compatibility
 from app.yee_instrument_schema import YeeInstrumentResponse
 
@@ -96,13 +95,13 @@ async def get_yee_instrument(
 	if active is not None:
 		try:
 			return {
-				**_normalize_yee_instrument_content(active.content),
+				**public_yee_instrument_payload(active.content),
 				"instrument_key": active.instrument_key,
 				"instrument_version": active.instrument_version,
 			}
 		except Exception:
 			pass
-	return YeeInstrumentResponse.model_validate(get_yee_instrument_data()).model_dump()
+	return public_yee_instrument_payload(None)
 
 
 @router.get("/admin/instruments", response_model=list[YeeInstrumentVersionSummaryResponse])
