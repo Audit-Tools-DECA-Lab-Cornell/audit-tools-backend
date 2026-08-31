@@ -191,6 +191,36 @@ def public_yee_instrument_payload(raw_content: Any) -> dict[str, Any]:
 	return _with_derived_authoring(_validated_instrument_content(raw_content)).model_dump()
 
 
+def strip_derived_authoring(raw_content: Any) -> Any:
+	"""Drop an authoring document that is only the read-time view echoed back.
+
+	``public_yee_instrument_payload`` derives an authoring document for instruments
+	published without one. Admin flows then read the active instrument and post it
+	back to create the next version — so without this, a view becomes stored data:
+	the new row would persist a document nobody authored, and, because authoring-v2
+	activation requires a parent, a create-from-current that used to work would
+	start failing with ``parent_instrument_required``.
+
+	Only an EXACTLY derived document is dropped. A genuinely authored one differs
+	from what the matrix would produce — that is what makes it authored — so an
+	admin's real edits are always kept, and with them the parent requirement they
+	are supposed to trigger.
+	"""
+
+	if not isinstance(raw_content, dict) or raw_content.get("authoring") is None:
+		return raw_content
+	try:
+		parsed = YeeInstrumentResponse.model_validate(raw_content)
+		derived = legacy_to_authoring(parsed.model_copy(update={"authoring": None}, deep=True)).authoring
+	except Exception:  # noqa: BLE001 - an underivable document is by definition not the derived one
+		return raw_content
+	if parsed.authoring is None or derived is None or derived.model_dump() != parsed.authoring.model_dump():
+		return raw_content
+	stripped = dict(raw_content)
+	stripped.pop("authoring", None)
+	return stripped
+
+
 def _with_derived_authoring(content: YeeInstrumentResponse) -> YeeInstrumentResponse:
 	"""Add a derived authoring document when the content carries none."""
 
@@ -289,12 +319,12 @@ async def _create_yee_instrument_version(
 					"instrument_version": conflict.instrument_version,
 				},
 			)
-	content = data.content
+	content = strip_derived_authoring(data.content) if data.instrument_key == "yee" else data.content
 	if should_activate and data.instrument_key == "yee":
-		_ensure_scoring_compatible(data.content)
+		_ensure_scoring_compatible(content)
 		content = await validated_activation_content(
 			session,
-			data.content,
+			content,
 			data.parent_instrument_id,
 			mode=data.publication_mode,
 		)

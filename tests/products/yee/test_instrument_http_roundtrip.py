@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import Instrument
@@ -127,47 +129,49 @@ def test_inactive_authoring_v2_round_trips_typed_content_and_extras(yee_client: 
 	assert deleted.status_code == 200, deleted.text
 
 
-def test_multiple_active_yee_rows_fail_visibly(
+def test_a_second_active_yee_row_cannot_be_created(
 	yee_client: TestClient,
 	yee_test_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-	# Given a database defect with two active YEE rows
-	extra_id = uuid.uuid4()
+	"""The database refuses the defect this test used to simulate.
+
+	This previously inserted a second active YEE row and asserted the public
+	resolver reported a structured 409. Since yee_0010 / ps_0012 that insert cannot
+	succeed: ``uq_instruments_yee_single_active`` rejects it, which is a stronger
+	guarantee than detecting the state after the fact.
+
+	The application-level guard is still there and still worth having if the index
+	is ever dropped — it is covered without a database in
+	``test_instrument_activation_safety.test_yee_activation_refuses_to_silently_heal_multiple_active_rows``.
+	"""
+
+	# Given the seeded active YEE row and a second one claiming to be active
 	content = _active_content(yee_client)
 
 	async def insert_conflict() -> None:
 		async with yee_test_session_factory() as session:
 			session.add(
 				Instrument(
-					id=extra_id,
+					id=uuid.uuid4(),
 					instrument_key="yee",
-					instrument_version="conflicting-active",
+					instrument_version=f"conflicting-active-{_unique_suffix()}",
 					is_active=True,
 					content=content,
 				)
 			)
 			await session.commit()
 
-	asyncio.run(insert_conflict())
-	try:
-		# When the public active resolver runs
-		response = yee_client.get("/yee/instrument")
+	# When the write is attempted
+	with pytest.raises(IntegrityError) as caught:
+		asyncio.run(insert_conflict())
 
-		# Then it returns a structured conflict naming every active row
-		assert response.status_code == 409, response.text
-		detail = response.json()["detail"]
-		assert detail["code"] == "multiple_active_instruments"
-		assert {row["id"] for row in detail["conflicts"]} == {str(YEE_INSTRUMENT_ID), str(extra_id)}
-	finally:
+	# Then the constraint stops it, so two active rows never exist to be detected
+	assert "uq_instruments_yee_single_active" in str(caught.value.orig)
 
-		async def remove_conflict() -> None:
-			async with yee_test_session_factory() as session:
-				row = await session.get(Instrument, extra_id)
-				if row is not None:
-					await session.delete(row)
-					await session.commit()
-
-		asyncio.run(remove_conflict())
+	# And the public resolver still serves the one legitimate active row
+	response = yee_client.get("/yee/instrument")
+	assert response.status_code == 200, response.text
+	assert response.json()["instrument_key"] == "yee"
 
 
 def test_site_copy_default_activation_and_public_read_are_unchanged(yee_client: TestClient) -> None:

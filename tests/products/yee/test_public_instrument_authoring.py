@@ -19,8 +19,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
-from app.products.yee.services.instrument import public_yee_instrument_payload
+import pytest
+
+from app.products.yee.schemas.instrument import YeeInstrumentCreateRequest
+from app.products.yee.services.instrument import (
+	_create_yee_instrument_version,
+	public_yee_instrument_payload,
+	strip_derived_authoring,
+)
 from app.products.yee.services.scoring_resolution import scoring_contract_from_instrument
 from app.products.yee.services.scoring_spec import SCHEMA_V1_SCORING_CONTRACT
 from app.yee_instrument_schema import YeeInstrumentResponse
@@ -109,3 +117,67 @@ def test_unusable_input_falls_back_to_the_shipped_snapshot() -> None:
 	# Then the shipped instrument is served, with its logical view attached
 	assert payload["authoring"] is not None
 	assert len(payload["scoring_items"]) > 0
+
+
+def test_the_served_view_does_not_become_stored_data_when_posted_back() -> None:
+	# Given the payload a client receives for a legacy instrument
+	content = _legacy_content()
+	served = public_yee_instrument_payload(content)
+	assert served["authoring"] is not None
+
+	# When an admin creates a new version from exactly what they fetched
+	stored = strip_derived_authoring(served)
+
+	# Then the derived view is dropped rather than persisted. Keeping it would
+	# turn a read-time convenience into a schema change nobody authored — and,
+	# because authoring-v2 activation requires a parent, would break the ordinary
+	# create-from-current flow with parent_instrument_required.
+	assert stored.get("authoring") is None
+
+
+def test_an_authored_document_survives_the_same_path() -> None:
+	# Given a served payload an admin actually edited
+	served = public_yee_instrument_payload(_legacy_content())
+	edited = dict(served)
+	document = json.loads(json.dumps(served["authoring"]))
+	document["sections"][0]["questions"][0]["prompt"] = "An edit an admin made"
+	edited["authoring"] = document
+
+	# When it is stored
+	stored = strip_derived_authoring(edited)
+
+	# Then it is kept, and with it the parent requirement it should trigger. Only
+	# an exactly-derived document is dropped.
+	assert stored["authoring"] == document
+
+
+def test_content_that_never_had_authoring_is_returned_untouched() -> None:
+	content = _legacy_content()
+	assert strip_derived_authoring(content) is content
+
+
+@pytest.mark.anyio
+async def test_creating_a_version_from_the_served_payload_stores_no_authoring() -> None:
+	"""Covers the wiring, not just the helper.
+
+	This is the regression itself: an admin fetches the active instrument and
+	posts it straight back to create the next version. Before the strip was wired
+	into the create path, that stored a derived authoring document and the flow
+	began failing with parent_instrument_required.
+	"""
+
+	# Given the exact payload a client receives, posted back unchanged
+	served = public_yee_instrument_payload(_legacy_content())
+	assert served["authoring"] is not None
+	session = Mock()
+	session.execute = AsyncMock(return_value=Mock(first=Mock(return_value=None)))
+	session.commit = AsyncMock()
+	session.refresh = AsyncMock()
+	data = YeeInstrumentCreateRequest(instrument_version="from-served-payload", content=served)
+
+	# When a version is created from it
+	row = await _create_yee_instrument_version(session, data, activate=False)
+
+	# Then the stored row carries no authoring the admin did not write
+	assert row.content.get("authoring") is None
+	assert row.is_active is False
