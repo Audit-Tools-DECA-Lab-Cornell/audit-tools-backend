@@ -5,14 +5,13 @@ from typing import assert_never
 
 from app.products.yee.services.scoring_spec import (
 	CATEGORY_BY_DOMAIN,
-	CONDITION_SCORES,
 	DOMAIN_ORDER,
-	ITEM_SPECS,
-	SCORING_VERSION,
+	SCHEMA_V1_SCORING_CONTRACT,
 	SECTION_BY_DOMAIN,
 	AnswerScore,
 	PairedItemSpec,
 	PresenceItemSpec,
+	ScoringContract,
 )
 from app.products.yee.services.scoring_types import (
 	CanonicalScoreSnapshot,
@@ -47,8 +46,10 @@ def _answer_id(value: JsonValue | None) -> str | None:
 			return trimmed if trimmed else None
 		case int() as number:
 			return str(number)
-		case _:
+		case float() | list() | dict():
 			return None
+		case unreachable:
+			assert_never(unreachable)
 
 
 def _matrix_answer(responses: Mapping[str, JsonValue], item_id: str, choice_id: str) -> str | None:
@@ -56,8 +57,10 @@ def _matrix_answer(responses: Mapping[str, JsonValue], item_id: str, choice_id: 
 	match raw_item:
 		case dict() as answer_map:
 			return _answer_id(answer_map.get(choice_id))
-		case _:
-			return _answer_id(raw_item)
+		case (str() | int() | float() | bool() | list() | None) as scalar:
+			return _answer_id(scalar)
+		case unreachable:
+			assert_never(unreachable)
 
 
 def _score_answer(answer_scores: tuple[AnswerScore, ...], answer_id: str | None) -> int | None:
@@ -72,8 +75,8 @@ def _score_answer(answer_scores: tuple[AnswerScore, ...], answer_id: str | None)
 def _score_paired_item(spec: PairedItemSpec, responses: Mapping[str, JsonValue]) -> tuple[int, bool]:
 	presence_answer = _matrix_answer(responses, spec.presence_item_id, spec.choice_id)
 	condition_answer = _matrix_answer(responses, spec.condition_item_id, spec.choice_id)
-	presence_score = _score_answer((AnswerScore("1", 1), AnswerScore("2", 0)), presence_answer)
-	condition_score = _score_answer(CONDITION_SCORES, condition_answer)
+	presence_score = _score_answer(spec.presence_answer_scores, presence_answer)
+	condition_score = _score_answer(spec.condition_answer_scores, condition_answer)
 	if presence_score is None:
 		return 0, False
 	if condition_score is None:
@@ -89,16 +92,16 @@ def _score_presence_item(spec: PresenceItemSpec, responses: Mapping[str, JsonVal
 	return score, True
 
 
-def _domain_item_counts() -> dict[str, int]:
+def _domain_item_counts(contract: ScoringContract) -> dict[str, int]:
 	counts = _empty_int_domains()
-	for spec in ITEM_SPECS:
+	for spec in contract.item_specs:
 		counts[spec.domain] += 1
 	return counts
 
 
-def _domain_max_scores() -> dict[str, int]:
+def _domain_max_scores(contract: ScoringContract) -> dict[str, int]:
 	max_scores = _empty_int_domains()
-	for spec in ITEM_SPECS:
+	for spec in contract.item_specs:
 		max_scores[spec.domain] += spec.max_score
 	return max_scores
 
@@ -114,8 +117,10 @@ def _coerce_weight(value: JsonValue | None) -> int:
 				return 0
 			number = int(text)
 			return number if number in {1, 2, 3} else 0
-		case _:
+		case float() | list() | dict():
 			return 0
+		case unreachable:
+			assert_never(unreachable)
 
 
 def extract_domain_weights(participant_info: Mapping[str, JsonValue]) -> dict[str, int]:
@@ -123,19 +128,25 @@ def extract_domain_weights(participant_info: Mapping[str, JsonValue]) -> dict[st
 	match raw_weights:
 		case dict() as weight_map:
 			return {domain: _coerce_weight(weight_map.get(domain)) for domain in DOMAIN_ORDER}
-		case _:
+		case str() | int() | float() | bool() | list() | None:
 			return _empty_int_domains()
+		case unreachable:
+			assert_never(unreachable)
 
 
 def build_weighted_score_snapshot(
 	raw_domain_scores: Mapping[str, int],
 	participant_info: Mapping[str, JsonValue],
+	contract: ScoringContract = SCHEMA_V1_SCORING_CONTRACT,
 ) -> WeightedScoreSnapshot:
 	weights = extract_domain_weights(participant_info)
 	total_weight_sum = sum(weights.values())
-	item_counts = _domain_item_counts()
-	max_scores = _domain_max_scores()
-	exact_domain_averages = {domain: raw_domain_scores.get(domain, 0) / item_counts[domain] for domain in DOMAIN_ORDER}
+	item_counts = _domain_item_counts(contract)
+	max_scores = _domain_max_scores(contract)
+	exact_domain_averages = {
+		domain: raw_domain_scores.get(domain, 0) / item_counts[domain] if item_counts[domain] else 0.0
+		for domain in DOMAIN_ORDER
+	}
 	domain_averages = {domain: _round_2(exact_domain_averages[domain]) for domain in DOMAIN_ORDER}
 	if total_weight_sum <= 0:
 		return {
@@ -153,7 +164,7 @@ def build_weighted_score_snapshot(
 	}
 	priority_gaps = {
 		domain: _round_2(
-			((max_scores[domain] / item_counts[domain]) - exact_domain_averages[domain])
+			((max_scores[domain] / item_counts[domain] if item_counts[domain] else 0.0) - exact_domain_averages[domain])
 			* exact_normalized_weights[domain]
 		)
 		for domain in DOMAIN_ORDER
@@ -171,11 +182,13 @@ def build_weighted_score_snapshot(
 def build_canonical_score_snapshot(
 	responses: Mapping[str, JsonValue],
 	participant_info: Mapping[str, JsonValue] | None = None,
+	*,
+	contract: ScoringContract,
 ) -> CanonicalScoreSnapshot:
 	raw_domain_scores = _empty_int_domains()
 	item_scores: dict[str, int] = {}
 	matched_scored_answers = 0
-	for spec in ITEM_SPECS:
+	for spec in contract.item_specs:
 		match spec:
 			case PairedItemSpec():
 				score, matched = _score_paired_item(spec, responses)
@@ -199,18 +212,19 @@ def build_canonical_score_snapshot(
 		"matched_scored_answers": matched_scored_answers,
 	}
 	participant = participant_info or {}
-	weighted = build_weighted_score_snapshot(raw_domain_scores, participant)
-	item_counts = _domain_item_counts()
-	max_scores = _domain_max_scores()
+	weighted = build_weighted_score_snapshot(raw_domain_scores, participant, contract)
+	item_counts = _domain_item_counts(contract)
+	max_scores = _domain_max_scores(contract)
 	meta: ScoreMetaSnapshot = {
 		"domain_order": list(DOMAIN_ORDER),
 		"domain_item_counts": item_counts,
 		"domain_max_average_scores": {
-			domain: _round_2(max_scores[domain] / item_counts[domain]) for domain in DOMAIN_ORDER
+			domain: _round_2(max_scores[domain] / item_counts[domain]) if item_counts[domain] else 0.0
+			for domain in DOMAIN_ORDER
 		},
 	}
 	snapshot: CanonicalScoreSnapshot = {
-		"scoring_version": SCORING_VERSION,
+		"scoring_version": contract.scoring_algorithm,
 		"raw": raw,
 		"weighted": weighted,
 		"meta": meta,
@@ -231,5 +245,7 @@ def build_legacy_score_result(snapshot: CanonicalScoreSnapshot) -> LegacyScoreRe
 def score_yee_responses_with_participant_info(
 	responses: Mapping[str, JsonValue],
 	participant_info: Mapping[str, JsonValue] | None = None,
+	*,
+	contract: ScoringContract = SCHEMA_V1_SCORING_CONTRACT,
 ) -> LegacyScoreResult:
-	return build_legacy_score_result(build_canonical_score_snapshot(responses, participant_info))
+	return build_legacy_score_result(build_canonical_score_snapshot(responses, participant_info, contract=contract))

@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from typing import Any, cast
 
 from fastapi import HTTPException
-from pydantic import ValidationError
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
@@ -39,20 +38,23 @@ from app.products.yee.schemas.dashboard import (
 	PlaceComparisonGroup,
 	RawDataExportRow,
 )
-from app.products.yee.services.scoring import score_yee_responses
+from app.products.yee.services.runtime_scoring import InstrumentStamp, RuntimeScorer
+from app.products.yee.services.score_snapshots import (
+	audit_score_cache,
+	resolved_audit_score,
+	resolved_submission_score,
+)
 from app.products.yee.services.scoring_engine import build_weighted_score_snapshot
-from app.products.yee.services.scoring_spec import DOMAIN_ORDER, ITEM_SPECS, SCORING_VERSION
+from app.products.yee.services.scoring_spec import DOMAIN_ORDER, SCHEMA_V1_SCORING_CONTRACT
 from app.products.yee.services.scoring_types import LegacyScoreResult
 
 REPORT_DOMAIN_ORDER = DOMAIN_ORDER
 
-REPORT_DOMAIN_SCORE_MAXIMUMS: dict[str, int] = {
-	domain: sum(spec.max_score for spec in ITEM_SPECS if spec.domain == domain) for domain in REPORT_DOMAIN_ORDER
-}
-
-REPORT_DOMAIN_ITEM_COUNTS: dict[str, int] = {
-	domain: sum(1 for spec in ITEM_SPECS if spec.domain == domain) for domain in REPORT_DOMAIN_ORDER
-}
+# Reporting maxima and per-domain divisors are NOT module constants here. Every
+# audit is scored against the contract resolved from its own instrument stamp, so
+# a figure derived from one frozen instrument would silently mislabel any audit
+# taken under a different version. Read them from the resolved contract instead
+# (`SCHEMA_V1_SCORING_CONTRACT` only where the legacy schema-v1 path is explicit).
 
 
 def _format_timestamp(value: datetime | None) -> str:
@@ -160,7 +162,11 @@ def _build_submission_scores(
 	if total_weight_sum <= 0:
 		return raw_domain_scores, _empty_weighted_domain_scores(), 0.0
 
-	weighted = build_weighted_score_snapshot(raw_domain_scores, participant_info)
+	weighted = build_weighted_score_snapshot(
+		raw_domain_scores,
+		participant_info,
+		SCHEMA_V1_SCORING_CONTRACT,
+	)
 	return raw_domain_scores, weighted["weighted_domain_scores"], weighted["total_weighted_score"]
 
 
@@ -183,60 +189,26 @@ def _dashboard_score_result(score: LegacyScoreResult) -> DashboardScoreResult:
 	)
 
 
-def _validated_canonical_score(value: object) -> dict[str, Any] | None:
-	if not isinstance(value, dict):
-		return None
-	try:
-		canonical = CanonicalScoreSnapshot.model_validate(value)
-	except ValidationError:
-		return None
-	if canonical.scoring_version != SCORING_VERSION:
-		return None
-	return canonical.model_dump(mode="python")
-
-
-def _stored_canonical_score(scores_json: object) -> dict[str, Any] | None:
-	if not isinstance(scores_json, dict):
-		return None
-	direct_canonical = _validated_canonical_score(scores_json)
-	if direct_canonical is not None:
-		return direct_canonical
-	return _validated_canonical_score(scores_json.get("canonical_score"))
-
-
-def _legacy_score_result_from_canonical_score(canonical_score: dict[str, Any]) -> LegacyScoreResult:
-	canonical = CanonicalScoreSnapshot.model_validate(canonical_score)
-	return cast(
-		LegacyScoreResult,
-		{
-			"total_score": canonical.raw.total_score,
-			"section_scores": dict(canonical.raw.section_scores),
-			"category_scores": dict(canonical.raw.category_scores),
-			"matched_scored_answers": canonical.raw.matched_scored_answers,
-			"canonical_score": canonical.model_dump(mode="python"),
-		},
-	)
-
-
-def _score_from_audit_fallback(
+async def _score_from_audit_fallback(
+	scorer: RuntimeScorer,
+	audit: Audit,
 	*,
-	audit_scores_json: object,
 	participant_info: dict[str, Any],
 	responses: dict[str, Any],
 ) -> LegacyScoreResult:
-	if responses:
-		return score_yee_responses(responses, participant_info)
-	stored_canonical = _stored_canonical_score(audit_scores_json)
-	if stored_canonical is not None:
-		return _legacy_score_result_from_canonical_score(stored_canonical)
-	return score_yee_responses({}, participant_info)
+	return await resolved_audit_score(
+		scorer,
+		audit,
+		participant_info=participant_info,
+		responses=responses,
+	)
 
 
-def _canonical_score_from_submission(submission: YeeAuditSubmission) -> dict[str, Any]:
-	stored_score = _stored_canonical_score(submission.scores_json)
-	if stored_score is not None:
-		return stored_score
-	return dict(score_yee_responses(submission.responses_json, submission.participant_info_json)["canonical_score"])
+async def _canonical_score_from_submission(
+	scorer: RuntimeScorer,
+	submission: YeeAuditSubmission,
+) -> dict[str, Any]:
+	return dict((await resolved_submission_score(scorer, submission))["canonical_score"])
 
 
 def _canonical_score_model(canonical_score: dict[str, Any]) -> CanonicalScoreSnapshot:
@@ -249,6 +221,7 @@ async def _repair_missing_yee_submission(
 	audit: Audit,
 	place: Place,
 	auditor: Auditor,
+	scorer: RuntimeScorer,
 ) -> YeeAuditSubmission | None:
 	if audit.status != AuditStatus.SUBMITTED:
 		return None
@@ -274,7 +247,11 @@ async def _repair_missing_yee_submission(
 			"section_comments": _empty_domain_scores(),
 		}
 
-	score = score_yee_responses(responses, participant_info)
+	score = await scorer.score_for_stamp(
+		InstrumentStamp(audit.instrument_key, audit.instrument_version),
+		responses,
+		participant_info,
+	)
 	submission = YeeAuditSubmission(
 		auditor_id=audit.auditor_profile_id,
 		place_id=audit.place_id,
@@ -283,8 +260,10 @@ async def _repair_missing_yee_submission(
 		responses_json=responses,
 		section_scores_json=score["section_scores"],
 		scores_json=score["canonical_score"],
-		scoring_version=SCORING_VERSION,
+		scoring_version=score["canonical_score"]["scoring_version"],
 		total_score=score["total_score"],
+		instrument_key=audit.instrument_key,
+		instrument_version=audit.instrument_version,
 	)
 	session.add(submission)
 	await session.flush()
@@ -329,6 +308,7 @@ async def fetch_place_comparison_groups(
 	project_scope: ColumnElement[bool] | None,
 ) -> list[PlaceComparisonGroup]:
 	rows = await fetch_reporting_rows(session, project_scope)
+	scorer = RuntimeScorer(session)
 	grouped: dict[str, dict[str, Any]] = defaultdict(dict)
 	# A place linked to more than one project in scope yields the same submission
 	# once per ProjectPlace row (the join in fetch_reporting_rows). Track the
@@ -350,7 +330,7 @@ async def fetch_place_comparison_groups(
 				"audits": [],
 			},
 		)
-		canonical_score = _canonical_score_from_submission(submission)
+		canonical_score = await _canonical_score_from_submission(scorer, submission)
 		flat_score = flatten_canonical_score(canonical_score)
 		total_raw_score = canonical_score["raw"]["total_score"]
 		raw_domain_scores = canonical_score["raw"]["domain_scores"]
@@ -396,10 +376,11 @@ async def fetch_raw_data_rows(
 	project_scope: ColumnElement[bool] | None,
 ) -> list[RawDataExportRow]:
 	rows = await fetch_reporting_rows(session, project_scope)
+	scorer = RuntimeScorer(session)
 	export_rows: list[RawDataExportRow] = []
 	for submission, place, project, auditor_code, organization_name in rows:
 		participant_info = submission.participant_info_json
-		canonical_score = _canonical_score_from_submission(submission)
+		canonical_score = await _canonical_score_from_submission(scorer, submission)
 		flat_score = flatten_canonical_score(canonical_score)
 		total_raw_score = canonical_score["raw"]["total_score"]
 		raw_domain_scores = canonical_score["raw"]["domain_scores"]
@@ -473,16 +454,23 @@ async def fetch_manager_audit_edit_state(
 		raise HTTPException(status_code=404, detail="Audit not found.")
 
 	audit, project, place, auditor, submission = row
+	scorer = RuntimeScorer(session)
 	if not is_admin and project.account_id != manager_account_id:
 		raise HTTPException(status_code=403, detail="You do not have access to this audit.")
 
 	if submission is None and audit.status == AuditStatus.SUBMITTED:
-		submission = await _repair_missing_yee_submission(session, audit=audit, place=place, auditor=auditor)
+		submission = await _repair_missing_yee_submission(
+			session,
+			audit=audit,
+			place=place,
+			auditor=auditor,
+			scorer=scorer,
+		)
 		if submission is not None:
 			await session.commit()
 
 	if submission is not None:
-		score = score_yee_responses(submission.responses_json, submission.participant_info_json)
+		score = await resolved_submission_score(scorer, submission)
 		return ManagerAuditEditState(
 			audit_id=str(audit.id),
 			submission_id=str(submission.id),
@@ -494,11 +482,14 @@ async def fetch_manager_audit_edit_state(
 			participant_info=submission.participant_info_json,
 			responses=submission.responses_json,
 			score=_dashboard_score_result(score),
+			instrument_key=submission.instrument_key,
+			instrument_version=submission.instrument_version,
 		)
 
 	participant_info, responses = _decode_audit_participant_payload(audit)
-	score = _score_from_audit_fallback(
-		audit_scores_json=audit.scores_json,
+	score = await _score_from_audit_fallback(
+		scorer,
+		audit,
 		participant_info=participant_info,
 		responses=responses,
 	)
@@ -529,6 +520,8 @@ async def fetch_manager_audit_edit_state(
 		participant_info=participant_info,
 		responses=responses,
 		score=_dashboard_score_result(score),
+		instrument_key=audit.instrument_key,
+		instrument_version=audit.instrument_version,
 	)
 
 
@@ -559,6 +552,7 @@ async def update_manager_audit_edit_state(
 		raise HTTPException(status_code=404, detail="Audit not found.")
 
 	audit, project, place, auditor, submission = row
+	scorer = RuntimeScorer(session)
 	if not is_admin and project.account_id != manager_account_id:
 		raise HTTPException(status_code=403, detail="You do not have access to this audit.")
 
@@ -570,7 +564,12 @@ async def update_manager_audit_edit_state(
 			raise HTTPException(status_code=400, detail="Submission does not belong to the selected audit.")
 		submission = target_submission
 
-	score = score_yee_responses(payload.responses, payload.participant_info)
+	stamp = (
+		InstrumentStamp(submission.instrument_key, submission.instrument_version)
+		if submission is not None
+		else InstrumentStamp(audit.instrument_key, audit.instrument_version)
+	)
+	score = await scorer.score_for_stamp(stamp, payload.responses, payload.participant_info)
 	submitted_at = (
 		datetime.now(timezone.utc)
 		if payload.resubmit
@@ -584,13 +583,7 @@ async def update_manager_audit_edit_state(
 	audit.total_minutes = int(payload.participant_info.get("total_minutes") or 0) if payload.participant_info else None
 	audit.responses_json = payload.responses
 	audit.summary_score = float(cast(int, score["total_score"]))
-	audit.scores_json = {
-		"total_score": score["total_score"],
-		"section_scores": score["section_scores"],
-		"category_scores": score["category_scores"],
-		"matched_scored_answers": score["matched_scored_answers"],
-		"canonical_score": score["canonical_score"],
-	}
+	audit.scores_json = audit_score_cache(score)
 
 	if submission is None:
 		submission = YeeAuditSubmission(
@@ -601,8 +594,10 @@ async def update_manager_audit_edit_state(
 			responses_json=payload.responses,
 			section_scores_json=score["section_scores"],
 			scores_json=score["canonical_score"],
-			scoring_version=SCORING_VERSION,
+			scoring_version=score["canonical_score"]["scoring_version"],
 			total_score=score["total_score"],
+			instrument_key=audit.instrument_key,
+			instrument_version=audit.instrument_version,
 		)
 		session.add(submission)
 	else:
@@ -611,7 +606,7 @@ async def update_manager_audit_edit_state(
 		submission.responses_json = payload.responses
 		submission.section_scores_json = score["section_scores"]
 		submission.scores_json = score["canonical_score"]
-		submission.scoring_version = SCORING_VERSION
+		submission.scoring_version = score["canonical_score"]["scoring_version"]
 		submission.total_score = score["total_score"]
 
 	await session.commit()
@@ -629,4 +624,6 @@ async def update_manager_audit_edit_state(
 		participant_info=submission.participant_info_json,
 		responses=submission.responses_json,
 		score=_dashboard_score_result(score),
+		instrument_key=submission.instrument_key,
+		instrument_version=submission.instrument_version,
 	)

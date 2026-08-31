@@ -39,14 +39,27 @@ from app.yee_scoring import score_yee_responses
 from app.products.yee.services.dashboard import (
 	_build_submission_scores,
 	_round_2,
-	REPORT_DOMAIN_ITEM_COUNTS,
 	REPORT_DOMAIN_ORDER,
 )
+from app.products.yee.services.scoring_spec import SCHEMA_V1_SCORING_CONTRACT
+
 from tests.products.yee._helpers import (
 	SEED_MANAGER_EMAIL,
 	_bearer_headers,
 	_login_auditor,
 )
+
+# Per-domain divisor of the weighted formula, for the FROZEN schema-v1 contract
+# only. Derived from the same contract `_build_submission_scores` passes to
+# `build_weighted_score_snapshot`, so this re-derivation checks the arithmetic
+# rather than restating a number. It lives in the test module on purpose: a
+# module-level constant next to the reporting code invites use as "the" set of
+# domain divisors, and an audit stamped with a different instrument version has
+# its own.
+SCHEMA_V1_DOMAIN_ITEM_COUNTS: dict[str, int] = {
+	domain: sum(1 for spec in SCHEMA_V1_SCORING_CONTRACT.item_specs if spec.domain == domain)
+	for domain in REPORT_DOMAIN_ORDER
+}
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +281,7 @@ def test_build_submission_scores_internal_consistency() -> None:
 
 	for domain in REPORT_DOMAIN_ORDER:
 		normalized = weights[domain] / total_weight_sum
-		expected_weighted = _round_2(normalized * (raw[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
+		expected_weighted = _round_2(normalized * (raw[domain] / SCHEMA_V1_DOMAIN_ITEM_COUNTS[domain]))
 		assert weighted[domain] == expected_weighted, f"Mismatch for {domain}"
 
 	assert total_weighted == _round_2(sum(weighted.values()))
@@ -351,7 +364,7 @@ def test_seeded_hub_submission_scoring_end_to_end(yee_client: TestClient) -> Non
 	total_weight_sum = sum(dict(YEE_SEED_DOMAIN_WEIGHTS).values())
 	for domain in REPORT_DOMAIN_ORDER:
 		normalized = dict(YEE_SEED_DOMAIN_WEIGHTS)[domain] / total_weight_sum
-		check_weighted = _round_2(normalized * (expected_raw[domain] / REPORT_DOMAIN_ITEM_COUNTS[domain]))
+		check_weighted = _round_2(normalized * (expected_raw[domain] / SCHEMA_V1_DOMAIN_ITEM_COUNTS[domain]))
 		assert expected_weighted[domain] == check_weighted, f"Weighted mismatch for {domain}"
 
 

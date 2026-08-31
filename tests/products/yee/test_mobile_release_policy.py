@@ -23,8 +23,8 @@ def test_yee_mobile_release_policy_is_public(monkeypatch: pytest.MonkeyPatch) ->
 	assert response.status_code == 200
 	body = response.json()
 	assert body["product"] == "yee"
-	assert body["android"]["latest_version"] == "0.8.2"
+	assert body["android"]["latest_version"] == "0.9.1"
 	assert body["android"]["minimum_supported_version"] == "0.8.2"
 	assert body["android"]["update_url"].startswith("https://play.google.com/")
-	assert body["ios"]["latest_version"] == "0.8.2"
+	assert body["ios"]["latest_version"] == "0.9.1"
 	assert body["ios"]["minimum_supported_version"] == "0.8.2"

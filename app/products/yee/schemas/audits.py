@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -101,11 +101,27 @@ class SubmitYeeAuditRequest(BaseModel):
 	# same key after an ambiguous network failure; the server then returns the
 	# already-stored submission instead of a 409, so no completed audit is lost.
 	idempotency_key: str | None = Field(default=None, max_length=64)
+	instrument_key: str | None = Field(default=None, max_length=80)
+	instrument_version: str | None = Field(default=None, max_length=50)
+
+	@model_validator(mode="after")
+	def validate_instrument_stamp(self) -> SubmitYeeAuditRequest:
+		if (self.instrument_key is None) != (self.instrument_version is None):
+			raise ValueError("instrument_key and instrument_version must be provided together")
+		return self
 
 
 class SaveYeeDraftRequest(BaseModel):
 	participant_info: dict[str, Any] = Field(default_factory=dict)
 	responses: dict[str, Any] = Field(default_factory=dict)
+	instrument_key: str | None = Field(default=None, max_length=80)
+	instrument_version: str | None = Field(default=None, max_length=50)
+
+	@model_validator(mode="after")
+	def validate_instrument_stamp(self) -> SaveYeeDraftRequest:
+		if (self.instrument_key is None) != (self.instrument_version is None):
+			raise ValueError("instrument_key and instrument_version must be provided together")
+		return self
 
 
 class RawScoreSnapshot(BaseModel):
@@ -178,6 +194,8 @@ class YeeAuditSubmissionResponse(BaseModel):
 	participant_info: dict[str, Any]
 	responses: dict[str, Any]
 	score: ScoreResult
+	instrument_key: str | None = None
+	instrument_version: str | None = None
 
 
 class YeeAuditStateResponse(BaseModel):
@@ -191,6 +209,8 @@ class YeeAuditStateResponse(BaseModel):
 	participant_info: dict[str, Any] = Field(default_factory=dict)
 	responses: dict[str, Any] = Field(default_factory=dict)
 	score: ScoreResult | None = None
+	instrument_key: str | None = None
+	instrument_version: str | None = None
 
 
 class MyYeeAuditItem(BaseModel):
@@ -200,3 +220,19 @@ class MyYeeAuditItem(BaseModel):
 	submitted_at: datetime
 	total_score: int
 	participant_id: str | None = None
+	instrument_key: str | None = None
+	instrument_version: str | None = None
+
+
+class IncompleteAuditResponsesDetail(BaseModel):
+	"""Body of a `422` rejecting a final submit for missing required answers.
+
+	Question ids only. This travels into client logs and error surfaces, so it
+	deliberately carries no question text and no response values — the client
+	looks the wording up in its own cached instrument.
+	"""
+
+	code: Literal["incomplete_audit_responses"] = "incomplete_audit_responses"
+	message: str
+	missing_primary_question_ids: list[str] = Field(default_factory=list)
+	missing_follow_up_question_ids: list[str] = Field(default_factory=list)

@@ -21,6 +21,7 @@ from app.products.yee.schemas.instrument import (
 	YeeInstrumentActivateRequest,
 	YeeInstrumentCreateRequest,
 )
+from app.products.yee.services.instrument_activation import validated_activation_content
 from app.products.yee.services.scoring import get_yee_instrument_data
 from app.products.yee.services.scoring_contract import validate_scoring_compatibility
 from app.yee_instrument_schema import YeeInstrumentResponse
@@ -31,16 +32,7 @@ def _require_admin(user: User) -> None:
 		raise HTTPException(status_code=403, detail="Admin access is required.")
 
 
-def _ensure_scoring_compatible(content: Any, *, force: bool) -> None:
-	"""Block publishing a scored YEE instrument the engine cannot fully score.
-
-	Only the scored ``yee`` instrument is gated; site copy and other keys carry
-	no scored questions. ``force`` lets an admin override with eyes open (the
-	report still rides along in the error body for the earlier non-forced call).
-	"""
-
-	if force:
-		return
+def _ensure_scoring_compatible(content: Any) -> None:
 	report = validate_scoring_compatibility(content if isinstance(content, dict) else {})
 	if not report.ok:
 		raise HTTPException(
@@ -48,7 +40,7 @@ def _ensure_scoring_compatible(content: Any, *, force: bool) -> None:
 			detail={
 				"message": (
 					"This version is missing questions the scoring needs, so it can't be published. "
-					"Restore the missing questions, or publish again to override."
+					"Restore the missing questions before publishing."
 				),
 				"scoring_compatibility": report.model_dump(),
 			},
@@ -61,9 +53,20 @@ async def _get_active_yee_instrument(session: AsyncSession, instrument_key: str 
 		.where(Instrument.instrument_key == instrument_key)
 		.where(Instrument.is_active.is_(True))
 		.order_by(Instrument.created_at.desc())
-		.limit(1)
 	)
-	return (await session.execute(stmt)).scalar_one_or_none()
+	if instrument_key != "yee":
+		return (await session.execute(stmt.limit(1))).scalar_one_or_none()
+	rows = list((await session.execute(stmt)).scalars().all())
+	if len(rows) > 1:
+		raise HTTPException(
+			status_code=409,
+			detail={
+				"code": "multiple_active_instruments",
+				"instrument_key": "yee",
+				"conflicts": [{"id": str(row.id), "instrument_version": row.instrument_version} for row in rows],
+			},
+		)
+	return rows[0] if rows else None
 
 
 async def _bootstrap_yee_instrument_if_missing(session: AsyncSession, instrument_key: str = "yee") -> Instrument | None:
@@ -104,6 +107,35 @@ async def _get_yee_instrument_by_id(session: AsyncSession, instrument_id: uuid.U
 	return (await session.execute(select(Instrument).where(Instrument.id == instrument_id))).scalar_one_or_none()
 
 
+async def _get_yee_instrument_by_stamp(
+	session: AsyncSession,
+	instrument_key: str,
+	instrument_version: str,
+) -> Instrument | None:
+	rows = list(
+		(
+			await session.execute(
+				select(Instrument).where(
+					Instrument.instrument_key == instrument_key,
+					Instrument.instrument_version == instrument_version,
+				)
+			)
+		)
+		.scalars()
+		.all()
+	)
+	if len(rows) > 1:
+		raise HTTPException(
+			status_code=409,
+			detail={
+				"code": "duplicate_stamped_instrument",
+				"instrument_key": instrument_key,
+				"instrument_version": instrument_version,
+			},
+		)
+	return rows[0] if rows else None
+
+
 def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
 	"""Return the stored instrument content, validated against the response schema.
 
@@ -126,13 +158,45 @@ def _normalize_yee_instrument_content(raw_content: Any) -> dict[str, Any]:
 async def _create_yee_instrument_version(
 	session: AsyncSession,
 	data: YeeInstrumentCreateRequest,
-	activate: bool = True,
+	activate: bool | None = None,
 	*,
 	force: bool = False,
 ) -> Instrument:
-	if activate and data.instrument_key == "yee":
-		_ensure_scoring_compatible(data.content, force=force)
-	if activate:
+	should_activate = data.instrument_key != "yee" if activate is None else activate
+	if force and data.instrument_key == "yee":
+		raise HTTPException(
+			status_code=409,
+			detail={"code": "force_activation_not_allowed", "instrument_key": "yee"},
+		)
+	if should_activate and data.instrument_key == "yee":
+		await _get_active_yee_instrument(session, "yee")
+	if data.instrument_key == "yee":
+		conflict = (
+			await session.execute(
+				select(Instrument.id, Instrument.instrument_version)
+				.where(Instrument.instrument_key == "yee")
+				.where(func.lower(Instrument.instrument_version) == data.instrument_version.strip().casefold())
+				.limit(1)
+			)
+		).first()
+		if conflict is not None:
+			raise HTTPException(
+				status_code=409,
+				detail={
+					"code": "instrument_version_conflict",
+					"message": "An instrument version already uses this label.",
+					"instrument_version": conflict.instrument_version,
+				},
+			)
+	content = data.content
+	if should_activate and data.instrument_key == "yee":
+		_ensure_scoring_compatible(data.content)
+		content = await validated_activation_content(
+			session,
+			data.content,
+			data.parent_instrument_id,
+		)
+	if should_activate:
 		await session.execute(
 			sqlalchemy_update(Instrument)
 			.where(Instrument.instrument_key == data.instrument_key)
@@ -141,9 +205,10 @@ async def _create_yee_instrument_version(
 
 	new_instrument = Instrument(
 		instrument_key=data.instrument_key,
-		instrument_version=data.instrument_version,
-		is_active=activate,
-		content=data.content,
+		instrument_version=data.instrument_version.strip(),
+		parent_instrument_id=data.parent_instrument_id,
+		is_active=should_activate,
+		content=content,
 	)
 	session.add(new_instrument)
 	await session.commit()
@@ -161,9 +226,20 @@ async def _update_yee_instrument_status(
 	instrument = await _get_yee_instrument_by_id(session, instrument_id)
 	if instrument is None:
 		return None
+	if force and instrument.instrument_key == "yee":
+		raise HTTPException(
+			status_code=409,
+			detail={"code": "force_activation_not_allowed", "instrument_key": "yee"},
+		)
 
 	if data.is_active and instrument.instrument_key == "yee":
-		_ensure_scoring_compatible(instrument.content, force=force)
+		await _get_active_yee_instrument(session, "yee")
+		_ensure_scoring_compatible(instrument.content)
+		instrument.content = await validated_activation_content(
+			session,
+			instrument.content,
+			instrument.parent_instrument_id,
+		)
 
 	if data.is_active:
 		await session.execute(

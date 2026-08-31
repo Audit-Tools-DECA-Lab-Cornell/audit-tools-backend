@@ -96,10 +96,21 @@ def test_admin_can_list_instrument_versions(yee_client: TestClient) -> None:
 	data = resp.json()
 	assert isinstance(data, list)
 	assert len(data) >= 1
-	# Each item matches YeeInstrumentVersionResponse shape
 	first = data[0]
-	for field in ("id", "instrument_key", "instrument_version", "is_active", "content", "created_at", "updated_at"):
+	for field in (
+		"id",
+		"instrument_key",
+		"instrument_version",
+		"is_active",
+		"lifecycle",
+		"usage_count",
+		"schema_generation",
+		"compatibility_status",
+		"created_at",
+		"updated_at",
+	):
 		assert field in first, f"Missing field {field} in response"
+	assert "content" not in first
 	# The seeded instrument should be present
 	ids = [item["id"] for item in data]
 	assert str(YEE_INSTRUMENT_ID) in ids
@@ -200,24 +211,22 @@ def test_admin_can_create_and_activate_instrument_version(yee_client: TestClient
 
 	After activation the new version has is_active=True. We then restore
 	the original seeded instrument to active so downstream tests are unaffected.
-
-	The minimal content has no scored questions, so publishing it trips the
-	scoring-compatibility gate; ``force=true`` is the admin override that lets
-	this mechanics-focused test activate anyway.
 	"""
 
 	token = _login_admin(yee_client)
 	suffix = _unique_suffix()
+	content_response = yee_client.get("/yee/instrument")
+	assert content_response.status_code == 200, content_response.text
 
 	# Create activated version
 	resp = yee_client.post(
 		"/yee/admin/instruments",
-		params={"activate": "true", "force": "true"},
+		params={"activate": "true"},
 		headers=_bearer_headers(token),
 		json={
 			"instrument_key": "yee",
 			"instrument_version": f"test-active-{suffix}",
-			"content": _minimal_instrument_content(),
+			"content": content_response.json(),
 		},
 	)
 	assert resp.status_code == 201, resp.text
@@ -253,6 +262,8 @@ def test_admin_can_activate_instrument_version(yee_client: TestClient) -> None:
 
 	token = _login_admin(yee_client)
 	suffix = _unique_suffix()
+	content_response = yee_client.get("/yee/instrument")
+	assert content_response.status_code == 200, content_response.text
 
 	# Create an inactive draft first
 	create_resp = yee_client.post(
@@ -262,17 +273,14 @@ def test_admin_can_activate_instrument_version(yee_client: TestClient) -> None:
 		json={
 			"instrument_key": "yee",
 			"instrument_version": f"test-patch-{suffix}",
-			"content": _minimal_instrument_content(),
+			"content": content_response.json(),
 		},
 	)
 	assert create_resp.status_code == 201, create_resp.text
 	draft_id = create_resp.json()["id"]
 
-	# Activate it via PATCH. Minimal content has no scored questions, so the
-	# scoring-compatibility gate requires the admin override to publish it.
 	patch_resp = yee_client.patch(
 		f"/yee/admin/instruments/{draft_id}",
-		params={"force": "true"},
 		headers=_bearer_headers(token),
 		json={"is_active": True},
 	)
@@ -391,10 +399,12 @@ def test_validate_endpoint_flags_incompatible_and_compatible(yee_client: TestCli
 	listing = yee_client.get("/yee/admin/instruments", headers=_bearer_headers(token))
 	assert listing.status_code == 200, listing.text
 	active = next(item for item in listing.json() if item["is_active"])
+	detail = yee_client.get(f"/yee/admin/instruments/{active['id']}", headers=_bearer_headers(token))
+	assert detail.status_code == 200, detail.text
 	good = yee_client.post(
 		"/yee/admin/instruments/validate",
 		headers=_bearer_headers(token),
-		json={"content": active["content"]},
+		json={"content": detail.json()["content"]},
 	)
 	assert good.status_code == 200, good.text
 	assert good.json()["ok"] is True

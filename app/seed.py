@@ -63,9 +63,11 @@ from app.products.playspace.seed_data import build_playspace_seed_entities
 from app.products.yee.services.scoring_spec import (
 	DOMAIN_ORDER,
 	ITEM_SPECS,
+	SCHEMA_V1_SCORING_CONTRACT,
 	SCORING_VERSION,
 	PairedItemSpec,
 )
+from app.products.yee.services.scoring_types import JsonValue
 from app.yee_scoring import get_yee_instrument_data, score_yee_responses
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -485,7 +487,11 @@ def build_realistic_yee_draft(
 		weighting_comments=weighting_comments,
 		seed_scenario=seed_scenario,
 	)
-	score = score_yee_responses(cast(dict[str, object], responses), participant_info)
+	score = score_yee_responses(
+		cast(Mapping[str, JsonValue], responses),
+		cast(Mapping[str, JsonValue], participant_info),
+		contract=SCHEMA_V1_SCORING_CONTRACT,
+	)
 	return Audit(
 		id=audit_id,
 		project_id=project_id,
@@ -550,7 +556,11 @@ def build_realistic_yee_submission(
 		seed_scenario=seed_scenario,
 		participant_id=seed_participant_id,
 	)
-	score = score_yee_responses(cast(dict[str, object], responses), participant_info)
+	score = score_yee_responses(
+		cast(Mapping[str, JsonValue], responses),
+		cast(Mapping[str, JsonValue], participant_info),
+		contract=SCHEMA_V1_SCORING_CONTRACT,
+	)
 	total_score = int(cast(int, score["total_score"]))
 	audit = Audit(
 		id=audit_id,

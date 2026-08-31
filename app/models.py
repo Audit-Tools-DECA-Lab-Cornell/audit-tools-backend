@@ -1291,6 +1291,24 @@ class Instrument(Base):
 
 	__tablename__ = "instruments"
 
+	# Shared-core table: it exists in BOTH product databases, so these YEE-scoped
+	# partial indexes are created on both branches (``yee_0010`` / ``ps_0012``).
+	# The predicates keep Playspace's own instrument rows out of scope.
+	__table_args__ = (
+		Index(
+			"uq_instruments_yee_version_label_ci",
+			text("lower(instrument_version)"),
+			unique=True,
+			postgresql_where=text("instrument_key = 'yee'"),
+		),
+		Index(
+			"uq_instruments_yee_single_active",
+			"instrument_key",
+			unique=True,
+			postgresql_where=text("instrument_key = 'yee' AND is_active"),
+		),
+	)
+
 	id: Mapped[uuid.UUID] = mapped_column(
 		UUID(as_uuid=True),
 		primary_key=True,

@@ -59,6 +59,7 @@ from app.products.yee.services.dashboard import (
 	_repair_missing_yee_submission,
 	participant_id_from_info,
 )
+from app.products.yee.services.runtime_scoring import RuntimeScorer
 from app.products.yee.services.dashboard import (
 	fetch_manager_audit_edit_state as _service_fetch_manager_audit_edit_state,
 )
@@ -563,6 +564,7 @@ async def _fetch_audits(
 	rows = (await session.execute(stmt)).all()
 	items: list[AuditListItem] = []
 	needs_commit = False
+	scorer = RuntimeScorer(session)
 	for (
 		audit,
 		project,
@@ -579,7 +581,7 @@ async def _fetch_audits(
 		resolved_section_scores = submission.section_scores_json if submission is not None else None
 
 		if submission is not None:
-			canonical_score = _canonical_score_from_submission(submission)
+			canonical_score = await _canonical_score_from_submission(scorer, submission)
 			resolved_total_raw_score = canonical_score["raw"]["total_score"]
 			resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
 			resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
@@ -590,12 +592,13 @@ async def _fetch_audits(
 				audit=audit,
 				place=place,
 				auditor=auditor,
+				scorer=scorer,
 			)
 			if repaired_submission is not None:
 				needs_commit = True
 				resolved_submission_id = repaired_submission.id
 				resolved_submitted_at = repaired_submission.submitted_at
-				canonical_score = _canonical_score_from_submission(repaired_submission)
+				canonical_score = await _canonical_score_from_submission(scorer, repaired_submission)
 				resolved_total_raw_score = canonical_score["raw"]["total_score"]
 				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
 				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]

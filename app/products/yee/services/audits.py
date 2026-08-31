@@ -34,8 +34,8 @@ from app.products.yee.schemas.audits import (
 	YeeAuditStateResponse,
 	YeeAuditSubmissionResponse,
 )
-from app.products.yee.services.instrument import _get_active_yee_instrument
-from app.products.yee.services.scoring import score_yee_responses
+from app.products.yee.services.runtime_scoring import RuntimeScorer
+from app.products.yee.services.score_snapshots import resolved_submission_score
 from app.products.yee.services.scoring_types import LegacyScoreResult
 
 
@@ -62,35 +62,37 @@ def _score_result_from_dict(score: LegacyScoreResult) -> ScoreResult:
 	)
 
 
-def _submission_response(
+async def _submission_response(
 	submission: YeeAuditSubmission,
 	*,
-	place: Place,
-	auditor: Auditor,
+	place: Place | None,
+	auditor: Auditor | None,
+	scorer: RuntimeScorer,
 ) -> YeeAuditSubmissionResponse:
-	"""Assemble the submission response, recomputing the full scoring shape."""
-
-	score = score_yee_responses(submission.responses_json, submission.participant_info_json)
+	score = await resolved_submission_score(scorer, submission)
 	return YeeAuditSubmissionResponse(
 		id=submission.id,
 		place_id=submission.place_id,
-		place_name=place.name,
+		place_name=place.name if place is not None else None,
 		auditor_id=submission.auditor_id,
-		auditor_generated_id=_public_auditor_id(auditor.auditor_code),
+		auditor_generated_id=_public_auditor_id(auditor.auditor_code) if auditor is not None else None,
 		submitted_at=submission.submitted_at,
 		participant_info=submission.participant_info_json,
 		responses=submission.responses_json,
 		score=_score_result_from_dict(score),
+		instrument_key=submission.instrument_key,
+		instrument_version=submission.instrument_version,
 	)
 
 
-def _resolve_existing_submission(
+async def _resolve_existing_submission(
 	existing: YeeAuditSubmission,
 	*,
 	idempotency_key: str | None,
 	place: Place,
 	auditor: Auditor,
 	response: Response,
+	scorer: RuntimeScorer,
 ) -> YeeAuditSubmissionResponse:
 	"""Return the stored submission on a matching-key replay, else conflict.
 
@@ -101,12 +103,13 @@ def _resolve_existing_submission(
 
 	if idempotency_key and existing.submit_idempotency_key and idempotency_key == existing.submit_idempotency_key:
 		response.status_code = status.HTTP_200_OK
-		return _submission_response(existing, place=place, auditor=auditor)
+		return await _submission_response(existing, place=place, auditor=auditor, scorer=scorer)
 	raise HTTPException(status_code=409, detail="You have already submitted an audit for this place.")
 
 
-def _build_empty_score() -> ScoreResult:
-	return _score_result_from_dict(score_yee_responses({}))
+async def _build_empty_score(scorer: RuntimeScorer) -> ScoreResult:
+	stamp, _contract = await scorer.active_stamp_and_contract()
+	return _score_result_from_dict(await scorer.score_for_stamp(stamp, {}))
 
 
 async def _get_current_auditor(session: AsyncSession, user: User) -> Auditor:
@@ -189,19 +192,6 @@ async def _get_assigned_place(
 	return row._tuple()
 
 
-async def _resolve_active_instrument_stamp(session: AsyncSession, instrument_key: str = "yee") -> tuple[str, str]:
-	"""Return the (key, version) to stamp on a new audit, from the active instrument.
-
-	Stamps are copied by value at audit-creation time so a submission stays bound
-	to the instrument version it was started on, even if a newer version is
-	published later. Falls back to version "1" (the bootstrap version) when no
-	active instrument row exists yet, so audit creation never fails on a fresh DB.
-	"""
-	active = await _get_active_yee_instrument(session, instrument_key)
-	version = active.instrument_version if active is not None else "1"
-	return instrument_key, version
-
-
 def _decode_draft_payload(audit: Audit) -> tuple[dict[str, Any], dict[str, Any]]:
 	raw_payload = audit.responses_json if isinstance(audit.responses_json, dict) else {}
 	participant_info = raw_payload.get("participant_info")
@@ -231,6 +221,8 @@ def _build_state_response(
 	participant_info: dict[str, Any] | None = None,
 	responses: dict[str, Any] | None = None,
 	score: ScoreResult | None = None,
+	instrument_key: str | None = None,
+	instrument_version: str | None = None,
 ) -> YeeAuditStateResponse:
 	return YeeAuditStateResponse(
 		audit_id=audit_id,
@@ -243,6 +235,8 @@ def _build_state_response(
 		participant_info=participant_info or {},
 		responses=responses or {},
 		score=score,
+		instrument_key=instrument_key,
+		instrument_version=instrument_version,
 	)
 
 

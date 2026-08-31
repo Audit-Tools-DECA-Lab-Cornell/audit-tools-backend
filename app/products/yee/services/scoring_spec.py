@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final, TypeAlias
+from typing import Final, Literal, TypeAlias
 
 SCORING_VERSION: Final = "yee_v2"
 
@@ -48,7 +48,17 @@ class PairedItemSpec:
 	presence_item_id: str
 	condition_item_id: str
 	choice_id: str
-	max_score: int = 3
+	presence_answer_scores: tuple[AnswerScore, ...]
+	condition_answer_scores: tuple[AnswerScore, ...]
+
+	@property
+	def max_score(self) -> int:
+		products = (
+			presence.score * condition.score
+			for presence in self.presence_answer_scores
+			for condition in self.condition_answer_scores
+		)
+		return max(0, max(products, default=0))
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +75,14 @@ class PresenceItemSpec:
 
 
 ScoreItemSpec: TypeAlias = PairedItemSpec | PresenceItemSpec
+ScoringAlgorithm: TypeAlias = Literal["yee_v2"]
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringContract:
+	item_specs: tuple[ScoreItemSpec, ...]
+	scoring_algorithm: ScoringAlgorithm
+
 
 CONDITION_SCORES: Final = (
 	AnswerScore("1", 1),
@@ -93,6 +111,8 @@ def paired(key: str, domain: DomainKey, base_qid: str, choice_id: str) -> Paired
 		presence_item_id=f"{base_qid}#1",
 		condition_item_id=f"{base_qid}#2",
 		choice_id=choice_id,
+		presence_answer_scores=PRESENCE_YES_NO_SCORES,
+		condition_answer_scores=CONDITION_SCORES,
 	)
 
 
@@ -143,10 +163,42 @@ ITEM_SPECS: Final[tuple[ScoreItemSpec, ...]] = (
 	presence("experienceOfSpace.q8", "experienceOfSpace", "QID15#1", "8", REVERSE_THREE_LEVEL_SCORES),
 	presence("experienceOfSpace.q9", "experienceOfSpace", "QID15#1", "9", REVERSE_THREE_LEVEL_SCORES),
 	presence("experienceOfSpace.q10", "experienceOfSpace", "QID15#1", "10", REVERSE_THREE_LEVEL_SCORES),
-	PairedItemSpec("aestheticsAndCare.q1", "aestheticsAndCare", "QID16#2", "QID16#1", "1"),
-	PairedItemSpec("aestheticsAndCare.q2", "aestheticsAndCare", "QID16#2", "QID16#1", "2"),
-	PairedItemSpec("aestheticsAndCare.q3", "aestheticsAndCare", "QID16#2", "QID16#1", "3"),
-	PairedItemSpec("aestheticsAndCare.q4", "aestheticsAndCare", "QID16#2", "QID16#1", "4"),
+	PairedItemSpec(
+		"aestheticsAndCare.q1",
+		"aestheticsAndCare",
+		"QID16#2",
+		"QID16#1",
+		"1",
+		PRESENCE_YES_NO_SCORES,
+		CONDITION_SCORES,
+	),
+	PairedItemSpec(
+		"aestheticsAndCare.q2",
+		"aestheticsAndCare",
+		"QID16#2",
+		"QID16#1",
+		"2",
+		PRESENCE_YES_NO_SCORES,
+		CONDITION_SCORES,
+	),
+	PairedItemSpec(
+		"aestheticsAndCare.q3",
+		"aestheticsAndCare",
+		"QID16#2",
+		"QID16#1",
+		"3",
+		PRESENCE_YES_NO_SCORES,
+		CONDITION_SCORES,
+	),
+	PairedItemSpec(
+		"aestheticsAndCare.q4",
+		"aestheticsAndCare",
+		"QID16#2",
+		"QID16#1",
+		"4",
+		PRESENCE_YES_NO_SCORES,
+		CONDITION_SCORES,
+	),
 	presence("aestheticsAndCare.q5", "aestheticsAndCare", "QID17#1", "1", REVERSE_THREE_LEVEL_SCORES),
 	presence("aestheticsAndCare.q6", "aestheticsAndCare", "QID17#1", "2", REVERSE_THREE_LEVEL_SCORES),
 	presence("aestheticsAndCare.q7", "aestheticsAndCare", "QID17#1", "3", PRESENCE_THREE_LEVEL_SCORES),
@@ -161,4 +213,9 @@ ITEM_SPECS: Final[tuple[ScoreItemSpec, ...]] = (
 	presence("useAndUsability.q6", "useAndUsability", "QID21#1", "1", REVERSE_TWO_LEVEL_SCORES),
 	presence("useAndUsability.q7", "useAndUsability", "QID21#1", "2", PRESENCE_TWO_LEVEL_SCORES),
 	presence("useAndUsability.q8", "useAndUsability", "QID21#1", "3", REVERSE_TWO_LEVEL_SCORES),
+)
+
+SCHEMA_V1_SCORING_CONTRACT: Final = ScoringContract(
+	item_specs=ITEM_SPECS,
+	scoring_algorithm=SCORING_VERSION,
 )

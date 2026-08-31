@@ -191,6 +191,55 @@ Important notes:
   production operations
 - back up both databases before applying migration batches in shared-core merge windows
 
+### YEE submit completeness (`YEE_ENFORCE_SUBMIT_COMPLETENESS`)
+
+Off unless set to exactly `true`. When on, a **new** final YEE submission is
+rejected with `422 incomplete_audit_responses` if a logical question has no
+primary answer, or a shown follow-up the instrument marks required has none.
+Draft saves and score previews stay tolerant of incomplete work, and an
+idempotent replay of an already-stored submission returns it without being
+re-judged.
+
+Enabling this is a release step, not a config tidy-up. An older mobile build
+that receives the rejection parks the queued submission and gives the auditor no
+way to correct it, so field data collected offline would be stranded. Enable
+only after, in order:
+
+1. the mobile queue-recovery build is installable and device-verified on **every**
+   supported platform,
+2. each platform's `minimum_supported_version` floor has been raised to it,
+3. the current web app is deployed with the same requiredness behavior.
+
+Turning it back off is a safe, immediate rollback: it restores the previous
+accept-everything behavior for new submissions and changes nothing already
+stored.
+
+### Shared-table migrations can leave the branches at different heads
+
+`render.yaml` runs `upgrade yee@head && upgrade playspace@head` in its
+`preDeployCommand`. The `&&` means the YEE branch migrates first and the
+Playspace branch only runs if it succeeded — so a migration that **fails** on
+the second branch leaves the two databases at different heads until someone
+intervenes.
+
+That matters whenever a revision pair touches a shared-core table such as
+`instruments`, because the same object is created on both branches from
+different data. `yee_0010` / `ps_0012` are the current example: each preflights
+the YEE catalog and raises rather than repairing it, so a dirty catalog in the
+Playspace database would fail the deploy **after** the YEE database had already
+taken its indexes.
+
+Before shipping a mirrored shared-table pair:
+
+1. Inventory both databases first
+   (`scripts/generate_yee_migration_manifest.py --product yee|playspace`) and
+   confirm each branch's preflight will pass.
+2. Treat a failure on the second branch as an incomplete deploy, not a retryable
+   blip: record the head pair, fix the data through the reviewed repair path, and
+   re-run both upgrades.
+3. If the second branch is the one carrying unknown data, consider running it
+   first so a refusal happens before the other branch has changed anything.
+
 ## Render Note
 
 The checked-in `render.yaml` installs dependencies, runs both product migrations

@@ -1,0 +1,184 @@
+{
+  "responses": {
+    "QID1#1": {"1": "1", "2": "1"},
+    "QID1#2": {"1": "3", "2": "3"},
+    "QID11#1": {"1": "1", "2": "1", "3": "1", "4": "1"},
+    "QID4#1": {"1": "1", "2": "1", "3": "1", "4": "1", "5": "1", "6": "1"},
+    "QID4#2": {"1": "3", "2": "3", "3": "3", "4": "3", "5": "3", "6": "3"},
+    "QID7#1": {"1": "1", "2": "1", "3": "1", "4": "1"},
+    "QID12#1": {"1": "1", "2": "1", "3": "1"},
+    "QID12#2": {"1": "3", "2": "3", "3": "3"},
+    "QID13#1": {"1": "1", "2": "1", "3": "1", "4": "1", "5": "1", "6": "1", "7": "1"},
+    "QID15#1": {"1": "3", "2": "1", "3": "1", "4": "1", "5": "1", "6": "1", "7": "1", "8": "3", "9": "3", "10": "3"},
+    "QID16#1": {"1": "3", "2": "3", "3": "3", "4": "3"},
+    "QID16#2": {"1": "1", "2": "1", "3": "1", "4": "1"},
+    "QID17#1": {"1": "3", "2": "3", "3": "1", "4": "3", "5": "3", "6": "1"},
+    "QID19#1": {"1": "1", "2": "1"},
+    "QID19#2": {"1": "3", "2": "3"},
+    "QID20#1": {"1": "1", "2": "1", "3": "1"},
+    "QID21#1": {"1": "2", "2": "1", "3": "2"}
+  },
+  "participant_info": {},
+  "reverse_item_scores": {
+    "experienceOfSpace.q1": 2,
+    "experienceOfSpace.q8": 2,
+    "experienceOfSpace.q9": 2,
+    "experienceOfSpace.q10": 2,
+    "aestheticsAndCare.q5": 2,
+    "aestheticsAndCare.q6": 2,
+    "aestheticsAndCare.q8": 2,
+    "aestheticsAndCare.q9": 2,
+    "useAndUsability.q6": 1,
+    "useAndUsability.q8": 1
+  },
+  "expected": {
+    "scoring_version": "yee_v2",
+    "raw": {
+      "total_score": 122,
+      "domain_scores": {
+        "access": 14,
+        "activitySpaces": 26,
+        "amenities": 23,
+        "experienceOfSpace": 20,
+        "aestheticsAndCare": 24,
+        "useAndUsability": 15
+      },
+      "section_scores": {
+        "Access: Presence, Condition, Provision": 14,
+        "Activity Spaces: Presence, Condition, Provision": 26,
+        "Amenities: Presence, Condition Provision": 23,
+        "Experience of Space:": 20,
+        "Aesthetics & Care: Presence, condition, provision": 24,
+        "Use & Usability: Presence, condition, provision": 15
+      },
+      "category_scores": {
+        "Score": 122,
+        "Access": 14,
+        "Activity": 26,
+        "Amenities": 23,
+        "Experience": 20,
+        "Aesthetics & Care": 24,
+        "Use & Usability": 15
+      },
+      "item_scores": {
+        "access.q1": 3,
+        "access.q2": 3,
+        "access.q3": 2,
+        "access.q4": 2,
+        "access.q5": 2,
+        "access.q6": 2,
+        "activitySpaces.q1": 3,
+        "activitySpaces.q2": 3,
+        "activitySpaces.q3": 3,
+        "activitySpaces.q4": 3,
+        "activitySpaces.q5": 3,
+        "activitySpaces.q6": 3,
+        "activitySpaces.q7": 2,
+        "activitySpaces.q8": 2,
+        "activitySpaces.q9": 2,
+        "activitySpaces.q10": 2,
+        "amenities.q1": 3,
+        "amenities.q2": 3,
+        "amenities.q3": 3,
+        "amenities.q4": 2,
+        "amenities.q5": 2,
+        "amenities.q6": 2,
+        "amenities.q7": 2,
+        "amenities.q8": 2,
+        "amenities.q9": 2,
+        "amenities.q10": 2,
+        "experienceOfSpace.q1": 2,
+        "experienceOfSpace.q2": 2,
+        "experienceOfSpace.q3": 2,
+        "experienceOfSpace.q4": 2,
+        "experienceOfSpace.q5": 2,
+        "experienceOfSpace.q6": 2,
+        "experienceOfSpace.q7": 2,
+        "experienceOfSpace.q8": 2,
+        "experienceOfSpace.q9": 2,
+        "experienceOfSpace.q10": 2,
+        "aestheticsAndCare.q1": 3,
+        "aestheticsAndCare.q2": 3,
+        "aestheticsAndCare.q3": 3,
+        "aestheticsAndCare.q4": 3,
+        "aestheticsAndCare.q5": 2,
+        "aestheticsAndCare.q6": 2,
+        "aestheticsAndCare.q7": 2,
+        "aestheticsAndCare.q8": 2,
+        "aestheticsAndCare.q9": 2,
+        "aestheticsAndCare.q10": 2,
+        "useAndUsability.q1": 3,
+        "useAndUsability.q2": 3,
+        "useAndUsability.q3": 2,
+        "useAndUsability.q4": 2,
+        "useAndUsability.q5": 2,
+        "useAndUsability.q6": 1,
+        "useAndUsability.q7": 1,
+        "useAndUsability.q8": 1
+      },
+      "matched_scored_answers": 54
+    },
+    "weighted": {
+      "raw_domain_weights": {
+        "access": 0,
+        "activitySpaces": 0,
+        "amenities": 0,
+        "experienceOfSpace": 0,
+        "aestheticsAndCare": 0,
+        "useAndUsability": 0
+      },
+      "normalized_domain_weights": {
+        "access": 0.0,
+        "activitySpaces": 0.0,
+        "amenities": 0.0,
+        "experienceOfSpace": 0.0,
+        "aestheticsAndCare": 0.0,
+        "useAndUsability": 0.0
+      },
+      "domain_average_scores": {
+        "access": 2.33,
+        "activitySpaces": 2.6,
+        "amenities": 2.3,
+        "experienceOfSpace": 2.0,
+        "aestheticsAndCare": 2.4,
+        "useAndUsability": 1.88
+      },
+      "weighted_domain_scores": {
+        "access": 0.0,
+        "activitySpaces": 0.0,
+        "amenities": 0.0,
+        "experienceOfSpace": 0.0,
+        "aestheticsAndCare": 0.0,
+        "useAndUsability": 0.0
+      },
+      "total_weighted_score": 0.0,
+      "priority_gaps": {
+        "access": 0.0,
+        "activitySpaces": 0.0,
+        "amenities": 0.0,
+        "experienceOfSpace": 0.0,
+        "aestheticsAndCare": 0.0,
+        "useAndUsability": 0.0
+      }
+    },
+    "meta": {
+      "domain_order": ["access", "activitySpaces", "amenities", "experienceOfSpace", "aestheticsAndCare", "useAndUsability"],
+      "domain_item_counts": {
+        "access": 6,
+        "activitySpaces": 10,
+        "amenities": 10,
+        "experienceOfSpace": 10,
+        "aestheticsAndCare": 10,
+        "useAndUsability": 8
+      },
+      "domain_max_average_scores": {
+        "access": 2.33,
+        "activitySpaces": 2.6,
+        "amenities": 2.3,
+        "experienceOfSpace": 2.0,
+        "aestheticsAndCare": 2.4,
+        "useAndUsability": 1.88
+      }
+    }
+  }
+}

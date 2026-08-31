@@ -279,6 +279,17 @@ Shared instrument-version table used by both products. Playspace admins manage P
 
 Active seed instruments are root versions (`parent_instrument_id = NULL`). Draft versions created from an existing version store that parent id while inactive; activating a draft clears the parent id. Deleting an inactive parent leaves child drafts as root versions because the self-FK uses `ON DELETE SET NULL`. Active versions are protected from deletion by the service layer. For YEE, inactive versions still referenced by any audit (a submitted `yee_audit_submissions` row or an in-progress `audits` draft) are likewise protected (`409`), so historical reports keep the instrument definition they were taken against.
 
+#### YEE catalog integrity indexes
+
+Two partial unique indexes constrain the YEE rows only. Both are created on **both** branches (`yee_0010` and `ps_0012`) because `instruments` exists physically in both databases and a YEE row can be orphaned in either.
+
+| Index                                 | Definition                                                                       | Why                                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `uq_instruments_yee_version_label_ci` | `UNIQUE (lower(instrument_version)) WHERE instrument_key = 'yee'`                | A duplicate label makes an audit's `(instrument_key, instrument_version)` stamp ambiguous, so a historical submission cannot be resolved to one definition. |
+| `uq_instruments_yee_single_active`    | `UNIQUE (instrument_key) WHERE instrument_key = 'yee' AND is_active`             | Activation deactivates the previous row and activates the candidate in one transaction; this turns a concurrent double-activation into a recoverable unique violation instead of two live instruments. |
+
+The `instrument_key = 'yee'` predicates keep Playspace's own instrument rows out of scope on both branches. Neither migration repairs data: a duplicate label or a second active row makes the upgrade raise and leave the catalog untouched, because choosing the winner is a reviewed decision rather than something a migration should do unattended.
+
 ### `audits`
 
 Shared audit shell record used by YEE and retained for compatibility.

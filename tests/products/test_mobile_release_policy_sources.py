@@ -28,13 +28,13 @@ def clear_release_cache() -> None:
 
 def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 	base_policy = PlatformReleasePolicy(
-		latest_version="0.8.2",
-		minimum_supported_version="0.8.0",
+		latest_version="0.9.1",
+		minimum_supported_version="0.8.2",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
 	)
-	google_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=203, source="google_play")
-	eas_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=202, source="eas")
-	github_release = MobileReleaseSnapshot(latest_version="0.8.2", latest_build=None, source="github")
+	google_release = MobileReleaseSnapshot(latest_version="0.9.1", latest_build=203, source="google_play")
+	eas_release = MobileReleaseSnapshot(latest_version="0.9.1", latest_build=202, source="eas")
+	github_release = MobileReleaseSnapshot(latest_version="0.9.1", latest_build=None, source="github")
 
 	resolved = resolve_platform_release_policy(
 		base_policy=base_policy,
@@ -43,9 +43,9 @@ def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 		github_release=github_release,
 	)
 
-	assert resolved.latest_version == "0.8.2"
+	assert resolved.latest_version == "0.9.1"
 	assert resolved.latest_build == 203
-	assert resolved.minimum_supported_version == "0.8.0"
+	assert resolved.minimum_supported_version == "0.8.2"
 
 
 def test_resolver_fills_google_version_gap_from_eas_then_static() -> None:
@@ -101,7 +101,7 @@ def test_record_eas_webhook_payload_caches_finished_store_build() -> None:
 		"platform": "android",
 		"status": "finished",
 		"metadata": {
-			"appVersion": "0.8.2",
+			"appVersion": "0.9.1",
 			"appBuildVersion": "205",
 			"distribution": "store",
 			"appIdentifier": "com.andisha2004.audittoolsyeemobile",
@@ -110,7 +110,7 @@ def test_record_eas_webhook_payload_caches_finished_store_build() -> None:
 
 	snapshot = record_eas_webhook_payload("yee", json.dumps(payload))
 
-	assert snapshot == MobileReleaseSnapshot(latest_version="0.8.2", latest_build=205, source="eas")
+	assert snapshot == MobileReleaseSnapshot(latest_version="0.9.1", latest_build=205, source="eas")
 
 
 def test_eas_webhook_signature_uses_expo_hmac_sha1_header() -> None:
@@ -136,7 +136,7 @@ def test_signed_eas_webhook_updates_yee_policy_route(monkeypatch: pytest.MonkeyP
 			"platform": "android",
 			"status": "finished",
 			"metadata": {
-				"appVersion": "0.8.2",
+				"appVersion": "0.9.1",
 				"appBuildVersion": "206",
 				"distribution": "store",
 				"appIdentifier": "com.andisha2004.audittoolsyeemobile",
@@ -154,5 +154,5 @@ def test_signed_eas_webhook_updates_yee_policy_route(monkeypatch: pytest.MonkeyP
 	policy_response = client.get("/yee/mobile-release-policy")
 
 	assert webhook_response.status_code == 204
-	assert policy_response.json()["android"]["latest_version"] == "0.8.2"
+	assert policy_response.json()["android"]["latest_version"] == "0.9.1"
 	assert policy_response.json()["android"]["latest_build"] == 206

@@ -14,16 +14,62 @@ does not.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from app.products.yee.schemas.instrument import ScoringCompatibilityReport
+from app.products.yee.schemas.instrument_authoring import ConversionFinding
 from app.products.yee.services.scoring_spec import (
 	ITEM_SPECS,
 	SCORING_VERSION,
 	PairedItemSpec,
 	PresenceItemSpec,
+	AnswerScore,
 )
+from app.yee_instrument_schema import YeeInstrumentItem, YeeInstrumentResponse
+
+
+def legacy_score_entry_findings(
+	content: YeeInstrumentResponse,
+	item: YeeInstrumentItem,
+	question_id: str,
+	choice_id: str,
+	scores: tuple[AnswerScore, ...],
+	category_labels: Iterable[str],
+) -> list[ConversionFinding]:
+	category_ids = {label: key for key, label in content.scoring_categories.items()}
+	entries = {
+		(str(entry.get("answer_id")), str(entry.get("choice_id"))): entry
+		for entry in item.score_entries
+		if entry.get("item_id") == item.item_id
+	}
+	findings: list[ConversionFinding] = []
+	for answer_score in scores:
+		entry = entries.get((answer_score.answer_id, choice_id), {})
+		raw_scores = entry.get("scores_by_category_id")
+		score_map = raw_scores if isinstance(raw_scores, dict) else {}
+		for category in category_labels:
+			category_id = category_ids.get(category)
+			observed = score_map.get(category_id) if category_id is not None else None
+			if observed == answer_score.score:
+				continue
+			findings.append(
+				ConversionFinding(
+					code="score_entry_difference",
+					severity="warning",
+					message="Legacy score entry differs from the engine-owned score",
+					question_id=question_id,
+					item_id=item.item_id,
+					choice_id=choice_id,
+					answer_id=answer_score.answer_id,
+					category=category,
+					expected_score=answer_score.score,
+					observed_score=observed
+					if isinstance(observed, (int, float)) and not isinstance(observed, bool)
+					else None,
+				)
+			)
+	return findings
 
 
 def required_scoring_items() -> dict[str, set[str]]:

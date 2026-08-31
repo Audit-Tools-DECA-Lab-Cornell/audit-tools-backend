@@ -53,6 +53,8 @@ class ManagerAuditEditState(BaseModel):
 	participant_info: dict[str, Any] = Field(default_factory=dict)
 	responses: dict[str, Any] = Field(default_factory=dict)
 	score: DashboardScoreResult
+	instrument_key: str | None = None
+	instrument_version: str | None = None
 
 
 class ManagerAuditEditRequest(BaseModel):

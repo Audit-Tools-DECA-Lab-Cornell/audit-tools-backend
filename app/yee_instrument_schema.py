@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.products.yee.schemas.instrument_authoring import AuthoringInstrumentV2
 
 
-class YeeInstrumentChoice(BaseModel):
+class YeeInstrumentNestedModel(BaseModel):
+	model_config = ConfigDict(extra="allow")
+
+
+class YeeInstrumentChoice(YeeInstrumentNestedModel):
 	Display: str | None = None
 
 
-class YeeInstrumentItem(BaseModel):
+class YeeInstrumentItem(YeeInstrumentNestedModel):
 	item_id: str
 	base_question_id: str
 	block: str
@@ -21,20 +27,20 @@ class YeeInstrumentItem(BaseModel):
 	score_entries: list[dict[str, object]] = Field(default_factory=list)
 
 
-class YeeInstrumentSectionMeta(BaseModel):
+class YeeInstrumentSectionMeta(YeeInstrumentNestedModel):
 	block: str
 	title: str
 	intro_text: str = ""
 	comment_prompt: str = ""
 
 
-class YeeInstrumentOption(BaseModel):
+class YeeInstrumentOption(YeeInstrumentNestedModel):
 	value: str
 	label: str
 	notes: str | None = None
 
 
-class YeeInstrumentPreAuditQuestion(BaseModel):
+class YeeInstrumentPreAuditQuestion(YeeInstrumentNestedModel):
 	id: str
 	title: str
 	prompt: str
@@ -45,7 +51,7 @@ class YeeInstrumentPreAuditQuestion(BaseModel):
 	auto_generated: bool = False
 
 
-class YeeInstrumentScaleRule(BaseModel):
+class YeeInstrumentScaleRule(YeeInstrumentNestedModel):
 	value: str
 	label: str
 	add: int | None = None
@@ -54,7 +60,7 @@ class YeeInstrumentScaleRule(BaseModel):
 	tag: str | None = None
 
 
-class YeeInstrumentScaleGuidance(BaseModel):
+class YeeInstrumentScaleGuidance(YeeInstrumentNestedModel):
 	id: str
 	title: str
 	prompt: str
@@ -62,7 +68,7 @@ class YeeInstrumentScaleGuidance(BaseModel):
 	rules: list[YeeInstrumentScaleRule] = Field(default_factory=list)
 
 
-class YeeInstrumentLegalDocument(BaseModel):
+class YeeInstrumentLegalDocument(YeeInstrumentNestedModel):
 	id: str
 	title: str
 	last_updated: str | None = None
@@ -70,7 +76,7 @@ class YeeInstrumentLegalDocument(BaseModel):
 	document_type: str | None = None
 
 
-class YeeInstrumentWeightingDomain(BaseModel):
+class YeeInstrumentWeightingDomain(YeeInstrumentNestedModel):
 	# ``key`` matches the mobile/web domain keys exactly (access, activitySpaces,
 	# amenities, experienceOfSpace, aestheticsAndCare, useAndUsability) so clients
 	# can bind a per-domain importance prompt without any text parsing.
@@ -79,7 +85,7 @@ class YeeInstrumentWeightingDomain(BaseModel):
 	prompt: str
 
 
-class YeeInstrumentWeighting(BaseModel):
+class YeeInstrumentWeighting(YeeInstrumentNestedModel):
 	title: str = ""
 	description: str = ""
 	options: list[YeeInstrumentOption] = Field(default_factory=list)
@@ -87,6 +93,8 @@ class YeeInstrumentWeighting(BaseModel):
 
 
 class YeeInstrumentResponse(BaseModel):
+	model_config = ConfigDict(extra="allow")
+
 	survey_id: str | None = None
 	survey_name: str
 	version: str
@@ -103,3 +111,4 @@ class YeeInstrumentResponse(BaseModel):
 	condition_prompt: str = ""
 	# Prompt for the overall/final comments field before review & submit.
 	final_comments_prompt: str = ""
+	authoring: AuthoringInstrumentV2 | None = None

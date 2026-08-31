@@ -4,8 +4,10 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from app.products.yee.services.dashboard import _score_from_audit_fallback
+from app.models import Audit, AuditStatus
+from app.products.yee.services.score_snapshots import stored_audit_score
 from app.products.yee.services.scoring_engine import build_canonical_score_snapshot
+from app.products.yee.services.scoring_spec import SCHEMA_V1_SCORING_CONTRACT
 from app.products.yee.services.scoring_types import JsonValue
 
 
@@ -26,7 +28,11 @@ def test_canonical_scoring_uses_presence_condition_products() -> None:
 		"QID12#1": {"1": "1"},
 	}
 
-	snapshot = build_canonical_score_snapshot(responses, {"domain_weights": DOMAIN_WEIGHTS})
+	snapshot = build_canonical_score_snapshot(
+		responses,
+		{"domain_weights": DOMAIN_WEIGHTS},
+		contract=SCHEMA_V1_SCORING_CONTRACT,
+	)
 
 	assert snapshot["raw"]["item_scores"]["access.q1"] == 3
 	assert snapshot["raw"]["item_scores"]["access.q2"] == 2
@@ -42,7 +48,11 @@ def test_canonical_weighting_uses_domain_specific_max_average() -> None:
 		"QID1#2": {"1": "3", "2": "2"},
 	}
 
-	snapshot = build_canonical_score_snapshot(responses, {"domain_weights": DOMAIN_WEIGHTS})
+	snapshot = build_canonical_score_snapshot(
+		responses,
+		{"domain_weights": DOMAIN_WEIGHTS},
+		contract=SCHEMA_V1_SCORING_CONTRACT,
+	)
 
 	assert snapshot["meta"]["domain_item_counts"]["access"] == 6
 	assert snapshot["meta"]["domain_max_average_scores"]["access"] == 2.33
@@ -56,7 +66,11 @@ def test_canonical_weighting_uses_domain_specific_max_average() -> None:
 def test_priority_gaps_use_exact_normalized_weights_before_rounding() -> None:
 	equal_weights: dict[str, JsonValue] = {domain: 1 for domain in DOMAIN_WEIGHTS}
 
-	snapshot = build_canonical_score_snapshot({}, {"domain_weights": equal_weights})
+	snapshot = build_canonical_score_snapshot(
+		{},
+		{"domain_weights": equal_weights},
+		contract=SCHEMA_V1_SCORING_CONTRACT,
+	)
 
 	assert snapshot["weighted"]["normalized_domain_weights"]["access"] == 0.17
 	assert snapshot["weighted"]["priority_gaps"]["access"] == 0.39
@@ -69,14 +83,21 @@ def test_audit_fallback_prefers_stored_canonical_score_shape() -> None:
 			"QID1#2": {"1": "3", "2": "2"},
 		},
 		{"domain_weights": DOMAIN_WEIGHTS},
+		contract=SCHEMA_V1_SCORING_CONTRACT,
 	)
 
-	score = _score_from_audit_fallback(
-		audit_scores_json={"total_score": 999, "canonical_score": stored_snapshot},
-		participant_info={},
-		responses={},
+	audit = Audit(
+		project_id=uuid.uuid4(),
+		place_id=uuid.uuid4(),
+		auditor_profile_id=uuid.uuid4(),
+		audit_code="YEE-STORED-SNAPSHOT",
+		status=AuditStatus.SUBMITTED,
+		responses_json={},
+		scores_json={"total_score": 999, "canonical_score": stored_snapshot},
 	)
+	score = stored_audit_score(audit)
 
+	assert score is not None
 	assert score["total_score"] == stored_snapshot["raw"]["total_score"]
 	assert score["section_scores"] == stored_snapshot["raw"]["section_scores"]
 	assert score["canonical_score"]["raw"]["total_score"] == stored_snapshot["raw"]["total_score"]
