@@ -5,6 +5,7 @@ import json
 import uuid
 
 import pytest
+from typing import Any
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -70,7 +71,7 @@ def test_schema_v1_affirmative_without_condition_is_inventoried() -> None:
 
 async def _generate_without_writes(
 	session_factory: async_sessionmaker[AsyncSession],
-) -> tuple[dict[str, object], tuple[int, int, int], tuple[int, int, int]]:
+) -> tuple[dict[str, Any], tuple[int, int, int], tuple[int, int, int]]:
 	async with session_factory() as session:
 		before = (
 			(await session.execute(select(func.count()).select_from(Instrument))).scalar_one(),

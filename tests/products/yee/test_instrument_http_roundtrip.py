@@ -4,6 +4,7 @@ import asyncio
 import uuid
 
 import pytest
+from typing import Any
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -27,7 +28,7 @@ def _login_admin(client: TestClient) -> str:
 	return response.json()["access_token"]
 
 
-def _active_content(client: TestClient) -> dict[str, object]:
+def _active_content(client: TestClient) -> dict[str, Any]:
 	response = client.get("/yee/instrument")
 	assert response.status_code == 200, response.text
 	return response.json()

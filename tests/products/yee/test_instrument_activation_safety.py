@@ -19,7 +19,7 @@ from app.products.yee.services.instrument_activation import (
 )
 from app.products.yee.services.instrument_authoring import legacy_to_authoring
 from app.yee_instrument_schema import YeeInstrumentResponse
-from tests.products.yee._helpers import SEED_PASSWORD, _bearer_headers, _unique_suffix
+from tests.products.yee._helpers import error_detail, SEED_PASSWORD, _bearer_headers, _unique_suffix
 
 ACTIVE_PATH = Path(__file__).parents[3] / "app/products/yee/instruments/yee.active.instrument.json"
 SEED_ADMIN_EMAIL = "admin-demo@yee.local"
@@ -83,7 +83,7 @@ async def test_service_rejects_force_for_yee_even_when_saving_inactive() -> None
 
 	# Then force is rejected before the database can be mutated
 	assert caught.value.status_code == 409
-	assert caught.value.detail["code"] == "force_activation_not_allowed"
+	assert error_detail(caught.value)["code"] == "force_activation_not_allowed"
 	session.add.assert_not_called()
 
 
@@ -131,8 +131,8 @@ async def test_yee_activation_refuses_to_silently_heal_multiple_active_rows() ->
 		await _create_yee_instrument_version(session, data, activate=True)
 
 	# Then the conflict is visible before deactivation or insertion
-	assert caught.value.detail["code"] == "multiple_active_instruments"
-	assert {row["instrument_version"] for row in caught.value.detail["conflicts"]} == {
+	assert error_detail(caught.value)["code"] == "multiple_active_instruments"
+	assert {row["instrument_version"] for row in error_detail(caught.value)["conflicts"]} == {
 		"active-one",
 		"active-two",
 	}
@@ -159,7 +159,7 @@ async def test_service_rejects_force_for_yee_patch_before_mutation() -> None:
 		)
 
 	# Then it is rejected before status or transaction mutation
-	assert caught.value.detail["code"] == "force_activation_not_allowed"
+	assert error_detail(caught.value)["code"] == "force_activation_not_allowed"
 	session.commit.assert_not_awaited()
 
 
@@ -177,7 +177,7 @@ async def test_authoring_v2_activation_requires_parent_before_database_lookup() 
 
 	# Then the typed parent requirement is returned without querying or mutating
 	assert caught.value.status_code == 409
-	assert caught.value.detail["reasons"][0]["code"] == "parent_instrument_required"
+	assert error_detail(caught.value)["reasons"][0]["code"] == "parent_instrument_required"
 	session.get.assert_not_awaited()
 
 

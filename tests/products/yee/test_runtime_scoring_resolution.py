@@ -15,6 +15,7 @@ from app.products.yee.services.runtime_scoring import (
 )
 from app.products.yee.services.scoring import get_yee_instrument_data
 from app.products.yee.services.scoring_spec import SCHEMA_V1_SCORING_CONTRACT
+from tests.products.yee._helpers import error_detail
 
 
 class _ScalarRows:
@@ -112,7 +113,7 @@ def test_partial_stamp_fails_without_legacy_or_active_fallback() -> None:
 	with pytest.raises(RuntimeScoringResolutionError) as raised:
 		asyncio.run(RuntimeScorer(session).contract_for_stamp(InstrumentStamp("yee", None)))
 
-	assert raised.value.detail["code"] == "partial_instrument_stamp"
+	assert error_detail(raised.value)["code"] == "partial_instrument_stamp"
 	session.execute.assert_not_awaited()
 
 
@@ -123,7 +124,7 @@ def test_missing_stamped_version_does_not_substitute_an_active_row() -> None:
 	with pytest.raises(RuntimeScoringResolutionError) as raised:
 		asyncio.run(RuntimeScorer(session).contract_for_stamp(InstrumentStamp("yee", "missing")))
 
-	assert raised.value.detail["code"] == "missing_stamped_instrument"
+	assert error_detail(raised.value)["code"] == "missing_stamped_instrument"
 
 
 def test_duplicate_exact_rows_fail_visibly() -> None:
@@ -134,8 +135,8 @@ def test_duplicate_exact_rows_fail_visibly() -> None:
 	with pytest.raises(RuntimeScoringResolutionError) as raised:
 		asyncio.run(RuntimeScorer(session).contract_for_stamp(InstrumentStamp("yee", "duplicate")))
 
-	assert raised.value.detail["code"] == "duplicate_stamped_instrument"
-	assert len(raised.value.detail["conflicts"]) == 2
+	assert error_detail(raised.value)["code"] == "duplicate_stamped_instrument"
+	assert len(error_detail(raised.value)["conflicts"]) == 2
 
 
 def test_multiple_active_rows_fail_visibly() -> None:
@@ -146,8 +147,8 @@ def test_multiple_active_rows_fail_visibly() -> None:
 	with pytest.raises(RuntimeScoringResolutionError) as raised:
 		asyncio.run(RuntimeScorer(session).active_stamp_and_contract())
 
-	assert raised.value.detail["code"] == "multiple_active_instruments"
-	assert {row["instrument_version"] for row in raised.value.detail["conflicts"]} == {"one", "two"}
+	assert error_detail(raised.value)["code"] == "multiple_active_instruments"
+	assert {row["instrument_version"] for row in error_detail(raised.value)["conflicts"]} == {"one", "two"}
 
 
 def test_stamped_authoring_v2_uses_version_owned_option_score() -> None:

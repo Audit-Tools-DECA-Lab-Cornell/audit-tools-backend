@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Audit, AuditStatus, YeeAuditSubmission
@@ -17,9 +18,10 @@ from app.products.yee.services.score_snapshots import (
 )
 from app.products.yee.services.scoring import score_yee_responses
 from app.products.yee.services.scoring_spec import SCHEMA_V1_SCORING_CONTRACT
+from tests.products.yee._helpers import error_detail
 
 
-def _canonical_score() -> dict[str, object]:
+def _canonical_score() -> dict[str, Any]:
 	return dict(score_yee_responses({}, contract=SCHEMA_V1_SCORING_CONTRACT)["canonical_score"])
 
 
@@ -109,7 +111,7 @@ def test_invalid_snapshot_with_missing_stamped_row_fails_without_mutating_submis
 		asyncio.run(resolved_submission_score(RuntimeScorer(session), submission))
 
 	# Then it fails visibly and leaves every historical value untouched
-	assert raised.value.detail["code"] == "missing_stamped_instrument"
+	assert error_detail(raised.value)["code"] == "missing_stamped_instrument"
 	assert submission.participant_info_json == original["participant"]
 	assert submission.responses_json == original["responses"]
 	assert submission.section_scores_json == original["sections"]

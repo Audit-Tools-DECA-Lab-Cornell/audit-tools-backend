@@ -11,16 +11,33 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import TypedDict
+from typing import Any, TypedDict, cast
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.auth as auth_module
+
+
 from app.auth_security import hash_verification_token
 from app.demo_account_reconciler import reconcile_protected_yee_demo_accounts
 from app.models import Account, Auditor, ManagerInvite, ManagerProfile, Project, User
+
+
+def error_detail(error: HTTPException) -> dict[str, Any]:
+	"""The structured body of an ``HTTPException`` raised by a YEE service.
+
+	Starlette annotates ``detail`` as ``str``, but this codebase deliberately
+	raises dict details so clients can branch on a stable ``code`` instead of
+	parsing prose. Tests assert on those keys, so the cast belongs here once rather
+	than at every call site.
+	"""
+
+	assert isinstance(error.detail, dict), f"expected a structured detail, got {type(error.detail).__name__}"
+	return cast(dict[str, Any], error.detail)
+
 
 # Matches the deterministic YEE seed (see app/seed.py).
 SEED_AUDITOR_EMAIL = "auditor-demo-1@yee.local"

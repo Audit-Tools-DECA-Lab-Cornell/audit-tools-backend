@@ -39,6 +39,7 @@ from app.products.yee.services.instrument_activation import (
 	validated_activation_content,
 )
 from app.yee_instrument_schema import YeeInstrumentResponse
+from tests.products.yee._helpers import error_detail
 
 
 # ---------------------------------------------------------------------------
@@ -176,8 +177,10 @@ def test_binding_to_an_item_this_instrument_does_not_have_is_rejected() -> None:
 
 def test_binding_to_a_choice_the_item_does_not_offer_is_rejected() -> None:
 	candidate = _sound_structural()
+	authoring = candidate.authoring
+	assert authoring is not None
 	rebound = (
-		candidate.authoring.sections[0]
+		authoring.sections[0]
 		.questions[0]
 		.model_copy(
 			update={
@@ -245,7 +248,7 @@ async def test_structural_mode_requires_authoring_content() -> None:
 		)
 
 	# Then the declaration is refused rather than quietly ignored
-	assert caught.value.detail["reasons"][0]["code"] == "structural_requires_authoring"
+	assert error_detail(caught.value)["reasons"][0]["code"] == "structural_requires_authoring"
 	session.get.assert_not_awaited()
 
 
@@ -292,7 +295,7 @@ async def test_copy_only_is_the_default_and_still_rejects_a_structural_change() 
 
 	# Then the safe default applies and parity still blocks it
 	assert caught.value.status_code == 409
-	assert caught.value.detail["code"] == "structural_activation_blocked"
+	assert error_detail(caught.value)["code"] == "structural_activation_blocked"
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +331,7 @@ async def test_an_instrument_may_not_be_its_own_parent() -> None:
 			candidate_instrument_id=candidate_id,
 		)
 
-	assert caught.value.detail["reasons"][0]["code"] == "parent_instrument_self_reference"
+	assert error_detail(caught.value)["reasons"][0]["code"] == "parent_instrument_self_reference"
 	# Rejected before any lookup, so a self-parent cannot even be read back.
 	session.get.assert_not_awaited()
 
@@ -350,7 +353,7 @@ async def test_a_parent_chain_that_loops_back_to_the_candidate_is_rejected() -> 
 			candidate_instrument_id=candidate_id,
 		)
 
-	assert caught.value.detail["reasons"][0]["code"] == "parent_instrument_cycle"
+	assert error_detail(caught.value)["reasons"][0]["code"] == "parent_instrument_cycle"
 
 
 @pytest.mark.anyio
@@ -371,7 +374,7 @@ async def test_an_unused_inactive_parent_is_too_mutable_to_roll_back_to() -> Non
 		)
 
 	# Then activation refuses, because the rollback target could still change
-	assert caught.value.detail["reasons"][0]["code"] == "parent_instrument_mutable"
+	assert error_detail(caught.value)["reasons"][0]["code"] == "parent_instrument_mutable"
 
 
 @pytest.mark.anyio
@@ -409,7 +412,7 @@ async def test_a_parent_chain_crossing_into_another_instrument_key_is_rejected()
 			mode="structural",
 		)
 
-	assert caught.value.detail["reasons"][0]["code"] == "parent_instrument_cross_key"
+	assert error_detail(caught.value)["reasons"][0]["code"] == "parent_instrument_cross_key"
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +465,7 @@ async def test_losing_the_single_active_race_is_a_conflict_not_a_server_error() 
 
 	# Then it is told to reload and retry rather than shown a 500
 	assert caught.value.status_code == 409
-	assert caught.value.detail["code"] == "instrument_activation_conflict"
+	assert error_detail(caught.value)["code"] == "instrument_activation_conflict"
 	session.rollback.assert_awaited_once()
 
 

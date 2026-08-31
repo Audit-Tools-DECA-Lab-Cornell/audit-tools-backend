@@ -35,6 +35,7 @@ from app.seed import (
 	YEE_PLACE_HUB_ID,
 	YEE_SEED_DOMAIN_WEIGHTS,
 )
+from app.products.yee.services.scoring_types import JsonValue
 from app.yee_scoring import score_yee_responses
 from app.products.yee.services.dashboard import (
 	_build_submission_scores,
@@ -69,7 +70,7 @@ SCHEMA_V1_DOMAIN_ITEM_COUNTS: dict[str, int] = {
 # Item IDs and valid (choice, answer) pairs sourced from the instrument's
 # GradingData (see ``app/yee_scoring.py:get_yee_instrument_data``).
 # ---------------------------------------------------------------------------
-CRAFTED_RESPONSES: dict[str, object] = {
+CRAFTED_RESPONSES: dict[str, JsonValue] = {
 	# Access presence (QID1#1): choice 1 = Yes, choice 2 = Yes
 	"QID1#1": {"1": "1", "2": "1"},
 	# Access condition (QID1#2): choice 1 = Great, choice 2 = Acceptable

@@ -26,6 +26,7 @@ from app.models import (
 from app.products.yee.schemas.audits import CanonicalScoreSnapshot
 from app.products.yee.services.audits import _decode_draft_payload
 from app.products.yee.services.scoring import score_yee_responses
+from app.products.yee.services.scoring_types import JsonValue
 from app.seed import (
 	YEE_PLACE_COMMONS_ID,
 	YEE_PLACE_GREEN_ID,
@@ -218,8 +219,8 @@ def test_every_seeded_submitted_audit_has_a_submission() -> None:
 		CanonicalScoreSnapshot.model_validate(audit.scores_json["canonical_score"])
 
 		recomputed = score_yee_responses(
-			cast(dict[str, object], submission.responses_json),
-			cast(dict[str, object], submission.participant_info_json),
+			cast(dict[str, JsonValue], submission.responses_json),
+			cast(dict[str, JsonValue], submission.participant_info_json),
 		)
 		assert audit.scores_json["total_score"] == recomputed["total_score"]
 		assert submission.total_score == recomputed["total_score"]
@@ -240,7 +241,7 @@ def test_seeded_draft_uses_real_draft_payload_shape() -> None:
 		}
 		assert isinstance(participant_info.get("domain_weights"), dict)
 		assert draft.total_minutes == participant_info["total_minutes"]
-		recomputed = score_yee_responses(cast(dict[str, object], responses), participant_info)
+		recomputed = score_yee_responses(cast(dict[str, JsonValue], responses), participant_info)
 		assert draft.summary_score == float(int(recomputed["total_score"]))
 		assert draft.scores_json["total_score"] == recomputed["total_score"]
 		assert draft.scores_json["canonical_score"] == recomputed["canonical_score"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 from pathlib import Path
 
 from app.products.yee.schemas.instrument_authoring import AuthoringQuestion
@@ -16,7 +17,7 @@ def _active_content() -> YeeInstrumentResponse:
 	return YeeInstrumentResponse.model_validate_json(ACTIVE_PATH.read_text())
 
 
-def _golden() -> dict[str, object]:
+def _golden() -> dict[str, Any]:
 	return json.loads(GOLDEN_PATH.read_text())
 
 

@@ -18,6 +18,9 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from typing import cast
+
+from sqlalchemy import Table
 
 _VERSIONS = Path(__file__).resolve().parents[3] / "alembic" / "versions"
 _YEE_PATH = _VERSIONS / "yee_0010_yee_instrument_integrity.py"
@@ -96,16 +99,17 @@ def test_the_two_branch_migrations_cannot_drift() -> None:
 def test_both_branches_declare_the_same_indexes_as_the_orm() -> None:
 	from app.models import Instrument
 
-	orm_indexes = {index.name for index in Instrument.__table__.indexes}
+	# __table__ is annotated FromClause on the declarative base; the concrete
+	# Table is what carries index metadata.
+	table = cast(Table, Instrument.__table__)
+	orm_indexes = {index.name for index in table.indexes}
 	for path in (_YEE_PATH, _PLAYSPACE_PATH):
 		module = _load(path)
 		assert {module._LABEL_INDEX_NAME, module._ACTIVE_INDEX_NAME} == orm_indexes
 
 	# The ORM predicates must match the SQL the migrations actually run, or
 	# autogenerate will propose to drop and recreate these on the next change.
-	predicates = {
-		index.name: str(index.dialect_options["postgresql"].get("where")) for index in Instrument.__table__.indexes
-	}
+	predicates = {str(index.name): str(index.dialect_options["postgresql"].get("where")) for index in table.indexes}
 	migration_sql = _YEE_PATH.read_text(encoding="utf-8")
 	assert predicates["uq_instruments_yee_version_label_ci"] == "instrument_key = 'yee'"
 	assert predicates["uq_instruments_yee_single_active"] == "instrument_key = 'yee' AND is_active"
