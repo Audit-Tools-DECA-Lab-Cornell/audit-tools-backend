@@ -86,6 +86,7 @@ class DashboardMetricResponse(BaseModel):
 class AuditListItem(BaseModel):
 	id: str
 	submission_id: str | None = None
+	organization: str | None = None
 	project_id: str
 	project_name: str
 	place_id: str
@@ -541,8 +542,10 @@ async def _fetch_audits(
 			Place,
 			Auditor,
 			submission_alias,
+			Account.name,
 		)
 		.join(Project, Audit.project_id == Project.id)
+		.join(Account, Project.account_id == Account.id)
 		.join(Place, Audit.place_id == Place.id)
 		.join(Auditor, Audit.auditor_profile_id == Auditor.id)
 		.outerjoin(
@@ -571,6 +574,7 @@ async def _fetch_audits(
 		place,
 		auditor,
 		submission,
+		organization_name,
 	) in rows:
 		resolved_submission_id = submission.id if submission is not None else None
 		resolved_submitted_at = submission.submitted_at if submission is not None else None
@@ -620,6 +624,7 @@ async def _fetch_audits(
 			AuditListItem(
 				id=str(audit.id),
 				submission_id=str(resolved_submission_id) if resolved_submission_id is not None else None,
+				organization=organization_name,
 				project_id=str(project.id),
 				project_name=project.name,
 				place_id=str(place.id),
