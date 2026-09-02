@@ -27,13 +27,13 @@ YEE_RELEASE_POLICY = MobileReleasePolicyResponse(
 	product="yee",
 	message="Install the latest YEE app to keep using field audits.",
 	android=PlatformReleasePolicy(
-		latest_version="0.9.1",
-		minimum_supported_version="0.8.2",
+		latest_version="0.10.0",
+		minimum_supported_version="0.10.0",
 		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
 	),
 	ios=PlatformReleasePolicy(
-		latest_version="0.9.1",
-		minimum_supported_version="0.8.2",
+		latest_version="0.10.0",
+		minimum_supported_version="0.10.0",
 		update_url="https://apps.apple.com/",
 	),
 )
