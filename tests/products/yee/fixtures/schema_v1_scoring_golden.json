@@ -35,7 +35,16 @@
     "scoring_version": "yee_v2",
     "raw": {
       "total_score": 122,
+      "total_maximum": 122,
       "domain_scores": {
+        "access": 14,
+        "activitySpaces": 26,
+        "amenities": 23,
+        "experienceOfSpace": 20,
+        "aestheticsAndCare": 24,
+        "useAndUsability": 15
+      },
+      "domain_maximums": {
         "access": 14,
         "activitySpaces": 26,
         "amenities": 23,
@@ -152,6 +161,15 @@
         "useAndUsability": 0.0
       },
       "total_weighted_score": 0.0,
+      "domain_maximums": {
+        "access": 0.0,
+        "activitySpaces": 0.0,
+        "amenities": 0.0,
+        "experienceOfSpace": 0.0,
+        "aestheticsAndCare": 0.0,
+        "useAndUsability": 0.0
+      },
+      "total_maximum": 0.0,
       "priority_gaps": {
         "access": 0.0,
         "activitySpaces": 0.0,

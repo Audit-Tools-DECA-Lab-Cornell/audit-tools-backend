@@ -356,7 +356,9 @@ def test_seeded_hub_submission_scoring_end_to_end(yee_client: TestClient) -> Non
 	list_item = hub_items[0]
 
 	assert list_item["total_raw_score"] == expected_score["total_score"]
+	assert list_item["total_raw_maximum"] == 122
 	assert list_item["total_weighted_score"] == expected_total_weighted
+	assert list_item["total_weighted_maximum"] > 0
 	assert list_item["domain_weights"] == dict(YEE_SEED_DOMAIN_WEIGHTS)
 
 	# Internal consistency: total_weighted == round(sum(weighted_domains), 2)

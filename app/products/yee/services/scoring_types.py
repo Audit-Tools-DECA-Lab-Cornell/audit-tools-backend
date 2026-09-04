@@ -10,7 +10,9 @@ ResponseMap: TypeAlias = dict[str, JsonValue]
 
 class RawScoreSnapshot(TypedDict):
 	total_score: int
+	total_maximum: int
 	domain_scores: dict[str, int]
+	domain_maximums: dict[str, int]
 	section_scores: dict[str, int]
 	category_scores: dict[str, int]
 	item_scores: dict[str, int]
@@ -23,6 +25,8 @@ class WeightedScoreSnapshot(TypedDict):
 	domain_average_scores: dict[str, float]
 	weighted_domain_scores: dict[str, float]
 	total_weighted_score: float
+	domain_maximums: dict[str, float]
+	total_maximum: float
 	priority_gaps: dict[str, float]
 
 

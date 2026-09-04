@@ -8,10 +8,12 @@ version metadata.
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from typing import cast
 
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import (
 	AccountType,
@@ -32,6 +34,7 @@ from app.seed import (
 	YEE_PLACE_GREEN_ID,
 	YEE_PLACE_LIBRARY_ID,
 	YEE_PLACE_PLAZA_ID,
+	YEE_SUBMISSION_HUB_ID,
 	_build_yee_entities,
 )
 from tests.products.yee._helpers import (
@@ -157,7 +160,9 @@ def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient
 	# The submission appears in the auditor's list.
 	listing = yee_client.get("/yee/my-audits", headers=headers)
 	assert listing.status_code == 200, listing.text
-	assert any(item["id"] == submission_id for item in listing.json())
+	list_item = next(item for item in listing.json() if item["id"] == submission_id)
+	assert list_item["total_raw_maximum"] == 122
+	assert list_item["total_weighted_maximum"] == 0.0
 
 	# And is fetchable by id.
 	detail = yee_client.get(f"/yee/audits/{submission_id}", headers=headers)
@@ -168,6 +173,8 @@ def test_yee_draft_submit_flow_uses_yee_audit_submissions(yee_client: TestClient
 	state = yee_client.get(f"{place_path}/audit-state", headers=headers)
 	assert state.status_code == 200, state.text
 	assert state.json()["status"] == "SUBMITTED"
+	assert state.json()["score"]["total_raw_maximum"] == 122
+	assert state.json()["score"]["total_weighted_maximum"] == 0.0
 
 
 def test_seeded_submitted_audit_is_visible_to_auditor(yee_client: TestClient) -> None:
@@ -193,6 +200,54 @@ def test_seeded_submitted_audit_is_visible_to_auditor(yee_client: TestClient) ->
 	assert state.status_code == 200, state.text
 	assert state.json()["status"] == "SUBMITTED"
 	assert state.json()["submission_id"] is not None
+
+
+def test_my_audits_keeps_unresolvable_corrupt_submission_visible(
+	yee_client: TestClient,
+	yee_test_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+	"""One corrupt historical snapshot must not hide the auditor's whole list."""
+
+	async def corrupt_submission() -> tuple[dict[str, object], str | None, str | None, int]:
+		async with yee_test_session_factory() as session:
+			submission = await session.get(YeeAuditSubmission, YEE_SUBMISSION_HUB_ID)
+			assert submission is not None
+			original = (
+				dict(submission.scores_json),
+				submission.instrument_key,
+				submission.instrument_version,
+				submission.total_score,
+			)
+			submission.scores_json = {"corrupt": True}
+			submission.instrument_key = "yee"
+			submission.instrument_version = "missing-my-audits-version"
+			await session.commit()
+			return original
+
+	async def restore_submission(
+		scores_json: dict[str, object],
+		instrument_key: str | None,
+		instrument_version: str | None,
+	) -> None:
+		async with yee_test_session_factory() as session:
+			submission = await session.get(YeeAuditSubmission, YEE_SUBMISSION_HUB_ID)
+			assert submission is not None
+			submission.scores_json = scores_json
+			submission.instrument_key = instrument_key
+			submission.instrument_version = instrument_version
+			await session.commit()
+
+	original_scores, original_key, original_version, original_total = asyncio.run(corrupt_submission())
+	headers = _bearer_headers(_login_auditor(yee_client))
+	try:
+		response = yee_client.get("/yee/my-audits", headers=headers)
+		assert response.status_code == 200, response.text
+		row = next(item for item in response.json() if item["id"] == str(YEE_SUBMISSION_HUB_ID))
+		assert row["total_score"] == original_total
+		assert row["total_raw_maximum"] is None
+		assert row["total_weighted_maximum"] is None
+	finally:
+		asyncio.run(restore_submission(original_scores, original_key, original_version))
 
 
 def test_every_seeded_submitted_audit_has_a_submission() -> None:

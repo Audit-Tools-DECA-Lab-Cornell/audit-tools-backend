@@ -182,3 +182,5 @@ def test_paired_item_derived_maximum_updates_domain_metadata() -> None:
 	# Then the spec and metadata use the actual maximum product of eight
 	assert spec.max_score == 8
 	assert snapshot["meta"]["domain_max_average_scores"]["access"] == 3.17
+	assert snapshot["raw"]["domain_maximums"]["access"] == 19
+	assert snapshot["raw"]["total_maximum"] == 127

@@ -59,8 +59,11 @@ def test_same_org_manager_can_read_submission_detail(yee_client: TestClient) -> 
 	assert isinstance(score["section_scores"], dict)
 	assert isinstance(score["canonical_score"], dict)
 	assert score["total_raw_score"] == score["canonical_score"]["raw"]["total_score"]
-	assert score["total_raw_maximum"] == 125
+	assert score["total_raw_maximum"] == 122
+	assert score["total_raw_maximum"] == score["canonical_score"]["raw"]["total_maximum"]
+	assert score["raw_domain_maximums"]["useAndUsability"] == 15
 	assert score["total_weighted_score"] == score["canonical_score"]["weighted"]["total_weighted_score"]
+	assert score["total_weighted_maximum"] == score["canonical_score"]["weighted"]["total_maximum"]
 	assert score["total_weighted_maximum"] > 0
 	assert score["raw_domain_scores"] == score["canonical_score"]["raw"]["domain_scores"]
 	assert score["weighted_domain_scores"] == score["canonical_score"]["weighted"]["weighted_domain_scores"]

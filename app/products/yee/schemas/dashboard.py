@@ -39,7 +39,7 @@ class DashboardScoreResult(BaseModel):
 		canonical_score = data.get("canonical_score")
 		if canonical_score is None:
 			return data
-		return {**flatten_canonical_score(canonical_score), **data}
+		return {**data, **flatten_canonical_score(canonical_score)}
 
 
 class ManagerAuditEditState(BaseModel):

@@ -136,9 +136,10 @@ def test_manager_place_comparisons_contain_seeded_submitted_audits(yee_client: T
 	# Verify score fields on a real audit item
 	sample_item = groups_with_audits[0]["audits"][0]
 	assert sample_item["total_raw_score"] >= 0
-	assert sample_item["total_raw_maximum"] == 125
+	assert sample_item["total_raw_maximum"] == 122
 	assert sample_item["total_weighted_maximum"] > 0
 	assert sample_item["raw_domain_maximums"]["access"] > 0
+	assert sample_item["raw_domain_maximums"]["useAndUsability"] == 15
 	assert sample_item["weighted_domain_maximums"]["access"] >= 0
 	assert isinstance(sample_item["date"], str)
 	assert len(sample_item["date"]) > 0

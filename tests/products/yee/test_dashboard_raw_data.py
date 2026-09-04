@@ -100,7 +100,7 @@ def test_manager_can_list_raw_data(yee_client: TestClient) -> None:
 		# Type spot-checks on key fields
 		assert isinstance(row["audit_id"], str)
 		assert isinstance(row["total_raw_score"], int)
-		assert isinstance(row["total_raw_maximum"], int)
+		assert row["total_raw_maximum"] == 122
 		assert isinstance(row["total_weighted_score"], (int, float))
 		assert isinstance(row["total_weighted_maximum"], (int, float))
 		assert isinstance(row["domain_weights"], dict)

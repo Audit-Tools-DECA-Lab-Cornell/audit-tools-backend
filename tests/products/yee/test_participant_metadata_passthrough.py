@@ -195,7 +195,10 @@ def test_participant_id_surfaces_on_list_and_report_endpoints(
 	# Auditor "my audits" list (dual-role account also owns the auditor profile).
 	my_audits = yee_client.get("/yee/my-audits", headers=headers)
 	assert my_audits.status_code == 200, my_audits.text
-	assert _row_for(my_audits.json(), "id")["participant_id"] == expected_participant_id
+	my_audit_row = _row_for(my_audits.json(), "id")
+	assert my_audit_row["participant_id"] == expected_participant_id
+	assert my_audit_row["total_raw_maximum"] == 122
+	assert my_audit_row["total_weighted_maximum"] == 0.0
 
 	# Manager/admin audits list.
 	audits = yee_client.get("/yee/dashboard/audits", headers=headers)
@@ -212,6 +215,8 @@ def test_participant_id_surfaces_on_list_and_report_endpoints(
 	)
 	assert latest_for_place is not None, project_detail.text
 	assert latest_for_place["participant_id"] == expected_participant_id
+	assert latest_for_place["total_raw_maximum"] == audit_row["total_raw_maximum"] == 122
+	assert latest_for_place["total_weighted_maximum"] == audit_row["total_weighted_maximum"] == 0.0
 
 	# Place-comparison report rows (manager/admin comparisons).
 	comparisons = yee_client.get("/yee/dashboard/reports/place-comparisons", headers=headers)

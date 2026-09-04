@@ -155,6 +155,8 @@ def build_weighted_score_snapshot(
 			"domain_average_scores": domain_averages,
 			"weighted_domain_scores": _empty_float_domains(),
 			"total_weighted_score": 0.0,
+			"domain_maximums": _empty_float_domains(),
+			"total_maximum": 0.0,
 			"priority_gaps": _empty_float_domains(),
 		}
 	exact_normalized_weights = {domain: weights[domain] / total_weight_sum for domain in DOMAIN_ORDER}
@@ -162,6 +164,12 @@ def build_weighted_score_snapshot(
 	weighted_domain_scores = {
 		domain: _round_2(exact_domain_averages[domain] * exact_normalized_weights[domain]) for domain in DOMAIN_ORDER
 	}
+	exact_domain_maximums = {
+		domain: (max_scores[domain] / item_counts[domain] if item_counts[domain] else 0.0)
+		* exact_normalized_weights[domain]
+		for domain in DOMAIN_ORDER
+	}
+	domain_maximums = {domain: _round_2(exact_domain_maximums[domain]) for domain in DOMAIN_ORDER}
 	priority_gaps = {
 		domain: _round_2(
 			((max_scores[domain] / item_counts[domain] if item_counts[domain] else 0.0) - exact_domain_averages[domain])
@@ -175,6 +183,8 @@ def build_weighted_score_snapshot(
 		"domain_average_scores": domain_averages,
 		"weighted_domain_scores": weighted_domain_scores,
 		"total_weighted_score": _round_2(sum(weighted_domain_scores.values())),
+		"domain_maximums": domain_maximums,
+		"total_maximum": _round_2(sum(exact_domain_maximums.values())),
 		"priority_gaps": priority_gaps,
 	}
 
@@ -203,9 +213,12 @@ def build_canonical_score_snapshot(
 	section_scores = {SECTION_BY_DOMAIN[domain]: raw_domain_scores[domain] for domain in DOMAIN_ORDER}
 	category_scores = {"Score": sum(raw_domain_scores.values())}
 	category_scores.update({CATEGORY_BY_DOMAIN[domain]: raw_domain_scores[domain] for domain in DOMAIN_ORDER})
+	max_scores = _domain_max_scores(contract)
 	raw: RawScoreSnapshot = {
 		"total_score": category_scores["Score"],
+		"total_maximum": sum(max_scores.values()),
 		"domain_scores": raw_domain_scores,
+		"domain_maximums": max_scores,
 		"section_scores": section_scores,
 		"category_scores": category_scores,
 		"item_scores": item_scores,
@@ -214,7 +227,6 @@ def build_canonical_score_snapshot(
 	participant = participant_info or {}
 	weighted = build_weighted_score_snapshot(raw_domain_scores, participant, contract)
 	item_counts = _domain_item_counts(contract)
-	max_scores = _domain_max_scores(contract)
 	meta: ScoreMetaSnapshot = {
 		"domain_order": list(DOMAIN_ORDER),
 		"domain_item_counts": item_counts,

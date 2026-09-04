@@ -48,7 +48,11 @@ from app.products.yee.services.audits import (
 	_submission_response,
 )
 from app.products.yee.services.dashboard import participant_id_from_info
-from app.products.yee.services.runtime_scoring import InstrumentStamp, RuntimeScorer
+from app.products.yee.services.runtime_scoring import (
+	InstrumentStamp,
+	RuntimeScorer,
+	RuntimeScoringResolutionError,
+)
 from app.products.yee.services.submission_validation import (
 	find_incomplete_responses,
 	submit_completeness_enforced,
@@ -78,19 +82,37 @@ async def list_my_yee_audits(
 		.order_by(YeeAuditSubmission.submitted_at.desc())
 	)
 	rows = (await session.execute(stmt)).all()
-	return [
-		MyYeeAuditItem(
-			id=submission.id,
-			place_id=submission.place_id,
-			place_name=place_name,
-			submitted_at=submission.submitted_at,
-			total_score=submission.total_score,
-			participant_id=participant_id_from_info(submission.participant_info_json),
-			instrument_key=submission.instrument_key,
-			instrument_version=submission.instrument_version,
+	scorer = RuntimeScorer(session)
+	items: list[MyYeeAuditItem] = []
+	for submission, place_name in rows:
+		total_score = submission.total_score
+		total_raw_maximum: int | None = None
+		total_weighted_maximum: float | None = None
+		# Valid old/new snapshots resolve before RuntimeScorer touches the catalog.
+		try:
+			canonical_score = (await resolved_submission_score(scorer, submission))["canonical_score"]
+		except RuntimeScoringResolutionError:
+			# Keep corrupt historical rows visible without inventing a denominator.
+			pass
+		else:
+			total_score = canonical_score["raw"]["total_score"]
+			total_raw_maximum = canonical_score["raw"]["total_maximum"]
+			total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
+		items.append(
+			MyYeeAuditItem(
+				id=submission.id,
+				place_id=submission.place_id,
+				place_name=place_name,
+				submitted_at=submission.submitted_at,
+				total_score=total_score,
+				total_raw_maximum=total_raw_maximum,
+				total_weighted_maximum=total_weighted_maximum,
+				participant_id=participant_id_from_info(submission.participant_info_json),
+				instrument_key=submission.instrument_key,
+				instrument_version=submission.instrument_version,
+			)
 		)
-		for submission, place_name in rows
-	]
+	return items
 
 
 @router.get("/places/{place_id}/audit-state", response_model=YeeAuditStateResponse)

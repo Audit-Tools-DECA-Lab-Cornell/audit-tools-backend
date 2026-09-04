@@ -89,6 +89,8 @@ def test_get_edit_state_as_manager_returns_200(yee_client: TestClient) -> None:
 	assert isinstance(score["section_scores"], dict)
 	assert isinstance(score["category_scores"], dict)
 	assert isinstance(score["matched_scored_answers"], int)
+	assert score["total_raw_maximum"] == score["canonical_score"]["raw"]["total_maximum"] == 122
+	assert score["total_weighted_maximum"] == score["canonical_score"]["weighted"]["total_maximum"]
 
 
 def test_get_edit_state_as_auditor_returns_403(yee_client: TestClient) -> None:
@@ -158,6 +160,8 @@ def test_patch_edit_state_as_manager_updates_responses(yee_client: TestClient) -
 	# DashboardScoreResult is recomputed from the new responses.
 	assert isinstance(patched["score"]["total_score"], int)
 	assert isinstance(patched["score"]["matched_scored_answers"], int)
+	assert patched["score"]["total_raw_maximum"] == 122
+	assert patched["score"]["total_weighted_maximum"] == 0.0
 
 	# A subsequent GET confirms persistence.
 	verify_resp = yee_client.get(EDIT_URL, headers=headers)

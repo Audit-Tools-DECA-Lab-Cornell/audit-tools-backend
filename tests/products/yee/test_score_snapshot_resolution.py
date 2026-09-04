@@ -45,6 +45,59 @@ def test_valid_foreign_submission_snapshot_remains_authoritative() -> None:
 	assert stored["canonical_score"]["scoring_version"] == "historical_foreign_algorithm"
 
 
+@pytest.mark.parametrize("legacy_without_maxima", [False, True])
+def test_valid_stored_snapshot_resolves_without_instrument_query(legacy_without_maxima: bool) -> None:
+	canonical = _canonical_score()
+	if legacy_without_maxima:
+		canonical["raw"].pop("domain_maximums")
+		canonical["raw"].pop("total_maximum")
+		canonical["weighted"].pop("domain_maximums")
+		canonical["weighted"].pop("total_maximum")
+	submission = YeeAuditSubmission(
+		auditor_id=uuid.uuid4(),
+		place_id=uuid.uuid4(),
+		participant_info_json={},
+		responses_json={},
+		section_scores_json=canonical["raw"]["section_scores"],
+		scores_json=canonical,
+		scoring_version=canonical["scoring_version"],
+		total_score=canonical["raw"]["total_score"],
+		instrument_key="yee",
+		instrument_version="query-must-not-run",
+	)
+	session = AsyncMock(spec=AsyncSession)
+
+	resolved = asyncio.run(resolved_submission_score(RuntimeScorer(session), submission))
+
+	assert resolved["canonical_score"]["raw"]["total_maximum"] == 122
+	session.execute.assert_not_awaited()
+
+
+def test_persisted_snapshot_without_maxima_is_backfilled_on_read() -> None:
+	canonical = _canonical_score()
+	canonical["raw"].pop("domain_maximums")
+	canonical["raw"].pop("total_maximum")
+	canonical["weighted"].pop("domain_maximums")
+	canonical["weighted"].pop("total_maximum")
+	submission = YeeAuditSubmission(
+		auditor_id=uuid.uuid4(),
+		place_id=uuid.uuid4(),
+		participant_info_json={},
+		responses_json={},
+		section_scores_json=canonical["raw"]["section_scores"],
+		scores_json=canonical,
+		scoring_version=canonical["scoring_version"],
+		total_score=canonical["raw"]["total_score"],
+	)
+
+	stored = stored_submission_score(submission)
+
+	assert stored is not None
+	assert stored["canonical_score"]["raw"]["total_maximum"] == 122
+	assert stored["canonical_score"]["raw"]["domain_maximums"]["useAndUsability"] == 15
+	assert stored["canonical_score"]["weighted"]["total_maximum"] == 0.0
+
+
 def test_submission_snapshot_with_denormalized_mismatch_requires_resolution() -> None:
 	canonical = _canonical_score()
 	submission = YeeAuditSubmission(

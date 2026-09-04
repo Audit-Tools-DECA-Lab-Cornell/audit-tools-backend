@@ -38,7 +38,9 @@ _AUDIT_LIST_ITEM_FIELDS = {
 	"submitted_at",
 	"score",
 	"total_raw_score",
+	"total_raw_maximum",
 	"total_weighted_score",
+	"total_weighted_maximum",
 	"domain_weights",
 	"status",
 }
@@ -132,6 +134,9 @@ def test_manager_overview_latest_audits_shape(yee_client: TestClient) -> None:
 		assert isinstance(audit_item["total_weighted_score"], (int, float))
 		assert isinstance(audit_item["domain_weights"], dict)
 		assert audit_item["status"] in {"Submitted", "Draft"}
+		if audit_item["status"] == "Submitted":
+			assert audit_item["total_raw_maximum"] == 122
+			assert isinstance(audit_item["total_weighted_maximum"], (int, float))
 
 
 def test_manager_overview_summaries_empty(yee_client: TestClient) -> None:
