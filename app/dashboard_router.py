@@ -885,9 +885,7 @@ async def _fetch_project_detail(
 		resolved_submission = submission
 		resolved_participant_info = submission.participant_info_json if submission is not None else None
 		resolved_total_raw_score = (
-			resolved_submission.total_score
-			if resolved_submission is not None
-			else _extract_score(audit.scores_json)
+			resolved_submission.total_score if resolved_submission is not None else _extract_score(audit.scores_json)
 		)
 		resolved_total_raw_maximum: int | None = None
 		resolved_total_weighted_score = 0.0
