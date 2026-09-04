@@ -61,7 +61,7 @@ from app.products.yee.services.dashboard import (
 	_score_from_audit_fallback,
 	participant_id_from_info,
 )
-from app.products.yee.services.runtime_scoring import RuntimeScorer
+from app.products.yee.services.runtime_scoring import RuntimeScorer, RuntimeScoringResolutionError
 from app.products.yee.services.dashboard import (
 	fetch_manager_audit_edit_state as _service_fetch_manager_audit_edit_state,
 )
@@ -582,7 +582,9 @@ async def _fetch_audits(
 	) in rows:
 		resolved_submission_id = submission.id if submission is not None else None
 		resolved_submitted_at = submission.submitted_at if submission is not None else None
-		resolved_total_raw_score = _extract_score(audit.scores_json)
+		resolved_total_raw_score = (
+			submission.total_score if submission is not None else _extract_score(audit.scores_json)
+		)
 		resolved_total_raw_maximum: int | None = None
 		resolved_total_weighted_score = 0.0
 		resolved_total_weighted_maximum: float | None = None
@@ -590,48 +592,53 @@ async def _fetch_audits(
 		resolved_participant_info = submission.participant_info_json if submission is not None else None
 		resolved_section_scores = submission.section_scores_json if submission is not None else None
 
-		if submission is not None:
-			canonical_score = await _canonical_score_from_submission(scorer, submission)
-			resolved_total_raw_score = canonical_score["raw"]["total_score"]
-			resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
-			resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
-			resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
-			resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+		try:
+			if submission is not None:
+				canonical_score = await _canonical_score_from_submission(scorer, submission)
+				resolved_total_raw_score = canonical_score["raw"]["total_score"]
+				resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
+				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+				resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
+				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
 
-		if audit.status == AuditStatus.SUBMITTED and resolved_submission_id is None:
-			repaired_submission = await _repair_missing_yee_submission(
-				session,
-				audit=audit,
-				place=place,
-				auditor=auditor,
-				scorer=scorer,
-			)
-			if repaired_submission is not None:
-				needs_commit = True
-				resolved_submission_id = repaired_submission.id
-				resolved_submitted_at = repaired_submission.submitted_at
-				canonical_score = await _canonical_score_from_submission(scorer, repaired_submission)
-				resolved_total_raw_score = canonical_score["raw"]["total_score"]
-				resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
-				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
-				resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
-				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
-				resolved_participant_info = repaired_submission.participant_info_json
-				resolved_section_scores = repaired_submission.section_scores_json
-			else:
-				resolved_participant_info, responses = _decode_audit_participant_payload(audit)
-				score = await _score_from_audit_fallback(
-					scorer,
-					audit,
-					participant_info=resolved_participant_info,
-					responses=responses,
+			if audit.status == AuditStatus.SUBMITTED and resolved_submission_id is None:
+				repaired_submission = await _repair_missing_yee_submission(
+					session,
+					audit=audit,
+					place=place,
+					auditor=auditor,
+					scorer=scorer,
 				)
-				canonical_score = dict(score["canonical_score"])
-				resolved_total_raw_score = canonical_score["raw"]["total_score"]
-				resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
-				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
-				resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
-				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+				if repaired_submission is not None:
+					needs_commit = True
+					resolved_submission_id = repaired_submission.id
+					resolved_submitted_at = repaired_submission.submitted_at
+					canonical_score = await _canonical_score_from_submission(scorer, repaired_submission)
+					resolved_total_raw_score = canonical_score["raw"]["total_score"]
+					resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
+					resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+					resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
+					resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+					resolved_participant_info = repaired_submission.participant_info_json
+					resolved_section_scores = repaired_submission.section_scores_json
+				else:
+					resolved_participant_info, responses = _decode_audit_participant_payload(audit)
+					score = await _score_from_audit_fallback(
+						scorer,
+						audit,
+						participant_info=resolved_participant_info,
+						responses=responses,
+					)
+					canonical_score = dict(score["canonical_score"])
+					resolved_total_raw_score = canonical_score["raw"]["total_score"]
+					resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
+					resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+					resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
+					resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+		except RuntimeScoringResolutionError:
+			# Keep unresolved historical rows visible without fabricating maxima
+			# from whichever instrument happens to be active now.
+			pass
 
 		if (
 			resolved_submission_id is None
@@ -877,45 +884,54 @@ async def _fetch_project_detail(
 	for audit, place, auditor, submission in latest_rows:
 		resolved_submission = submission
 		resolved_participant_info = submission.participant_info_json if submission is not None else None
-		resolved_total_raw_score = _extract_score(audit.scores_json)
+		resolved_total_raw_score = (
+			resolved_submission.total_score
+			if resolved_submission is not None
+			else _extract_score(audit.scores_json)
+		)
 		resolved_total_raw_maximum: int | None = None
 		resolved_total_weighted_score = 0.0
 		resolved_total_weighted_maximum: float | None = None
 		resolved_domain_weights = _empty_domain_scores()
 
-		if resolved_submission is not None:
-			canonical_score = await _canonical_score_from_submission(scorer, resolved_submission)
-			resolved_total_raw_score = canonical_score["raw"]["total_score"]
-			resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
-			resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
-			resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
-			resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
-		elif audit.status == AuditStatus.SUBMITTED:
-			resolved_submission = await _repair_missing_yee_submission(
-				session,
-				audit=audit,
-				place=place,
-				auditor=auditor,
-				scorer=scorer,
-			)
+		try:
 			if resolved_submission is not None:
-				latest_needs_commit = True
-				resolved_participant_info = resolved_submission.participant_info_json
 				canonical_score = await _canonical_score_from_submission(scorer, resolved_submission)
-			else:
-				resolved_participant_info, responses = _decode_audit_participant_payload(audit)
-				score = await _score_from_audit_fallback(
-					scorer,
-					audit,
-					participant_info=resolved_participant_info,
-					responses=responses,
+				resolved_total_raw_score = canonical_score["raw"]["total_score"]
+				resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
+				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+				resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
+				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+			elif audit.status == AuditStatus.SUBMITTED:
+				resolved_submission = await _repair_missing_yee_submission(
+					session,
+					audit=audit,
+					place=place,
+					auditor=auditor,
+					scorer=scorer,
 				)
-				canonical_score = dict(score["canonical_score"])
-			resolved_total_raw_score = canonical_score["raw"]["total_score"]
-			resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
-			resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
-			resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
-			resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+				if resolved_submission is not None:
+					latest_needs_commit = True
+					resolved_participant_info = resolved_submission.participant_info_json
+					canonical_score = await _canonical_score_from_submission(scorer, resolved_submission)
+				else:
+					resolved_participant_info, responses = _decode_audit_participant_payload(audit)
+					score = await _score_from_audit_fallback(
+						scorer,
+						audit,
+						participant_info=resolved_participant_info,
+						responses=responses,
+					)
+					canonical_score = dict(score["canonical_score"])
+				resolved_total_raw_score = canonical_score["raw"]["total_score"]
+				resolved_total_raw_maximum = canonical_score["raw"]["total_maximum"]
+				resolved_total_weighted_score = canonical_score["weighted"]["total_weighted_score"]
+				resolved_total_weighted_maximum = canonical_score["weighted"]["total_maximum"]
+				resolved_domain_weights = canonical_score["weighted"]["raw_domain_weights"]
+		except RuntimeScoringResolutionError:
+			# Keep unresolved historical rows visible without fabricating maxima
+			# from whichever instrument happens to be active now.
+			pass
 
 		latest_audits.append(
 			AuditListItem(
