@@ -129,7 +129,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -243,7 +243,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -642,7 +642,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -936,7 +936,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -997,7 +997,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1058,7 +1058,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1119,7 +1119,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1180,7 +1180,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1241,7 +1241,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1302,7 +1302,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1519,7 +1519,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for this size/type of playspace",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -1875,7 +1875,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable for type of playspace ",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -2197,7 +2197,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable - Whole playspace surface is solid and level-surfaced",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5099,7 +5099,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "no",
+                    "key": "new_option",
                     "label": "No",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5108,7 +5108,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some",
+                    "key": "new_option",
                     "label": "Some",
                     "is_unsure": false,
                     "boost_value": 2,
@@ -5117,7 +5117,7 @@
                     "allows_follow_up_scales": true
                   },
                   {
-                    "key": "a_lot",
+                    "key": "new_option",
                     "label": "A lot",
                     "is_unsure": false,
                     "boost_value": 3,
@@ -5134,7 +5134,7 @@
                 "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
-                    "key": "no_variety",
+                    "key": "new_option",
                     "label": "No Variety",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5143,7 +5143,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some_variety",
+                    "key": "new_option",
                     "label": "Some Variety",
                     "is_unsure": false,
                     "boost_value": 2,
@@ -5152,7 +5152,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot_of_variety",
+                    "key": "new_option",
                     "label": "A lot Variety",
                     "is_unsure": false,
                     "boost_value": 3,
@@ -5169,7 +5169,7 @@
                 "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
                 "options": [
                   {
-                    "key": "no_challenge",
+                    "key": "new_option",
                     "label": "No Challenge",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5178,7 +5178,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some_challenge",
+                    "key": "new_option",
                     "label": "Some Challenge",
                     "is_unsure": false,
                     "boost_value": 2,
@@ -5187,7 +5187,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot_of_challenge",
+                    "key": "new_option",
                     "label": "A lot of Challenge",
                     "is_unsure": false,
                     "boost_value": 3,
@@ -5659,7 +5659,7 @@
           },
           {
             "mode": "audit",
-            "prompt": "has accessible **natural features which afford jumping on/off** (e.g. medium to large boulders or rocks, fallen trees/logs, tree stumps left from cut down trees, low hanging branches)",
+            "prompt": "has accessible *natural features which afford jumping on/off** (e.g. medium to large boulders or rocks, fallen trees/logs, tree stumps left from cut down trees, low hanging branches)",
             "scales": [
               {
                 "key": "provision",
@@ -5667,7 +5667,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "no",
+                    "key": "new_option",
                     "label": "No",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5676,7 +5676,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some",
+                    "key": "new_option",
                     "label": "Some",
                     "is_unsure": false,
                     "boost_value": 2,
@@ -5685,7 +5685,7 @@
                     "allows_follow_up_scales": true
                   },
                   {
-                    "key": "a_lot",
+                    "key": "new_option",
                     "label": "A lot",
                     "is_unsure": false,
                     "boost_value": 3,
@@ -5702,7 +5702,7 @@
                 "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
                 "options": [
                   {
-                    "key": "no_variety",
+                    "key": "new_option",
                     "label": "No variety",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5711,7 +5711,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some_variety",
+                    "key": "new_option",
                     "label": "Some variety",
                     "is_unsure": false,
                     "boost_value": 2,
@@ -5720,7 +5720,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot_of_variety",
+                    "key": "new_option",
                     "label": "A lot of variety",
                     "is_unsure": false,
                     "boost_value": 3,
@@ -5737,7 +5737,7 @@
                 "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
                 "options": [
                   {
-                    "key": "no_challenge",
+                    "key": "new_option",
                     "label": "No Challenge",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5746,7 +5746,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some_challenge",
+                    "key": "new_option",
                     "label": "Some Challenge",
                     "is_unsure": false,
                     "boost_value": 2,
@@ -5755,7 +5755,7 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot_of_challenge",
+                    "key": "new_option",
                     "label": "A lot of Challenge",
                     "is_unsure": false,
                     "boost_value": 3,
@@ -5781,7 +5781,7 @@
           },
           {
             "mode": "audit",
-            "prompt": "has accessible **natural features which afford balancing on or across** (e.g. logs or fallen trees, lined up boulders or tree stumps, tree roots, etc)",
+            "prompt": "has accessible  natural features which afford balancing on or across (e.g. logs or fallen trees, lined up boulders or tree stumps, tree roots, etc)",
             "scales": [
               {
                 "key": "provision",
@@ -5789,7 +5789,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "no",
+                    "key": "new_option",
                     "label": "No",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5798,89 +5798,19 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some",
+                    "key": "new_option",
                     "label": "Some",
                     "is_unsure": false,
                     "boost_value": 2,
                     "addition_value": 1,
                     "is_not_applicable": false,
-                    "allows_follow_up_scales": true
+                    "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot",
+                    "key": "new_option",
                     "label": "A lot",
                     "is_unsure": false,
                     "boost_value": 2,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": true
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "variety",
-                "title": "Variety",
-                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
-                "options": [
-                  {
-                    "key": "no_variety",
-                    "label": "No Variety",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_variety",
-                    "label": "Some Variety",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 1,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_variety",
-                    "label": "A lot of Variety",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "challenge",
-                "title": "Challenge",
-                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
-                "options": [
-                  {
-                    "key": "no_challenge",
-                    "label": "No Challenge",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_challenge",
-                    "label": "Some Challenge",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 1,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_challenge",
-                    "label": "A lot of Challenge",
-                    "is_unsure": false,
-                    "boost_value": 3,
                     "addition_value": 2,
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
@@ -5903,7 +5833,7 @@
           },
           {
             "mode": "audit",
-            "prompt": "has accessible **natural features which afford crawling in or through** (e.g. hedges/bushes with openings; large hollow logs or stumps; natural tunnels through rocks or hanging vines)",
+            "prompt": "has accessible natural features which afford crawling in or through (e.g. hedges/bushes with openings; large hollow logs or stumps; natural tunnels through rocks or hanging vines)",
             "scales": [
               {
                 "key": "provision",
@@ -5911,7 +5841,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "no",
+                    "key": "new_option",
                     "label": "No",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -5920,87 +5850,17 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some",
+                    "key": "new_option",
                     "label": "Some",
                     "is_unsure": false,
                     "boost_value": 2,
                     "addition_value": 1,
                     "is_not_applicable": false,
-                    "allows_follow_up_scales": true
+                    "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot",
+                    "key": "new_option",
                     "label": "A lot",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": true
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "variety",
-                "title": "Variety",
-                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
-                "options": [
-                  {
-                    "key": "no_variety",
-                    "label": "No Variety",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_variety",
-                    "label": "Some Variety",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 1,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_variety",
-                    "label": "A lot of Variety",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "challenge",
-                "title": "Challenge",
-                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
-                "options": [
-                  {
-                    "key": "no_challenge",
-                    "label": "No Challenge",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_challenge",
-                    "label": "Some Challenge",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 1,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_challenge",
-                    "label": "A lot of Challenge",
                     "is_unsure": false,
                     "boost_value": 3,
                     "addition_value": 2,
@@ -6025,7 +5885,7 @@
           },
           {
             "mode": "survey",
-            "prompt": "has accessible **dense or tall vegetation that affords playful hiding in/under, finding a \"secret place\" or the sense of exploring or getting \"lost\"** (e.g., long grass maze; low hanging canopies; dense hedges, screen made of low-hanging vines; no-mow meadow)",
+            "prompt": "has accessible dense or tall vegetation that affords playful hiding in/under, or finding a \"secret place\" or the sense of exploring or getting \"lost\" (e.g., long grass maze; low hanging canopies; dense hedges, screen made of low-hanging vines; no-mow meadow)",
             "scales": [
               {
                 "key": "provision",
@@ -6182,7 +6042,7 @@
           },
           {
             "mode": "audit",
-            "prompt": "has **very unique play opportunities afforded by natural features in the space** (e.g. a 'cave' provided by a tree with a very large hollow; large, above-ground tree roots that create a defined space or unusual 'obstacle course'; a boulder with a large depression that can serve as a 'bowl' or receptable for water after rain; etc.)",
+            "prompt": "has very unique play opportunities afforded by natural features in the space (e.g. a 'cave' provided by a tree with a very large hollow; large, above-ground tree roots that create a defined space or unusual 'obstacle course'; a boulder with a large depression that can serve as a 'bowl' or receptable for water after rain; etc.)",
             "scales": [
               {
                 "key": "provision",
@@ -6190,7 +6050,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "no",
+                    "key": "new_option",
                     "label": "No",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -6199,87 +6059,17 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some",
+                    "key": "new_option",
                     "label": "Some",
                     "is_unsure": false,
                     "boost_value": 2,
                     "addition_value": 1,
                     "is_not_applicable": false,
-                    "allows_follow_up_scales": true
+                    "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot",
+                    "key": "new_option",
                     "label": "A lot",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": true
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "variety",
-                "title": "Variety",
-                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
-                "options": [
-                  {
-                    "key": "no_variety",
-                    "label": "No Variety",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_variety",
-                    "label": "Some Variety",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 1,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_variety",
-                    "label": "A lot of Variety",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "challenge",
-                "title": "Challenge",
-                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
-                "options": [
-                  {
-                    "key": "no_challenge",
-                    "label": "No Challenge",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_challenge",
-                    "label": "Some Challenge",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_challenge",
-                    "label": "A lot of Challenge",
                     "is_unsure": false,
                     "boost_value": 3,
                     "addition_value": 2,
@@ -6312,7 +6102,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "no",
+                    "key": "new_option",
                     "label": "No",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -6321,87 +6111,17 @@
                     "allows_follow_up_scales": false
                   },
                   {
-                    "key": "some",
+                    "key": "new_option",
                     "label": "Some",
                     "is_unsure": false,
                     "boost_value": 2,
                     "addition_value": 1,
                     "is_not_applicable": false,
-                    "allows_follow_up_scales": true
+                    "allows_follow_up_scales": false
                   },
                   {
-                    "key": "a_lot",
+                    "key": "new_option",
                     "label": "A lot",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": true
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "variety",
-                "title": "Variety",
-                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
-                "options": [
-                  {
-                    "key": "no_variety",
-                    "label": "No Variety",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_variety",
-                    "label": "Some Variety",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_variety",
-                    "label": "A lot of Variety",
-                    "is_unsure": false,
-                    "boost_value": 3,
-                    "addition_value": 2,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  }
-                ],
-                "selection_mode": "single"
-              },
-              {
-                "key": "challenge",
-                "title": "Challenge",
-                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
-                "options": [
-                  {
-                    "key": "no_challenge",
-                    "label": "No Challenge",
-                    "is_unsure": false,
-                    "boost_value": 1,
-                    "addition_value": 0,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "some_challenge",
-                    "label": "Some Challenge",
-                    "is_unsure": false,
-                    "boost_value": 2,
-                    "addition_value": 1,
-                    "is_not_applicable": false,
-                    "allows_follow_up_scales": false
-                  },
-                  {
-                    "key": "a_lot_of_challenge",
-                    "label": "A lot of Challenge",
                     "is_unsure": false,
                     "boost_value": 3,
                     "addition_value": 2,
@@ -8146,7 +7866,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -10825,7 +10545,7 @@
                 "prompt": "To what degree is this feature/environmental characteristic present or considered?",
                 "options": [
                   {
-                    "key": "not_applicable",
+                    "key": "new_option",
                     "label": "Not applicable",
                     "is_unsure": false,
                     "boost_value": 1,
@@ -12874,7 +12594,7 @@
         "last_updated": "July 1, 2026"
       }
     ],
-    "instrument_version": "5.41",
+    "instrument_version": "5.39",
     "pre_audit_questions": [
       {
         "key": "auditor_code",
