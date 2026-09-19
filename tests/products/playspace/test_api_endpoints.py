@@ -345,9 +345,11 @@ def test_playspace_mobile_release_policy_is_public(monkeypatch: pytest.MonkeyPat
 	assert response.status_code == 200
 	body = response.json()
 	assert body["product"] == "playspace"
-	assert body["android"]["latest_version"] == "0.8.1"
-	assert body["android"]["minimum_supported_version"] == "0.8.0"
+	assert body["android"]["latest_version"] == "0.9.1"
+	assert body["android"]["minimum_supported_version"] == "0.9.1"
 	assert body["android"]["update_url"].startswith("https://play.google.com/")
+	assert body["ios"]["latest_version"] == "0.9.1"
+	assert body["ios"]["minimum_supported_version"] == "0.9.1"
 
 
 def test_export_notify_ready_requires_manager_or_admin(

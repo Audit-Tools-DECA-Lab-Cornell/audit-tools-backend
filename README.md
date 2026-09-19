@@ -236,6 +236,11 @@ Fast checks:
 ./.venv/bin/pytest tests/test_auth_security.py
 ```
 
+When changing `PLAYSPACE_RELEASE_POLICY` or `YEE_RELEASE_POLICY` version
+fields, update the matching pytest assertions in the same change. See
+`.cursor/rules/mobile-release-policy-test-sync.mdc` and
+`.claude/skills/mobile-release-policy-test-sync/SKILL.md`.
+
 Playspace integration coverage uses a dedicated test database:
 
 ```bash
@@ -282,3 +287,4 @@ When changing this repository, double-check:
 - `app/products/playspace/seed_data.py` and `app/seed.py`: demo credentials and seeded contracts
 - `app/products/playspace/routes/`, `app/products/playspace/schemas/`, and `app/products/playspace/services/`: Playspace API contracts consumed by mobile
 - `tests/products/playspace/`: API contract coverage for the mobile-facing surface
+- `app/products/mobile_release_policy.py`: COPA/YEE force-update floors; pair with `tests/products/yee/test_mobile_release_policy.py` and `test_playspace_mobile_release_policy_is_public`

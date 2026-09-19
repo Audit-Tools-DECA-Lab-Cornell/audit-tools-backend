@@ -19,6 +19,8 @@ product-scoped Postgres databases.
 - `STRUCTURE.md` — module map
 - `docs/client-map.md` — which client consumes which `/yee/*` or `/playspace/*` namespace
 - `.claude/AGENTS.md` — this repo's routing card (auth split, where facts live today)
+- `.claude/SKILLS_INDEX.md` — backend-owned workflow skills
+- `.claude/skills/mobile-release-policy-test-sync/SKILL.md` — when changing COPA/YEE `minimum_supported_version` / `latest_version`
 
 ## Workspace context
 

@@ -121,6 +121,23 @@ apply it only after the user confirms. The client-side trigger and post-task
 convention live in the `mobile-version-bump` skill and each mobile app's README;
 this file owns the backend policy itself.
 
+### Tests must move with the policy constants
+
+The public-route pytest assertions are a second copy of the static fallback
+numbers. After any confirmed edit to `PLAYSPACE_RELEASE_POLICY` or
+`YEE_RELEASE_POLICY`, update the matching tests in the same change:
+
+- Playspace / COPA: `tests/products/playspace/test_api_endpoints.py` →
+  `test_playspace_mobile_release_policy_is_public`
+- YEE: `tests/products/yee/test_mobile_release_policy.py` →
+  `test_yee_mobile_release_policy_is_public`
+
+Keep those assertions as explicit version strings. Do not import the policy
+objects to skip the test edit. Procedure: skill `mobile-release-policy-test-sync`
+(Cursor/Claude rule of the same name). Resolver unit tests in
+`tests/products/test_mobile_release_policy_sources.py` use synthetic fixtures and
+should not be retargeted to the live floor unless resolver behavior changed.
+
 ### Supplying `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
 
 The Google Play API call authenticates with a service-account key (the JSON you

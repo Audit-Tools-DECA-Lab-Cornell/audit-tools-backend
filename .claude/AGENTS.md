@@ -40,6 +40,15 @@ are genuinely product-agnostic (schema conventions, migration mechanics,
 `lazy="raise"` rule) but verify YEE-specific behavior against this repo's own
 `README.md` / `docs/` rather than assuming Playspace's memory describes YEE.
 
+## Mobile release policy
+
+`PLAYSPACE_RELEASE_POLICY` / `YEE_RELEASE_POLICY` in
+`app/products/mobile_release_policy.py` are the COPA and YEE force-update
+floors. After changing `latest_version`, `minimum_supported_version`, or related
+fields, follow `.claude/skills/mobile-release-policy-test-sync/SKILL.md` (Cursor
+rule: `.cursor/rules/mobile-release-policy-test-sync.mdc`). Policy facts:
+`docs/deployment.md` → "Mobile Release Policy Sources".
+
 ## Hard rules (full text in workspace-root `AGENTS.md`)
 
 - Never read/print/work around `.env` / `.env.*` / secret files unless the user

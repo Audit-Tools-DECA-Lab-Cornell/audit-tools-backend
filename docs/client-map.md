@@ -64,6 +64,10 @@ the primary source of the latest deployed build. EAS webhook metadata, GitHub
 `app.config.js`, and static backend fallback values are used only when the more
 authoritative source cannot provide a field.
 
+Changing `latest_version`, `minimum_supported_version`, or related fields on
+those policies requires the matching pytest updates in the same change. See
+`docs/deployment.md` → "Tests must move with the policy constants".
+
 Cross-surface notes:
 
 - `GET /yee/audits/{submission_id}` serves both product surfaces: auditors read

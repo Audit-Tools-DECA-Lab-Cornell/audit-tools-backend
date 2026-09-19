@@ -1,0 +1,18 @@
+---
+description: When COPA/YEE mobile release-policy versions change, update the matching pytest assertions in the same change.
+globs: ["app/products/mobile_release*.py", "tests/products/test_mobile_release_policy_sources.py", "tests/products/yee/test_mobile_release_policy.py", "tests/products/playspace/test_api_endpoints.py"]
+alwaysApply: false
+---
+
+# Mobile release policy tests must move with the versions
+
+If you edit `PLAYSPACE_RELEASE_POLICY` or `YEE_RELEASE_POLICY` (`latest_version`, `minimum_supported_version`, `latest_build`, `minimum_supported_build`), update the contract tests in the same change.
+
+- Playspace / COPA → `tests/products/playspace/test_api_endpoints.py` (`test_playspace_mobile_release_policy_is_public`)
+- YEE → `tests/products/yee/test_mobile_release_policy.py` (`test_yee_mobile_release_policy_is_public`)
+
+Keep those assertions as explicit version strings. Do not import the policy constants to avoid a test edit.
+
+Do not retarget synthetic fixture versions in `tests/products/test_mobile_release_policy_sources.py` or the mobile apps' `release-policy` unit tests unless the resolver/evaluator behavior itself changed.
+
+Full procedure: skill `mobile-release-policy-test-sync`.

@@ -51,7 +51,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -102,7 +103,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -162,7 +164,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -214,7 +217,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -274,7 +278,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -325,7 +330,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -376,7 +382,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -410,7 +417,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -470,7 +478,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -512,7 +521,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -563,7 +573,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -605,7 +616,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -656,7 +668,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -707,7 +720,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -758,7 +772,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -800,7 +815,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -851,7 +867,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -893,7 +910,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -944,7 +962,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1013,7 +1032,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1073,7 +1093,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1133,7 +1154,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1193,7 +1215,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1253,7 +1276,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1313,7 +1337,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1364,7 +1389,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1415,7 +1441,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1466,7 +1493,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1517,7 +1545,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1568,7 +1597,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1619,7 +1649,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1670,7 +1701,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -1704,7 +1736,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1764,7 +1797,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1815,7 +1849,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1875,7 +1910,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1926,7 +1962,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -1995,7 +2032,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -2055,7 +2093,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -2123,7 +2162,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -2192,7 +2232,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2278,7 +2319,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -2312,7 +2354,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2406,7 +2449,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -2440,7 +2484,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2535,7 +2580,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2621,7 +2667,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2725,7 +2772,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -2759,7 +2807,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2845,7 +2894,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -2879,7 +2929,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -2973,7 +3024,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3007,7 +3059,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -3102,7 +3155,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3136,7 +3190,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -3222,7 +3277,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -3281,7 +3337,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -3311,11 +3368,11 @@
         "notes_prompt": "Any comments? Describe one or more recommendations to improve the sport and game spaces of this playspace:"
       },
       {
-        "title": "Manufactured Play Features",
+        "title": "Designed Play Features",
         "questions": [
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **swinging** (e.g. swings; hanging ropes; glider; monkey bars)",
+            "prompt": "has designed play features which afford **swinging** (e.g. swings; hanging ropes; glider; monkey bars)",
             "scales": [
               {
                 "key": "provision",
@@ -3349,7 +3406,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3383,7 +3441,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -3417,7 +3476,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -3463,13 +3523,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_1",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **sliding** opportunities (e.g. open slide, enclosed slide, pipe slide, fire pole, zip wire, roller slide,...)",
+            "prompt": "has  designed play features which afford **sliding** opportunities (e.g. open slide, enclosed slide, pipe slide, fire pole, zip wire, roller slide,...)",
             "scales": [
               {
                 "key": "provision",
@@ -3503,7 +3563,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3537,7 +3598,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -3571,7 +3633,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -3617,13 +3680,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_2",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **climbing, dangling, and/or pulling one's self up** (e.g. gymnastic rings; pull up bar; rock wall; climbing frame; ladder; monkey bars)",
+            "prompt": "has designed play features which afford **climbing, dangling, and/or pulling one's self up** (e.g. gymnastic rings; pull up bar; rock wall; climbing frame; ladder; monkey bars)",
             "scales": [
               {
                 "key": "provision",
@@ -3657,7 +3720,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3691,7 +3755,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -3725,7 +3790,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -3771,13 +3837,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_3",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **turning/spinning** (e.g.spinners; merry-go-round; twisty slide; swings that can spin)",
+            "prompt": "has designed play features which afford **turning/spinning** (e.g.spinners; merry-go-round; twisty slide; swings that can spin)",
             "scales": [
               {
                 "key": "provision",
@@ -3811,7 +3877,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3845,7 +3912,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -3879,7 +3947,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -3925,13 +3994,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_4",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **balancing** on or across (e.g. balance beam or logs; wobble board; shaky bridges; balancing ropes; narrow platforms)",
+            "prompt": "has designed play features which afford **balancing** on or across (e.g. balance beam or logs; wobble board; shaky bridges; balancing ropes; narrow platforms)",
             "scales": [
               {
                 "key": "provision",
@@ -3965,7 +4034,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -3999,7 +4069,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -4033,7 +4104,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -4079,13 +4151,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_5",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **rocking** (e.g. a teetertotter/see saw; spring rocker)",
+            "prompt": "has designed play features which afford **rocking** (e.g. a teetertotter/see saw; spring rocker)",
             "scales": [
               {
                 "key": "provision",
@@ -4119,7 +4191,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4153,7 +4226,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -4187,7 +4261,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -4233,13 +4308,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_6",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **crawling** in, on or through (e.g. crawling net; tunnel; under a play structure )",
+            "prompt": "has designed play features which afford **crawling in, or through** (e.g. crawling net; rock, wood or willow tunnel; under a play structure )",
             "scales": [
               {
                 "key": "provision",
@@ -4273,7 +4348,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4307,7 +4383,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -4341,7 +4418,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -4387,13 +4465,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_7",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **bouncing or jumping on/off** (e.g. trampoline; podium; parkour elements)",
+            "prompt": "has designed play features which afford **bouncing or jumping on/off** (e.g. trampoline; podium; parkour elements; 'jumping stumps' designed using tree stumps)",
             "scales": [
               {
                 "key": "provision",
@@ -4427,7 +4505,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4461,7 +4540,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -4495,7 +4575,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -4541,13 +4622,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_8",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features which afford **manipulation by pushing, sliding, turning, opening and/or closing things** (e.g steering wheel; operable windows or doors; play panel; pump; pulley; musical/sound equipment)",
+            "prompt": "has designed play features which afford **manipulation by pushing, sliding, turning, opening and/or closing things** (e.g steering wheel; operable windows or doors; play panel; pump; pulley; musical/sound equipment)",
             "scales": [
               {
                 "key": "provision",
@@ -4581,7 +4662,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4615,7 +4697,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -4661,13 +4744,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_9",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has **multiple ways on/off any larger play structures** (e.g., ramps; steps; climbing net/wall; embankment access)",
+            "prompt": "has **multiple ways on/off any larger play features or structures** (e.g., ramps; steps; climbing net/wall; embankment access)",
             "scales": [
               {
                 "key": "provision",
@@ -4710,7 +4793,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4744,7 +4828,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -4778,7 +4863,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -4790,7 +4876,7 @@
               "play_value",
               "usability"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_10",
             "question_type": "scaled"
           },
@@ -4830,7 +4916,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4864,7 +4951,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -4910,13 +4998,13 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_11",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has manufactured play features **oriented and/or connected in ways that afford play routes** across or between large play structures e.g. an embedded obstacle course; a bridge, net or tunnel connecting structures features placed close enough together to facilitate play across multiple features)",
+            "prompt": "has designed play features **oriented and/or connected in ways that afford play routes** across or between large play features e.g. an embedded obstacle course; a bridge, net or tunnel connecting features placed close enough together to facilitate play across multiple features)",
             "scales": [
               {
                 "key": "provision",
@@ -4950,7 +5038,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -4984,7 +5073,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -4995,18 +5085,175 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_12_manufactured_play_features",
+            "section_key": "section_12_designed_play_features",
             "question_key": "q_12_12",
+            "question_type": "scaled"
+          },
+          {
+            "mode": "audit",
+            "prompt": "has designed water play features that are accessible for play (e.g., splash pad; fountains or water spouts; water pumps; water tables)",
+            "scales": [
+              {
+                "key": "provision",
+                "title": "Provision",
+                "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "variety",
+                "title": "Vararity",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Variety",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Variety",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot Variety",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge",
+                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Challenge",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Challenge",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Challenge",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "sociability",
+                "title": "Sociability",
+                "prompt": "Does this feature/environmental characteristic provide opportunities for a child to",
+                "options": [
+                  {
+                    "key": "play_alone",
+                    "label": "Play on their own",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "small_group",
+                    "label": "Play together in a small group (1-4 other users)",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "large_group",
+                    "label": "Play together in a larger group (5 or more other users)",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "multiple"
+              }
+            ],
+            "domains": [],
+            "options": [],
+            "required": true,
+            "constructs": [
+              "play_value"
+            ],
+            "display_if": null,
+            "section_key": "section_12_designed_play_features",
+            "notes_prompt": null,
+            "question_key": "q_12_13",
             "question_type": "scaled"
           }
         ],
-        "description": "**Manufactured Play Features:** refers to fixed, relatively large manufactured/built play structures (sometimes called play equipment or play components). They tend to afford diverse physical activities such as climbing, sliding and swinging. Manufactured play features may be built from diverse materials including plastic, metal, ropes/netting but also from wood.",
+        "description": "**Designed Play Features:** refers to fixed, relatively large manufactured or built features intentionally designed for play, including components sometimes called 'play equipment' or 'play structures'. Designed play features may be built from diverse materials including plastic, metal, ropes/netting but also from built out of natural materials like wood or stone (e.g., wood climbers, stone slides or features designed out of tree stumps). \nThis section is **not** for natural elements such as trees or boulders that are in or close to their natural state (see Natural Play Features section). Designed play features tend to afford diverse physical activities such as climbing, sliding and swinging.\n",
         "instruction": "Read each statement and answer the questions. This playspace...",
-        "section_key": "section_12_manufactured_play_features",
+        "section_key": "section_12_designed_play_features",
         "notes_prompt": "Any comments? Describe one or more recommendations to improve the manifactured play features of this playspace:"
       },
       {
-        "title": "Natural Play Features",
+        "title": "Natural Features",
         "questions": [
           {
             "mode": "audit",
@@ -5044,7 +5291,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5078,7 +5326,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -5112,7 +5361,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -5123,7 +5373,7 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_13_natural_play_features",
+            "section_key": "section_13_natural_features",
             "notes_prompt": "Question notes prompt",
             "question_key": "q_13_1",
             "question_type": "scaled"
@@ -5164,7 +5414,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5198,7 +5449,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -5232,7 +5484,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -5241,16 +5494,15 @@
             "options": [],
             "required": true,
             "constructs": [
-              "play_value",
-              "usability"
+              "play_value"
             ],
-            "section_key": "section_13_natural_play_features",
+            "section_key": "section_13_natural_features",
             "question_key": "q_13_2",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "has **denser or taller vegetation** that afford playful hiding in/under, or finding a \"secret place\" or the sense of exploring or getting \"lost\" (e.g. long grass maze; low hanging canopies; dense hedges)",
+            "prompt": "has **accessible natural features that afford climbing, dangling, and/or pulling one's self up** (e.g. climbable trees, low hanging branches, large boulders or boulder hills)",
             "scales": [
               {
                 "key": "provision",
@@ -5284,7 +5536,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5318,7 +5571,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -5352,7 +5606,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -5398,13 +5653,379 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_13_natural_play_features",
+            "section_key": "section_13_natural_features",
             "question_key": "q_13_3",
             "question_type": "scaled"
           },
           {
             "mode": "audit",
-            "prompt": "... has **fixed natural features (other than vegetation)** that afford climbing, sitting on, jumping from etc (e.g. medium to large boulders, fallen trees/logs, tree stumps left from cut down trees)",
+            "prompt": "has accessible **natural features which afford jumping on/off** (e.g. medium to large boulders or rocks, fallen trees/logs, tree stumps left from cut down trees, low hanging branches)",
+            "scales": [
+              {
+                "key": "provision",
+                "title": "Provision",
+                "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No variety",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some variety",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of variety",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge",
+                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Challenge",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Challenge",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Challenge",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              }
+            ],
+            "domains": [],
+            "options": [],
+            "required": true,
+            "constructs": [
+              "play_value"
+            ],
+            "display_if": null,
+            "section_key": "section_13_natural_features",
+            "notes_prompt": null,
+            "question_key": "q_13_4",
+            "question_type": "scaled"
+          },
+          {
+            "mode": "audit",
+            "prompt": "has accessible **natural features which afford balancing on or across** (e.g. logs or fallen trees, lined up boulders or tree stumps, tree roots, etc)",
+            "scales": [
+              {
+                "key": "provision",
+                "title": "Provision",
+                "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Variety",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Variety",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Variety",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge",
+                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Challenge",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Challenge",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Challenge",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              }
+            ],
+            "domains": [],
+            "options": [],
+            "required": true,
+            "constructs": [
+              "play_value"
+            ],
+            "display_if": null,
+            "section_key": "section_13_natural_features",
+            "notes_prompt": null,
+            "question_key": "q_13_5",
+            "question_type": "scaled"
+          },
+          {
+            "mode": "audit",
+            "prompt": "has accessible **natural features which afford crawling in or through** (e.g. hedges/bushes with openings; large hollow logs or stumps; natural tunnels through rocks or hanging vines)",
+            "scales": [
+              {
+                "key": "provision",
+                "title": "Provision",
+                "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Variety",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Variety",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Variety",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge",
+                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Challenge",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Challenge",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Challenge",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              }
+            ],
+            "domains": [],
+            "options": [],
+            "required": true,
+            "constructs": [
+              "play_value"
+            ],
+            "display_if": null,
+            "section_key": "section_13_natural_features",
+            "notes_prompt": null,
+            "question_key": "q_13_6",
+            "question_type": "scaled"
+          },
+          {
+            "mode": "survey",
+            "prompt": "has accessible **dense or tall vegetation that affords playful hiding in/under, finding a \"secret place\" or the sense of exploring or getting \"lost\"** (e.g., long grass maze; low hanging canopies; dense hedges, screen made of low-hanging vines; no-mow meadow)",
             "scales": [
               {
                 "key": "provision",
@@ -5438,7 +6059,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5472,7 +6094,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -5506,7 +6129,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -5552,14 +6176,258 @@
             "constructs": [
               "play_value"
             ],
-            "section_key": "section_13_natural_play_features",
-            "question_key": "q_13_4",
+            "section_key": "section_13_natural_features",
+            "question_key": "q_13_7",
+            "question_type": "scaled"
+          },
+          {
+            "mode": "audit",
+            "prompt": "has **very unique play opportunities afforded by natural features in the space** (e.g. a 'cave' provided by a tree with a very large hollow; large, above-ground tree roots that create a defined space or unusual 'obstacle course'; a boulder with a large depression that can serve as a 'bowl' or receptable for water after rain; etc.)",
+            "scales": [
+              {
+                "key": "provision",
+                "title": "Provision",
+                "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Variety",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Variety",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Variety",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge",
+                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Challenge",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Challenge",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Challenge",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              }
+            ],
+            "domains": [],
+            "options": [],
+            "required": true,
+            "constructs": [
+              "play_value"
+            ],
+            "display_if": null,
+            "section_key": "section_13_natural_features",
+            "notes_prompt": null,
+            "question_key": "q_13_8",
+            "question_type": "scaled"
+          },
+          {
+            "mode": "audit",
+            "prompt": "has natural water features accessible for play (e.g., pond; creek with running water; marsh; etc.)",
+            "scales": [
+              {
+                "key": "provision",
+                "title": "Provision",
+                "prompt": "To what degree is this feature/environmental characteristic present or considered?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": true
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "variety",
+                "title": "Variety",
+                "prompt": "To what extent is there variety in the provision of this feature/environmental characteristic?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Variety",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Variety",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Variety",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              },
+              {
+                "key": "challenge",
+                "title": "Challenge",
+                "prompt": "To what extent does this feature/environmental characteristic provide different levels of challenge?",
+                "options": [
+                  {
+                    "key": "new_option",
+                    "label": "No Challenge",
+                    "is_unsure": false,
+                    "boost_value": 1,
+                    "addition_value": 0,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "Some Challenge",
+                    "is_unsure": false,
+                    "boost_value": 2,
+                    "addition_value": 1,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  },
+                  {
+                    "key": "new_option",
+                    "label": "A lot of Challenge",
+                    "is_unsure": false,
+                    "boost_value": 3,
+                    "addition_value": 2,
+                    "is_not_applicable": false,
+                    "allows_follow_up_scales": false
+                  }
+                ],
+                "selection_mode": "single"
+              }
+            ],
+            "domains": [],
+            "options": [],
+            "required": true,
+            "constructs": [
+              "play_value"
+            ],
+            "display_if": null,
+            "section_key": "section_13_natural_features",
+            "notes_prompt": null,
+            "question_key": "q_13_9",
             "question_type": "scaled"
           }
         ],
-        "description": "**Natural Play Features:** refers to fixed (planted or non-moving) natural elements located in or surrounding the playspace which are still in their natural form. Can include vegetation, shrubs/bushes, high grass, areas with trees, boulders/rocks, and or 'fallen' trees/logs. Natural features afford a variety of play opportunities, including physical active play (e.g.,, climbing), exploring, sensory play, manipulating, and creating their own play (e.g.,, socio-dramatic play or imagination), resting, being alone, or gathering with other children.",
-        "instruction": "Important: Your audit focuses on the natural play features provided and meant for play, NOT the features that are not accessible for play (e.g. trees that provide shade but are not accessible for climbing, sitting under, etc.). Read each statement and answer the questions. This playspace...",
-        "section_key": "section_13_natural_play_features",
+        "description": "**Natural Features:** refers to fixed (planted or non-moving) natural elements located in or surrounding the playspace which are in or very close to their natural form. Can include vegetation, shrubs/bushes, high grass, trees, boulders/rocks, and or 'fallen' trees/logs. This section is **not** for designed play features built of natural materials such as wood climbers, tree stump obstacle course, etc (See Designed Play Features). Natural features afford a variety of play opportunities, including physical active play (e.g.,, climbing), exploring, sensory play, manipulating, and creating their own play (e.g. imaginative play), resting, being alone, or gathering with other children. ",
+        "instruction": "Important: Your audit should focuses on the natural features that are accessible to children for play, NOT the features that are present but not accessible for play (e.g. trees that are not directly accessible by users for climbing, sitting under, etc.). Read each statement and answer the questions. This playspace...",
+        "section_key": "section_13_natural_features",
         "notes_prompt": "Any comments? Describe one or more recommendations to improve the natural play featuers of this playspace:"
       },
       {
@@ -5601,7 +6469,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5635,7 +6504,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -5784,7 +6654,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5818,7 +6689,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -5931,7 +6803,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -5965,7 +6838,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -5999,7 +6873,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6101,7 +6976,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -6135,7 +7011,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6236,7 +7113,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6296,7 +7174,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -6330,7 +7209,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6435,7 +7315,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -6469,7 +7350,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6528,7 +7410,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -6562,7 +7445,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6699,7 +7583,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -6733,7 +7618,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -6826,7 +7712,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -6860,7 +7747,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -6894,7 +7782,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7011,7 +7900,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -7045,7 +7935,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7143,7 +8034,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -7177,7 +8069,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7288,7 +8181,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7340,7 +8234,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7392,7 +8287,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7444,7 +8340,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7496,7 +8393,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7557,7 +8455,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7608,7 +8507,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7659,7 +8559,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7719,7 +8620,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -7753,7 +8655,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -7787,7 +8690,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7838,7 +8742,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -7872,7 +8777,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -7923,7 +8829,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -7957,7 +8864,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8008,7 +8916,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8042,7 +8951,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8093,7 +9003,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8127,7 +9038,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -8161,7 +9073,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8212,7 +9125,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8246,7 +9160,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8306,7 +9221,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8340,7 +9256,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8391,7 +9308,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8425,7 +9343,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8476,7 +9395,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8510,7 +9430,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8561,7 +9482,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8595,7 +9517,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -8681,7 +9604,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8715,7 +9639,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -8749,7 +9674,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -8835,7 +9761,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8869,7 +9796,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -8920,7 +9848,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -8954,7 +9883,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -8988,7 +9918,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -9083,7 +10014,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -9117,7 +10049,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9168,7 +10101,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -9202,7 +10136,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9253,7 +10188,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -9287,7 +10223,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9338,7 +10275,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -9372,7 +10310,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -9458,7 +10397,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -9492,7 +10432,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9543,7 +10484,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": true
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -9577,7 +10519,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -9664,7 +10607,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9733,7 +10677,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9793,7 +10738,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9853,7 +10799,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9922,7 +10869,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -9983,7 +10931,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -10043,7 +10992,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -10103,7 +11053,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -10163,7 +11114,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -10223,7 +11175,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -10283,7 +11236,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               }
             ],
             "domains": [
@@ -10352,7 +11306,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -10386,7 +11341,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -10420,7 +11376,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -10515,7 +11472,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -10549,7 +11507,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -10583,7 +11542,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -10678,7 +11638,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -10712,7 +11673,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -10746,7 +11708,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -10841,7 +11804,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -10875,7 +11839,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -10909,7 +11874,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -11004,7 +11970,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -11038,7 +12005,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -11072,7 +12040,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -11167,7 +12136,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -11201,7 +12171,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -11235,7 +12206,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -11330,7 +12302,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "variety",
@@ -11364,7 +12337,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "challenge",
@@ -11398,7 +12372,8 @@
                     "is_not_applicable": false,
                     "allows_follow_up_scales": false
                   }
-                ]
+                ],
+                "selection_mode": "single"
               },
               {
                 "key": "sociability",
@@ -11501,7 +12476,8 @@
             "allows_follow_up_scales": false
           }
         ],
-        "description": "Provision refers to the presence or quantity of an environmental feature or characteristic."
+        "description": "Provision refers to the presence or quantity of an environmental feature or characteristic.",
+        "selection_mode": "single"
       },
       {
         "key": "variety",
@@ -11545,7 +12521,8 @@
             "allows_follow_up_scales": false
           }
         ],
-        "description": "Variety evaluates whether the provided feature offers variety in type, form, or opportunity rather than all options being the same."
+        "description": "Variety evaluates whether the provided feature offers variety in type, form, or opportunity rather than all options being the same.",
+        "selection_mode": "single"
       },
       {
         "key": "challenge",
@@ -11589,7 +12566,8 @@
             "allows_follow_up_scales": false
           }
         ],
-        "description": "Challenge Opportunities assess whether the feature offers different levels of difficulty."
+        "description": "Challenge Opportunities assess whether the feature offers different levels of difficulty.",
+        "selection_mode": "single"
       },
       {
         "key": "sociability",
@@ -11896,7 +12874,7 @@
         "last_updated": "July 1, 2026"
       }
     ],
-    "instrument_version": "5.33",
+    "instrument_version": "5.40",
     "pre_audit_questions": [
       {
         "key": "auditor_code",
