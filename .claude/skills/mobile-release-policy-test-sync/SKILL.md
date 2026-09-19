@@ -17,10 +17,10 @@ A version-gate constant and its pytest assertions are one unit of work. Never sh
 
 ## What to update
 
-| Product | Policy object | Contract test |
-| --- | --- | --- |
+| Product          | Policy object                                                         | Contract test                                                                                       |
+| ---------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | playspace / COPA | `PLAYSPACE_RELEASE_POLICY` in `app/products/mobile_release_policy.py` | `tests/products/playspace/test_api_endpoints.py` → `test_playspace_mobile_release_policy_is_public` |
-| yee | `YEE_RELEASE_POLICY` in the same file | `tests/products/yee/test_mobile_release_policy.py` → `test_yee_mobile_release_policy_is_public` |
+| yee              | `YEE_RELEASE_POLICY` in the same file                                 | `tests/products/yee/test_mobile_release_policy.py` → `test_yee_mobile_release_policy_is_public`     |
 
 Update every platform block you changed (`android` and `ios`) and every field you changed:
 
