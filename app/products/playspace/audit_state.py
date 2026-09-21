@@ -60,7 +60,7 @@ _MULTI_SELECT_PRE_AUDIT_FIELDS: frozenset[str] = frozenset({"weather_conditions"
 # device persist into the canonical variety rows. Required until every field
 # device has upgraded past the rename release.
 _LEGACY_SCALE_KEY_ALIASES: dict[str, str] = {"diversity": "variety"}
-_LEGACY_OPTION_KEY_ALIASES: dict[str, str] = {
+LEGACY_OPTION_KEY_ALIASES: dict[str, str] = {
 	"no_diversity": "no_variety",
 	"some_diversity": "some_variety",
 	"a_lot_of_diversity": "a_lot_of_variety",
@@ -863,14 +863,14 @@ def _normalize_scale_answer_value(
 	if isinstance(value, str):
 		if question_scale is not None and question_scale.selection_mode == "multiple":
 			raise ValueError(f"Scale {scale_key!r} for question {question_key!r} requires an array of option keys.")
-		return _LEGACY_OPTION_KEY_ALIASES.get(value, value)
+		return LEGACY_OPTION_KEY_ALIASES.get(value, value)
 	if not isinstance(value, list):
 		raise ValueError(f"Scale {scale_key!r} for question {question_key!r} must be a string or string array.")
 	if not value or any(not isinstance(option_key, str) or not option_key.strip() for option_key in value):
 		raise ValueError("Multi-select scale answers must contain non-empty option keys.")
 
 	selected_option_keys = _deduplicate_string_values(
-		[_LEGACY_OPTION_KEY_ALIASES.get(option_key, option_key) for option_key in value]
+		[LEGACY_OPTION_KEY_ALIASES.get(option_key, option_key) for option_key in value]
 	)
 	if instrument is None:
 		return selected_option_keys

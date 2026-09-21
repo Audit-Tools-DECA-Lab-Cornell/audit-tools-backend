@@ -15,9 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.models import Instrument, PlayspaceSubmission
+from app.products.playspace.audit_state import LEGACY_OPTION_KEY_ALIASES
 from app.products.playspace.schemas.instrument import (
+	ExecutionMode,
+	InstrumentChoiceOptionResponse,
+	InstrumentQuestionResponse,
 	InstrumentQuestionScaleResponse,
+	InstrumentQuestionType,
 	InstrumentScaleDefinitionResponse,
+	InstrumentScaleOptionResponse,
+	InstrumentSectionResponse,
 	PlayspaceInstrumentResponse,
 	ScaleKey,
 )
@@ -30,6 +37,24 @@ DeleteInstrumentResult = Literal["deleted", "active", "in_use", "not_found"]
 SOCIABILITY_MULTI_SELECT_PROMPT = "Does this feature/environmental characteristic provide opportunities for a child to"
 SOCIABILITY_MULTI_SELECT_KEYS = ["play_alone", "small_group", "large_group"]
 SOCIABILITY_MULTI_SELECT_FIRST_VERSION = (5, 32)
+
+# Scalar answers persist the chosen option key in a String(80) column, so an
+# authored key longer than this cannot be stored. List answers use JSONB, but
+# share the limit so every answer in the instrument behaves the same way.
+MAX_OPTION_KEY_LENGTH = 80
+
+# The editor's starting key for a freshly added answer. It identifies a row the
+# admin has not named yet, so it must never reach storage: several rows carrying
+# it would collapse into one answer.
+PLACEHOLDER_OPTION_KEYS: frozenset[str] = frozenset({"new_option"})
+
+# Option keys that arriving audits are rewritten away from, so a newly authored
+# answer must not claim one (see app/products/playspace/audit_state.py).
+RESERVED_SCALE_OPTION_KEYS: frozenset[str] = frozenset(LEGACY_OPTION_KEY_ALIASES)
+
+# Clients read a checklist answer from this field of the stored question payload,
+# so a follow-up question gated on a checklist must name it as its response key.
+CHECKLIST_CONDITION_RESPONSE_KEY = "selected_option_keys"
 
 
 class InstrumentValidationError(ValueError):
@@ -97,6 +122,315 @@ def _validate_sociability_scale(
 			)
 
 
+def _visible_execution_modes(mode: ExecutionMode) -> frozenset[str]:
+	"""Return the workflows a question is shown in, so parent/child visibility can be compared."""
+
+	if mode is ExecutionMode.BOTH:
+		return frozenset({ExecutionMode.AUDIT.value, ExecutionMode.SURVEY.value})
+	return frozenset({mode.value})
+
+
+def _validate_owner_keys(keys: list[str], *, location: str, label: str) -> None:
+	"""Reject blank or repeated identities in one list of sibling owners.
+
+	Owners are validated before their option lists: a duplicated question or
+	scale makes every option error below it ambiguous to report and to repair.
+	"""
+
+	seen: dict[str, int] = {}
+	for index, key in enumerate(keys, start=1):
+		if not key.strip():
+			raise InstrumentValidationError(f"{location} {label} {index} needs a key.")
+		first_index = seen.get(key)
+		if first_index is not None:
+			raise InstrumentValidationError(
+				f"{location} {label} {index} repeats the key {key!r} already used by {label.lower()} {first_index}."
+			)
+		seen[key] = index
+
+
+def _validate_option_keys(
+	keys: list[str],
+	*,
+	location: str,
+	reject_alias_sources: bool,
+) -> None:
+	"""Reject option identities that cannot address one answer.
+
+	Existing punctuation and non-ASCII characters stay valid - imported content is
+	compared exactly and never trimmed, slugified, or case-folded. What is rejected
+	is an identity that cannot be stored or told apart from a sibling: blank,
+	surrounded by spaces, longer than the answer column, repeated within the same
+	list, left on the editor placeholder, or reserved for reading older app builds.
+	"""
+
+	seen: dict[str, int] = {}
+	for index, key in enumerate(keys, start=1):
+		if not key.strip():
+			raise InstrumentValidationError(f"{location} option {index} needs a key.")
+		if key != key.strip():
+			raise InstrumentValidationError(
+				f"{location} option {index} key {key!r} starts or ends with a space. Remove the spaces."
+			)
+		if len(key) > MAX_OPTION_KEY_LENGTH:
+			raise InstrumentValidationError(
+				f"{location} option {index} key {key!r} is {len(key)} characters long; "
+				f"the limit is {MAX_OPTION_KEY_LENGTH}."
+			)
+		if key in PLACEHOLDER_OPTION_KEYS:
+			raise InstrumentValidationError(
+				f"{location} option {index} still uses the placeholder key {key!r}. Every answer needs its own key."
+			)
+		if reject_alias_sources and key in RESERVED_SCALE_OPTION_KEYS:
+			raise InstrumentValidationError(
+				f"{location} option {index} key {key!r} is reserved: audits synced from older app builds "
+				f"are rewritten to {LEGACY_OPTION_KEY_ALIASES[key]!r} on arrival. Choose a different key."
+			)
+		first_index = seen.get(key)
+		if first_index is not None:
+			raise InstrumentValidationError(
+				f"{location} option {index} repeats the key {key!r} already used by option {first_index}. "
+				f"Two answers that share a key cannot be told apart in a report."
+			)
+		seen[key] = index
+
+
+def _validate_instrument_identities(locale: str, instrument: PlayspaceInstrumentResponse) -> None:
+	"""Check that every stored answer in this locale can be addressed by exactly one option."""
+
+	where = f"Instrument locale {locale!r}"
+	questions = [(section, question) for section in instrument.sections for question in section.questions]
+
+	_validate_owner_keys([section.section_key for section in instrument.sections], location=where, label="Section")
+	_validate_owner_keys([question.question_key for _, question in questions], location=where, label="Question")
+	_validate_owner_keys(
+		[question.key for question in instrument.pre_audit_questions],
+		location=where,
+		label="Pre-audit question",
+	)
+	_validate_owner_keys(
+		[guidance.key.value for guidance in instrument.scale_guidance],
+		location=where,
+		label="Scale guidance",
+	)
+	for _, question in questions:
+		_validate_owner_keys(
+			[scale.key.value for scale in question.scales],
+			location=f"{where} question {question.question_key!r}",
+			label="Scale",
+		)
+
+	for guidance in instrument.scale_guidance:
+		_validate_option_keys(
+			[option.key for option in guidance.options],
+			location=f"{where} scale guidance {guidance.key.value!r}",
+			reject_alias_sources=True,
+		)
+	for _, question in questions:
+		for scale in question.scales:
+			_validate_option_keys(
+				[option.key for option in scale.options],
+				location=f"{where} question {question.question_key!r} scale {scale.key.value!r}",
+				reject_alias_sources=True,
+			)
+		if question.options:
+			_validate_option_keys(
+				[option.key for option in question.options],
+				location=f"{where} question {question.question_key!r} checklist",
+				reject_alias_sources=False,
+			)
+	for question in instrument.pre_audit_questions:
+		if question.options:
+			_validate_option_keys(
+				[option.key for option in question.options],
+				location=f"{where} pre-audit question {question.key!r}",
+				reject_alias_sources=False,
+			)
+
+
+def _resolve_condition_option_keys(
+	parent: InstrumentQuestionResponse,
+	response_key: str,
+	*,
+	location: str,
+) -> set[str]:
+	"""Return the answers a condition may name, following how clients read a parent answer."""
+
+	if parent.question_type is InstrumentQuestionType.CHECKLIST:
+		if response_key != CHECKLIST_CONDITION_RESPONSE_KEY:
+			raise InstrumentValidationError(
+				f"{location} reads {response_key!r} from checklist question {parent.question_key!r}, "
+				f"which answers under {CHECKLIST_CONDITION_RESPONSE_KEY!r}."
+			)
+		return {option.key for option in parent.options}
+
+	scale = next((scale for scale in parent.scales if scale.key.value == response_key), None)
+	if scale is None:
+		available = ", ".join(sorted(scale.key.value for scale in parent.scales)) or "none"
+		raise InstrumentValidationError(
+			f"{location} reads {response_key!r} from question {parent.question_key!r}, "
+			f"which has no such scale (available: {available})."
+		)
+	return {option.key for option in scale.options}
+
+
+def _validate_section_conditions(locale: str, section: InstrumentSectionResponse) -> None:
+	"""Check every follow-up question in one section against the answer it depends on."""
+
+	where = f"Instrument locale {locale!r} section {section.section_key!r}"
+	questions_by_key = {question.question_key: question for question in section.questions}
+	parent_of: dict[str, str] = {}
+
+	for question in section.questions:
+		condition = question.display_if
+		if condition is None:
+			continue
+		location = f"{where} question {question.question_key!r} display condition"
+
+		if not condition.question_key.strip():
+			raise InstrumentValidationError(f"{location} must name the question it depends on.")
+		if condition.question_key == question.question_key:
+			raise InstrumentValidationError(f"{location} cannot depend on the same question.")
+
+		parent = questions_by_key.get(condition.question_key)
+		if parent is None:
+			raise InstrumentValidationError(
+				f"{location} references {condition.question_key!r}, which is not in this section. "
+				f"A question can only depend on an answer from its own section."
+			)
+
+		option_keys = _resolve_condition_option_keys(parent, condition.response_key, location=location)
+		if not condition.any_of_option_keys:
+			raise InstrumentValidationError(f"{location} must list at least one answer that reveals this question.")
+		unknown = [key for key in condition.any_of_option_keys if key not in option_keys]
+		if unknown:
+			raise InstrumentValidationError(
+				f"{location} names {', '.join(repr(key) for key in unknown)}, "
+				f"which question {parent.question_key!r} no longer offers."
+			)
+
+		if not _visible_execution_modes(question.mode) <= _visible_execution_modes(parent.mode):
+			raise InstrumentValidationError(
+				f"{location} depends on question {parent.question_key!r}, which is not shown in every workflow "
+				f"this question appears in ({question.mode.value} versus {parent.mode.value})."
+			)
+
+		parent_of[question.question_key] = condition.question_key
+
+	for start in parent_of:
+		seen = {start}
+		current = parent_of[start]
+		while current in parent_of:
+			if current in seen:
+				raise InstrumentValidationError(
+					f"{where} has questions that depend on each other in a loop, starting at {start!r}."
+				)
+			seen.add(current)
+			current = parent_of[current]
+
+
+def _validate_publish_readiness(parsed_by_locale: dict[str, PlayspaceInstrumentResponse]) -> None:
+	"""Check what must be finished before auditors see this instrument.
+
+	Identity integrity is required for every save; the rules here are the ones a
+	draft is allowed to be part-way through - usable labels, follow-up questions
+	pointing at answers that exist, and translations that match the base structure.
+	"""
+
+	for locale, instrument in parsed_by_locale.items():
+		where = f"Instrument locale {locale!r}"
+		for guidance in instrument.scale_guidance:
+			_require_option_labels(guidance.options, location=f"{where} scale guidance {guidance.key.value!r}")
+		for section in instrument.sections:
+			for question in section.questions:
+				for scale in question.scales:
+					_require_option_labels(
+						scale.options,
+						location=f"{where} question {question.question_key!r} scale {scale.key.value!r}",
+					)
+				_require_option_labels(
+					question.options,
+					location=f"{where} question {question.question_key!r} checklist",
+				)
+			_validate_section_conditions(locale, section)
+		for question in instrument.pre_audit_questions:
+			_require_option_labels(question.options, location=f"{where} pre-audit question {question.key!r}")
+
+	_validate_locale_alignment(parsed_by_locale)
+
+
+def _require_option_labels(
+	options: list[InstrumentChoiceOptionResponse] | list[InstrumentScaleOptionResponse],
+	*,
+	location: str,
+) -> None:
+	"""Reject answers an auditor would see as an empty row."""
+
+	for index, option in enumerate(options, start=1):
+		if not option.label.strip():
+			raise InstrumentValidationError(
+				f"{location} option {index} ({option.key!r}) needs a label before auditors can choose it."
+			)
+
+
+def _option_key_fingerprint(instrument: PlayspaceInstrumentResponse) -> dict[str, list[str]]:
+	"""Describe one locale's answer structure as owner path -> ordered option keys."""
+
+	fingerprint: dict[str, list[str]] = {}
+	for guidance in instrument.scale_guidance:
+		fingerprint[f"scale_guidance/{guidance.key.value}"] = [option.key for option in guidance.options]
+	for section in instrument.sections:
+		for question in section.questions:
+			for scale in question.scales:
+				fingerprint[f"{section.section_key}/{question.question_key}/{scale.key.value}"] = [
+					option.key for option in scale.options
+				]
+			if question.options:
+				fingerprint[f"{section.section_key}/{question.question_key}/checklist"] = [
+					option.key for option in question.options
+				]
+	for question in instrument.pre_audit_questions:
+		if question.options:
+			fingerprint[f"pre_audit/{question.key}"] = [option.key for option in question.options]
+	return fingerprint
+
+
+def _validate_locale_alignment(parsed_by_locale: dict[str, PlayspaceInstrumentResponse]) -> None:
+	"""Require every translation to answer with the same keys, in the same order, as the base.
+
+	Answers are stored by key, so a translation that drops, adds, or reorders an
+	option would score differently from the language it was written in.
+	"""
+
+	if len(parsed_by_locale) < 2:
+		return
+
+	base_locale = "en" if "en" in parsed_by_locale else next(iter(parsed_by_locale))
+	base_fingerprint = _option_key_fingerprint(parsed_by_locale[base_locale])
+	for locale, instrument in parsed_by_locale.items():
+		if locale == base_locale:
+			continue
+		fingerprint = _option_key_fingerprint(instrument)
+		missing = sorted(set(base_fingerprint) - set(fingerprint))
+		if missing:
+			raise InstrumentValidationError(
+				f"Instrument locale {locale!r} is missing answer lists that {base_locale!r} defines: "
+				f"{', '.join(missing[:5])}."
+			)
+		extra = sorted(set(fingerprint) - set(base_fingerprint))
+		if extra:
+			raise InstrumentValidationError(
+				f"Instrument locale {locale!r} defines answer lists that {base_locale!r} does not: "
+				f"{', '.join(extra[:5])}."
+			)
+		for owner, base_keys in base_fingerprint.items():
+			if fingerprint[owner] != base_keys:
+				raise InstrumentValidationError(
+					f"Instrument locale {locale!r} answer list {owner!r} does not match {base_locale!r}. "
+					f"Translations share the base language's option keys and order."
+				)
+
+
 def validate_instrument_content(
 	content: dict[str, object],
 	*,
@@ -105,8 +439,22 @@ def validate_instrument_content(
 	expected_instrument_version: str | None = None,
 	sociability_semantics_version: str | None = None,
 	allow_legacy_nonnumeric: bool = False,
+	publish_checks: bool | None = None,
 ) -> dict[str, PlayspaceInstrumentResponse]:
+	"""Validate candidate instrument content before it is stored or activated.
+
+	Identity integrity - every answer addressable by exactly one key - is checked
+	on every write, because a draft saved with colliding keys is already losing
+	information. Publish checks cover what a draft is allowed to be part-way
+	through and default to running whenever the candidate is being activated.
+	"""
+
 	parsed_by_locale = _parse_localized_instrument_content(content)
+	run_publish_checks = strict_sociability if publish_checks is None else publish_checks
+	for locale, instrument in parsed_by_locale.items():
+		_validate_instrument_identities(locale, instrument)
+	if run_publish_checks:
+		_validate_publish_readiness(parsed_by_locale)
 	for locale, instrument in parsed_by_locale.items():
 		if expected_instrument_key is not None and instrument.instrument_key != expected_instrument_key:
 			raise InstrumentValidationError(
