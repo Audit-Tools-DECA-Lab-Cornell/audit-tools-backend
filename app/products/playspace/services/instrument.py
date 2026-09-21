@@ -239,11 +239,11 @@ def _validate_instrument_identities(locale: str, instrument: PlayspaceInstrument
 				location=f"{where} question {question.question_key!r} checklist",
 				reject_alias_sources=False,
 			)
-	for question in instrument.pre_audit_questions:
-		if question.options:
+	for pre_audit_question in instrument.pre_audit_questions:
+		if pre_audit_question.options:
 			_validate_option_keys(
-				[option.key for option in question.options],
-				location=f"{where} pre-audit question {question.key!r}",
+				[option.key for option in pre_audit_question.options],
+				location=f"{where} pre-audit question {pre_audit_question.key!r}",
 				reject_alias_sources=False,
 			)
 
@@ -353,14 +353,17 @@ def _validate_publish_readiness(parsed_by_locale: dict[str, PlayspaceInstrumentR
 					location=f"{where} question {question.question_key!r} checklist",
 				)
 			_validate_section_conditions(locale, section)
-		for question in instrument.pre_audit_questions:
-			_require_option_labels(question.options, location=f"{where} pre-audit question {question.key!r}")
+		for pre_audit_question in instrument.pre_audit_questions:
+			_require_option_labels(
+				pre_audit_question.options,
+				location=f"{where} pre-audit question {pre_audit_question.key!r}",
+			)
 
 	_validate_locale_alignment(parsed_by_locale)
 
 
 def _require_option_labels(
-	options: list[InstrumentChoiceOptionResponse] | list[InstrumentScaleOptionResponse],
+	options: Iterable[InstrumentChoiceOptionResponse | InstrumentScaleOptionResponse],
 	*,
 	location: str,
 ) -> None:
@@ -389,9 +392,9 @@ def _option_key_fingerprint(instrument: PlayspaceInstrumentResponse) -> dict[str
 				fingerprint[f"{section.section_key}/{question.question_key}/checklist"] = [
 					option.key for option in question.options
 				]
-	for question in instrument.pre_audit_questions:
-		if question.options:
-			fingerprint[f"pre_audit/{question.key}"] = [option.key for option in question.options]
+	for pre_audit_question in instrument.pre_audit_questions:
+		if pre_audit_question.options:
+			fingerprint[f"pre_audit/{pre_audit_question.key}"] = [option.key for option in pre_audit_question.options]
 	return fingerprint
 
 

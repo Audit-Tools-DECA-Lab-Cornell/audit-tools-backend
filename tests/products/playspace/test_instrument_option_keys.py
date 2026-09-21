@@ -236,7 +236,11 @@ def test_repaired_snapshot_scores_each_answer_separately() -> None:
 		}
 		scores = score_audit(responses_json=responses_json, instrument=instrument)
 		# q_12_13 is an onsite-audit question, so its score lands in that partition.
-		return float(scores["audit"]["provision_total"])
+		audit_partition = scores["audit"]
+		assert isinstance(audit_partition, dict)
+		provision_total = audit_partition["provision_total"]
+		assert isinstance(provision_total, (int, float))
+		return float(provision_total)
 
 	buggy_totals = [provision_total(BUGGY_SNAPSHOT, index) for index in range(3)]
 	repaired_totals = [provision_total(REPAIRED_SNAPSHOT, index) for index in range(3)]
