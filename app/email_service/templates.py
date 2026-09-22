@@ -153,7 +153,7 @@ YEE_THEME = EmailTheme(
 	logo_url=_YEE_LOGO_URL,
 	web_app_url="https://yee-audit-tools.vercel.app/",
 	ios_app_url=None,  # No dedicated YEE App Store listing yet.
-	android_app_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
+	android_app_url="https://play.google.com/store/apps/details?id=com.decalab.audittoolsyeemobile",
 )
 
 

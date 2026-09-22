@@ -30,7 +30,7 @@ def test_google_play_published_release_wins_for_android_closed_alpha() -> None:
 	base_policy = PlatformReleasePolicy(
 		latest_version="0.9.1",
 		minimum_supported_version="0.8.2",
-		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
+		update_url="https://play.google.com/store/apps/details?id=com.decalab.audittoolsyeemobile",
 	)
 	google_release = MobileReleaseSnapshot(latest_version="0.9.1", latest_build=203, source="google_play")
 	eas_release = MobileReleaseSnapshot(latest_version="0.9.1", latest_build=202, source="eas")
@@ -104,7 +104,7 @@ def test_record_eas_webhook_payload_caches_finished_store_build() -> None:
 			"appVersion": "0.9.1",
 			"appBuildVersion": "205",
 			"distribution": "store",
-			"appIdentifier": "com.andisha2004.audittoolsyeemobile",
+			"appIdentifier": "com.decalab.audittoolsyeemobile",
 		},
 	}
 
@@ -139,7 +139,7 @@ def test_signed_eas_webhook_updates_yee_policy_route(monkeypatch: pytest.MonkeyP
 				"appVersion": "0.9.1",
 				"appBuildVersion": "206",
 				"distribution": "store",
-				"appIdentifier": "com.andisha2004.audittoolsyeemobile",
+				"appIdentifier": "com.decalab.audittoolsyeemobile",
 			},
 		}
 	).encode("utf-8")

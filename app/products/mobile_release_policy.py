@@ -29,7 +29,7 @@ YEE_RELEASE_POLICY = MobileReleasePolicyResponse(
 	android=PlatformReleasePolicy(
 		latest_version="0.10.0",
 		minimum_supported_version="0.10.0",
-		update_url="https://play.google.com/store/apps/details?id=com.andisha2004.audittoolsyeemobile",
+		update_url="https://play.google.com/store/apps/details?id=com.decalab.audittoolsyeemobile",
 	),
 	ios=PlatformReleasePolicy(
 		latest_version="0.10.0",

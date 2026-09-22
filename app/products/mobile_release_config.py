@@ -43,8 +43,8 @@ PRODUCT_RELEASE_CONFIGS: Final[dict[MobileProduct, ProductReleaseConfig]] = {
 	),
 	"yee": ProductReleaseConfig(
 		product="yee",
-		android_package_name="com.andisha2004.audittoolsyeemobile",
-		ios_bundle_identifier="com.andisha2004.audit-tools-yee-mobile",
+		android_package_name="com.decalab.audittoolsyeemobile",
+		ios_bundle_identifier="com.decalab.audit-tools.yee-mobile",
 		eas_project_id="34a0dc8b-bf74-4b5a-8d76-ac98418eccd3",
 		github_app_config_url="https://raw.githubusercontent.com/audit-Tools-DECA-Lab-Cornell/yee-mobile/master/app.config.js",
 		google_play_track_env="YEE_GOOGLE_PLAY_TRACK",
