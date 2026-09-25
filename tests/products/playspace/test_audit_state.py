@@ -7,7 +7,8 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from fastapi import HTTPException
@@ -909,6 +910,263 @@ def test_audit_session_response_uses_submission_instrument_version(
 
 	assert response.instrument_version == "5.13"
 	assert response.instrument.instrument_version == "5.13"
+
+
+def _scale_option(key: str, addition_value: float, *, allows_follow_up_scales: bool = False) -> dict[str, object]:
+	return {
+		"key": key,
+		"label": key.replace("_", " "),
+		"addition_value": addition_value,
+		"boost_value": 1,
+		"allows_follow_up_scales": allows_follow_up_scales,
+	}
+
+
+def _build_scaled_instrument_row(
+	*,
+	instrument_version: str,
+	question_keys: tuple[str, ...],
+	sociability_mode: str,
+	sociability_option_keys: tuple[str, ...] | None = None,
+) -> Instrument:
+	"""Create an instrument row whose scaled questions carry a single- or multi-choice Sociability scale."""
+
+	row = _build_instrument_row(instrument_version=instrument_version)
+	if sociability_option_keys is None:
+		sociability_option_keys = (
+			("play_alone", "small_group", "large_group")
+			if sociability_mode == "multiple"
+			else ("no", "yes_a_pair", "yes_more_than_two_children")
+		)
+	sociability_options = [_scale_option(key, index) for index, key in enumerate(sociability_option_keys)]
+	localized_content = cast(dict[str, Any], row.content["en"])
+	section = cast(list[dict[str, Any]], localized_content["sections"])[0]
+	section["questions"] = [
+		{
+			"question_key": question_key,
+			"mode": "both",
+			"constructs": ["play_value"],
+			"domains": ["social_play"],
+			"section_key": "section_a",
+			"prompt": "Side by side play",
+			"question_type": "scaled",
+			"scales": [
+				{
+					"key": "provision",
+					"title": "Provision",
+					"prompt": "Provision",
+					"options": [_scale_option("some", 1, allows_follow_up_scales=True)],
+				},
+				{
+					"key": "sociability",
+					"title": "Sociability",
+					"prompt": "Sociability",
+					"selection_mode": sociability_mode,
+					"options": sociability_options,
+				},
+			],
+			"options": [],
+			"required": True,
+			"display_if": None,
+			"notes_prompt": None,
+		}
+		for question_key in question_keys
+	]
+	return row
+
+
+def _resolve_instrument_version(
+	monkeypatch: pytest.MonkeyPatch,
+	*,
+	stored_instrument: Instrument,
+	active_instrument: Instrument,
+	responses: dict[str, dict[str, object]],
+) -> str:
+	"""Resolve the instrument version for a submission stamped with the stored row's version."""
+
+	audit = _build_service_audit(execution_mode=ExecutionMode.BOTH, revision=2)
+	audit.instrument_key = "pvua_v5_2"
+	audit.instrument_version = stored_instrument.instrument_version
+	audit.responses_json = {
+		"schema_version": 1,
+		"revision": 2,
+		"meta": {"execution_mode": "both"},
+		"pre_audit": {},
+		"sections": {"section_a": {"responses": responses}},
+	}
+	service = _DummyAuditService(audit=audit)
+
+	async def fake_get_instrument_version(
+		_session: object,
+		_instrument_key: str,
+		instrument_version: str,
+	) -> Instrument | None:
+		return stored_instrument if instrument_version == stored_instrument.instrument_version else None
+
+	async def fake_get_active_instrument(_session: object, _instrument_key: str) -> Instrument:
+		return active_instrument
+
+	monkeypatch.setattr(audit_sessions_module, "get_instrument_version", fake_get_instrument_version)
+	monkeypatch.setattr(audit_sessions_module, "get_active_instrument", fake_get_active_instrument)
+	monkeypatch.setattr(
+		audit_sessions_module,
+		"build_responses_json_from_relations",
+		lambda audit: audit.responses_json,
+	)
+
+	resolved = asyncio.run(service._resolve_playspace_instrument_for_audit(audit=audit))
+	return resolved.instrument_version
+
+
+def test_resolver_keeps_stored_version_when_active_version_cannot_read_single_choice_sociability(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A mis-stamped legacy submission must not be re-read with a multi-choice Sociability version.
+
+	The active version matches more of the answered question keys, but its Sociability scale takes
+	a list while these answers are single-choice strings. Reading them with it rejects every answer.
+	"""
+
+	resolved_version = _resolve_instrument_version(
+		monkeypatch,
+		stored_instrument=_build_scaled_instrument_row(
+			instrument_version="5.2",
+			question_keys=("q_8_1",),
+			sociability_mode="single",
+		),
+		active_instrument=_build_scaled_instrument_row(
+			instrument_version="5.41",
+			question_keys=("q_8_1", "q_8_2"),
+			sociability_mode="multiple",
+		),
+		responses={
+			"q_8_1": {"provision": "some", "sociability": "yes_a_pair"},
+			"q_8_2": {"provision": "some", "sociability": "no"},
+		},
+	)
+
+	assert resolved_version == "5.2"
+
+
+def test_resolver_switches_to_active_version_that_reads_every_scale_answer(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A mis-stamped legacy submission is still recovered when the active version reads all its answers."""
+
+	resolved_version = _resolve_instrument_version(
+		monkeypatch,
+		stored_instrument=_build_scaled_instrument_row(
+			instrument_version="5.2",
+			question_keys=("q_8_1",),
+			sociability_mode="single",
+		),
+		active_instrument=_build_scaled_instrument_row(
+			instrument_version="5.13",
+			question_keys=("q_8_1", "q_8_2"),
+			sociability_mode="single",
+		),
+		responses={
+			"q_8_1": {"provision": "some", "sociability": "yes_a_pair"},
+			"q_8_2": {"provision": "some", "sociability": "no"},
+		},
+	)
+
+	assert resolved_version == "5.13"
+
+
+def test_resolver_keeps_stored_version_when_active_version_lacks_an_answered_option(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""An answer whose option key the active version does not define would read as unanswered there."""
+
+	resolved_version = _resolve_instrument_version(
+		monkeypatch,
+		stored_instrument=_build_scaled_instrument_row(
+			instrument_version="5.2",
+			question_keys=("q_8_1",),
+			sociability_mode="single",
+		),
+		active_instrument=_build_scaled_instrument_row(
+			instrument_version="5.13",
+			question_keys=("q_8_1", "q_8_2"),
+			sociability_mode="single",
+			sociability_option_keys=("no", "yes"),
+		),
+		responses={
+			"q_8_1": {"provision": "some", "sociability": "yes_a_pair"},
+			"q_8_2": {"provision": "some", "sociability": "no"},
+		},
+	)
+
+	assert resolved_version == "5.2"
+
+
+class _StopAfterScoring(Exception):
+	"""Ends a submit right after scoring so the test can inspect the submission state."""
+
+
+def test_submit_records_the_instrument_version_it_scores_against(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Submit stamps the resolved version so later requests keep reading the submission with it."""
+
+	audit = _build_service_audit(execution_mode=ExecutionMode.AUDIT, revision=2)
+	audit.instrument_version = "5.2"
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+	resolved_instrument = build_instrument_response_from_row(_build_instrument_row(instrument_version="5.13"))
+	assert resolved_instrument is not None
+	scored_versions: list[str | None] = []
+
+	async def fake_resolve_instrument(*, audit: PlayspaceSubmission) -> PlayspaceInstrumentResponse:
+		return resolved_instrument
+
+	def fake_score_audit_for_audit(*, audit: PlayspaceSubmission, **_kwargs: object) -> dict[str, object]:
+		scored_versions.append(audit.instrument_version)
+		raise _StopAfterScoring
+
+	monkeypatch.setattr(service, "_resolve_playspace_instrument_for_audit", fake_resolve_instrument)
+	monkeypatch.setattr(
+		audit_sessions_module,
+		"build_audit_progress_for_audit",
+		lambda **_kwargs: SimpleNamespace(ready_to_submit=True),
+	)
+	monkeypatch.setattr(audit_sessions_module, "score_audit_for_audit", fake_score_audit_for_audit)
+
+	with pytest.raises(_StopAfterScoring):
+		asyncio.run(service.submit_audit(actor=actor, audit_id=audit.id))
+
+	assert scored_versions == ["5.13"]
+	assert audit.instrument_version == "5.13"
+
+
+def test_submit_rejected_as_incomplete_keeps_the_stamped_instrument_version(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A submit that fails the completeness check leaves the submission's version untouched."""
+
+	audit = _build_service_audit(execution_mode=ExecutionMode.AUDIT, revision=2)
+	audit.instrument_version = "5.2"
+	service = _DummyAuditService(audit=audit)
+	actor = _build_actor(audit.auditor_profile)
+	resolved_instrument = build_instrument_response_from_row(_build_instrument_row(instrument_version="5.13"))
+	assert resolved_instrument is not None
+
+	async def fake_resolve_instrument(*, audit: PlayspaceSubmission) -> PlayspaceInstrumentResponse:
+		return resolved_instrument
+
+	monkeypatch.setattr(service, "_resolve_playspace_instrument_for_audit", fake_resolve_instrument)
+	monkeypatch.setattr(
+		audit_sessions_module,
+		"build_audit_progress_for_audit",
+		lambda **_kwargs: SimpleNamespace(ready_to_submit=False),
+	)
+
+	with pytest.raises(HTTPException) as exc_info:
+		asyncio.run(service.submit_audit(actor=actor, audit_id=audit.id))
+
+	assert exc_info.value.status_code == 400
+	assert audit.instrument_version == "5.2"
 
 
 def test_patch_audit_draft_updates_execution_mode_in_canonical_aggregate() -> None:

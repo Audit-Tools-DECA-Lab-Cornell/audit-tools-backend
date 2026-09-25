@@ -31,6 +31,7 @@ from app.models import (
 )
 from app.products.playspace.audit_state import (
 	CURRENT_AUDIT_SCHEMA_VERSION,
+	LEGACY_OPTION_KEY_ALIASES,
 	apply_draft_patch_to_relations,
 	build_responses_json_from_relations,
 	get_aggregate_revision,
@@ -898,6 +899,12 @@ class PlayspaceAuditSessionsMixin:
 				detail="Complete the pre-audit fields and all visible sections before submitting.",
 			)
 
+		# Record the version these answers are validated and scored against, so every later
+		# request reads this submission with the same definitions after another version
+		# becomes active.
+		audit.instrument_key = instrument.instrument_key
+		audit.instrument_version = instrument.instrument_version
+
 		calculated_scores = score_audit_for_audit(
 			audit=audit,
 			instrument=instrument,
@@ -1348,7 +1355,10 @@ class PlayspaceAuditSessionsMixin:
 				instrument=active_response,
 				responses_json=responses_json,
 			)
-			if active_match_count > stored_match_count:
+			if active_match_count > stored_match_count and self._instrument_reads_every_scale_answer(
+				instrument=active_response,
+				responses_json=responses_json,
+			):
 				return active_response
 			return stored_response
 		if stored_response is not None:
@@ -1371,6 +1381,58 @@ class PlayspaceAuditSessionsMixin:
 			question.question_key for section in instrument.sections for question in section.questions
 		}
 		return len(response_question_keys.intersection(instrument_question_keys))
+
+	@staticmethod
+	def _instrument_reads_every_scale_answer(
+		*,
+		instrument: PlayspaceInstrumentResponse,
+		responses_json: dict[str, object],
+	) -> bool:
+		"""Return whether every stored scale answer is a valid answer in this instrument version.
+
+		A stored answer only reads correctly against a version where its question has that scale,
+		the answer shape matches the scale's selection mode (a string for single choice, a list for
+		multiple choice), and every chosen option key exists. Sociability, for example, is single
+		choice up to 5.31 and multiple choice from 5.32, so a submission answered on one side of that
+		boundary cannot be read with a version from the other side.
+		"""
+
+		scales_by_question = {
+			question.question_key: {scale.key: scale for scale in question.scales}
+			for section in instrument.sections
+			for question in section.questions
+		}
+		sections_payload = responses_json.get("sections")
+		if not isinstance(sections_payload, dict):
+			return True
+		for section_payload in sections_payload.values():
+			if not isinstance(section_payload, dict):
+				continue
+			responses_payload = section_payload.get("responses")
+			if not isinstance(responses_payload, dict):
+				continue
+			for question_key, answers in responses_payload.items():
+				question_scales = scales_by_question.get(question_key)
+				if question_scales is None or not isinstance(answers, dict):
+					continue
+				for scale_key, scale in question_scales.items():
+					if scale_key not in answers:
+						continue
+					value = answers[scale_key]
+					option_keys = {option.key for option in scale.options}
+					if isinstance(value, str):
+						selected_keys = [value]
+						shape_matches = scale.selection_mode == "single"
+					elif isinstance(value, list):
+						selected_keys = [key for key in value if isinstance(key, str)]
+						shape_matches = scale.selection_mode == "multiple" and len(selected_keys) == len(value)
+					else:
+						return False
+					if not shape_matches:
+						return False
+					if any(LEGACY_OPTION_KEY_ALIASES.get(key, key) not in option_keys for key in selected_keys):
+						return False
+		return True
 
 	@staticmethod
 	def _collect_response_question_keys(responses_json: dict[str, object]) -> set[str]:
