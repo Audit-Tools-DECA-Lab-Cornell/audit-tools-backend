@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
-from copy import deepcopy
-from pathlib import Path
 from random import Random
 from typing import Any, Callable, cast
 
@@ -12,35 +9,75 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Instrument
-from app.products.playspace.schemas.instrument import PlayspaceInstrumentResponse
 from app.products.playspace.schemas.management import InstrumentActivateRequest, InstrumentCreateRequest
+from app.products.playspace.scoring_metadata import build_scoring_sections_from_instrument
 from app.products.playspace.seed_data import _build_question_answers
 from app.products.playspace.services import instrument as instrument_service
-from app.products.playspace.scoring_metadata import build_scoring_sections_from_instrument
+from tests.products.playspace import _instrument_builders as builders
 
-INSTRUMENT_DIRECTORY = Path(__file__).parents[3] / "app" / "products" / "playspace" / "instruments"
-EXPECTED_PROMPT = "Does this feature/environmental characteristic provide opportunities for a child to"
-EXPECTED_KEYS = ["play_alone", "small_group", "large_group"]
-EXPECTED_LABELS = [
-	"Play on their own",
-	"Play together in a small group (1-4 other users)",
-	"Play together in a larger group (5 or more other users)",
+ASSIGNED_SOCIABILITY_QUESTION_KEYS = [builders.SCALED_QUESTION_KEY, builders.SECOND_SCALED_QUESTION_KEY]
+
+
+def _single_select_content(version: str = builders.LEGACY_SOCIABILITY_VERSION) -> dict[str, Any]:
+	return builders.minimal_content(version=version, sociability="single")
+
+
+def _stored_single_select_content(version: str = builders.LEGACY_SOCIABILITY_VERSION) -> dict[str, Any]:
+	"""Single-select content in the shape publications below 5.32 are stored in.
+
+	No scale guidance block or question scale declares ``selection_mode``, so every
+	scale, Sociability included, relies on the schema default of single-select.
+	"""
+
+	content = _single_select_content(version)
+	for block in content["en"]["scale_guidance"]:
+		del block["selection_mode"]
+	for section in content["en"]["sections"]:
+		for question in section["questions"]:
+			for scale in question["scales"]:
+				del scale["selection_mode"]
+	return content
+
+
+# Single-select content that declares its mode, and the stored shape that omits it.
+SINGLE_SELECT_SHAPES = [
+	pytest.param(_single_select_content, id="declared_selection_mode"),
+	pytest.param(_stored_single_select_content, id="omitted_selection_mode"),
 ]
 
 
-def _read_localized_payload(filename: str) -> dict[str, Any]:
-	return json.loads((INSTRUMENT_DIRECTORY / filename).read_text())
+def _multi_select_content(version: str = builders.MULTI_SELECT_SOCIABILITY_VERSION) -> dict[str, Any]:
+	return builders.minimal_content(version=version, sociability="multiple")
+
+
+def _revert_to_single_select(content: dict[str, Any], question_key: str) -> None:
+	"""Put one question's Sociability scale back on the single-select contract."""
+
+	builders.scale(content, question_key, "sociability").update(builders.sociability_scale("single"))
 
 
 def _semantically_invalid_multiple_content() -> dict[str, Any]:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.31.instrument.json"))
-	for section in content["en"]["sections"]:
-		for question in section["questions"]:
-			for scale in question.get("scales", []):
-				if scale["key"] == "sociability":
-					scale["selection_mode"] = "multiple"
-					return content
-	raise AssertionError("Expected at least one Sociability scale")
+	"""Single-select content where one assigned scale declares multiple but keeps its single-select answers."""
+
+	content = _single_select_content()
+	builders.sociability_scales(content)[0]["selection_mode"] = "multiple"
+	return content
+
+
+def _one_assigned_scale_single_content() -> dict[str, Any]:
+	"""Multi-select content where the first assigned scale is back on the single-select contract."""
+
+	content = _multi_select_content(version=builders.LEGACY_SOCIABILITY_VERSION)
+	_revert_to_single_select(content, builders.SCALED_QUESTION_KEY)
+	return content
+
+
+def _only_guidance_multiple_content() -> dict[str, Any]:
+	"""Single-select content where only the Sociability guidance block is multi-select."""
+
+	content = _single_select_content()
+	builders.guidance(content, "sociability").update(builders.sociability_guidance("multiple"))
+	return content
 
 
 class _RecordingSession:
@@ -66,90 +103,11 @@ def _as_async_session(session: _RecordingSession) -> AsyncSession:
 	return cast(AsyncSession, session)
 
 
-def test_candidate_v532_has_exact_multiselect_sociability_contract() -> None:
-	candidate = _read_localized_payload("pvua_v5_2__v5.32.instrument.json")
-	parsed = PlayspaceInstrumentResponse.model_validate(candidate["en"])
-	instrument_service.validate_instrument_content(candidate, strict_sociability=True)
-
-	sociability_scales = [
-		scale
-		for section in parsed.sections
-		for question in section.questions
-		for scale in question.scales
-		if scale.key.value == "sociability"
-	]
-	assert parsed.instrument_version == "5.32"
-	assert len(sociability_scales) == 34
-	assert all(scale.selection_mode == "multiple" for scale in sociability_scales)
-	assert all(scale.prompt == EXPECTED_PROMPT for scale in sociability_scales)
-	assert all([option.key for option in scale.options] == EXPECTED_KEYS for scale in sociability_scales)
-	assert all([option.label for option in scale.options] == EXPECTED_LABELS for scale in sociability_scales)
-	assert all(
-		option.addition_value == 1 and option.boost_value == 1
-		for scale in sociability_scales
-		for option in scale.options
-	)
-	assert any(question.question_key == "q_14_4" for section in parsed.sections for question in section.questions)
-
-	sociability_guidance = next(guidance for guidance in parsed.scale_guidance if guidance.key.value == "sociability")
-	assert sociability_guidance.selection_mode == "multiple"
-	assert sociability_guidance.prompt == EXPECTED_PROMPT
-	assert [option.key for option in sociability_guidance.options] == EXPECTED_KEYS
-	assert [option.label for option in sociability_guidance.options] == EXPECTED_LABELS
-	assert any("multiple selections" in paragraph.lower() for paragraph in parsed.preamble)
-	assert any("equal opportunities" in paragraph.lower() for paragraph in parsed.preamble)
-
-
-def test_active_instrument_matches_v533_and_historical_versions_remain_unchanged() -> None:
-	active_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2.active.instrument.json").read_bytes()
-	v533_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.33.instrument.json").read_bytes()
-	v531_bytes = (INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.31.instrument.json").read_bytes()
-	active = json.loads(active_bytes)["en"]
-	v531 = json.loads(v531_bytes)["en"]
-
-	assert active_bytes == v533_bytes
-	assert active["instrument_version"] == "5.33"
-	assert (
-		sum(
-			1
-			for section in active["sections"]
-			for question in section["questions"]
-			for scale in question.get("scales", [])
-			if scale["key"] == "sociability"
-		)
-		== 33
-	)
-	assert all(
-		scale.get("selection_mode") == "multiple"
-		for section in active["sections"]
-		for question in section["questions"]
-		for scale in question.get("scales", [])
-		if scale["key"] == "sociability"
-	)
-	assert v531["instrument_version"] == "5.31"
-	assert all(
-		scale.get("selection_mode", "single") == "single"
-		for section in v531["sections"]
-		for question in section["questions"]
-		for scale in question.get("scales", [])
-		if scale["key"] == "sociability"
-	)
-	q_14_4 = next(
-		question
-		for section in active["sections"]
-		for question in section["questions"]
-		if question["question_key"] == "q_14_4"
-	)
-	assert all(scale["key"] != "sociability" for scale in q_14_4["scales"])
-
-
-def test_seed_answer_generation_supports_candidate_multiple_sociability() -> None:
-	candidate = PlayspaceInstrumentResponse.model_validate(
-		_read_localized_payload("pvua_v5_2__v5.32.instrument.json")["en"]
-	)
+def test_seed_answer_generation_picks_non_empty_multi_select_sociability_answers() -> None:
+	instrument = builders.parse(_multi_select_content())
 	question = next(
 		question
-		for section in build_scoring_sections_from_instrument(candidate)
+		for section in build_scoring_sections_from_instrument(instrument)
 		for question in section.questions
 		if any(scale.key == "sociability" for scale in question.scales)
 	)
@@ -168,7 +126,7 @@ def test_seed_answer_generation_supports_candidate_multiple_sociability() -> Non
 
 	assert generated_multiple_answers
 	assert all(answer for answer in generated_multiple_answers)
-	assert all(set(answer) <= set(EXPECTED_KEYS) for answer in generated_multiple_answers)
+	assert all(set(answer) <= set(builders.MULTI_SELECT_SOCIABILITY_KEYS) for answer in generated_multiple_answers)
 
 
 @pytest.mark.parametrize(
@@ -176,110 +134,117 @@ def test_seed_answer_generation_supports_candidate_multiple_sociability() -> Non
 	[
 		(lambda scale: scale.update(prompt="Wrong prompt"), "prompt"),
 		(lambda scale: scale["options"].reverse(), "ordered keys"),
-		(lambda scale: scale["options"][0].update(addition_value=2), "addition_value"),
-		(lambda scale: scale["options"][0].update(boost_value=2), "boost_value"),
-		(lambda scale: scale["options"][0].update(is_unsure=True), "Unsure"),
-		(lambda scale: scale["options"][0].update(is_not_applicable=True), "not-applicable"),
 	],
 )
 def test_strict_semantic_validation_rejects_invalid_multiple_sociability(
 	mutation: Callable[[dict[str, Any]], object],
 	message: str,
 ) -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.32.instrument.json"))
-	scale = next(
-		scale
-		for section in content["en"]["sections"]
-		for question in section["questions"]
-		for scale in question.get("scales", [])
-		if scale["key"] == "sociability"
-	)
-	mutation(scale)
+	content = _multi_select_content()
+	mutation(builders.sociability_scales(content)[0])
 
 	with pytest.raises(ValueError, match=message):
 		instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
-def test_strict_semantic_validation_rejects_one_unconverted_assigned_scale() -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.32.instrument.json"))
-	scale = next(
-		scale
-		for section in content["en"]["sections"]
-		for question in section["questions"]
-		for scale in question.get("scales", [])
-		if scale["key"] == "sociability"
-	)
-	scale["selection_mode"] = "single"
+# Each rule is applied to the first and the last option, so every option is checked.
+@pytest.mark.parametrize("option_index", [0, -1], ids=["first_option", "last_option"])
+@pytest.mark.parametrize(
+	("change", "message"),
+	[
+		pytest.param({"addition_value": 2}, "addition_value", id="addition_value"),
+		pytest.param({"boost_value": 2}, "boost_value", id="boost_value"),
+		pytest.param({"is_unsure": True}, "Unsure", id="unsure"),
+		pytest.param({"is_not_applicable": True}, "not-applicable", id="not_applicable"),
+	],
+)
+def test_strict_semantic_validation_rejects_invalid_multiple_sociability_option(
+	change: dict[str, Any],
+	message: str,
+	option_index: int,
+) -> None:
+	content = _multi_select_content()
+	builders.sociability_scales(content)[0]["options"][option_index].update(change)
+
+	with pytest.raises(ValueError, match=message):
+		instrument_service.validate_instrument_content(content, strict_sociability=True)
+
+
+@pytest.mark.parametrize("question_key", ASSIGNED_SOCIABILITY_QUESTION_KEYS)
+def test_strict_semantic_validation_rejects_one_unconverted_assigned_scale(question_key: str) -> None:
+	content = _multi_select_content()
+	_revert_to_single_select(content, question_key)
 
 	with pytest.raises(ValueError, match="selection_mode='multiple'"):
 		instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
 def test_strict_semantic_validation_requires_an_assigned_sociability_scale() -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.32.instrument.json"))
+	content = _multi_select_content()
 	for section in content["en"]["sections"]:
 		for question in section["questions"]:
-			question["scales"] = [scale for scale in question.get("scales", []) if scale["key"] != "sociability"]
+			question["scales"] = [scale for scale in question["scales"] if scale["key"] != "sociability"]
 
 	with pytest.raises(ValueError, match="at least one assigned Sociability scale"):
 		instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
-def test_strict_semantic_validation_allows_immutable_v531_legacy_contract() -> None:
-	content = _read_localized_payload("pvua_v5_2__v5.31.instrument.json")
+def test_strict_semantic_validation_requires_a_sociability_guidance_block() -> None:
+	content = _multi_select_content()
+	content["en"]["scale_guidance"] = [
+		block for block in content["en"]["scale_guidance"] if block["key"] != "sociability"
+	]
+
+	with pytest.raises(ValueError, match="must define exactly one Sociability scale guidance block"):
+		instrument_service.validate_instrument_content(content, strict_sociability=True)
+
+
+@pytest.mark.parametrize("build_content", SINGLE_SELECT_SHAPES)
+def test_strict_semantic_validation_allows_single_select_sociability_before_multi_select_version(
+	build_content: Callable[[str], dict[str, Any]],
+) -> None:
+	content = build_content(builders.LEGACY_SOCIABILITY_VERSION)
 
 	instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
-def test_strict_semantic_validation_rejects_v532_all_single_contract() -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.31.instrument.json"))
-	content["en"]["instrument_version"] = "5.32"
+def test_strict_semantic_validation_rejects_single_select_sociability_from_multi_select_version() -> None:
+	content = _single_select_content(version=builders.MULTI_SELECT_SOCIABILITY_VERSION)
 
 	with pytest.raises(ValueError, match="selection_mode='multiple'"):
 		instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
-def test_strict_semantic_validation_rejects_v532_with_one_unconverted_assignment() -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.32.instrument.json"))
-	scale = next(
-		scale
-		for section in content["en"]["sections"]
-		for question in section["questions"]
-		for scale in question.get("scales", [])
-		if scale["key"] == "sociability"
-	)
-	scale["selection_mode"] = "single"
+# Below 5.32, one multi-select Sociability scale, whether the guidance block or an
+# assigned scale, puts every Sociability scale on the multi-select contract.
+@pytest.mark.parametrize(
+	"build_content",
+	[
+		pytest.param(_one_assigned_scale_single_content, id="one_assigned_scale_single"),
+		pytest.param(_only_guidance_multiple_content, id="only_guidance_multiple"),
+		pytest.param(_semantically_invalid_multiple_content, id="only_one_assigned_scale_multiple"),
+	],
+)
+def test_strict_semantic_validation_rejects_mixed_modes_even_with_legacy_version(
+	build_content: Callable[[], dict[str, Any]],
+) -> None:
+	content = build_content()
+	assert content["en"]["instrument_version"] == builders.LEGACY_SOCIABILITY_VERSION
 
 	with pytest.raises(ValueError, match="selection_mode='multiple'"):
 		instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
-def test_strict_semantic_validation_rejects_mixed_modes_even_with_legacy_version() -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.32.instrument.json"))
-	content["en"]["instrument_version"] = "5.31"
-	scale = next(
-		scale
-		for section in content["en"]["sections"]
-		for question in section["questions"]
-		for scale in question.get("scales", [])
-		if scale["key"] == "sociability"
-	)
-	scale["selection_mode"] = "single"
-
-	with pytest.raises(ValueError, match="selection_mode='multiple'"):
-		instrument_service.validate_instrument_content(content, strict_sociability=True)
-
-
-def test_strict_semantic_validation_allows_complete_v532_candidate() -> None:
-	content = _read_localized_payload("pvua_v5_2__v5.32.instrument.json")
+def test_strict_semantic_validation_allows_complete_multi_select_sociability() -> None:
+	content = _multi_select_content()
 
 	instrument_service.validate_instrument_content(content, strict_sociability=True)
 
 
 @pytest.mark.parametrize("mutation", ["single", "invalid_options"])
 def test_strict_semantic_validation_rejects_noncanonical_sociability_guidance(mutation: str) -> None:
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.32.instrument.json"))
-	guidance = next(item for item in content["en"]["scale_guidance"] if item["key"] == "sociability")
+	content = _multi_select_content()
+	guidance = builders.guidance(content, "sociability")
 	if mutation == "single":
 		guidance["selection_mode"] = "single"
 	else:
@@ -295,8 +260,8 @@ def test_inactive_draft_create_allows_semantic_work_in_progress_after_base_parse
 	session = _RecordingSession()
 	content = _semantically_invalid_multiple_content()
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
-		instrument_version="5.31.1",
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=f"{builders.LEGACY_SOCIABILITY_VERSION}.1",
 		content=content,
 	)
 
@@ -318,8 +283,8 @@ def test_publish_create_rejects_invalid_semantics_before_database_writes(
 ) -> None:
 	session = _RecordingSession()
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
-		instrument_version="5.32",
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=builders.MULTI_SELECT_SOCIABILITY_VERSION,
 		content=_semantically_invalid_multiple_content(),
 	)
 
@@ -341,11 +306,11 @@ def test_activate_rejects_invalid_semantics_before_database_writes(
 	session = _RecordingSession()
 	instrument_id = uuid.uuid4()
 	content = _semantically_invalid_multiple_content()
-	content["en"]["instrument_version"] = "5.32"
+	content["en"]["instrument_version"] = builders.MULTI_SELECT_SOCIABILITY_VERSION
 	row = Instrument(
 		id=instrument_id,
-		instrument_key="pvua_v5_2",
-		instrument_version="5.32",
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=builders.MULTI_SELECT_SOCIABILITY_VERSION,
 		parent_instrument_id=None,
 		is_active=False,
 		content=content,
@@ -368,18 +333,20 @@ def test_activate_rejects_invalid_semantics_before_database_writes(
 	assert session.commit_count == 0
 
 
-def test_reactivate_immutable_v531_legacy_instrument_is_allowed(
+@pytest.mark.parametrize("build_content", SINGLE_SELECT_SHAPES)
+def test_reactivate_single_select_sociability_publication_before_multi_select_version_is_allowed(
 	monkeypatch: pytest.MonkeyPatch,
+	build_content: Callable[[str], dict[str, Any]],
 ) -> None:
 	session = _RecordingSession()
 	instrument_id = uuid.uuid4()
 	row = Instrument(
 		id=instrument_id,
-		instrument_key="pvua_v5_2",
-		instrument_version="5.31",
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=builders.LEGACY_SOCIABILITY_VERSION,
 		parent_instrument_id=None,
 		is_active=False,
-		content=_read_localized_payload("pvua_v5_2__v5.31.instrument.json"),
+		content=build_content(builders.LEGACY_SOCIABILITY_VERSION),
 	)
 
 	async def fake_get_instrument_by_id(_session: object, _instrument_id: uuid.UUID) -> Instrument:
@@ -399,20 +366,20 @@ def test_reactivate_immutable_v531_legacy_instrument_is_allowed(
 	assert session.commit_count == 1
 
 
-def test_reactivate_immutable_nonnumeric_legacy_instrument_is_allowed(
+@pytest.mark.parametrize("build_content", SINGLE_SELECT_SHAPES)
+def test_reactivate_nonnumeric_publication_with_single_select_sociability_is_allowed(
 	monkeypatch: pytest.MonkeyPatch,
+	build_content: Callable[[str], dict[str, Any]],
 ) -> None:
 	session = _RecordingSession()
 	instrument_id = uuid.uuid4()
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.31.instrument.json"))
-	content["en"]["instrument_version"] = "legacy-release"
 	row = Instrument(
 		id=instrument_id,
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="legacy-release",
 		parent_instrument_id=None,
 		is_active=False,
-		content=content,
+		content=build_content("legacy-release"),
 	)
 
 	async def fake_get_instrument_by_id(_session: object, _instrument_id: uuid.UUID) -> Instrument:
@@ -432,23 +399,61 @@ def test_reactivate_immutable_nonnumeric_legacy_instrument_is_allowed(
 	assert session.commit_count == 1
 
 
-def test_new_publication_rejects_nonnumeric_version_before_database_writes(
+def test_root_publication_rejects_nonnumeric_version_before_database_writes(
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 	session = _RecordingSession()
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.31.instrument.json"))
-	content["en"]["instrument_version"] = "candidate"
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="candidate",
-		content=content,
+		content=_single_select_content(version="candidate"),
 	)
 
 	async def fake_list_instrument_versions(_session: object, _key: str) -> list[Instrument]:
 		return []
 
 	monkeypatch.setattr(instrument_service, "list_instrument_versions", fake_list_instrument_versions)
-	with pytest.raises(instrument_service.InstrumentValidationError, match="numeric"):
+	with pytest.raises(instrument_service.InstrumentValidationError, match="Root instrument versions must be numeric"):
+		asyncio.run(instrument_service.create_instrument_version(_as_async_session(session), request, activate=True))
+
+	assert session.execute_count == 0
+	assert session.added == []
+	assert session.commit_count == 0
+
+
+def test_new_publication_from_draft_rejects_nonnumeric_version_before_database_writes(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	session = _RecordingSession()
+	draft = Instrument(
+		id=uuid.uuid4(),
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=f"{builders.MULTI_SELECT_SOCIABILITY_VERSION}.1",
+		parent_instrument_id=uuid.uuid4(),
+		is_active=False,
+		content=_multi_select_content(),
+	)
+	# The content is otherwise publishable. Having a parent skips the root rule, and
+	# with no publication to number from, the requested version is the one published.
+	request = InstrumentCreateRequest(
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version="candidate",
+		parent_instrument_id=draft.id,
+		content=_multi_select_content(version="candidate"),
+	)
+
+	async def fake_get_instrument_by_id(_session: object, _instrument_id: uuid.UUID) -> Instrument:
+		return draft
+
+	async def fake_list_instrument_versions(_session: object, _key: str) -> list[Instrument]:
+		return [draft]
+
+	monkeypatch.setattr(instrument_service, "get_instrument_by_id", fake_get_instrument_by_id)
+	monkeypatch.setattr(instrument_service, "list_instrument_versions", fake_list_instrument_versions)
+	with pytest.raises(
+		instrument_service.InstrumentValidationError,
+		match="New published instruments must use a numeric version",
+	):
 		asyncio.run(instrument_service.create_instrument_version(_as_async_session(session), request, activate=True))
 
 	assert session.execute_count == 0
@@ -460,12 +465,10 @@ def test_inactive_root_create_rejects_nonnumeric_version_before_row_exists(
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 	session = _RecordingSession()
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.31.instrument.json"))
-	content["en"]["instrument_version"] = "wip"
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="wip",
-		content=content,
+		content=_single_select_content(version="wip"),
 	)
 
 	async def fake_list_instrument_versions(_session: object, _key: str) -> list[Instrument]:
@@ -484,9 +487,9 @@ def test_inactive_root_create_keeps_numeric_version_behavior(
 ) -> None:
 	session = _RecordingSession()
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
-		instrument_version="5.31",
-		content=_read_localized_payload("pvua_v5_2__v5.31.instrument.json"),
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version="9.0",
+		content=_single_select_content(version="9.0"),
 	)
 
 	async def fake_list_instrument_versions(_session: object, _key: str) -> list[Instrument]:
@@ -498,35 +501,40 @@ def test_inactive_root_create_keeps_numeric_version_behavior(
 	)
 
 	assert result is not None
-	assert result.instrument_version == "5.31"
+	assert result.instrument_version == "9.0"
 	assert result.parent_instrument_id is None
 	assert result.is_active is False
 	assert session.added == [result]
 	assert session.commit_count == 1
 
 
-def test_promoting_legacy_draft_validates_against_new_publication_version(
+def test_promoting_draft_validates_sociability_against_new_publication_version(
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 	session = _RecordingSession()
 	instrument_id = uuid.uuid4()
-	content = deepcopy(_read_localized_payload("pvua_v5_2__v5.31.instrument.json"))
-	content["en"]["instrument_version"] = "5.31.1"
+	draft_version = f"{builders.LEGACY_SOCIABILITY_VERSION}.1"
 	row = Instrument(
 		id=instrument_id,
-		instrument_key="pvua_v5_2",
-		instrument_version="5.31.1",
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=draft_version,
 		parent_instrument_id=uuid.uuid4(),
 		is_active=False,
-		content=content,
+		content=_single_select_content(version=draft_version),
 	)
 	published = Instrument(
 		id=uuid.uuid4(),
-		instrument_key="pvua_v5_2",
-		instrument_version="5.31",
+		instrument_key=builders.INSTRUMENT_KEY,
+		instrument_version=builders.LEGACY_SOCIABILITY_VERSION,
 		parent_instrument_id=None,
 		is_active=True,
-		content=_read_localized_payload("pvua_v5_2__v5.31.instrument.json"),
+		content=_single_select_content(),
+	)
+	# The draft is single-select, which its parent's version permits, but promoting
+	# it mints the multi-select version, so the draft is judged against that.
+	assert (
+		instrument_service.next_published_version([builders.LEGACY_SOCIABILITY_VERSION])
+		== builders.MULTI_SELECT_SOCIABILITY_VERSION
 	)
 
 	async def fake_get_instrument_by_id(_session: object, _instrument_id: uuid.UUID) -> Instrument:

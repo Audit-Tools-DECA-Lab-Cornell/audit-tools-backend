@@ -1,10 +1,14 @@
 """Every authored answer must be addressable by exactly one option key.
 
-The 5.40 instrument was published with 69 answers all keyed `new_option`, so
-three differently scored answers on the same question collapsed into one. These
-tests pin the rules that stop such a version from being stored or activated
-again, and the publish-time rules that a draft is still allowed to be part-way
-through.
+An answer left on the editor's `new_option` placeholder shares its key with every
+other unnamed answer, so differently scored answers on one question collapse into
+one. These tests pin the rules that stop such content from being stored or
+activated, and the publish-time rules that a draft is still allowed to be
+part-way through.
+
+Each rule runs against the shared builder's small instrument. The active
+snapshot is the only instrument file read here: whichever version is live must
+keep passing every identity and publish check.
 """
 
 from __future__ import annotations
@@ -29,140 +33,29 @@ from app.products.playspace.services.instrument import (
 	InstrumentValidationError,
 	validate_instrument_content,
 )
+from tests.products.playspace import _instrument_builders as builders
 
-INSTRUMENT_DIRECTORY = Path(__file__).parents[3] / "app" / "products" / "playspace" / "instruments"
-BUGGY_SNAPSHOT = "pvua_v5_2__v5.40.instrument.json"
-REPAIRED_SNAPSHOT = "pvua_v5_2__v5.41.instrument.json"
-ACTIVE_SNAPSHOT = "pvua_v5_2.active.instrument.json"
-
-
-def _read_snapshot(filename: str) -> dict[str, Any]:
-	return json.loads((INSTRUMENT_DIRECTORY / filename).read_text())
-
-
-def _scale_option_lists(payload: dict[str, Any]) -> list[list[str]]:
-	"""Collect every authored scale-option key list in one locale payload."""
-
-	lists: list[list[str]] = []
-	for guidance in payload["scale_guidance"]:
-		lists.append([option["key"] for option in guidance["options"]])
-	for section in payload["sections"]:
-		for question in section["questions"]:
-			for scale in question.get("scales", []):
-				lists.append([option["key"] for option in scale["options"]])
-	return lists
+# The sync that exports instruments from the database always writes this snapshot
+# for the live version, so it is safe to read whichever version that is.
+ACTIVE_SNAPSHOT = (
+	Path(__file__).parents[3]
+	/ "app"
+	/ "products"
+	/ "playspace"
+	/ "instruments"
+	/ f"{builders.INSTRUMENT_KEY}.active.instrument.json"
+)
 
 
-# ── synthetic candidates ─────────────────────────────────────────────────────
+# ── candidate content ────────────────────────────────────────────────────────
 #
-# Minimal hand-written content keeps each rule's failure unambiguous. Published
-# snapshots are read only, never mutated on disk and never copied into fixtures.
-
-
-def _scale_option(key: str, label: str, addition_value: float = 0) -> dict[str, Any]:
-	return {
-		"key": key,
-		"label": label,
-		"addition_value": addition_value,
-		"boost_value": 0,
-		"allows_follow_up_scales": False,
-		"is_not_applicable": False,
-		"is_unsure": False,
-	}
-
-
-def _minimal_content() -> dict[str, Any]:
-	"""One section, one scaled question, one checklist question - all valid."""
-
-	return {
-		"en": {
-			"instrument_key": "pvua_v5_2",
-			"instrument_name": "Test instrument",
-			"instrument_version": "9.0",
-			"current_sheet": "test",
-			"source_files": [],
-			"preamble": [],
-			"execution_modes": [{"key": "both", "label": "Audit & Survey", "description": None}],
-			"pre_audit_questions": [],
-			"scale_guidance": [
-				{
-					"key": "provision",
-					"title": "Provision",
-					"prompt": "How many?",
-					"description": "Guidance",
-					"selection_mode": "single",
-					"options": [_scale_option("no", "No"), _scale_option("some", "Some", 1)],
-				}
-			],
-			"sections": [
-				{
-					"section_key": "section_1_test",
-					"title": "Test section",
-					"description": None,
-					"instruction": "Answer the questions.",
-					"notes_prompt": None,
-					"questions": [
-						{
-							"question_key": "q_1_1",
-							"mode": "both",
-							"constructs": ["play_value"],
-							"domains": [],
-							"section_key": "section_1_test",
-							"prompt": "How many?",
-							"question_type": "scaled",
-							"scales": [
-								{
-									"key": "provision",
-									"title": "Provision",
-									"prompt": "How many?",
-									"selection_mode": "single",
-									"options": [
-										_scale_option("no", "No"),
-										_scale_option("some", "Some", 1),
-										_scale_option("a_lot", "A lot", 2),
-									],
-								}
-							],
-							"options": [],
-							"required": True,
-							"display_if": None,
-							"notes_prompt": None,
-						},
-						{
-							"question_key": "q_1_2",
-							"mode": "both",
-							"constructs": ["usability"],
-							"domains": [],
-							"section_key": "section_1_test",
-							"prompt": "Which of these are present?",
-							"question_type": "checklist",
-							"scales": [],
-							"options": [
-								{"key": "no", "label": "None", "description": None},
-								{"key": "bench", "label": "Bench", "description": None},
-							],
-							"required": False,
-							"display_if": None,
-							"notes_prompt": None,
-						},
-					],
-				}
-			],
-			"legal_documents": [],
-		}
-	}
-
-
-def _question(content: dict[str, Any], question_key: str) -> dict[str, Any]:
-	for section in content["en"]["sections"]:
-		for question in section["questions"]:
-			if question["question_key"] == question_key:
-				return question
-	raise AssertionError(f"question {question_key!r} not in the synthetic candidate")
+# The shared builder's minimal instrument keeps each rule's failure unambiguous.
+# The active snapshot is read only, never mutated on disk and never copied into
+# fixtures.
 
 
 def _scaled_options(content: dict[str, Any]) -> list[dict[str, Any]]:
-	return _question(content, "q_1_1")["scales"][0]["options"]
+	return builders.scale(content, builders.SCALED_QUESTION_KEY, "provision")["options"]
 
 
 def _draft(content: dict[str, Any]) -> dict[str, PlayspaceInstrumentResponse]:
@@ -173,89 +66,100 @@ def _publish(content: dict[str, Any]) -> dict[str, PlayspaceInstrumentResponse]:
 	return validate_instrument_content(content, strict_sociability=False, publish_checks=True)
 
 
-# ── the published snapshots ──────────────────────────────────────────────────
+# ── the live instrument ──────────────────────────────────────────────────────
 
 
-def test_repaired_and_active_snapshots_pass_identity_and_publish_checks() -> None:
+def test_the_active_instrument_passes_identity_and_publish_checks() -> None:
 	# The version in use must keep saving, publishing, and reactivating unchanged.
-	for filename in (REPAIRED_SNAPSHOT, ACTIVE_SNAPSHOT):
-		content = _read_snapshot(filename)
-		validate_instrument_content(content, strict_sociability=True)
-		validate_instrument_content(content, strict_sociability=False, publish_checks=True)
+	content = json.loads(ACTIVE_SNAPSHOT.read_text())
+	validate_instrument_content(content, strict_sociability=True)
+	validate_instrument_content(content, strict_sociability=False, publish_checks=True)
 
 
-def test_buggy_snapshot_is_the_recorded_failure_and_the_repair_fixed_it() -> None:
-	buggy = _read_snapshot(BUGGY_SNAPSHOT)["en"]
-	repaired = _read_snapshot(REPAIRED_SNAPSHOT)["en"]
-
-	buggy_lists = _scale_option_lists(buggy)
-	placeholder_rows = sum(keys.count("new_option") for keys in buggy_lists)
-	duplicate_lists = [keys for keys in buggy_lists if len(set(keys)) != len(keys)]
-	assert placeholder_rows == 69
-	assert len(duplicate_lists) == 18
-
-	repaired_lists = _scale_option_lists(repaired)
-	assert not any("new_option" in keys for keys in repaired_lists)
-	assert all(len(set(keys)) == len(keys) for keys in repaired_lists)
+# ── answers left on the editor placeholder ───────────────────────────────────
 
 
-def test_buggy_snapshot_is_rejected_for_saving_and_for_activation() -> None:
-	content = _read_snapshot(BUGGY_SNAPSHOT)
-	for kwargs in (
+@pytest.mark.parametrize(
+	"kwargs",
+	[
 		{"strict_sociability": False},
 		{"strict_sociability": False, "publish_checks": True},
 		{"strict_sociability": True},
-	):
-		with pytest.raises(InstrumentValidationError, match="placeholder key 'new_option'"):
-			validate_instrument_content(content, **cast(Any, kwargs))
+	],
+	ids=["save", "publish", "activate"],
+)
+def test_answers_left_on_the_placeholder_key_are_rejected_for_saving_and_for_activation(
+	kwargs: dict[str, Any],
+) -> None:
+	# Carries Sociability so activation rejects the placeholder, not a missing scale.
+	content = builders.minimal_content(sociability="multiple")
+	validate_instrument_content(content, **kwargs)
+
+	# Every answer on the list is left on the placeholder, so the keys also repeat. The
+	# placeholder message must win over the repeated-key one: it tells the author that
+	# each answer needs its own key, which fixes both problems.
+	for option in _scaled_options(content):
+		option["key"] = "new_option"
+	with pytest.raises(InstrumentValidationError, match="placeholder key 'new_option'"):
+		validate_instrument_content(content, **kwargs)
 
 
-def test_repaired_snapshot_scores_each_answer_separately() -> None:
-	# The user-visible symptom: No / Some / A lot all scored the same under 5.40.
-	def provision_total(filename: str, option_index: int) -> float:
-		payload = _read_snapshot(filename)["en"]
-		instrument = PlayspaceInstrumentResponse.model_validate(payload)
-		question = next(
-			question
-			for section in instrument.sections
-			for question in section.questions
-			if question.question_key == "q_12_13"
-		)
-		scale = next(scale for scale in question.scales if scale.key.value == "provision")
-		section_key = next(
-			section.section_key
-			for section in instrument.sections
-			for candidate in section.questions
-			if candidate.question_key == "q_12_13"
-		)
+def _multiplier_scale(key: str, title: str) -> dict[str, Any]:
+	"""A three-answer Variety or Challenge scale that Some and A lot unlock."""
+
+	return {
+		"key": key,
+		"title": title,
+		"prompt": f"How much {key}?",
+		"selection_mode": "single",
+		"options": [
+			builders.scale_option(f"no_{key}", "None", 0, 1),
+			builders.scale_option(f"some_{key}", "Some", 1, 2),
+			builders.scale_option(f"a_lot_of_{key}", "A lot", 2, 3),
+		],
+	}
+
+
+def test_each_provision_answer_on_a_question_scores_its_own_points() -> None:
+	# Answers that share a key score as one; distinct keys must keep No / Some / A lot apart.
+	content = builders.minimal_content(sociability="multiple")
+	question = builders.question(content, builders.SCALED_QUESTION_KEY)
+	# An onsite-audit question, so its score lands in the audit partition.
+	question["mode"] = "audit"
+	# Some and A lot unlock Variety, Challenge and Sociability. Those follow-ups stay
+	# unanswered: each Provision answer keeps its own points while they are still open.
+	question["scales"][1:1] = [_multiplier_scale("variety", "Variety"), _multiplier_scale("challenge", "Challenge")]
+	instrument = builders.parse(content)
+	options = _scaled_options(content)
+	assert [option["allows_follow_up_scales"] for option in options] == [False, True, True]
+
+	def provision_total(option_key: str) -> float:
 		responses_json = {
 			"meta": {"execution_mode": "audit"},
 			"sections": {
-				section_key: {"responses": {"q_12_13": {"provision": scale.options[option_index].key}}},
+				builders.SECTION_KEY: {"responses": {builders.SCALED_QUESTION_KEY: {"provision": option_key}}},
 			},
 		}
 		scores = score_audit(responses_json=responses_json, instrument=instrument)
-		# q_12_13 is an onsite-audit question, so its score lands in that partition.
 		audit_partition = scores["audit"]
 		assert isinstance(audit_partition, dict)
-		provision_total = audit_partition["provision_total"]
-		assert isinstance(provision_total, (int, float))
-		return float(provision_total)
+		total = audit_partition["provision_total"]
+		assert isinstance(total, (int, float))
+		return float(total)
 
-	buggy_totals = [provision_total(BUGGY_SNAPSHOT, index) for index in range(3)]
-	repaired_totals = [provision_total(REPAIRED_SNAPSHOT, index) for index in range(3)]
+	totals = [provision_total(option["key"]) for option in options]
 
-	assert buggy_totals[0] == buggy_totals[1] == buggy_totals[2]
-	assert len(set(repaired_totals)) == 3
-	assert repaired_totals[0] < repaired_totals[1] < repaired_totals[2]
+	assert len(set(totals)) == 3
+	assert totals[0] < totals[1] < totals[2]
+	assert totals == [float(option["addition_value"]) for option in options]
 
 
 # ── option identity rules ────────────────────────────────────────────────────
 
 
 def test_a_valid_candidate_passes_every_check() -> None:
-	_draft(_minimal_content())
-	_publish(_minimal_content())
+	_draft(builders.minimal_content())
+	_publish(builders.minimal_content())
 
 
 @pytest.mark.parametrize(
@@ -271,14 +175,14 @@ def test_a_valid_candidate_passes_every_check() -> None:
 	],
 )
 def test_unusable_option_keys_are_rejected_on_every_save(bad_key: str, expected: str) -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	_scaled_options(content)[2]["key"] = bad_key
 	with pytest.raises(InstrumentValidationError, match=expected):
 		_draft(content)
 
 
 def test_a_key_of_exactly_the_column_length_is_accepted() -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	_scaled_options(content)[2]["key"] = "a" * MAX_OPTION_KEY_LENGTH
 	_draft(content)
 
@@ -286,8 +190,10 @@ def test_a_key_of_exactly_the_column_length_is_accepted() -> None:
 def test_existing_punctuation_and_non_ascii_keys_are_not_normalized() -> None:
 	# A published checklist key is `tools (hammers_and_nails,_saws,_brushes)`;
 	# authoring must keep accepting what is already stored.
-	content = _minimal_content()
-	_question(content, "q_1_2")["options"][1]["key"] = "tools (hammers_and_nails,_saws,_brushes)"
+	content = builders.minimal_content()
+	builders.question(content, builders.CHECKLIST_QUESTION_KEY)["options"][1]["key"] = (
+		"tools (hammers_and_nails,_saws,_brushes)"
+	)
 	_scaled_options(content)[2]["key"] = "grünfläche"
 	parsed = _draft(content)
 	keys = [option.key for option in parsed["en"].sections[0].questions[1].options]
@@ -295,7 +201,7 @@ def test_existing_punctuation_and_non_ascii_keys_are_not_normalized() -> None:
 
 
 def test_two_answers_in_one_list_cannot_share_a_key() -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	_scaled_options(content)[2]["key"] = "some"
 	with pytest.raises(InstrumentValidationError, match="repeats the key 'some'"):
 		_draft(content)
@@ -303,27 +209,27 @@ def test_two_answers_in_one_list_cannot_share_a_key() -> None:
 
 def test_the_same_key_may_be_reused_by_different_owners() -> None:
 	# `no` on the provision scale and `no` on the checklist are different answers.
-	content = _minimal_content()
+	content = builders.minimal_content()
 	assert _scaled_options(content)[0]["key"] == "no"
-	assert _question(content, "q_1_2")["options"][0]["key"] == "no"
+	assert builders.question(content, builders.CHECKLIST_QUESTION_KEY)["options"][0]["key"] == "no"
 	_draft(content)
 
 
 def test_ingest_aliases_are_reserved_for_scales_only() -> None:
 	# Arriving audits rewrite `no_diversity` on a scale answer; a checklist answer
 	# is read straight through, so the same string is not reserved there.
-	content = _minimal_content()
-	_question(content, "q_1_2")["options"][1]["key"] = "no_diversity"
+	content = builders.minimal_content()
+	builders.question(content, builders.CHECKLIST_QUESTION_KEY)["options"][1]["key"] = "no_diversity"
 	_draft(content)
 
 
 def test_pre_audit_and_guidance_option_lists_are_checked_too() -> None:
-	content = _minimal_content()
-	content["en"]["scale_guidance"][0]["options"][1]["key"] = "no"
+	content = builders.minimal_content()
+	builders.guidance(content, "provision")["options"][1]["key"] = "no"
 	with pytest.raises(InstrumentValidationError, match="scale guidance 'provision'"):
 		_draft(content)
 
-	content = _minimal_content()
+	content = builders.minimal_content()
 	content["en"]["pre_audit_questions"] = [
 		{
 			"key": "weather_conditions",
@@ -350,28 +256,28 @@ def test_pre_audit_and_guidance_option_lists_are_checked_too() -> None:
 def test_owners_are_checked_before_their_option_lists() -> None:
 	# With two questions sharing a key, an option error below them cannot be
 	# reported against one question, so the owner failure must come first.
-	content = _minimal_content()
-	_question(content, "q_1_2")["question_key"] = "q_1_1"
+	content = builders.minimal_content()
+	builders.question(content, builders.CHECKLIST_QUESTION_KEY)["question_key"] = builders.SCALED_QUESTION_KEY
 	_scaled_options(content)[2]["key"] = "some"
-	with pytest.raises(InstrumentValidationError, match="Question 2 repeats the key 'q_1_1'"):
+	with pytest.raises(InstrumentValidationError, match=f"Question 2 repeats the key '{builders.SCALED_QUESTION_KEY}'"):
 		_draft(content)
 
 
 def test_duplicate_sections_and_repeated_scales_are_rejected() -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	content["en"]["sections"].append(deepcopy(content["en"]["sections"][0]))
 	with pytest.raises(InstrumentValidationError, match="Section 2 repeats the key"):
 		_draft(content)
 
-	content = _minimal_content()
-	question = _question(content, "q_1_1")
+	content = builders.minimal_content()
+	question = builders.question(content, builders.SCALED_QUESTION_KEY)
 	question["scales"].append(deepcopy(question["scales"][0]))
 	with pytest.raises(InstrumentValidationError, match="Scale 2 repeats the key 'provision'"):
 		_draft(content)
 
 
 def test_a_blank_section_key_is_rejected() -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	content["en"]["sections"][0]["section_key"] = " "
 	with pytest.raises(InstrumentValidationError, match="Section 1 needs a key"):
 		_draft(content)
@@ -381,20 +287,24 @@ def test_a_blank_section_key_is_rejected() -> None:
 
 
 def _with_condition(content: dict[str, Any], **overrides: Any) -> dict[str, Any]:
-	condition = {"question_key": "q_1_1", "response_key": "provision", "any_of_option_keys": ["some"]}
+	condition = {
+		"question_key": builders.SCALED_QUESTION_KEY,
+		"response_key": "provision",
+		"any_of_option_keys": ["some"],
+	}
 	condition.update(overrides)
-	_question(content, "q_1_2")["display_if"] = condition
+	builders.question(content, builders.CHECKLIST_QUESTION_KEY)["display_if"] = condition
 	return content
 
 
 def test_a_resolvable_follow_up_question_publishes() -> None:
-	_publish(_with_condition(_minimal_content()))
+	_publish(_with_condition(builders.minimal_content()))
 
 
 @pytest.mark.parametrize(
 	("overrides", "expected"),
 	[
-		({"question_key": "q_1_2"}, "cannot depend on the same question"),
+		({"question_key": builders.CHECKLIST_QUESTION_KEY}, "cannot depend on the same question"),
 		({"question_key": "q_9_9"}, "not in this section"),
 		({"question_key": ""}, "must name the question"),
 		({"response_key": "variety"}, "no such scale"),
@@ -403,29 +313,29 @@ def test_a_resolvable_follow_up_question_publishes() -> None:
 	],
 )
 def test_unresolvable_follow_up_questions_block_publication(overrides: dict[str, Any], expected: str) -> None:
-	content = _with_condition(_minimal_content(), **overrides)
+	content = _with_condition(builders.minimal_content(), **overrides)
 	with pytest.raises(InstrumentValidationError, match=expected):
 		_publish(content)
 
 
 def test_a_draft_may_still_be_working_on_its_follow_up_questions() -> None:
 	# Identities are already sound; only publication waits for the condition.
-	_draft(_with_condition(_minimal_content(), any_of_option_keys=["plenty"]))
+	_draft(_with_condition(builders.minimal_content(), any_of_option_keys=["plenty"]))
 
 
 def test_a_checklist_parent_must_be_read_through_its_own_answer_field() -> None:
-	content = _minimal_content()
-	_question(content, "q_1_1")["display_if"] = {
-		"question_key": "q_1_2",
+	content = builders.minimal_content()
+	builders.question(content, builders.SCALED_QUESTION_KEY)["display_if"] = {
+		"question_key": builders.CHECKLIST_QUESTION_KEY,
 		"response_key": "provision",
 		"any_of_option_keys": ["bench"],
 	}
 	with pytest.raises(InstrumentValidationError, match="answers under 'selected_option_keys'"):
 		_publish(content)
 
-	content = _minimal_content()
-	_question(content, "q_1_1")["display_if"] = {
-		"question_key": "q_1_2",
+	content = builders.minimal_content()
+	builders.question(content, builders.SCALED_QUESTION_KEY)["display_if"] = {
+		"question_key": builders.CHECKLIST_QUESTION_KEY,
 		"response_key": "selected_option_keys",
 		"any_of_option_keys": ["bench"],
 	}
@@ -433,20 +343,20 @@ def test_a_checklist_parent_must_be_read_through_its_own_answer_field() -> None:
 
 
 def test_a_follow_up_cannot_outlive_the_question_it_depends_on() -> None:
-	content = _with_condition(_minimal_content())
-	_question(content, "q_1_1")["mode"] = "audit"
-	_question(content, "q_1_2")["mode"] = "both"
+	content = _with_condition(builders.minimal_content())
+	builders.question(content, builders.SCALED_QUESTION_KEY)["mode"] = "audit"
+	builders.question(content, builders.CHECKLIST_QUESTION_KEY)["mode"] = "both"
 	with pytest.raises(InstrumentValidationError, match="not shown in every workflow"):
 		_publish(content)
 
-	_question(content, "q_1_2")["mode"] = "audit"
+	builders.question(content, builders.CHECKLIST_QUESTION_KEY)["mode"] = "audit"
 	_publish(content)
 
 
 def test_questions_that_reveal_each_other_in_a_loop_block_publication() -> None:
-	content = _with_condition(_minimal_content())
-	_question(content, "q_1_1")["display_if"] = {
-		"question_key": "q_1_2",
+	content = _with_condition(builders.minimal_content())
+	builders.question(content, builders.SCALED_QUESTION_KEY)["display_if"] = {
+		"question_key": builders.CHECKLIST_QUESTION_KEY,
 		"response_key": "selected_option_keys",
 		"any_of_option_keys": ["bench"],
 	}
@@ -455,7 +365,7 @@ def test_questions_that_reveal_each_other_in_a_loop_block_publication() -> None:
 
 
 def test_an_answer_without_a_label_can_be_drafted_but_not_published() -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	_scaled_options(content)[2]["label"] = "  "
 	_draft(content)
 	with pytest.raises(InstrumentValidationError, match="needs a label"):
@@ -463,7 +373,7 @@ def test_an_answer_without_a_label_can_be_drafted_but_not_published() -> None:
 
 
 def test_a_translation_must_answer_with_the_same_keys_in_the_same_order() -> None:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	content["en"]["pre_audit_questions"] = [
 		{
 			"key": "season",
@@ -523,7 +433,7 @@ def _as_async_session(session: _RecordingSession) -> AsyncSession:
 
 
 def _colliding_content() -> dict[str, Any]:
-	content = _minimal_content()
+	content = builders.minimal_content()
 	_scaled_options(content)[2]["key"] = "new_option"
 	return content
 
@@ -531,7 +441,7 @@ def _colliding_content() -> dict[str, Any]:
 def test_saving_a_draft_with_colliding_keys_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
 	session = _RecordingSession()
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="9.0",
 		content=_colliding_content(),
 	)
@@ -551,7 +461,7 @@ def test_saving_a_draft_with_colliding_keys_writes_nothing(monkeypatch: pytest.M
 def test_publishing_content_with_colliding_keys_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
 	session = _RecordingSession()
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="9.0",
 		content=_colliding_content(),
 	)
@@ -574,7 +484,7 @@ def test_activating_a_stored_row_with_colliding_keys_changes_nothing(monkeypatch
 	parent_id = uuid.uuid4()
 	row = Instrument(
 		id=instrument_id,
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="9.0.1",
 		parent_instrument_id=parent_id,
 		is_active=False,
@@ -608,9 +518,9 @@ def test_activating_a_stored_row_with_colliding_keys_changes_nothing(monkeypatch
 def test_a_sound_draft_still_saves(monkeypatch: pytest.MonkeyPatch) -> None:
 	session = _RecordingSession()
 	request = InstrumentCreateRequest(
-		instrument_key="pvua_v5_2",
+		instrument_key=builders.INSTRUMENT_KEY,
 		instrument_version="9.0",
-		content=_minimal_content(),
+		content=builders.minimal_content(),
 	)
 
 	async def fake_list_instrument_versions(_session: object, _key: str) -> list[Instrument]:

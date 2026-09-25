@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -53,6 +51,7 @@ from app.products.playspace.services.audit import PlayspaceAuditService
 import app.products.playspace.services.audit_sessions as audit_sessions_module
 from app.products.playspace.services.audit_sessions import PlayspaceAuditSessionsMixin
 from app.products.playspace.services.instrument import build_instrument_response_from_row
+from tests.products.playspace import _instrument_builders as builders
 
 
 def _build_audit() -> PlayspaceSubmission:
@@ -1236,18 +1235,9 @@ def test_patch_audit_draft_rejects_scalar_multiple_scale_with_typed_422(
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 	audit = _build_service_audit(execution_mode=ExecutionMode.BOTH, revision=2)
-	audit.instrument_version = "5.32"
 	service = _DummyAuditService(audit=audit)
 	actor = _build_actor(audit.auditor_profile)
-	instrument_path = (
-		Path(__file__).parents[3]
-		/ "app"
-		/ "products"
-		/ "playspace"
-		/ "instruments"
-		/ "pvua_v5_2__v5.32.instrument.json"
-	)
-	instrument = PlayspaceInstrumentResponse.model_validate(json.loads(instrument_path.read_text())["en"])
+	instrument = builders.parse(builders.minimal_content(sociability="multiple"))
 
 	async def fake_resolve_instrument(*, audit: PlayspaceSubmission) -> PlayspaceInstrumentResponse:
 		return instrument
@@ -1261,8 +1251,8 @@ def test_patch_audit_draft_rejects_scalar_multiple_scale_with_typed_422(
 				payload=AuditDraftPatchRequest(
 					expected_revision=2,
 					sections={
-						"section_22_playspace_suitability_for_diverse_users": SectionDraftPatchRequest(
-							responses={"q_22_1": {"sociability": "small_group"}}
+						builders.SECTION_KEY: SectionDraftPatchRequest(
+							responses={builders.SCALED_QUESTION_KEY: {"sociability": "small_group"}}
 						)
 					},
 				),

@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import copy
+from typing import Any
+
+import pytest
+
 from app.products.playspace.schemas.instrument import ExecutionMode, InstrumentScaleOptionResponse
 from app.products.playspace.scoring import build_audit_progress, score_audit
 from app.products.playspace.scoring_metadata import (
@@ -12,6 +17,7 @@ from app.products.playspace.scoring_metadata import (
 	ScoringScaleOption,
 	ScoringSection,
 )
+from tests.products.playspace import _instrument_builders as builders
 
 
 def _build_custom_section() -> ScoringSection:
@@ -795,3 +801,139 @@ def test_instrument_scale_option_defaults_unsure_flag_for_legacy_json() -> None:
 
 	assert option.is_not_applicable is False
 	assert option.is_unsure is False
+
+
+def _variety_scale() -> dict[str, Any]:
+	"""A three-answer Variety scale whose boost multiplies the construct score."""
+
+	return {
+		"key": "variety",
+		"title": "Variety",
+		"prompt": "How much variety?",
+		"selection_mode": "single",
+		"options": [
+			builders.scale_option("no_variety", "No variety", 0, 1),
+			builders.scale_option("some_variety", "Some variety", 1, 2),
+			builders.scale_option("a_lot_of_variety", "A lot of variety", 2, 3),
+		],
+	}
+
+
+def _score_builder_answer(
+	content: dict[str, Any],
+	*,
+	execution_mode: ExecutionMode,
+	answers: dict[str, object],
+) -> dict[str, Any]:
+	"""Score one answer to the builder's first scaled question and return the overall bucket."""
+
+	scores = score_audit(
+		responses_json={
+			"meta": {"execution_mode": execution_mode.value},
+			"sections": {builders.SECTION_KEY: {"responses": {builders.SCALED_QUESTION_KEY: answers}}},
+		},
+		include_maximums=True,
+		instrument=builders.parse(content),
+	)
+	overall = scores.get("overall")
+	assert isinstance(overall, dict)
+	return overall
+
+
+@pytest.mark.parametrize(
+	("construct", "other_construct"),
+	[("usability", "play_value"), ("play_value", "usability")],
+)
+def test_score_audit_counts_single_construct_question_only_toward_that_construct(
+	construct: str,
+	other_construct: str,
+) -> None:
+	"""A question with one construct feeds that construct's total and maximum and leaves the other at zero."""
+
+	content = builders.minimal_content()
+	builders.question(content, builders.SCALED_QUESTION_KEY)["constructs"] = [construct]
+
+	overall = _score_builder_answer(content, execution_mode=ExecutionMode.AUDIT, answers={"provision": "a_lot"})
+
+	assert overall[f"{construct}_total"] == 2.0
+	assert overall[f"{construct}_total_max"] == 2.0
+	assert overall[f"{other_construct}_total"] == 0.0
+	assert overall[f"{other_construct}_total_max"] == 0.0
+
+
+def test_score_audit_excludes_question_when_instrument_marks_provision_answer_not_applicable() -> None:
+	"""A Provision answer the instrument flags as not applicable removes the question from every maximum."""
+
+	content = builders.minimal_content()
+	builders.question(content, builders.SCALED_QUESTION_KEY)["constructs"] = ["play_value", "usability"]
+	builders.scale(content, builders.SCALED_QUESTION_KEY, "provision")["options"].append(
+		builders.scale_option("not_applicable", "Not applicable", 0, 1, is_not_applicable=True)
+	)
+
+	overall = _score_builder_answer(
+		content,
+		execution_mode=ExecutionMode.AUDIT,
+		answers={"provision": "not_applicable"},
+	)
+
+	assert overall["provision_total_max"] == 0.0
+	assert overall["play_value_total_max"] == 0.0
+	assert overall["usability_total_max"] == 0.0
+
+
+def test_score_audit_multiplies_provision_by_variety_boost_without_absent_scale_maxima() -> None:
+	"""Variety's boost multiplies Provision; scales the question lacks add nothing to their maxima."""
+
+	content = builders.minimal_content()
+	builders.question(content, builders.SCALED_QUESTION_KEY)["scales"].append(_variety_scale())
+
+	overall = _score_builder_answer(
+		content,
+		execution_mode=ExecutionMode.AUDIT,
+		answers={"provision": "a_lot", "variety": "a_lot_of_variety"},
+	)
+
+	# A lot (2) x the A lot of variety boost (3).
+	assert overall["play_value_total"] == 6.0
+	assert overall["play_value_total_max"] == 6.0
+	assert overall["challenge_total_max"] == 0.0
+	assert overall["sociability_total_max"] == 0.0
+
+
+def test_score_audit_scores_provision_answer_without_follow_ups_at_its_addition_value() -> None:
+	"""A Provision answer that unlocks no follow-ups scores its addition value; its own boost multiplies nothing."""
+
+	content = builders.minimal_content()
+	builders.question(content, builders.SCALED_QUESTION_KEY)["mode"] = ExecutionMode.SURVEY.value
+	builders.scale(content, builders.SCALED_QUESTION_KEY, "provision")["options"] = [
+		builders.scale_option("never", "Never", 0, 1),
+		builders.scale_option("sometimes", "Sometimes", 1, 2),
+		builders.scale_option("always", "Always", 2, 3),
+	]
+
+	overall = _score_builder_answer(content, execution_mode=ExecutionMode.SURVEY, answers={"provision": "always"})
+
+	# Always adds 2; its boost of 3 has no follow-up scale to multiply.
+	assert overall["play_value_total"] == 2.0
+	assert overall["play_value_total_max"] == 2.0
+
+
+def test_build_audit_progress_lists_sections_in_instrument_order() -> None:
+	"""Progress reports sections in the order the instrument defines them."""
+
+	content = builders.minimal_content()
+	# The appended section's key sorts before the first one, so key order and
+	# instrument order disagree.
+	second_section = copy.deepcopy(content["en"]["sections"][0])
+	second_section["section_key"] = "section_0_test"
+	for current in second_section["questions"]:
+		current["section_key"] = "section_0_test"
+		current["question_key"] = current["question_key"].replace("q_1_", "q_0_")
+	content["en"]["sections"].append(second_section)
+
+	progress = build_audit_progress(
+		responses_json={"meta": {"execution_mode": ExecutionMode.AUDIT.value}, "sections": {}},
+		instrument=builders.parse(content),
+	)
+
+	assert [section.section_key for section in progress.sections] == [builders.SECTION_KEY, "section_0_test"]

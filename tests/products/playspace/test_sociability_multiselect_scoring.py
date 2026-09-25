@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
-from app.products.playspace.schemas.instrument import ExecutionMode, PlayspaceInstrumentResponse
+from app.products.playspace.schemas.instrument import ExecutionMode
 from app.products.playspace.scoring import _is_question_complete, score_audit
 from app.products.playspace.scoring_metadata import (
 	ScoringQuestion,
 	ScoringScale,
 	ScoringScaleOption,
 	ScoringSection,
-	build_scoring_sections_from_instrument,
 )
-
-INSTRUMENT_DIRECTORY = Path(__file__).parents[3] / "app" / "products" / "playspace" / "instruments"
+from tests.products.playspace import _instrument_builders as builders
 
 
 def _provision_scale() -> ScoringScale:
@@ -131,63 +127,53 @@ def _score(
 	)
 
 
+def _score_instrument_answer(
+	content: dict[str, Any],
+	*,
+	execution_mode: str,
+	answers: dict[str, object],
+) -> dict[str, Any]:
+	"""Score one answer to the builder's first scaled question through the instrument scoring path."""
+
+	return cast(
+		dict[str, Any],
+		score_audit(
+			responses_json={
+				"meta": {"execution_mode": execution_mode},
+				"sections": {builders.SECTION_KEY: {"responses": {builders.SCALED_QUESTION_KEY: answers}}},
+			},
+			include_maximums=True,
+			instrument=builders.parse(content),
+		),
+	)
+
+
 @pytest.mark.parametrize(
 	("answer_key", "expected_total"),
 	[("no", 0.0), ("yes_a_pair", 0.0), ("yes_more_than_two_children", 1.0)],
 )
-def test_real_v531_sociability_keeps_runtime_zero_zero_one(
+def test_single_select_sociability_scores_authored_zero_one_two_as_zero_zero_one(
 	answer_key: str,
 	expected_total: float,
 ) -> None:
-	payload = json.loads((INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.31.instrument.json").read_text())["en"]
-	instrument = PlayspaceInstrumentResponse.model_validate(payload)
-	sections = build_scoring_sections_from_instrument(instrument)
-
-	scores = cast(
-		dict[str, Any],
-		score_audit(
-			responses_json={
-				"meta": {"execution_mode": "audit"},
-				"sections": {
-					"section_8_pathways": {
-						"responses": {
-							"q_8_1": {
-								"provision": "a_lot",
-								"sociability": answer_key,
-							}
-						}
-					}
-				},
-			},
-			include_maximums=True,
-			instrument=instrument,
-		),
+	content = builders.minimal_content(sociability="single")
+	scores = _score_instrument_answer(
+		content,
+		execution_mode="audit",
+		answers={"provision": "a_lot", "sociability": answer_key},
 	)
 
-	assert sections[7].questions[0].question_key == "q_8_1"
 	assert scores["overall"]["sociability_total"] == expected_total
 	assert scores["overall"]["sociability_total_max"] == 1.0
 	assert scores["overall"]["sociability_breakdown"] is None
 
 
-def test_candidate_unsure_provision_variants_preserve_multiselect_maximum() -> None:
-	payload = json.loads((INSTRUMENT_DIRECTORY / "pvua_v5_2__v5.32.instrument.json").read_text())["en"]
-	instrument = PlayspaceInstrumentResponse.model_validate(payload)
-	scores = cast(
-		dict[str, Any],
-		score_audit(
-			responses_json={
-				"meta": {"execution_mode": "both"},
-				"sections": {
-					"section_22_playspace_suitability_for_diverse_users": {
-						"responses": {"q_22_1": {"provision": "unsure"}}
-					}
-				},
-			},
-			include_maximums=True,
-			instrument=instrument,
-		),
+def test_provision_unsure_variants_preserve_multiselect_maximum() -> None:
+	content = builders.minimal_content(sociability="multiple")
+	builders.scale(content, builders.SCALED_QUESTION_KEY, "provision")["options"].append(
+		builders.scale_option("unsure", "Unsure", 0, 1, is_unsure=True)
 	)
+	scores = _score_instrument_answer(content, execution_mode="both", answers={"provision": "unsure"})
 
 	assert scores["overall"]["sociability_total_max"] == 0.0
 	assert scores["unsure_variants"]["unsure_as_zero"]["overall"]["sociability_total"] == 0.0
